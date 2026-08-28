@@ -1,0 +1,11 @@
+# BenchUp v3 is light-mode-only, full-width (SIRIS house rule, CLAUDE.md "HTML deliverables
+# and Artifacts" section applies to this app too). Wide layout is set per-page via
+# st.set_page_config(layout="wide") (BUILD_PLAN_2A.md Stream A build step 2).
+[theme]
+base = "light"
+
+[server]
+headless = true
+
+[browser]
+gatherUsageStats = false
