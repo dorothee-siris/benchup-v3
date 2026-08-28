@@ -1,0 +1,78 @@
+BenchUp v3 — palette validation log
+Stream D0, 2026-08-29. Validator: dataviz skill scripts/validate_palette.js.
+House rule (SIRIS CLAUDE.md): --mode light ONLY, dark-mode pass skipped deliberately.
+Two runs. Run 1 is the one that SHIPS (lib/palette.py TYPE_COLORS + FOCAL).
+Run 2 documents, by design, why COMPARISON/NEUTRAL/INK are excluded from the
+categorical set (same finding class as Lorraine helpers.py hitting #333333 as
+chroma-0 text ink — see RULES.md §4 validator edit 2026-08-15).
+
+================================================================================
+RUN 1 (SHIPS) — institution-type identity set: FOCAL + the 4 non-education
+type-identity hues (education is deliberately uncoloured — see lib/palette.py
+TYPE_COLORS docstring for the one-line justification).
+
+$ node scripts/validate_palette.js "#0072B2,#D55E00,#009E73,#CC79A7,#6A3D9A" --mode light
+
+Palette (light, surface #fcfcfb, categorical): 5 slots
+  [PASS] Lightness band         all 5 inside L 0.43-0.77
+  [PASS] Chroma floor           all 5 >= 0.1
+  [WARN] CVD separation         worst adjacent #CC79A7<->#009E73 dE 7.6 (deutan) . tritan 23.5
+  [PASS] Normal-vision floor    worst adjacent #6A3D9A<->#CC79A7 dE 24.1 (normal)
+  [WARN] Contrast vs surface    below 3:1 - relief required (visible labels or table view): [["#CC79A7",2.98]]
+
+  -> ALL CHECKS PASS  (CVD in the 6-8 floor band is legal ONLY with secondary encoding: direct labels, gaps, or texture)
+  scope: categorical palettes only. For a lone status/text color check WCAG text contrast; for a sequential ramp, lightness monotonicity.
+
+Exit code: 0
+
+Disposition of the two WARN lines (both carried as BINDING rules, not dismissed):
+  - CVD separation WARN (#CC79A7<->#009E73, deutan dE 7.6, below the 8.0 comfortable
+    floor): legal only with secondary encoding. lib/badges.py (Stream F) never renders
+    a type badge as a bare colour fill — text + glyph always accompany it (DESIGN_TOKENS.md
+    badge grammar). Assignment order in TYPE_COLORS also keeps #009E73 and #CC79A7
+    non-adjacent per RULES.md §4's explicit instruction, so the two rarely sit side by
+    side in a legend or chip row in the first place.
+  - Contrast-vs-surface WARN (#CC79A7 = 2.98:1 on white, "binding relief"): #CC79A7
+    (government+funder) never ships as a bare fill/dot without its text label —
+    identical relief rule to Lorraine VIZ_SPEC.md §1.1's Social Sciences slot, same hex.
+
+================================================================================
+RUN 2 (documents an exclusion, expected FAIL) — COMPARISON grey (#8C9196),
+NEUTRAL background (#E6E8EB) and text INK (#333333), run together to confirm
+none of the three qualifies as a categorical identity colour. This is BY DESIGN:
+RULES.md §4 calls #8C9196/#E6E8EB "neutral, not an identity" and amends #333333
+as "TEXT ONLY... fails the palette validator as a series colour" — this run
+reproduces that finding for BenchUp v3's exact hexes before they are locked into
+lib/palette.py as FOCAL/COMPARISON/NEUTRAL/INK (never run through the categorical
+CVD check; COMPARISON and INK are checked for WCAG text/UI contrast only, which
+both already carry an established precedent in Lorraine's shipped app at the same
+hex values).
+
+$ node scripts/validate_palette.js "#8C9196,#E6E8EB,#333333" --mode light
+
+Palette (light, surface #fcfcfb, categorical): 3 slots
+  [FAIL] Lightness band         outside band: [["#E6E8EB",0.93],["#333333",0.321]]
+  [FAIL] Chroma floor           below floor (reads gray): [["#8C9196",0.009],["#E6E8EB",0.005],["#333333",0]]
+  [PASS] CVD separation         worst adjacent #E6E8EB<->#8C9196 dE 27.5 (protan) . tritan 27.7
+  [PASS] Normal-vision floor    worst adjacent #E6E8EB<->#8C9196 dE 27.6 (normal)
+  [WARN] Contrast vs surface    below 3:1 - relief required (visible labels or table view): [["#E6E8EB",1.2]]
+
+  -> FAILED - fix the marked checks  (CVD in the 6-8 floor band is legal ONLY with secondary encoding: direct labels, gaps, or texture)
+  scope: categorical palettes only. For a lone status/text color check WCAG text contrast; for a sequential ramp, lightness monotonicity.
+
+Exit code: 1
+
+Disposition: EXPECTED and CORRECT. #8C9196/#E6E8EB/#333333 are never assigned to
+lib/palette.py's TYPE_COLORS (the only categorical set in the app) — they are
+FOCAL's comparison grey, the page/table neutral background, and body text ink
+respectively. Their WCAG contrast is verified against their actual usage instead:
+  - INK #333333 on white background: 12.6:1 (well above the 4.5:1 body-text floor;
+    ui-ux-pro-max ux-guidelines.csv "Color Contrast" cites the identical pair as its
+    own Do-example, "#333 on white (7:1)" — BenchUp's #333333 clears it by a wider
+    margin).
+  - COMPARISON #8C9196 is never used for text, only for bars/rows/reference marks
+    already carrying a text label (RULES.md §6 "a legend names the measure... for
+    colour, show endpoints").
+  - NEUTRAL #E6E8EB is a fill only (table zebra stripe, empty-state panel, disabled
+    control), never a text colour — the 1.2:1 contrast-vs-surface WARN above is
+    irrelevant to that usage (it is not a mark that needs to stand out from #fcfcfb).
