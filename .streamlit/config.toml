@@ -3,6 +3,11 @@
 # st.set_page_config(layout="wide") (BUILD_PLAN_2A.md Stream A build step 2).
 [theme]
 base = "light"
+# primaryColor = lib/palette.py FOCAL (#0072B2). The ONLY hex outside palette.py: Streamlit paints
+# ProgressColumn bars, links and buttons with the theme primary colour, and its default is an
+# off-palette red (seen in design-system/ab/ab1_a_1280.png). tests/test_palette.py checks this
+# value equals palette.FOCAL (Stream G may extend the test; manager edit 2026-08-29).
+primaryColor = "#0072B2"
 
 [server]
 headless = true

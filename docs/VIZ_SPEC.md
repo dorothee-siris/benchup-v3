@@ -418,3 +418,47 @@ honest read of ties/undefined cells (does a blank cell in the matrix read as
 not 'not computed'").
 **Real seed to render:** University of Gdańsk (`I40413290`), the 8 default
 lenses at N=30.
+
+---
+
+## 4. A/B verdict (Stream D1, resolved on real data 2026-08-29)
+
+Full measured criteria, screenshots and the one-paragraph reasoning for each
+verdict live in `design-system/ab/AB_VERDICT.md` (the appending stream's own
+file, not duplicated here in full). Summary:
+
+**A/B #1 (score column, §3):** Winner **A -- `st.column_config.ProgressColumn`**.
+Both candidates were zero-baseline compliant and showed the same row count
+above the fold in their table portion at 1280px; the decisive difference was
+structural, not a Studio-RULES violation on either side: Candidate B (the
+Plotly ranked-dot chart) needs two widgets kept in lockstep (a `st.dataframe`
+and a `plotly_chart`) that do not share one scroll region, so past row 10 the
+table and the chart drift out of visual sync (the chart, rendered at a fixed
+height to show all 30 points, exposes rows the table's own internal scroll
+has not reached yet). Candidate A keeps rank, identity and score strength in
+one coherent, single-scroll widget, with the percent value printed on the bar
+itself. No tied competition rank exists in the L1 top-50 of any of the 19
+D19 seeds (checked programmatically), so the honest-tie-rendering criterion
+could not be exercised on real data and is scored a tie between candidates.
+**Per §2.5, this verdict does not extend to the Aspirational tab**, which
+keeps its own interval-mark form regardless (a bare progress bar cannot
+render a confidence interval).
+
+**A/B #2 (concordance overview, §3):** Winner **A -- k-count table with
+hit-lens chips**. At 1280px both forms fit full width and are equally legible;
+the decisive evidence is the 390px render, where Candidate A needs only one
+internal horizontal table-scroll to reveal `k of n` and the hit-lens list
+(the columns that answer this view's own decision sentence), while Candidate
+B's full rank matrix shows only one of its 8 lens columns before its own
+scroll is needed, burying the concordance signal behind several swipes.
+Both forms keep the page body itself free of horizontal scroll (the house
+rule); Candidate B's genuine strength -- column-wise "which candidates does
+L6 find" scanning -- answers a different question than the overview's own,
+and that question is already answered by each lens's own `tbl-lens-ranked`
+tab (§2.4).
+
+**Consequence for `lib/ranked.py` (Stream D1's shared component):**
+`render_ranked_table`'s score column is always the winning A/B #1 form; every
+ordinary lens tab in §2.4 uses it. `render_concordance_table` is always the
+winning A/B #2 form for the view in §2.3. Neither verdict changes any other
+row in §2 of this document.
