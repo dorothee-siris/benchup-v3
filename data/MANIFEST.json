@@ -1,0 +1,62 @@
+{
+  "deployed_at": "2026-08-28T23:26:07.895219+00:00",
+  "snapshot": "august_2026",
+  "source_manifest_generated_at": "2026-08-27T13:41:28.350794+00:00",
+  "contract_version": "1.0",
+  "files": {
+    "index.parquet": {
+      "sha256": "7a2fb068e392ec1a397d3245ec75199f909b6b873f7a7e23762a2f175c3bf356",
+      "n_rows": 7557,
+      "size_bytes": 6282947
+    },
+    "fields.parquet": {
+      "sha256": "6a2c0d8487d9159f0a6ef1d9554213c263908dce138c8b420be8dea06d8d6b23",
+      "n_rows": 150174,
+      "size_bytes": 3187823
+    },
+    "subfields.parquet": {
+      "sha256": "a1b21db4f22f4b548dfe6fcbba51b92b58f907e569ec5281438de8b955150929",
+      "n_rows": 770871,
+      "size_bytes": 9477375
+    },
+    "topics_all.parquet": {
+      "sha256": "257d53e443db641effc6a50dc12ac67625ebe29af61264771837ae6dad49b68a",
+      "n_rows": 3359330,
+      "size_bytes": 54908674
+    },
+    "topics_dim.parquet": {
+      "sha256": "cb49352f6e2176d6a9ee7f992ef33c78653bfda8e9bf38af31aa6969525ebba7",
+      "n_rows": 4516,
+      "size_bytes": 1221803
+    },
+    "erc.parquet": {
+      "sha256": "bd4d246c0842e8b2fb761ec407c5d070ff1fedc85c9cb5d085274726970d6ded",
+      "n_rows": 211596,
+      "size_bytes": 3128608
+    },
+    "sdg.parquet": {
+      "sha256": "09c13fea61ba0ae332f35f2ef89792c8ae684ab315041b4604375c9f66bb9c23",
+      "n_rows": 120912,
+      "size_bytes": 1797232
+    },
+    "impact_cells.parquet": {
+      "sha256": "f415713e134efd6e9f16a0488649ff0dabda1f4bac9de0a0063059831042edbd",
+      "n_rows": 328978,
+      "size_bytes": 6348905
+    },
+    "overrides/type_overrides.csv": {
+      "sha256": "2264cc95f5ed8d4d2a327776e4c1e2e64bab782799ebdf63f508cbd4704d812f",
+      "n_rows": 16,
+      "size_bytes": 5964
+    },
+    "overrides/umbrella_supplement.csv": {
+      "sha256": "6f6b82ab3d6b85c2860d849e644f80f2f2ce07ae3f15c25c159b83e92008c21d",
+      "n_rows": 24,
+      "size_bytes": 2057
+    }
+  },
+  "type_overrides": {
+    "sha256": "2264cc95f5ed8d4d2a327776e4c1e2e64bab782799ebdf63f508cbd4704d812f",
+    "n_rows": 16
+  }
+}
