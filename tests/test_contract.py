@@ -176,3 +176,26 @@ def test_doctype_by_year_sum_matches_index_by_year() -> None:
     print(f"doctype_by_year vs index by-year: {checked} (institution, year) cells matched exactly, "
           f"{len(sample_ids)} institutions")
     assert checked > 0
+
+
+# ---------------------------------------------------------------------------
+# Manager addition, Refinement R1 (2026-08-29) -- after the "ERC-classified share
+# 109 %" defect (BUILD_PLAN_2A.md S9.7): every coverage ratio the profile shows is
+# a ratio of two INDEX columns, so its 0..1 bound is a Class-1 invariant here,
+# not a UI courtesy. A share above 1 is a defect (mixed time windows or
+# populations), never a caveat.
+# ---------------------------------------------------------------------------
+
+def test_index_coverage_ratios_are_bounded():
+    idx = pd.read_parquet(Path(__file__).resolve().parents[1] / "data" / "index.parquet")
+    tol = 1e-6
+    erc_over_total = idx["erc_classified_mass_frac"] / idx["total_frac"]
+    assert erc_over_total.notna().all()
+    assert (erc_over_total <= 1 + tol).all(), f"ERC-classified / total_frac max {erc_over_total.max()}"
+    assert (idx["erc_classified_mass_frac"] <= idx["erc_eligible_mass_frac"] * (1 + tol)).all()
+    assert (idx["total_frac_2020_2024"] <= idx["total_frac"] * (1 + tol)).all(), \
+        "the analytical-window total must never exceed the whole-run total"
+    for col in ("sdg_tagged_share", "frontier_top25_share", "frontier_excluded_share",
+                "frontier_unscored_share", "pp_top10_frac", "pp_ci_low", "pp_ci_high"):
+        s = idx[col].dropna()
+        assert ((s >= -tol) & (s <= 1 + tol)).all(), f"{col} outside [0, 1]: min {s.min()} max {s.max()}"
