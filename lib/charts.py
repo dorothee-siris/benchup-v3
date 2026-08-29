@@ -31,7 +31,9 @@ make them true rather than aspirational:
         with a `{placeholder}`.
     Anything parametric (counts, thresholds, the year window) is a caller-filled
     `{placeholder}` in a title/caption string the caller owns -- this module
-    only accepts already-composed text.
+    only accepts already-composed text. `wrap_label`'s `width` is an INT
+    constant (`WRAP_WIDTH`), never a string -- the digit-ban only reaches into
+    string literals, and an int default argument is not one.
 
 Grammar decided by the R1 A/Bs on real data (`design-system/ab/AB_VERDICT.md`):
   * A/B #3 -> the share + SI pair is TWO ALIGNED PANELS of one figure sharing a
@@ -46,6 +48,28 @@ Grammar decided by the R1 A/Bs on real data (`design-system/ab/AB_VERDICT.md`):
   * Both from Lorraine Phase 2 / BenchUp V1+V2 lineage; the grouped-bar
     geometry below is Lorraine's `_series_offset_width` verbatim, because
     `offsetgroup` is BROKEN on the pinned plotly 5.24.1.
+
+Refinement R2 (BUILD_PLAN_2A.md L34, L35, user ruling items 9/10 at gate 2A)
+changed two things about the paired share + SI form above, both still inside
+the A/B #3/#4 winning geometry -- neither reopens either A/B:
+  * L35 -- **full names, never an ellipsis.** A category label longer than
+    `WRAP_WIDTH` now WRAPS onto at most two lines at a word boundary
+    (`wrap_label`) instead of being cut short from the right. The row's own
+    height grows to fit a two-line label (`row_height`'s `n_wrapped` term).
+    This REVERSES the R1 fix-X3 truncation rule below what used to be
+    `MAX_LABEL_CHARS`/`_truncate_label`/`ELLIPSIS` -- all three are retired,
+    not kept as dead code, since a user ruling that overturns a fix is a
+    change the next reader must not think was missed.
+  * L34 -- **`si_status` (solid / thin / none) drives the SI mark**, when the
+    caller's frame carries that column: a `solid` row keeps the FILLED dot
+    this section already used; a `thin` row draws a HOLLOW dot (white fill,
+    coloured outline) instead of no mark at all, so a below-the-old-floor cell
+    is disclosed rather than erased; a `none` row gets no mark and no stem,
+    same as the pre-existing NaN rule. **A zero-volume row never gets a mark,
+    whatever `si_status` says** -- the fix for the ERC display bug the user
+    saw (a specialisation dot floating at a fabricated value for a panel with
+    no publications at all). When the column is absent, the pre-R2 rule
+    applies unchanged: a defined `si` gets a filled dot, a NaN `si` gets none.
 """
 from __future__ import annotations
 
@@ -92,17 +116,25 @@ BAR_GAP = 0.3
 # instead. So automargin alone cannot be the fix; it stays on as a backstop
 # for a container narrower than our own estimate, below.
 #
-# The fix: fold the volume INTO the y tick text as one right-anchored string
-# (`_tick_display`) -- there is then only ONE text element per row, so there
-# is nothing left for it to collide with -- truncate any label beyond
-# `MAX_LABEL_CHARS` from the RIGHT only, never the left (`_truncate_label`,
-# full label always kept in hover/customdata), and reserve the left margin
-# ourselves from the longest resulting string (`_gutter_margin_px`) rather
-# than assume automargin will do it.
-MAX_LABEL_CHARS = 36        # a y tick label longer than this is ellipsised;
-                            # chosen to keep even the paired share+SI panel
-                            # readable at the narrowest shipped breakpoint
-TICK_LABEL_GAP = "  "       # between the (possibly truncated) label and its
+# The fix (STILL the mechanism -- only the treatment of an over-length label
+# changed, see the R2 note below): fold the volume INTO the y tick text as one
+# right-anchored string (`_tick_display`) -- there is then only ONE text
+# element per row, so there is nothing left for it to collide with -- and
+# reserve the left margin ourselves from the longest resulting LINE
+# (`_gutter_margin_px`) rather than assume automargin will do it.
+#
+# --- R2 (BUILD_PLAN_2A.md L35, user ruling item 10) -------------------------
+# X3 originally ellipsised a label past `MAX_LABEL_CHARS` from the right
+# (`_truncate_label`). The user reversed that at gate 2A: no chart may ever
+# shorten a name, so `MAX_LABEL_CHARS`/`_truncate_label`/`ELLIPSIS` are GONE
+# (not left as dead code -- a reversed ruling is worth being explicit about).
+# `wrap_label` replaces truncation: a label over `WRAP_WIDTH` chars wraps onto
+# at most two lines at a word boundary instead of losing any text, and the row
+# grows taller to fit (`row_height`'s `n_wrapped` term, `WRAP_ROW_FACTOR`).
+# `_gutter_margin_px` now measures the longest LINE of a (possibly two-line)
+# tick string, not the longest whole string, since a wrapped label's second
+# line usually holds the trailing words plus the folded-in volume.
+TICK_LABEL_GAP = "  "       # between the (possibly wrapped) label and its
                             # volume inside one right-anchored tick string
 CHAR_WIDTH_EM = 0.6         # empirical average glyph width, as a fraction of
                             # font size, for the shipped sans stack -- used
@@ -113,7 +145,12 @@ CHAR_WIDTH_EM = 0.6         # empirical average glyph width, as a fraction of
 GUTTER_MARGIN_PAD_PX = 12   # extra breathing room beyond the estimated width
 GUTTER_MARGIN_MIN_PX = 8    # the old fixed margin, kept as the floor when
                             # there is nothing long enough to reserve room for
-ELLIPSIS = "\N{HORIZONTAL ELLIPSIS}"
+WRAP_WIDTH = 40             # `wrap_label` default -- a label longer than this
+                            # many characters wraps at the last word boundary
+                            # before it, never mid-word (L35)
+WRAP_ROW_FACTOR = 1.7       # a wrapped (two-line) row needs ~1.7x a single
+                            # -line row's vertical budget (measured); folded
+                            # into `row_height` via its `n_wrapped` count
 MARKER_PX = 10
 LINE_PX = 2
 HAIRLINE_PX = 1
@@ -165,17 +202,29 @@ _SI_FMT = f".{SI_DECIMALS}f"
 _FRONTIER_FMT = f".{FRONTIER_DECIMALS}f"
 
 # Column-name candidates, in preference order, for the frames of section 9.4.
+# `sdg_label_numbered` (L36, "SDG 1 . No poverty") is preferred over the plain
+# `sdg_label` whenever the caller's frame carries it; `fig_sdg` never picks the
+# column itself, `_first_col` does, so the preference lives in ONE place.
 _LABEL_COLS = ("topic_name", "subfield_name", "field_name", "panel_label",
-               "sdg_label", "doc_type", "label", "domain_name")
+               "sdg_label_numbered", "sdg_label", "doc_type", "label", "domain_name")
 _VOLUME_COLS = ("vol_full", "vol_frac", "mass", "total")
 
 
 # ---------------------------------------------------------------------------
 # Small pure helpers
 # ---------------------------------------------------------------------------
-def row_height(n: int, minimum: int = MIN_HEIGHT) -> int:
-    """Figure height for `n` category rows -- the shared idiom, one place."""
-    return max(minimum, ROW_PX * int(n) + BASE_PX)
+def row_height(n: int, minimum: int = MIN_HEIGHT, n_wrapped: int = 0) -> int:
+    """Figure height for `n` category rows -- the shared idiom, one place.
+
+    `n_wrapped` (R2, L35) counts rows whose label WRAPPED to two lines
+    (`wrap_label` inserted a `<br>`): each such row needs `WRAP_ROW_FACTOR`
+    normal rows' worth of vertical space instead of one, so the extra height
+    is `(WRAP_ROW_FACTOR - 1)` rows per wrapped row, not per label character --
+    wrapping is binary (one line or two, never more), so the row-height cost
+    is too. Default `0` reproduces the pre-R2 formula exactly."""
+    n_wrapped = min(max(int(n_wrapped), 0), int(n))
+    extra_rows = n_wrapped * (WRAP_ROW_FACTOR - 1)
+    return max(minimum, int(round(ROW_PX * (int(n) + extra_rows))) + BASE_PX)
 
 
 def _fmt_pct(v: float) -> str:
@@ -202,41 +251,67 @@ def _fmt_vol(v) -> str:
     return format(v, f",.{SHARE_DECIMALS}f").replace(",", THIN_SPACE)
 
 
-def _truncate_label(label, max_chars: int = MAX_LABEL_CHARS) -> str:
-    """Ellipsise a y-axis category label from the RIGHT only, never the left --
-    a reader always sees where a name STARTS. The caller keeps the full,
-    untruncated string as the row's identity (`y=`) and in its hover text;
-    only the rendered tick text is ever shortened."""
-    s = str(label)
-    if len(s) <= max_chars:
-        return s
-    return s[: max_chars - 1].rstrip() + ELLIPSIS
+def wrap_label(text, width: int = WRAP_WIDTH) -> str:
+    """Wrap a category label onto AT MOST TWO LINES at a word boundary,
+    never splitting a word, never dropping a character (L35 -- replaces the
+    R1 ellipsis rule; `tests/test_charts.py` pins that the joined-back text
+    always equals the original).
+
+    Greedy word-wrap: a word is added to the current line whenever the result
+    still fits `width`; a line already over `width` on its own (one very long
+    word) is kept whole rather than split, because "words never split" outranks
+    the width target. If greedy wrapping would need a THIRD line, every line
+    past the first is joined back into ONE second line with a single space --
+    the cap is "two lines", not "keep wrapping"; nothing is ever truncated, so
+    the full text always survives, just possibly as a longer second line."""
+    words = str(text).split()
+    if not words:
+        return str(text)
+    lines: list[str] = [words[0]]
+    for w in words[1:]:
+        candidate = f"{lines[-1]} {w}"
+        if len(candidate) <= width:
+            lines[-1] = candidate
+        else:
+            lines.append(w)
+    if len(lines) > 2:
+        lines = [lines[0], " ".join(lines[1:])]
+    return "<br>".join(lines)
 
 
-def _tick_display(short_label: str, vol_text: str | None) -> tuple[str, str]:
-    """One right-anchored tick string carrying BOTH the (already truncated)
+def _tick_display(label: str, vol_text: str | None) -> tuple[str, str]:
+    """One right-anchored tick string carrying BOTH the (possibly wrapped)
     label and its volume, so there is a single text element per row instead
-    of two independently-laid-out ones. Returns `(plain, styled)`: `plain` is
-    used only to estimate how much left margin the row needs
-    (`_gutter_margin_px`); `styled` is what plotly actually draws, with the
-    volume in the secondary ink and gutter font size via plotly's limited
-    tick pseudo-html (`<span style="...">`, verified to render as a coloured,
-    resized `<tspan>` on the pinned plotly 5.24.1 -- see `progress/R1_X3.md`)."""
+    of two independently-laid-out ones (the X3 fix, unchanged mechanism).
+    Returns `(plain, styled)`: `plain` uses a bare `\\n` line break (never
+    `<br>`) so `_gutter_margin_px` can split on it to find the longest LINE;
+    `styled` is what plotly actually draws, wrapped label lines joined by
+    `<br>` and the volume in the secondary ink and gutter font size via
+    plotly's limited tick pseudo-html (`<span style="...">`, verified to
+    render as a coloured, resized `<tspan>` on the pinned plotly 5.24.1 --
+    see `progress/R1_X3.md`)."""
+    wrapped = wrap_label(label)
+    plain = wrapped.replace("<br>", "\n")
     if vol_text is None:
-        return short_label, short_label
-    plain = f"{short_label}{TICK_LABEL_GAP}{vol_text}"
-    styled = (f"{short_label}{TICK_LABEL_GAP}"
+        return plain, wrapped
+    plain = f"{plain}{TICK_LABEL_GAP}{vol_text}"
+    styled = (f"{wrapped}{TICK_LABEL_GAP}"
               f'<span style="color:{P.INK_SECONDARY};font-size:{GUTTER_FONT_PX}px">{vol_text}</span>')
     return plain, styled
 
 
 def _gutter_margin_px(plain_texts: Sequence[str], font_px: int = FONT_PX) -> int:
-    """The left margin to RESERVE for the longest tick text actually shown,
+    """The left margin to RESERVE for the longest tick LINE actually shown,
     since automargin will not do this on its own (see the fix note above).
-    A generous per-character estimate plus padding; the real proof that this
-    is enough is `tests/ui/smoke.py`'s bounding-box check on the real app, not
-    this estimate."""
-    longest = max((len(t) for t in plain_texts), default=0)
+    `plain_texts` may hold `\\n`-separated lines (a wrapped label): the margin
+    is sized off the single longest line across every row, not off a whole
+    (possibly two-line) string's total character count, which would reserve
+    far more margin than either line alone needs. A generous per-character
+    estimate plus padding; the real proof that this is enough is
+    `tests/ui/smoke.py`'s bounding-box check on the real app, not this
+    estimate."""
+    lines = [ln for t in plain_texts for ln in str(t).split("\n")]
+    longest = max((len(ln) for ln in lines), default=0)
     return max(GUTTER_MARGIN_MIN_PX, int(round(longest * font_px * CHAR_WIDTH_EM)) + GUTTER_MARGIN_PAD_PX)
 
 
@@ -352,9 +427,18 @@ def fig_share_si(
            baseline, so every number sits in one column (A/B #4).
     RIGHT  the SI lollipop: a stem from the neutral reference to the value and
            a dot at the value, on ONE scale shared by every row, with a dashed
-           vertical reference line. A row whose `si_col` is NaN (below the G6
-           floor) gets NO MARK AT ALL -- never a dot at zero, never a dot at
-           the neutral value -- and its hover says so with `palette.NA_MARK`.
+           vertical reference line AND unit grid lines at every integer up to
+           the axis max (L34). Mark style is driven by the frame's OWN
+           `si_status` column when present -- `solid` -> a FILLED dot (this
+           panel's original mark); `thin` -> a HOLLOW dot (white fill, coloured
+           outline), disclosing a below-the-old-floor cell instead of erasing
+           it; `none` -> no mark and no stem, same treatment as a NaN `si_col`.
+           **A zero-volume row NEVER gets a mark, whatever `si_status` says**
+           (the ERC display-bug fix, L34/L9): a panel with no publications
+           cannot have a specialisation reading. When `si_status` is absent,
+           the pre-R2 rule applies unchanged -- a defined `si` gets a filled
+           dot, a NaN `si` gets none -- and its hover says so with
+           `palette.NA_MARK`.
 
     `stacked=True` puts the SI panel BELOW the share panel instead of beside it,
     same row order, for the narrow breakpoint: side by side at 390 px each panel
@@ -382,11 +466,31 @@ def fig_share_si(
     share = d[share_col].to_numpy(dtype=float)
     si = (d[si_col].to_numpy(dtype=float) if si_col in d.columns
           else np.full(n, np.nan, dtype=float))
-    has_si = bool(np.isfinite(si).any())
+    vol = d[volume_col].to_numpy() if volume_col else None
 
-    # No defined SI anywhere in the frame (every row below the G6 floor) ->
-    # ONE panel, not a two-panel figure with an empty right half. The share
-    # read is unaffected and the caller's caption says why the column is gone.
+    # A zero-volume row never gets a mark under any rule (L34/L9, the ERC
+    # display bug): NaN volume is NOT zero (it means "unknown", not "none"),
+    # only an actual zero counts.
+    if vol is not None:
+        vol_num = pd.to_numeric(pd.Series(vol), errors="coerce").to_numpy(dtype=float)
+        zero_volume = np.isclose(vol_num, 0.0)
+    else:
+        zero_volume = np.zeros(n, dtype=bool)
+
+    if "si_status" in d.columns:
+        status = d["si_status"].astype(str).to_numpy()
+        shown = np.isin(status, ["solid", "thin"])
+        hollow = status == "thin"
+    else:
+        shown = np.ones(n, dtype=bool)
+        hollow = np.zeros(n, dtype=bool)
+    ok = shown & np.isfinite(si) & ~zero_volume
+    has_si = bool(ok.any())
+
+    # No mark eligible anywhere in the frame (every row below the floor, or
+    # `si_status` says `none` throughout) -> ONE panel, not a two-panel figure
+    # with an empty right half. The share read is unaffected and the caller's
+    # caption says why the column is gone.
     if not has_si:
         fig = make_subplots(rows=1, cols=1)
         si_row, si_col = 1, 1
@@ -399,7 +503,6 @@ def fig_share_si(
                             column_widths=[0.62, 0.38], horizontal_spacing=0.03)
         si_row, si_col = 1, 2
 
-    vol = d[volume_col].to_numpy() if volume_col else None
     bar_hover = []
     for i in range(n):
         parts = [names[i], f"{HOVER_SHARE}{THIN_SPACE}{_fmt_pct(share[i])}"]
@@ -418,17 +521,16 @@ def fig_share_si(
     ), row=1, col=1)
 
     # Volume gutter (A/B #4): folded into the y tick text as ONE right-anchored
-    # string per row -- see the fix note above `MAX_LABEL_CHARS`. Truncation
-    # applies to every row's label whether or not `gutter` is on, because a
-    # long category name can overrun the plot on its own.
-    short_names = [_truncate_label(nm) for nm in names]
+    # string per row -- see the fix note above. Wrapping (L35) applies to every
+    # row's label whether or not `gutter` is on, because a long category name
+    # can overrun the plot on its own.
     if gutter and vol is not None:
-        pairs = [_tick_display(short_names[i], _fmt_vol(vol[i])) for i in range(n)]
-        plain_display = [p for p, _ in pairs]
-        styled_display = [s for _, s in pairs]
+        pairs = [_tick_display(names[i], _fmt_vol(vol[i])) for i in range(n)]
     else:
-        plain_display = list(short_names)
-        styled_display = list(short_names)
+        pairs = [_tick_display(names[i], None) for i in range(n)]
+    plain_display = [p for p, _ in pairs]
+    styled_display = [s for _, s in pairs]
+    n_wrapped = sum(1 for s in styled_display if "<br>" in s)
     fig.update_yaxes(tickmode="array", tickvals=names, ticktext=styled_display)
 
     xmax = float(np.nanmax(share)) if n and np.isfinite(share).any() else 1.0
@@ -439,7 +541,6 @@ def fig_share_si(
     fig.update_xaxes(range=[0, xmax * 1.02], tickvals=_nice_ticks(xmax), row=1, col=1)
 
     if has_si:
-        ok = np.isfinite(si)
         for i, nm in enumerate(names):
             if not ok[i]:
                 continue
@@ -448,21 +549,40 @@ def fig_share_si(
                 line=dict(color=colors[i], width=LINE_PX),
                 hoverinfo="skip", showlegend=False,
             ), row=si_row, col=si_col)
+        # solid -> filled dot (family colour fill, SURFACE outline, as before);
+        # thin  -> HOLLOW dot (SURFACE fill, family-colour outline at
+        #          OUTLINE_WIDTH) -- a below-the-old-floor cell is disclosed,
+        #          never erased (L34). Per-point colour/line arrays, not a
+        #          second trace, so the two states share one legend-free trace.
+        mk_fill = [P.SURFACE if hollow[i] else colors[i] for i in range(n) if ok[i]]
+        mk_line_color = [colors[i] if hollow[i] else P.SURFACE for i in range(n) if ok[i]]
+        mk_line_width = [P.OUTLINE_WIDTH if hollow[i] else LINE_PX for i in range(n) if ok[i]]
         fig.add_trace(go.Scatter(
             x=si[ok], y=[nm for nm, k in zip(names, ok) if k], mode="markers",
-            marker=dict(color=[c for c, k in zip(colors, ok) if k], size=MARKER_PX,
-                        line=dict(color=P.SURFACE, width=LINE_PX)),
+            marker=dict(color=mk_fill, size=MARKER_PX,
+                        line=dict(color=mk_line_color, width=mk_line_width)),
             customdata=[h for h, k in zip(bar_hover, ok) if k],
             hovertemplate="%{customdata}<extra></extra>", showlegend=False,
         ), row=si_row, col=si_col)
         fig.add_vline(x=SI_NEUTRAL, row=si_row, col=si_col,
                       line=dict(color=P.INK_SECONDARY, width=HAIRLINE_PX, dash="dash"))
-        fig.update_xaxes(title_text=si_axis_title, row=si_row, col=si_col)
+        # Unit grid (L34): a light vertical line at every integer 1, 2, 3 ...
+        # up to the axis max, tick-labelled at those same integers. Plotly
+        # draws its axis gridlines exactly at `tickvals` when `showgrid` stays
+        # at its default True, so setting the ticks IS drawing the grid --
+        # `gridcolor=P.GRID` is applied to every xaxis a few lines below. The
+        # neutral value keeps its own dashed emphasis line (above) on top of
+        # this grid, never replaced by it.
+        finite_si = si[np.isfinite(si)]
+        si_ceil = max(int(SI_NEUTRAL), int(np.ceil(float(finite_si.max()))) if finite_si.size else int(SI_NEUTRAL))
+        grid_ticks = [float(v) for v in range(1, si_ceil + 1)]
+        fig.update_xaxes(title_text=si_axis_title, tickmode="array", tickvals=grid_ticks,
+                         row=si_row, col=si_col)
 
     fig.update_yaxes(autorange="reversed", showgrid=False, automargin=True)
     fig.update_xaxes(gridcolor=P.GRID, zerolinecolor=P.GRID, linecolor=P.BORDER)
     fig.update_xaxes(title_text=AX_SHARE, tickformat=_AXIS_PCT_FMT, row=1, col=1)
-    height = row_height(n) * (2 if (has_si and stacked) else 1)
+    height = row_height(n, n_wrapped=n_wrapped) * (2 if (has_si and stacked) else 1)
     margin_l = _gutter_margin_px(plain_display)
     return _base_layout(fig, height, margin=dict(t=BASE_PX // 2, l=margin_l, r=16, b=BASE_PX))
 
@@ -492,11 +612,10 @@ def fig_topics(
     colors = _colors_for(d, "oa")
     names = [f"{EXCLUDED_GLYPH}{THIN_SPACE}{v}" if excluded[i] else str(v)
              for i, v in enumerate(d[label_col])]
-    # `names` (identity, kept full for y positions / hover) vs the truncated,
-    # volume-folded string actually drawn as the tick -- see fig_share_si's
-    # fix note by MAX_LABEL_CHARS above; topic names are the longest labels
-    # in the app, so this panel is the mechanism's harder test.
-    short_names = [_truncate_label(nm) for nm in names]
+    # `names` is the identity (y positions / hover), full and untouched;
+    # `_tick_display` wraps it (L35) for the volume-folded tick actually drawn
+    # -- see fig_share_si's fix note above; topic names are the longest labels
+    # in the app, so this panel is the wrap mechanism's harder test.
     share = d[share_col].to_numpy(dtype=float)
     vol = d[volume_col].to_numpy() if volume_col else None
 
@@ -517,12 +636,12 @@ def fig_topics(
         customdata=hover, hovertemplate="%{customdata}<extra></extra>", showlegend=False,
     ))
     if gutter and vol is not None:
-        pairs = [_tick_display(short_names[i], _fmt_vol(vol[i])) for i in range(n)]
-        plain_display = [p for p, _ in pairs]
-        styled_display = [s for _, s in pairs]
+        pairs = [_tick_display(names[i], _fmt_vol(vol[i])) for i in range(n)]
     else:
-        plain_display = list(short_names)
-        styled_display = list(short_names)
+        pairs = [_tick_display(names[i], None) for i in range(n)]
+    plain_display = [p for p, _ in pairs]
+    styled_display = [s for _, s in pairs]
+    n_wrapped = sum(1 for s in styled_display if "<br>" in s)
     fig.update_yaxes(tickmode="array", tickvals=names, ticktext=styled_display)
 
     xmax = float(np.nanmax(share)) if n and np.isfinite(share).any() else 1.0
@@ -535,7 +654,8 @@ def fig_topics(
     fig.update_xaxes(title_text=AX_SHARE, tickformat=_AXIS_PCT_FMT,
                      gridcolor=P.GRID, zerolinecolor=P.GRID, linecolor=P.BORDER)
     margin_l = _gutter_margin_px(plain_display)
-    return _base_layout(fig, row_height(n), margin=dict(t=BASE_PX // 2, l=margin_l, r=16, b=BASE_PX))
+    return _base_layout(fig, row_height(n, n_wrapped=n_wrapped),
+                        margin=dict(t=BASE_PX // 2, l=margin_l, r=16, b=BASE_PX))
 
 
 # ---------------------------------------------------------------------------

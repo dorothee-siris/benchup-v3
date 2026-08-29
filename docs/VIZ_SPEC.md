@@ -251,21 +251,29 @@ A/B #3, run at 390x844):
   against 1 clipped for the rejected right-of-bar form) — which is one of the two
   reasons it won A/B #4.
 
-### 1.9 Profile section composition (R1/L17 — replaces the seed card of §2.2)
+### 1.9 Profile section composition (R1/L17 replaces the seed card of §2.2; R2/L30 re-lays the rows as the Lorraine lab card's grid, not just its chart panels)
 
-Gate-2A feedback #2: the page was chart-poor. The seed card becomes a PROFILE
-SECTION combining Lorraine Phase 2's "Analyse d'une structure" overview with
-BenchUp V2's collapsed chart panels. Fixed order, top to bottom:
+Gate-2A feedback #2 (R1): the page was chart-poor. Gate-2A feedback item 3 (R2):
+the resulting layout still read as "leftovers" — a coverage line with no clear
+audience, a wordcloud oddly paired with a chart it has nothing to do with. R2's
+fix is the Lorraine lab card's actual GRID, not just its panels. Fixed order,
+top to bottom:
 
-1. **Header** (§2.10) — name, type · city, country NAME, seed-level badges,
-   links.
-2. **KPI tiles** (§2.11) — seven, each value + label + subline.
-3. **Coverage caption** (§2.12) — the former evidence lines, one line.
-4. **Wordcloud (left) + yearly breakdown pair (right)** (§2.13, §2.14) — the one
-   full-width row of the section.
-5. **Six collapsed panels** (§2.15–§2.20), every one `st.expander(expanded=False)`:
+1. **Row 1 — three columns, `[1.0, 2.0, 1.4]`** (§2.10–§2.13): **identity**
+   (name, type · city, country NAME, seed-level badges, links) | **KPI tiles**
+   (2×4 grid, eight tiles, each positioned against the index baseline) |
+   **subfield wordcloud**.
+2. **Row 2 — two columns, full width** (§2.14): **global breakdown** |
+   **yearly breakdown**, with ONE segmented control and the shared chip legend
+   sitting ABOVE both panels — this pair no longer shares its row with the
+   wordcloud, so both panels get the full section width instead of half of it.
+3. **Six collapsed panels** (§2.15–§2.20), every one `st.expander(expanded=False)`:
    Fields · Top subfields · Top topics · Frontier positioning · SDG profile ·
    ERC profile.
+
+The former "Coverage caption" step is GONE (§2.12, RETIRED): its four items
+relocated to the panel/tile/tab each one actually qualifies, so there is no
+longer a fourth composition step between the tiles and the breakdown row.
 
 Rules that hold across the whole section, so they are stated once here rather
 than repeated in every row below:
@@ -541,9 +549,20 @@ of what the pre-R1 page did.
 
 ### 2.10 Profile header
 
-- **Form.** One block above everything else: institution name (`text-xl`), then a
+**R2 update (L30, user ruling item 3 — "profile space not optimised... Lorraine
+lab card as the model"):** the header is now COLUMN 1 of the section's three-column
+row 1 (`[1.0, 2.0, 1.4]` — identity | KPI tiles | wordcloud, §2.11–§2.13), not a
+full-width block above the tiles. Nothing about the header's own content or rules
+changes — only its position and width, which is why this row's prose below is
+otherwise the R1 text unaltered.
+
+- **Form.** One block filling column 1: institution name (`text-xl`), then a
   meta line "type · city, country NAME", then the seed-level badges, then a link
-  row — ROR · OpenAlex works · homepage.
+  row — ROR · OpenAlex works · homepage. The OpenAlex-works link sits beside the
+  `PUBLICATIONS_TOOLTIP` (L29, stream R2-C's copy) that states the corpus
+  definition once for the whole section, so every tile and panel beneath it can
+  say "publications" without re-explaining doc types, the DOI requirement or the
+  bonus year each time.
 - **Encoding.** Text only; no chart, no colour. Type is a WORD, not a coloured
   dot (§1.1: `TYPE_COLORS` removed in R1). Country is the English NAME, never the
   two-letter code (L22, `lib/countries.py`, frozen `data/countries_en.csv`).
@@ -570,54 +589,108 @@ of what the pre-R1 page did.
 
 ### 2.11 KPI tiles
 
-- **Form.** Seven tiles in one wrapping row, each **value + label + subline**
-  (the Lorraine `_kpi_tile` HTML pattern, copied in — `st.metric` has no subline
-  and the subline is the point). Tile chrome: `NEUTRAL` fill, `BORDER` hairline,
-  `INK` value, `INK_SECONDARY` subline — all from `palette.py`, never inline hex.
-- **Encoding.** In fixed order (L18): size full · size fractional · concentration
-  (HHI value + its class tag) · breadth (subfields at or above the fractional
-  floor) · SDG-tagged share · frontier top-quartile share · PP(top10%) with its
-  interval. **Every subline names the denominator or the reference** — the house
-  rule "every KPI pairs value with denominator/coverage" (L11) is what the
-  subline is FOR.
+**R2 rewrite (L30, L31 — user ruling items 3 and 7: "profile space not
+optimised... coverage line reads as leftovers" / "every KPI positioned against
+the index baseline").** Two changes at once, both forced by the same feedback:
+the tile row moves into COLUMN 2 of the section's three-column row 1 as a
+**2×4 grid** (was a seven-tile wrapping row spanning full width), and the
+now-eighth tile absorbs a metric that used to live in the coverage caption
+(§2.12, RETIRED below) rather than growing the row to nine.
+
+- **Form.** EIGHT tiles in a 2×4 grid filling column 2, each **value + label +
+  baseline subline** (the Lorraine `_kpi_tile` HTML pattern, copied in —
+  `st.metric` has no subline and the subline is the point). Tile chrome:
+  `NEUTRAL` fill, `BORDER` hairline, `INK` value, `INK_SECONDARY` subline — all
+  from `palette.py`, never inline hex.
+- **Encoding.** In fixed order (`lib/baselines.py`'s `KPI_COLUMNS`, L31): size
+  full · size fractional · concentration (HHI value, no class word — L32) ·
+  breadth (subfields at or above the fractional floor) · SDG-tagged share ·
+  frontier top-quartile share · PP(top10%) with its interval · **publications in
+  {bonus_year} (bonus year)** — the eighth tile, see the rejected alternative
+  below for why this one and not a relocated coverage item. **Every subline now
+  positions the value against the INDEX**, not just its own denominator: "index
+  median {m} · higher than {pct} of institutions" (`copy.FIND["TILE_BASELINE_SUB"]`,
+  L29/L31), the percentile computed over institutions with a non-null value for
+  that column; the tooltip on every tile carries the skew caveat — the index is
+  itself dominated by HEIs, so "median" is a population fact, not a norm to
+  chase. This is what "every KPI pairs value with denominator/coverage" (L11)
+  now MEANS for this row: the reference moved from "a raw count's own unit" to
+  "where this seed sits in the population."
 - **Interaction.** None (a tile is not a control). The interval on PP(top10%)
-  renders as a value plus its bounds, never as a bare point estimate (RULES §9.6).
+  renders as a value plus its bounds, never as a bare point estimate (RULES
+  §9.6). Concentration (L32) shows the HHI value with its index percentile and
+  median and NO class tag — `hhi_class`'s 1,500/2,500 textbook thresholds are
+  RETIRED from the UI (they called 86% of the index "generalist," which is not
+  a distinction); the coherence check that ratified this is the 16-seed table
+  in `progress/2A_P.md`.
 - **Empty state.** `n/a` for any tile the data cannot support — never 0, never a
-  hidden tile: a missing indicator is information (§1.6, `palette.NA_MARK`).
-- **Export.** The same seven numbers are the seed's row in every CSV the page
+  hidden tile: a missing indicator is information (§1.6, `palette.NA_MARK`). A
+  tile whose baseline cannot be computed (e.g. a metric with too few non-null
+  index values) shows the value alone and states why the subline is absent,
+  never a blank subline.
+- **Export.** The same eight numbers are the seed's row in every CSV the page
   writes.
 
-> **Rejected alternative:** `st.metric` with its delta arrow, one call per tile.
-> Rejected twice over: it has no subline, so the denominator would have to move
-> into a caption underneath the row and stop being attached to its own number;
-> and its delta arrow implies a change-over-time read that none of these seven
-> measures has (they are all one snapshot), which is exactly the "does the form
-> imply something the data doesn't" failure the Studio rules flag.
+> **Rejected alternative (tile form):** `st.metric` with its delta arrow, one
+> call per tile. Rejected twice over: it has no subline, so the baseline
+> sentence would have to move into a caption underneath the row and stop being
+> attached to its own number; and its delta arrow implies a change-over-time
+> read that none of these eight measures has (they are all one snapshot),
+> which is exactly the "does the form imply something the data doesn't"
+> failure the Studio rules flag.
+> **Rejected alternative (eighth tile):** re-promote one of the four items §2.12
+> relocates OUT of the coverage line (ERC-classified share, catch-all share,
+> SDG-tagged share is already tile #5, L2f-eligible count) back into tile #8.
+> Rejected because it would directly contradict the SAME ruling in the SAME
+> paragraph that just moved those items OUT for being over-weighted relative to
+> the other seven — a coverage share deserves caption weight, not tile weight,
+> whichever slot it sits in. Bonus-year publications is not a coverage
+> statement at all: it is a genuinely new fact (does this institution have any
+> 2025-indexed output yet) that pairs naturally with the two size tiles right
+> beside it, and it is exactly the column `lib/baselines.py`'s `KPI_COLUMNS`
+> (L31) already commits to — keeping it avoids a cross-stream mismatch between
+> what this spec asks for and what the baselines module computes.
 
-### 2.12 Coverage caption
+### 2.12 Coverage caption — RETIRED (L30)
 
-- **Form.** ONE line under the tiles, `text-xs`, `INK_SECONDARY` — the former
-  per-lens evidence lines, promoted to the seed level and merged.
-- **Encoding.** Four continuous shares, each a parameter filled from the live
-  data: ERC-classified share, SDG-tagged share, catch-all (811) share, and the
-  count of L2f-eligible subfield cells. Every one is a coverage statement about
-  the SEED, never a gate and never a quality verdict (L8).
-- **Interaction.** None; it is a caption. The per-lens evidence line still exists
-  inside each lens tab, where it is about that lens.
-- **Empty state.** A share that cannot be computed prints `n/a` with the reason
-  in the same line; the line never disappears, because "we do not know the
-  coverage" is itself the thing the reader needs.
-- **Export.** Constant columns on the seed's CSV rows.
+**R2 (user ruling item 3: "coverage line reads as leftovers").** The former
+single caption line under the tiles is REMOVED, not shrunk: its four items each
+move to the ONE place they are actually read, so a reader meets each number
+next to the panel it qualifies instead of in a pre-emptive list nobody has
+context for yet.
 
-> **Rejected alternative:** four more KPI tiles. Rejected because coverage is a
-> caveat on the other seven numbers, not a peer of them — giving it the same
-> visual weight would invite a reader to compare "SDG-tagged share" against
-> "size" as if they were the same kind of fact.
+| Former coverage item | New home |
+|---|---|
+| ERC-classified mass share | ERC panel caption (§2.20) |
+| Catch-all (811) share | Top-topics panel caption (§2.17) — it already counted the flagged rows from data there |
+| L2f-eligible subfield-cell count | The L2f tab's own intro line (Benchmark section, outside the profile — L29's "How to read the lenses" expander) |
+| SDG-tagged share | STAYS a KPI tile (§2.11, tile #5) — it was already tile-worthy, not a coverage leftover |
+
+- **Form.** No form of its own any more — this row exists only as the
+  relocation record above, kept in this document rather than silently deleting
+  the section number (the same "SUPERSEDED, not deleted" convention §2.10 uses
+  for the old §2.2 seed card).
+- **Encoding / Interaction / Empty state / Export.** N/A — see each item's new
+  home for its own rules; nothing about a relocated item's OWN behaviour
+  changes, only where on the page it is read.
+
+> **Rejected alternative:** keep the caption line but shorten it to the two
+> items that did not find another home. Rejected because a caption with two
+> items reads exactly like the four-item version it replaces — the actual
+> complaint (item 3) was the caption's POSITION and cognitive weight relative
+> to the tiles above it, not its item count, and a shorter version in the same
+> place would not have answered it.
 
 ### 2.13 Subfield wordcloud
 
+**R2 (L30):** moves from "left half of a wide row shared with the yearly
+breakdown" to COLUMN 3 of row 1 (identity | tiles | wordcloud, `[1.0, 2.0, 1.4]`)
+— it now sits beside the tiles it illustrates, not beside the breakdown pair,
+which has its own row (§2.14) with the global panel it was never paired with
+before R2.
+
 - **Form.** A PNG (Lorraine's `WordCloud` → `PIL` → `st.image` pattern, copied
-  into `lib/wordcloud_png.py`), left half of the section's wide row.
+  into `lib/wordcloud_png.py`), filling column 3 of the section's row 1.
 - **Encoding.** **Word size = the subfield's works on the CURRENT basis; word
   colour = its domain colour** (`palette.domain_color` through a `color_func`),
   so the cloud re-tints itself when the tree changes and re-weights itself when
@@ -641,13 +714,19 @@ of what the pre-R1 page did.
 
 ### 2.14 Yearly breakdown pair
 
-- **Form.** Two figures side by side under ONE `st.segmented_control` and ONE
-  shared chip legend: **left** = global horizontal bars, one per series, sorted
-  by volume descending, direct end labels, no legend
-  (`charts.fig_breakdown_global`); **right** = per-year GROUPED bars
-  (`charts.fig_breakdown_yearly`). Both render `showlegend=False`;
-  `charts.chip_legend_html` is the ONE legend for the pair (Lorraine
-  `render_chip_legend`).
+**R2 (L30):** this pair's own FORM is unchanged — it was already the global +
+yearly pair under one control before R2. What changes is its ROW: it moves out
+of sharing a row with the wordcloud (§2.13, R1) into its OWN full-width row 2,
+directly under row 1's three columns, so both panels get the section's full
+width instead of half of it each.
+
+- **Form.** Row 2 of the section, full width: two figures side by side under
+  ONE `st.segmented_control` and ONE shared chip legend, both sitting ABOVE the
+  pair. **Left** = global horizontal bars, one per series, sorted by volume
+  descending, direct end labels, no legend (`charts.fig_breakdown_global`);
+  **right** = per-year GROUPED bars (`charts.fig_breakdown_yearly`). Both
+  render `showlegend=False`; `charts.chip_legend_html` is the ONE legend for
+  the pair (Lorraine `render_chip_legend`).
 - **Encoding.** The segmented control swaps the IDENTITY FAMILY: OpenAlex domain
   (from `profile_data.yearly_by_domain`) ↔ document type (from the R1 artefact
   `doctype_by_year.parquet`). Series order is the family's FIXED order
@@ -678,16 +757,25 @@ of what the pre-R1 page did.
 - **Form.** `st.expander(expanded=False)`. Inside: `charts.fig_share_si(family="oa")`
   — two aligned panels of one figure sharing the y axis; share bars left with the
   volume in a left text gutter, SI lollipops right against a dashed reference at
-  the neutral value (A/B #3 and #4 winners).
+  the neutral value (A/B #3 and #4 winners), plus a **unit grid** (R2/L34) — a
+  light `GRID`-coloured vertical line at every integer 1, 2, 3 … up to the SI
+  axis's own max, tick-labelled at those integers, so a reader can place a dot
+  at "about 2.3×" without hovering.
 - **Encoding.** One row per field, coloured by the field's DOMAIN (inheritance,
   §1.1). Share is on the current basis; SI has **no floor at field grain** (the
-  G6 floor applies to subfields only — the data contract says so on both rows).
+  G6 floor applies to subfields only — the data contract says so on both rows;
+  L34 confirms this row explicitly: "Fields: no floor," only the zero-volume
+  no-mark rule applies here). A field's mark is FILLED (never hollow) whenever
+  it has a defined SI and nonzero volume, since the solid/hollow floor distinction
+  is a subfield-grain concept (§2.16) that does not exist at field grain.
 - **Interaction.** A sort toggle: **volume** (share descending) | **taxonomy**
   (domain → field id). Colour follows the entity, never the rank, so the toggle
   never repaints anything (`tests/test_charts.py` pins this).
 - **Empty state.** A field with zero mass is absent (it is not a fact about the
   seed); a field with mass but undefined SI keeps its bar and gets NO SI mark —
-  never a dot at zero, never a dot at the neutral value.
+  never a dot at zero, never a dot at the neutral value; a field with mass but
+  ZERO volume also gets no mark, whatever any `si_status` might otherwise say
+  (R2/L34 — the ERC-bug fix generalised to every panel this builder serves).
 - **Export.** CSV of the panel's frame, all columns, full precision.
 
 > **Rejected alternative:** a single chart with SI encoded as bar colour
@@ -720,33 +808,74 @@ of what the pre-R1 page did.
 > two actually needs, never assume. Proof: `tests/test_charts.py`'s
 > truncation/margin tests plus `tests/ui/smoke.py`'s bounding-box check at
 > 390 px and 1280 px (`progress/R1_X3.md`).
+>
+> **R2 update (L35, user ruling item 10 — REVERSES the ellipsis half of this
+> fix, keeps the folding half).** The one-string-per-row mechanism above is
+> UNCHANGED and still the reason there is nothing to collide with; what changed
+> is what happens to a string over budget. X3 ellipsised it from the right
+> (`_truncate_label`/`MAX_LABEL_CHARS`/`ELLIPSIS`, all now deleted, not left as
+> dead code); R2 WRAPS it onto at most two lines at a word boundary instead
+> (`charts.wrap_label`), because the user's own read of a shortened field name
+> was that losing text is worse than a taller row. Two mechanical consequences
+> the next editor should know: (1) `_gutter_margin_px` now measures the
+> longest LINE of a (possibly two-line) tick string, not the longest whole
+> string — a wrapped row's own margin need can be SMALLER than an unwrapped
+> row's, which is correct, not a regression; (2) `charts.row_height` grows a
+> row's own budget by `WRAP_ROW_FACTOR` (measured ≈1.7×) for every row whose
+> label wrapped, via its new `n_wrapped` argument, so a frame with several long
+> names is proportionally taller rather than uniformly cramped. Proof:
+> `tests/test_charts.py`'s wrap/row-height/margin tests (§2.15) plus the R2
+> render proof PNG (§5).
 
 ### 2.16 Panel — Top subfields (share + SI)
 
-- **Form.** As §2.15, `charts.fig_share_si`, on the top subfields by volume.
-- **Encoding.** Domain colour inherited through the subfield → field → domain
-  chain, so the panel re-tints with the tree. **SI is `n/a` below the G6
-  fractional floor** and renders as no mark at all, with `n/a` in the row's hover
-  — on real Gdansk data most subfields sit below that floor, so this is the
-  common case, not an edge case.
-- **Interaction.** Same sort toggle as §2.15 (volume | taxonomy: domain → field →
-  subfield). The depth of the cut is stated parametrically in the panel caption.
-- **Empty state.** If NO row in the frame has a defined SI, the figure collapses
-  to a single share panel and the caption says why, rather than drawing an empty
-  second axis (`charts.fig_share_si` does this itself).
-- **Export.** CSV of the FULL subfield frame, not just the displayed cut — the
-  §1.7 rule that an export is never the screen's truncation.
+**R2 rewrite (L34, user ruling item 8/9 — "top 30, no taxonomy sort" / "SI
+charts: unit grid lines; no SI mark at zero volume; harmonised floors").**
+Three changes at once, all measured on IFPEN's real profile (top-30 subfields
+carry 2 cells ≥30 fractional mass but 17 ≥10 — the old single 30-floor was
+throwing away a disclosable signal on 15 of those rows):
 
-> **Rejected alternative:** show all subfields, with a scroll inside the panel.
-> Rejected on the same ground as the depth cut in the ranked tables: a seed can
-> carry 200+ subfields, most of them below the floor and therefore SI-less, and a
-> 200-row scroll inside a collapsed expander is a worse tail affordance than a
-> stated cut plus a complete CSV.
+- **Form.** As §2.15, `charts.fig_share_si`, on the **top 30 subfields by
+  volume** (the caller passes exactly 30 rows — `charts.py` itself types
+  neither 20 nor 30 anywhere; the cut is E3's, not the builder's), plus the same
+  unit grid described in §2.15.
+- **Encoding.** Domain colour inherited through the subfield → field → domain
+  chain, so the panel re-tints with the tree. **SI display is now a THREE-WAY
+  floor on fractional mass** (`si_status`, harmonised across subfields/ERC/SDG,
+  the panel floor — the lens-ranking floor at 30 is untouched, ratified
+  separately): mass ≥30 → **solid** (filled) mark; 10 ≤ mass <30 → **hollow**
+  mark (white fill, coloured outline) — a below-the-old-floor cell disclosed
+  instead of erased; mass <10, or **zero volume regardless of mass**, → no
+  mark at all, `n/a` in the row's hover. On real Gdansk data most subfields
+  still sit below even the 10 floor, so a mix of solid, hollow and no-mark rows
+  in one panel is the common case, not an edge case.
+- **Interaction.** **No sort toggle** (reverses the taxonomy | volume toggle
+  §2.15 keeps) — always volume order, because "top 30" is itself a
+  volume-ordered concept and a taxonomy re-sort of a volume-defined cut reads as
+  an arbitrary 30 rows in ID order. The depth of the cut (top 30) is stated
+  parametrically in the panel caption, not typed.
+- **Empty state.** If NO row in the frame has a mark-eligible SI (mass <10
+  throughout, or every row zero-volume), the figure collapses to a single share
+  panel and the caption says why, rather than drawing an empty second axis
+  (`charts.fig_share_si` does this itself).
+- **Export.** CSV of the FULL subfield frame, not just the displayed top-30 cut
+  — the §1.7 rule that an export is never the screen's truncation.
+
+> **Rejected alternative:** keep the single 30-floor (solid-or-nothing) and only
+> add the unit grid. Rejected on the IFPEN measurement above: a single floor
+> would still show a 2-of-30-marked panel that reads as "SI is mostly undefined
+> here," when 17 of 30 cells actually carry a usable (if less certain) reading —
+> the hollow mark is what lets the chart say "usable, but read it with more
+> caution" instead of forcing a binary defined/undefined choice the data does
+> not actually make.
 
 ### 2.17 Panel — Top topics
 
 - **Form.** `st.expander(expanded=False)` → `charts.fig_topics`: horizontal share
-  bars for the top topics by share, volume in the left gutter.
+  bars for the top topics by share, volume in the left gutter. Topic names are
+  the longest labels in the app, so this panel is the R2 wrap mechanism's
+  (§2.15's L35 note, `charts.wrap_label`) hardest real test — a topic name over
+  budget now wraps to two lines instead of losing its tail.
 - **Encoding.** Colour = the topic's DOMAIN (inherited through the active tree).
   A **catch-all / out-of-scope (811) topic is flagged three ways at once**: a
   glyph prefixed to its axis label, its domain hue at `palette.MUTED_OPACITY`,
@@ -769,22 +898,40 @@ of what the pre-R1 page did.
 
 ### 2.18 Panel — Frontier positioning
 
-- **Form.** `st.expander(expanded=False)` → `charts.fig_frontier`: a scatter of
-  the seed's topics, **x = Expansion, y = Acceleration**, with the two quadrant
-  lines at the origin on both axes (verified against `topics_dim.quadrant`, which
-  flips sign exactly there).
+**R2 rewrite (L33, user ruling item 5 — "frontier panel unreadable/slow: toggle
+top-200-by-volume ↔ all global-top-quartile topics").** The panel used to plot
+EVERY scored topic at once, which on a large seed is both visually dense and,
+per the feedback, slow. It now offers two MODES via a segmented control, each
+handing `charts.fig_frontier` a pre-filtered frame — the builder's own API is
+unchanged, it never knows which mode produced its input.
+
+- **Form.** `st.expander(expanded=False)` → a segmented control, **"Top {n}
+  topics by volume"** (n = `FRONTIER_TOP_N`, a module constant fixed at
+  two hundred, `charts` module docs) | **"All topics in the global top quartile
+  of emergence"** (`top25pct_frontier == True` — NOT a subset of the top-N mode;
+  a topic can be small-volume and still top-quartile emergence, or vice versa),
+  default = the volume mode. Below it, `charts.fig_frontier`: a scatter of the
+  filtered topic set, **x = Expansion, y = Acceleration**, with the two quadrant
+  lines at the origin on both axes (verified against `topics_dim.quadrant`,
+  which flips sign exactly there).
 - **Encoding.** Bubble area = the topic's mass on the current basis (`sqrt` scale
   between a floor and a ceiling in px, so a big topic cannot swallow the panel);
   colour = domain; **a top-quartile frontier topic carries an `INK` outline** —
-  a shape signal on top of the family colour, never a fifth hue.
-- **Interaction.** Hover names the topic and gives expansion, acceleration and
-  mass. No zoom, no animation (house rule: no motion).
+  a shape signal on top of the family colour, never a fifth hue (in the
+  top-quartile MODE every plotted point therefore carries the outline; in the
+  volume mode it marks the subset that also clears the quartile bar).
+- **Interaction.** The segmented control swaps which frame `fig_frontier`
+  receives; hover names the topic and gives expansion, acceleration and mass in
+  either mode. No zoom, no animation (house rule: no motion).
 - **Empty state.** Topics with no frontier score are DROPPED from the scatter and
-  **counted in the caption**, together with the excluded ones — the panel states
-  what it could not place rather than letting it vanish. A seed with no scored
-  topic renders the reason, not an empty axis.
+  **counted in the caption**, together with the excluded ones, in WHICHEVER mode
+  is active — the caption states the count shown and the count excluded/unscored
+  for that mode specifically, never a number left over from the other one. A
+  seed with no scored topic renders the reason, not an empty axis, in either mode.
 - **Export.** CSV of every topic with its expansion, acceleration, quadrant,
-  top-quartile flag and mass — scored and unscored alike.
+  top-quartile flag, `rank_volume` and mass — scored and unscored alike, ALL
+  topics regardless of which mode is on screen, so the export is never a
+  function of the toggle.
 - **Copy (binding, from DESIGN §4).** The panel says that this measures
   **attention dynamics, not novelty or quality**, and that **low can mean
   foundational**. The sentence is not optional decoration: without it a
@@ -797,17 +944,31 @@ of what the pre-R1 page did.
 > a bucket, and because the quadrant boundaries sit at zero on both axes, so a
 > topic just either side of a line would be assigned to opposite cells with no
 > visible indication of how marginal that assignment is.
+> **Rejected alternative (for the R2 toggle specifically):** a single combined
+> mode showing the UNION of top-200-by-volume and top-quartile-emergence.
+> Rejected because a union hides which criterion put a given topic on the
+> chart — the whole point of the user's own two-mode framing was to let the
+> reader ask "what does my BIGGEST work look like on this axis" and "what does
+> my MOST EMERGENT work look like" as two separate questions, and a union
+> answers neither cleanly.
 
 ### 2.19 Panel — SDG profile
 
 - **Form.** `st.expander(expanded=False)` → `charts.fig_sdg`, which delegates to
   `charts.fig_share_si` with ESI in the SI slot, so the reader learns ONE form
-  and reuses it (Lorraine `same-read-same-form`).
+  and reuses it (Lorraine `same-read-same-form`) — including the R2 unit grid
+  (§2.15) and the harmonised solid/hollow/no-mark floor (§2.16), since `fig_sdg`
+  reads whatever `si_status` the caller's frame carries with no SDG-specific code.
 - **Encoding.** Sixteen bars in **fixed SDG number order** (never sorted by
   value), each in its **official UN colour**; ESI dots against the same dashed
-  neutral reference. Every bar carries its goal number and short label on the
-  axis, which is the structural relief for the UN palette's measured CVD and
-  contrast failures (§1.1, family 3): identity is never colour-alone here.
+  neutral reference, with the unit grid at every integer. **Axis labels now carry
+  the goal number** (L36, user ruling item 11 — "SDG labels carry the number"):
+  `sdg_label_numbered` ("SDG {n} · {short label}", number from the resource,
+  never typed) when the caller's frame carries that column, falling back to the
+  plain `sdg_label` otherwise (`charts._LABEL_COLS` preference order,
+  `_first_col`). Every bar still carries its label on the axis, which is the
+  structural relief for the UN palette's measured CVD and contrast failures
+  (§1.1, family 3): identity is never colour-alone here.
 - **Interaction.** Hover gives the goal, its share, its mass and its ESI. Sort is
   FIXED to goal order — the one panel in the section with no sort toggle, because
   the SDG numbers are a canonical sequence a reader navigates by position.
@@ -829,18 +990,30 @@ of what the pre-R1 page did.
 
 ### 2.20 Panel — ERC profile
 
+**R2 bug fix (user ruling item 4/9 — "concentration KPI wrong" led the review to
+the actual finding: "ERC bug", a specialisation dot floating on a panel with NO
+classified publications at all).**
+
 - **Form.** `st.expander(expanded=False)` → `charts.fig_erc` (again
-  `fig_share_si`): the ERC evaluation panels, share left, SI right.
+  `fig_share_si`): the ERC evaluation panels, share left, SI right, with the R2
+  unit grid (§2.15) and the harmonised solid/hollow floor (§2.16) — again no
+  ERC-specific code, `fig_erc` reads whatever `si_status` the frame carries.
 - **Encoding.** One row per panel, coloured by its **ERC DOMAIN** — three hues,
   `palette.ERC_DOMAIN_COLORS` — and grouped in the fixed PE → LS → SH order under
   `sort="taxonomy"`. No OpenAlex domain hue may appear in this chart
   (`tests/test_charts.py` asserts the two sets do not intersect): it is a
   different taxonomy of the same output, and colouring it like the OA panels
-  would invite a false one-to-one reading.
+  would invite a false one-to-one reading. **A panel with ZERO classified mass
+  NEVER gets an SI mark**, whatever its `si` or `si_status` value happens to
+  hold — this is the exact bug the user saw (a dot at a numeric SI value on a
+  panel with no publications behind it) and it is now a hard rule in
+  `charts.fig_share_si` itself (the zero-volume override, §2.15), not a
+  per-caller precaution, so it cannot recur in any panel this builder serves.
 - **Interaction.** Sort toggle: taxonomy (ERC domain, then panel code) | volume.
 - **Empty state.** A panel with zero classified mass keeps its row at zero rather
-  than disappearing — the ERC structure is fixed, and a missing panel is a fact
-  about the institution, not about the taxonomy.
+  than disappearing (its SHARE bar is a visible zero) — the ERC structure is
+  fixed, and a missing panel is a fact about the institution, not about the
+  taxonomy; per the fix above, that same zero-mass row draws NO SI mark.
 - **Export.** CSV with `panel_code, panel_label, erc_domain, share, si, mass`.
 - **Copy (binding, DESIGN §5).** The caption carries the **weak-panel caveat**
   (Biotechnology and Arts are thinly and unevenly populated, so their share and
@@ -1029,6 +1202,20 @@ criteria, commands and screenshots: `design-system/ab/AB_VERDICT.md` (R1 section
   measured cause (`yaxis.automargin` does not reserve room away from a plot's
   own bars), and the robustness rule this leaves for the next A/B that places
   a number beside a label.
+
+  **R2 note (user ruling item 10, L35): the gutter placement STAYS, the
+  ellipsis rule it was paired with does NOT.** A/B #4's verdict is about WHERE
+  the volume number goes (the left gutter, right-aligned) — it says nothing
+  about what happens to an over-length CATEGORY label sharing that same tick
+  string, which was a separate, later decision (X3's ellipsis, chosen only
+  because X3 needed some rule for the label half of the folded string). The
+  user's own read at gate 2A was that shortening a field or topic name is a
+  worse failure than a taller row, so R2 replaces the ellipsis with a two-line
+  WRAP (`charts.wrap_label`, §2.15's R2 update) while leaving A/B #4's own
+  finding — gutter over right-of-bar, numbers right-aligned against the zero
+  baseline — completely untouched. No re-test of A/B #4 was needed or run: the
+  wrap change touches only the LABEL half of the folded tick string, never the
+  volume half the A/B actually measured.
 
 Both winners are implemented in `lib/charts.py` and exercised on the real frames
 by `tests/test_charts.py`.

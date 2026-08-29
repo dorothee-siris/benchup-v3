@@ -149,7 +149,8 @@ def test_fig_share_si_fields_two_panels_and_colour_source(fields_df):
     assert "xaxis2" in fig.layout
     assert fig.layout.xaxis2.title.text == C.AX_SI
     assert fig.layout.paper_bgcolor == P.SURFACE and fig.layout.plot_bgcolor == P.SURFACE
-    assert fig.layout.height == C.row_height(len(fields_df))
+    n_wrapped = sum(1 for nm in fields_df["field_name"] if "<br>" in C.wrap_label(nm))
+    assert fig.layout.height == C.row_height(len(fields_df), n_wrapped=n_wrapped)
     # the volume gutter (fix X3): folded into the y ticktext, one string per
     # row, no separate annotation left to collide with it
     assert len(fig.layout.annotations) == 0
@@ -198,6 +199,95 @@ def test_fig_share_si_all_na_si_collapses_to_one_panel(subfields_df):
     assert len(_bar_traces(fig)) == 1
 
 
+# ---------------------------------------------------------------------------
+# L34 (BUILD_PLAN_2A.md, user ruling item 9): si_status drives solid/hollow/
+# none marks, harmonised across subfields/ERC/SDG, and a zero-volume row
+# NEVER gets a mark whatever si_status says (the ERC display-bug fix).
+# `si_status` is built INLINE here from `vol_frac` (the fractional mass the
+# real G6 floor already keys off) with the 10/30 rule, exactly as stream R2-P
+# computes the shipped column -- this test does not import `profile_data`.
+# ---------------------------------------------------------------------------
+def test_fig_share_si_si_status_solid_thin_none_mark_counts_match_the_frame(subfields_df):
+    d = subfields_df.copy()
+    mass = d["vol_frac"]
+    d["si_status"] = np.select([mass >= 30, mass >= 10], ["solid", "thin"], default="none")
+    assert (d["si_status"] == "solid").sum() > 0 and (d["si_status"] == "thin").sum() > 0, (
+        "fixture must span all three bands on real data"
+    )
+    # The real G6 floor is ALSO 30, so mass in [10, 30) is NaN `si` in the
+    # shipped data today (stream P's job is to widen the SI computation for
+    # that band). Substitute a deterministic, clearly-synthetic SI for this
+    # test's thin rows only -- the invariant under test is the MARK STYLE the
+    # chart draws for a given status, not the numeric value's provenance.
+    thin_and_undefined = d["si_status"].eq("thin") & d["si"].isna()
+    d.loc[thin_and_undefined, "si"] = 1.5
+
+    fig = C.fig_share_si(d, family="oa", sort="volume")
+    dots = [t for t in fig.data if isinstance(t, go.Scatter) and t.mode == "markers"][0]
+    stems = [t for t in fig.data if isinstance(t, go.Scatter) and t.mode == "lines"]
+
+    n_solid = int((d["si_status"] == "solid").sum())
+    n_thin = int((d["si_status"] == "thin").sum())
+    assert len(dots.x) == n_solid + n_thin, "none rows draw no mark at all"
+    assert len(stems) == n_solid + n_thin, "none rows draw no lollipop stem either"
+
+    fills = list(dots.marker.color)
+    line_colors = list(dots.marker.line.color)
+    hollow_positions = [i for i, c in enumerate(fills) if c == P.SURFACE]
+    solid_positions = [i for i, c in enumerate(fills) if c != P.SURFACE]
+    assert len(hollow_positions) == n_thin, "thin -> hollow (SURFACE fill)"
+    assert len(solid_positions) == n_solid, "solid -> filled (family colour)"
+    assert all(line_colors[i] != P.SURFACE for i in hollow_positions), (
+        "a hollow dot's outline is the family colour, not white -- that IS the disclosure"
+    )
+    assert all(line_colors[i] == P.SURFACE for i in solid_positions), (
+        "a solid dot keeps its pre-existing white ring outline"
+    )
+
+
+def test_fig_share_si_zero_volume_row_never_gets_a_mark_even_when_si_status_says_solid(subfields_df):
+    """The exact ERC bug shape: a row with a DEFINED, nonzero SI reading and
+    `si_status='solid'` but ZERO publications behind it must draw no mark and
+    no stem -- the zero-volume override outranks `si_status` unconditionally
+    (L34/L9)."""
+    d = subfields_df[subfields_df["si"].notna()].reset_index(drop=True)
+    assert len(d) > 0
+    d["si_status"] = "solid"
+    zero_row = d.iloc[[0]].copy()
+    zero_row["vol_full"] = 0
+    zero_row["vol_frac"] = 0.0
+    zero_row["si"] = 2.5
+    zero_row["si_status"] = "solid"
+    zero_row["subfield_name"] = "Zero-volume synthetic row"
+    d = pd.concat([d, zero_row], ignore_index=True)
+
+    fig = C.fig_share_si(d, family="oa", sort="volume")
+    dots = [t for t in fig.data if isinstance(t, go.Scatter) and t.mode == "markers"][0]
+    assert "Zero-volume synthetic row" not in list(dots.y)
+    assert len(dots.x) == len(d) - 1, "every OTHER solid row keeps its mark"
+
+
+def test_fig_share_si_si_status_absent_falls_back_to_the_pre_r2_null_rule(subfields_df):
+    """No `si_status` column at all -> the pre-R2 rule holds unchanged: a
+    defined `si` draws a mark, a NaN `si` draws none, and every mark is the
+    ordinary FILLED style (no hollow dots without an explicit `thin`)."""
+    assert "si_status" not in subfields_df.columns
+    fig = C.fig_share_si(subfields_df, family="oa", sort="volume")
+    dots = [t for t in fig.data if isinstance(t, go.Scatter) and t.mode == "markers"][0]
+    n_defined = int(np.isfinite(subfields_df["si"].to_numpy(dtype=float)).sum())
+    assert len(dots.x) == n_defined
+    assert P.SURFACE not in set(dots.marker.color), "no hollow marks without an explicit si_status"
+
+
+def test_fig_share_si_unit_grid_lines_on_every_integer_up_to_the_axis_max(fields_df):
+    fig = C.fig_share_si(fields_df, family="oa")
+    ticks = [float(v) for v in fig.layout.xaxis2.tickvals]
+    finite_si = fields_df["si"].dropna().to_numpy(dtype=float)
+    expected_max = max(1, int(np.ceil(finite_si.max())))
+    assert ticks == [float(v) for v in range(1, expected_max + 1)]
+    assert fig.layout.xaxis2.gridcolor == P.GRID
+
+
 def test_fig_topics_flags_excluded_rows(topics_df):
     fig = C.fig_topics(topics_df, sort="volume")
     bars = _bar_traces(fig)
@@ -228,6 +318,51 @@ def test_fig_frontier_scatter_quadrants_and_outline(topics_df):
     assert set(pts[0].marker.color) <= set(P.OA_DOMAIN_COLORS.values()) | {P.COMPARISON}
 
 
+# ---------------------------------------------------------------------------
+# L33 (BUILD_PLAN_2A.md): the frontier panel's two modes -- top-N by volume
+# (`rank_volume <= FRONTIER_TOP_N`) and the global top-quartile set
+# (`top25pct_frontier == True`, NOT a subset of the top-N) -- are both just
+# CALLERS handing `fig_frontier` a pre-filtered frame; the builder's API is
+# unchanged (BUILD_PLAN_2A.md interface contract). `rank_volume` is built
+# INLINE here (stream R2-P's column, not imported).
+# ---------------------------------------------------------------------------
+def test_fig_frontier_on_a_rank_volume_le_200_subset(dim):
+    t = pd.read_parquet(DATA / "topics_all.parquet",
+                        columns=["institution_id", "topic_id", "share_frac", "vol_frac", "vol_full"])
+    t = t[t["institution_id"] == GDANSK].merge(dim, on="topic_id", how="left")
+    t["share"] = t["share_frac"]
+    t["rank_volume"] = t["vol_full"].rank(ascending=False, method="first").astype(int)
+    subset = t[t["rank_volume"] <= 200].reset_index(drop=True)
+    assert 0 < len(subset) <= 200
+
+    fig = C.fig_frontier(subset)
+    pts = [tr for tr in fig.data if isinstance(tr, go.Scatter)][0]
+    scored = subset[np.isfinite(subset["expansion_latest"]) & np.isfinite(subset["acceleration_latest"])]
+    assert len(pts.x) == len(scored), "unscored topics are dropped from this mode too"
+    # hover carries the full topic name for the topics actually plotted
+    for name in scored["topic_name"].head(3):
+        assert any(name in h for h in pts.customdata)
+
+
+def test_fig_frontier_on_a_top25pct_frontier_subset(dim):
+    t = pd.read_parquet(DATA / "topics_all.parquet",
+                        columns=["institution_id", "topic_id", "share_frac", "vol_frac", "vol_full"])
+    t = t[t["institution_id"] == GDANSK].merge(dim, on="topic_id", how="left")
+    t["share"] = t["share_frac"]
+    subset = t[t["top25pct_frontier"] == True].reset_index(drop=True)  # noqa: E712
+    assert len(subset) > 0, "fixture must contain at least one top-quartile frontier topic"
+
+    fig = C.fig_frontier(subset)
+    pts = [tr for tr in fig.data if isinstance(tr, go.Scatter)][0]
+    scored = subset[np.isfinite(subset["expansion_latest"]) & np.isfinite(subset["acceleration_latest"])]
+    assert len(pts.x) == len(scored)
+    # every plotted point in this mode IS top-quartile by construction, so
+    # every outline is the INK/OUTLINE_WIDTH treatment, never the hairline
+    assert all(w == P.OUTLINE_WIDTH for w in pts.marker.line.width)
+    for name in scored["topic_name"].head(3):
+        assert any(name in h for h in pts.customdata), "hover carries the full topic name"
+
+
 def test_fig_sdg_uses_un_colours_in_goal_order(sdg_df):
     fig = C.fig_sdg(sdg_df)
     bars = _bar_traces(fig)
@@ -237,6 +372,20 @@ def test_fig_sdg_uses_un_colours_in_goal_order(sdg_df):
     assert list(bars[0].marker.color) == expected
     assert P.SDG_COLORS[P.SDG_UNCOVERED[0]] not in set(bars[0].marker.color)
     assert fig.layout.xaxis2.title.text == C.AX_ESI
+
+
+def test_fig_sdg_uses_the_numbered_label_when_present(sdg_df):
+    """L36: 'SDG {n} . {short label}' from `sdg_label_numbered` when the
+    caller's frame carries it, falling back to the plain `sdg_label` only when
+    it doesn't (§9.4 interface contract, stream R2-P's column)."""
+    d = sdg_df.copy()
+    d["sdg_label_numbered"] = [f"SDG {n} . Goal {n}" for n in d["sdg_number"]]
+    fig = C.fig_sdg(d)
+    bars = _bar_traces(fig)
+    assert set(bars[0].y) == set(d["sdg_label_numbered"])
+    assert not (set(bars[0].y) & set(sdg_df["sdg_label"])), (
+        "the plain sdg_label must not be used once sdg_label_numbered is present"
+    )
 
 
 def test_fig_erc_uses_the_three_erc_hues_grouped_by_domain(erc_df):
@@ -309,75 +458,147 @@ def test_invalid_family_and_sort_raise(fields_df):
 # Fix X3 (inspection finding I-4): the label/gutter collision at narrow width.
 # `lib/charts.py::fig_share_si` / `fig_topics` fold the volume into the y
 # ticktext as ONE right-anchored string per row instead of a separate
-# annotation, so there is nothing left for it to collide with; a label longer
-# than `MAX_LABEL_CHARS` is ellipsised from the RIGHT only (never the left),
-# and the full label always survives in hover/customdata.
+# annotation, so there is nothing left for it to collide with -- that
+# mechanism is UNCHANGED by R2. What changed (L35, user ruling item 10,
+# REVERSES this stream's own R1 ellipsis rule): a label longer than
+# `wrap_label`'s width WRAPS onto at most two lines at a word boundary
+# instead of being cut short. `MAX_LABEL_CHARS` / `_truncate_label` /
+# `ELLIPSIS` are gone, so `test_truncate_label_never_cuts_from_the_left` (the
+# R1 test of the retired ellipsis rule) is REMOVED, not adapted -- there is no
+# truncation left to test. The replacement coverage below is `wrap_label`
+# itself, the folded tick text it feeds, and the row-height/margin
+# consequences of a wrapped (two-line) row.
 # ---------------------------------------------------------------------------
-def test_truncate_label_never_cuts_from_the_left():
-    long_name = "Biochemistry, Genetics and Molecular Biology"
-    assert len(long_name) > C.MAX_LABEL_CHARS, "fixture assumption: this name IS the I-4 example"
-    short = C._truncate_label(long_name)
-    assert len(short) <= C.MAX_LABEL_CHARS
-    assert short.startswith(long_name[: C.MAX_LABEL_CHARS - 1].rstrip())
-    assert short.endswith(C.ELLIPSIS)
-    # the leading characters are never the ones dropped
-    assert long_name[:4] in short
-    # a label already within budget is untouched
-    assert C._truncate_label("Mathematics") == "Mathematics"
+def test_wrap_label_never_splits_a_word_and_preserves_the_full_text():
+    assert C.wrap_label("Mathematics") == "Mathematics", "within budget -> untouched, no <br>"
+
+    long_name = "Biochemistry, Genetics and Molecular Biology"  # the I-4 example, 46 chars
+    wrapped = C.wrap_label(long_name)
+    lines = wrapped.split("<br>")
+    assert len(lines) == 2
+    assert wrapped.replace("<br>", " ") == long_name, "full text survives, nothing truncated"
+    words = set(long_name.split())
+    for line in lines:
+        for word in line.split():
+            assert word in words, f"{word!r} is not one of the original words -- a word was split"
 
 
-def test_fig_share_si_folds_volume_into_ticktext_full_label_survives_in_hover(fields_df):
+def test_wrap_label_merges_a_third_overflow_line_into_the_second():
+    """Three words each already at the width budget on their own force THREE
+    raw greedy-wrapped lines; the cap is 'at most two lines', so the third
+    joins the second rather than the label growing a third line or losing
+    text."""
+    words = ["A" * 35, "B" * 35, "C" * 35]
+    text = " ".join(words)
+    wrapped = C.wrap_label(text, width=C.WRAP_WIDTH)
+    lines = wrapped.split("<br>")
+    assert len(lines) == 2, "at most two lines even when naive wrapping would need three"
+    assert wrapped.replace("<br>", " ") == text, "no character lost to the merge"
+    for w in words:
+        assert w in wrapped, "no word split by the merge either"
+
+
+def test_fig_share_si_folds_wrapped_volume_into_ticktext_full_label_survives_in_hover(fields_df):
     """Uses the REAL long field name from the I-4 screenshot ("Biochemistry,
     Genetics and Molecular Biology", 46 chars) straight out of the fixture
     `fields_df` already builds from the deployed parquet -- no synthetic data."""
     fig = C.fig_share_si(fields_df, family="oa", sort="volume", gutter=True)
-    long_name = next(n for n in fields_df["field_name"] if len(n) > C.MAX_LABEL_CHARS)
+    long_name = next(n for n in fields_df["field_name"] if "<br>" in C.wrap_label(n))
     assert long_name == "Biochemistry, Genetics and Molecular Biology"
 
-    names = list(fig.data[0].y)  # identity axis: FULL names, unaffected by truncation
+    names = list(fig.data[0].y)  # identity axis: FULL names, unaffected by wrapping
     idx = names.index(long_name)
     assert long_name in fig.data[0].customdata[idx], "full label must survive in hover"
 
     tickvals = list(fig.layout.yaxis.tickvals)
     ticktext = list(fig.layout.yaxis.ticktext)
     shown = ticktext[tickvals.index(long_name)]
-    assert C._truncate_label(long_name) in shown
-    assert long_name not in shown, "the raw, untruncated label is never drawn on screen"
+    assert "<br>" in shown, "a label over the wrap width is drawn on two lines, never shortened"
     assert P.INK_SECONDARY in shown, "the volume rides in the secondary ink, inside the tick text"
-
-    # no tick label's VISIBLE (label) portion exceeds MAX_LABEL_CHARS + 1
-    # (the +1 covers the single ellipsis glyph replacing the cut characters)
-    for shown in ticktext:
-        label_part = shown.split(C.TICK_LABEL_GAP)[0]
-        assert len(label_part) <= C.MAX_LABEL_CHARS + 1
+    # every word of the long name is present SOMEWHERE in the drawn tick --
+    # wrapping moves words to a second line, it never drops one
+    assert all(w in shown for w in long_name.replace(",", "").split())
 
 
 def test_fig_share_si_automargin_and_reserved_margin_grow_for_long_labels(fields_df):
-    short_only = fields_df[fields_df["field_name"].str.len() <= C.MAX_LABEL_CHARS].reset_index(drop=True)
-    fig_short = C.fig_share_si(short_only, family="oa")
+    # A deliberately tiny frame, not a filtered slice of fields_df: filtering
+    # out the one wrapped row does NOT guarantee a shorter longest-LINE any
+    # more (unlike the old whole-string truncation), because some OTHER row's
+    # short label plus its OWN volume can still tie the wrapped row's longest
+    # line -- exactly the "measure by longest LINE, not longest STRING" change
+    # this stream made. A frame with genuinely short everything isolates the
+    # comparison instead.
+    tiny = pd.DataFrame({
+        "field_id": [1, 2], "field_name": ["Ab", "Cd"], "domain_id": [1, 1],
+        "domain_name": ["Life", "Life"], "vol_full": [1, 1], "vol_frac": [1.0, 1.0],
+        "share": [0.5, 0.5], "si": [1.0, 1.0],
+    })
+    fig_tiny = C.fig_share_si(tiny, family="oa")
     fig_long = C.fig_share_si(fields_df, family="oa")  # includes the 46-char Biochemistry row
-    assert fig_short.layout.yaxis.automargin is True
+    assert fig_tiny.layout.yaxis.automargin is True
     assert fig_long.layout.yaxis.automargin is True
-    assert fig_long.layout.margin.l > fig_short.layout.margin.l, (
-        "a frame containing a long label must reserve more left margin than one that doesn't"
+    assert fig_long.layout.margin.l > fig_tiny.layout.margin.l, (
+        "a frame containing a long (wrapped) label must reserve more left margin than a tiny-label one"
     )
     assert fig_long.layout.margin.l > C.GUTTER_MARGIN_MIN_PX
 
 
-def test_fig_topics_folds_volume_and_truncates_the_longest_labels_in_the_app(topics_df):
-    long_names = [str(n) for n in topics_df["topic_name"] if len(str(n)) > C.MAX_LABEL_CHARS]
+def test_fig_share_si_row_height_grows_for_wrapped_rows(fields_df):
+    """L35: a wrapped (two-line) row needs ~1.7x a single-line row's vertical
+    budget (`WRAP_ROW_FACTOR`), so a frame containing a long label is TALLER
+    than the same frame with that row removed, beyond what one extra row would
+    explain on its own."""
+    long_name = next(n for n in fields_df["field_name"] if "<br>" in C.wrap_label(n))
+    without = fields_df[fields_df["field_name"] != long_name].reset_index(drop=True)
+    fig_with = C.fig_share_si(fields_df, family="oa")
+    fig_without = C.fig_share_si(without, family="oa")
+    one_plain_row = C.ROW_PX
+    grown_by = fig_with.layout.height - fig_without.layout.height
+    assert grown_by > one_plain_row, "a wrapped row costs MORE than one ordinary row of height"
+
+
+def test_row_height_n_wrapped_matches_the_documented_factor():
+    base = C.row_height(10)
+    grown = C.row_height(10, n_wrapped=3)
+    assert C.row_height(10, n_wrapped=0) == base, "default reproduces the pre-R2 formula exactly"
+    expected = max(C.MIN_HEIGHT,
+                    int(round(C.ROW_PX * (10 + 3 * (C.WRAP_ROW_FACTOR - 1)))) + C.BASE_PX)
+    assert grown == expected
+    assert grown > base
+
+
+def test_gutter_margin_px_measures_the_longest_line_not_the_whole_string():
+    """A wrapped tick's `plain` text uses `\\n` between lines (see
+    `_tick_display`); the margin must be sized off the single longest LINE,
+    not the sum of every line's characters -- a two-line string with short
+    lines must not out-reserve a one-line string that is itself longer than
+    either of those lines."""
+    two_short_lines = "aa\nbbbbbbbbbb"          # longest line = 10 chars
+    one_longer_line = "ccccccccccccccc"          # 15 chars, one line
+    m_two = C._gutter_margin_px([two_short_lines])
+    m_one = C._gutter_margin_px([one_longer_line])
+    assert m_one > m_two, "the longer SINGLE line must reserve more than the two SHORT lines"
+
+
+def test_fig_topics_wraps_the_longest_labels_in_the_app(topics_df):
+    long_names = [str(n) for n in topics_df["topic_name"] if "<br>" in C.wrap_label(str(n))]
     assert long_names, "fixture must include a real long topic name (topics are the app's longest labels)"
     fig = C.fig_topics(topics_df, sort="volume")
     assert fig.layout.yaxis.automargin is True
+    tickvals = list(fig.layout.yaxis.tickvals)
     ticktext = list(fig.layout.yaxis.ticktext)
-    assert any(C.ELLIPSIS in t for t in ticktext), "at least one real long topic name must be ellipsised"
-    for shown in ticktext:
-        label_part = shown.split(C.TICK_LABEL_GAP)[0]
-        assert len(label_part) <= C.MAX_LABEL_CHARS + 1
-    # full label survives in hover even where the tick was truncated
+    assert any("<br>" in t for t in ticktext), "at least one real long topic name must wrap"
+
     long_hit = long_names[0]
-    row_idx = [i for i, y in enumerate(fig.data[0].y) if long_hit in y]
-    assert row_idx and long_hit in fig.data[0].customdata[row_idx[0]]
+    # the row's identity (`y=`) is the full, untouched name (glyph-prefixed if
+    # flagged catch-all) -- find it by substring, then read ITS OWN drawn tick
+    # text off the same tickvals/ticktext pairing `fig_topics` builds.
+    row_name = next(y for y in fig.data[0].y if long_hit in y)
+    row_idx = list(fig.data[0].y).index(row_name)
+    assert long_hit in fig.data[0].customdata[row_idx], "full label survives in hover"
+    shown = ticktext[tickvals.index(row_name)]
+    assert "<br>" in shown, "the wrapped label draws on two lines"
+    assert all(w in shown for w in long_hit.replace(",", "").split()), "wrapping never drops a word"
 
 
 def test_fig_erc_reuses_the_same_folded_gutter_mechanism(erc_df):

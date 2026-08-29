@@ -24,6 +24,13 @@ VARIANTS = ["ab3_a", "ab3_b", "ab4_a", "ab4_b"]
 if "--ship" in sys.argv:
     SCRIPT = "design-system/ab/proto_ship.py"
     VARIANTS = ["r1_shipped_builders"]
+if "--ship-r2" in sys.argv:
+    # R2 (stream R2-D): render the SAME shipped `lib/charts.py` builders after
+    # the L34/L35/L36 changes -- wrap_label, si_status solid/hollow/none, unit
+    # grid, numbered SDG labels -- on a long-label ERC frame and a thin/solid
+    # subfields frame. Throwaway, design-system/ab/** only.
+    SCRIPT = "design-system/ab/proto_ship_r2.py"
+    VARIANTS = ["r2_shipped_builders"]
 SIZES = {"1280": (1280, 900), "390": (390, 844)}
 
 
@@ -59,6 +66,14 @@ def main() -> int:
             browser = p.chromium.launch()
             for w in widths:
               width, height = SIZES[w]
+              if VARIANTS == ["r2_shipped_builders"]:
+                  # Streamlit's own content area scrolls INSIDE a fixed-height
+                  # container (`[data-testid="stMain"]`), not via document.body
+                  # -- Playwright's full_page capture reads body.scrollHeight,
+                  # so it silently returns a viewport-sized crop on a Streamlit
+                  # page regardless of full_page. Four stacked charts need a
+                  # genuinely tall VIEWPORT instead so nothing needs scrolling.
+                  height = 3200
               page = browser.new_page(viewport={"width": width, "height": height})
               for v in VARIANTS:
                   try:
