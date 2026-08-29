@@ -2,13 +2,14 @@
 app/lib/tiles.py -- the KPI tile (BUILD_PLAN_2A.md S9.2 L18, VIZ_SPEC.md
 S2.11), copied in from Lorraine Phase 2 `Streamlit/pages/2_(factory)_
 Laboratoires.py::_kpi_tile` (lines 1151-1178) and reduced to what BenchUp
-needs: value + label + subline, no per-tile download button.
+needs: value + label + subline + an optional second subline (R2/L31, the
+index baseline), no per-tile download button.
 
 WHY HTML AND NOT `st.metric`: `st.metric` has no subline, and the subline is
 the whole point -- the house rule "every KPI pairs its value with the
 denominator or reference it is computed against" (BUILD_PLAN_2A.md L11) is
 what the third line carries. `st.metric`'s delta arrow would also imply a
-change-over-time reading that none of these seven one-snapshot measures has
+change-over-time reading that none of these eight one-snapshot measures has
 (VIZ_SPEC.md S2.11, the named rejected alternative).
 
 Two house rules this module obeys mechanically:
@@ -39,6 +40,11 @@ META_LINE_HEIGHT = 1.4
 # A stable hook so a test or the Playwright probe can count rendered tiles
 # without matching a user-facing label (which would break with any copy edit).
 TILE_CLASS = "benchup-kpi"
+# R2/L31: a tile now carries TWO sublines -- its own denominator/reference line
+# and the index-baseline line -- so the sublines get their own hook as well, and
+# "every tile states where the seed sits in the population" becomes countable
+# (`html.count(SUBLINE_CLASS) == 2`) rather than a claim about prose.
+SUBLINE_CLASS = "benchup-kpi-sub"
 
 
 def _esc(value) -> str:
@@ -48,25 +54,37 @@ def _esc(value) -> str:
             .replace(">", "&gt;").replace('"', "&quot;"))
 
 
-def tile_html(label: str, value: str, subline: str) -> str:
+def _subline_html(text: str) -> str:
+    return (f'<div class="{SUBLINE_CLASS}" style="font-size:{META_PX}px;'
+            f'line-height:{META_LINE_HEIGHT};color:{P.INK_SECONDARY};">{_esc(text)}</div>')
+
+
+def tile_html(label: str, value: str, subline: str, subline2: str | None = None) -> str:
     """The tile's markup on its own (no Streamlit call) -- pure, so a test can
-    assert on it without a running app."""
-    return (
-        f'<div class="{TILE_CLASS}">'
+    assert on it without a running app.
+
+    `subline2` (R2/L31) is the index-baseline line: "index median {m} . higher
+    than {pct} of institutions". It is OPTIONAL rather than required so the tile
+    stays usable where no baseline exists for a measure; where one does, the
+    caller passes it and the tile renders four lines instead of three."""
+    parts = [
+        f'<div class="{TILE_CLASS}">',
         f'<div style="font-size:{VALUE_PX}px;font-weight:{VALUE_WEIGHT};'
-        f'line-height:{VALUE_LINE_HEIGHT};color:{P.INK};">{_esc(value)}</div>'
+        f'line-height:{VALUE_LINE_HEIGHT};color:{P.INK};">{_esc(value)}</div>',
         f'<div style="font-size:{META_PX}px;line-height:{META_LINE_HEIGHT};'
-        f'color:{P.INK_SECONDARY};">{_esc(label)}</div>'
-        f'<div style="font-size:{META_PX}px;line-height:{META_LINE_HEIGHT};'
-        f'color:{P.INK_SECONDARY};">{_esc(subline)}</div>'
-        f'</div>'
-    )
+        f'color:{P.INK_SECONDARY};">{_esc(label)}</div>',
+        _subline_html(subline),
+    ]
+    if subline2 is not None:
+        parts.append(_subline_html(subline2))
+    parts.append('</div>')
+    return "".join(parts)
 
 
-def kpi_tile(col, label: str, value: str, subline: str) -> None:
+def kpi_tile(col, label: str, value: str, subline: str, subline2: str | None = None) -> None:
     """Render one tile into `col` (a `st.columns(...)` slot): a bordered
     container whose chrome is Streamlit's own `border=True` hairline, holding
-    the three-line block above."""
+    the three- or four-line block above."""
     with col:
         with st.container(border=True):
-            st.markdown(tile_html(label, value, subline), unsafe_allow_html=True)
+            st.markdown(tile_html(label, value, subline, subline2), unsafe_allow_html=True)

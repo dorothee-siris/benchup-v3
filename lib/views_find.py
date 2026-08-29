@@ -9,15 +9,24 @@ wordcloud_png,ranked,search,filters,badges,exports,links,countries,copy,state,
 palette,app_config,data_cache}. Nothing here re-implements them and nothing
 here types a value into a rendered string (BUILD_PLAN_2A.md L10).
 
-PAGE ORDER (L16/L17, top to bottom, and the order the code below follows):
+PAGE ORDER (L16/L17, re-laid by R2/L30 as the Lorraine lab card's GRID, top to
+bottom, and the order the code below follows):
   title + intro + verdict + snapshot caption, with the "Filtered by..." strip
-  slot right under it -> seed search -> PROFILE section (header, seven KPI
-  tiles, coverage caption, wordcloud + yearly breakdown pair, six collapsed
-  chart panels) -> BENCHMARK section, headed by the controls row (depth, C1,
-  L7, a post-filters expander) -> the lens tabs. The SIDEBAR now holds only
-  what is app-wide: Scenario (tree, basis) and the Basket (L16 -- gate-2A
+  slot right under it -> seed search -> PROFILE section: row 1 in three columns
+  (identity | eight KPI tiles in a 2 x 4 grid, each carrying its index baseline
+  | subfield wordcloud), row 2 full width (one segmented control and one chip
+  legend above a global + yearly breakdown pair), then six collapsed chart
+  panels -> BENCHMARK section, headed by the controls row (depth, C1, L7, a
+  post-filters expander) and the "How to read the lenses" guide -> the lens
+  tabs, labelled by `copy.LENS_NAMES`. The SIDEBAR now holds only what is
+  app-wide: counting & taxonomy (tree, basis) and the Basket (L16 -- gate-2A
   feedback #1: a control that governs one section belongs at the head of that
   section, not a page away in the sidebar).
+
+  The R1 coverage line is GONE (L30, VIZ_SPEC S2.12 RETIRED): each of its four
+  items now sits where it is read -- ERC-classified share in the ERC panel
+  caption, catch-all share in the top-topics caption, L2f-eligible cells in the
+  L2f tab's own intro, SDG-tagged share was already a tile.
 
 PERFORMANCE SHAPE (measured on this data, env-app; see progress/R1_E2.md):
   * load_context 2.5 s / build_substrates 4.6 s, both @st.cache_resource;
@@ -53,7 +62,7 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
-from lib import charts, copy, countries, links, profile_data, state, tiles
+from lib import baselines, charts, copy, countries, links, profile_data, state, tiles
 from lib import palette as P
 from lib.app_config import CFG
 from lib.badges import badges_for, catchall_tooltip, umbrella_flags, umbrella_medians
@@ -79,10 +88,15 @@ from lib.wordcloud_png import render_wordcloud_png
 # rendered string ever types it (BUILD_PLAN_2A.md L10).
 CORE_TOP_N = 20
 
-# The displayed cut of the two "top N" profile panels. Module constants, never
-# a digit inside a caption: the captions take them as `{n}` placeholders.
-SUBFIELDS_TOP_N = 20
+# The displayed cut of the "top N" profile panels and of the frontier panel's
+# volume mode. Module constants, never a digit inside a caption: the captions
+# take them as `{n}` placeholders. SUBFIELDS_TOP_N is 30 under R2/L34 (the panel
+# also lost its sort toggle: "top 30" is itself a volume-ordered concept, and a
+# taxonomy re-sort of a volume-defined cut reads as an arbitrary 30 rows in ID
+# order); FRONTIER_TOP_N is L33's two-hundred-topic volume mode.
+SUBFIELDS_TOP_N = 30
 TOPICS_TOP_N = 20
+FRONTIER_TOP_N = 200
 
 SEP = "·"   # middle dot -- the separator copy.STRIP_JOIN already uses
 DASH = "–"  # en dash -- interval rendering
@@ -92,10 +106,24 @@ DEPTH_OPTIONS = [CFG["depth"]["default"], CFG["depth"]["max"]]
 
 # Layout constants (VIZ_SPEC S1.9 / S2.11 / S2.21). Streamlit collapses a
 # horizontal block to a vertical stack below its own small breakpoint, which is
-# what makes the seven tiles wrap one-per-row at 390 px with no media query.
-N_TILES = 7
-PROFILE_ROW_WIDTHS = [1.0, 1.35]      # wordcloud | yearly breakdown pair
-CONTROLS_ROW_WIDTHS = [1, 1, 1, 2]    # depth | C1 | L7 | post-filters expander
+# what makes the eight tiles wrap one-per-row at 390 px with no media query.
+N_TILES = 8
+# L30 asks for a 2 x 4 grid inside row 1's middle column. MEASURED at 1280 px
+# (`tests/ui/screenshots/e3_find_top_1280.png`, first render): the main content
+# box is ~820 px, the profile's own bordered container takes ~32 px of it, the
+# three columns split the remaining ~756 px 1.0 : 2.0 : 1.4, so the middle
+# column is ~344 px -- four tiles across it are ~74 px wide, ~40 px inside each
+# tile's bordered container, and every label breaks mid-word ("Concent ration",
+# "publicat ions"). That is the SAME failure the R1 manager edit recorded for
+# seven tiles in one full-width row, at half the width. Four rows of two give
+# each tile ~150 px (~118 px inside the border), which holds "Concentration" on
+# one line -- so the grid is transposed, not the ruled column widths. Flip this
+# constant back to 4 the day the middle column is wide enough (it already is at
+# 1920 px, where four across measure ~146 px).
+TILE_GRID_COLS = 2                     # 4 rows x 2 tiles (L30, transposed)
+PROFILE_ROW1_WIDTHS = [1.0, 2.0, 1.4]  # identity | KPI tiles | wordcloud
+PROFILE_ROW2_WIDTHS = [1, 1]           # global breakdown | yearly breakdown
+CONTROLS_ROW_WIDTHS = [1, 1, 1, 2]     # depth | C1 | L7 | post-filters expander
 
 SORT_VOLUME, SORT_TAXONOMY = "volume", "taxonomy"
 
@@ -117,7 +145,16 @@ def _bundle() -> dict:
                                                         else float(r.total_full_2020_2024))}
             for r in idx.itertuples(index=False)}
     td = topics_dim()
+    # R2/L31: the KPI baselines are one pass over the whole index, so they are
+    # built HERE (inside the process-wide cache_resource) rather than per rerun.
+    # `bonus_year_full` is the one DERIVED KPI -- `baselines.KPI_COLUMNS` holds
+    # its parser, so the per-institution bonus-year count is read through the
+    # same public spec the median is computed from, never re-parsed here.
+    bonus_spec = baselines.KPI_COLUMNS["bonus_year_full"]
+    bonus = bonus_spec(idx) if callable(bonus_spec) else idx[bonus_spec]
     return {"ctx": ctx, "index_df": idx, "lite": lite,
+            "baselines": baselines.build(idx),
+            "bonus_year_full": dict(zip(idx["institution_id"], bonus)),
             "search_idx": build_search_index(idx),
             "flags": umbrella_flags(idx), "medians": umbrella_medians(idx),
             "catchall": catchall_811_share(ctx),
@@ -210,14 +247,35 @@ def _sidebar_scenario() -> dict:
     sb = st.sidebar
     sb.header(copy.FIND["SCENARIO_HEADER"])
     trees = CFG["scenario"]["toggles"]["tree"]
+    # R2/L29: the OPTION stays the internal value (every frame, every cache key
+    # and every export reads it); only its rendering changes, through
+    # `format_func`. A reader never meets "bestfit" or "frac" on the page again.
     tree = sb.selectbox(copy.FIND["TREE_LABEL"], trees,
                         index=trees.index(CFG["scenario"]["tree_default"]),
-                        key="tree", **state.PERSIST)
+                        format_func=lambda v: copy.TREE_LABELS[v],
+                        help=copy.FIND["TREE_HELP"], key="tree", **state.PERSIST)
     bases = CFG["scenario"]["toggles"]["basis"]
     basis = sb.selectbox(copy.FIND["BASIS_LABEL"], bases,
                          index=bases.index(CFG["scenario"]["basis_default"]),
-                         help=copy.BASIS_NOT_APPLIED_TOOLTIP, key="basis", **state.PERSIST)
+                         format_func=lambda v: copy.BASIS_LABELS[v],
+                         help=copy.FIND["BASIS_HELP"], key="basis", **state.PERSIST)
     return {"tree": tree, "basis": basis}
+
+
+def _strip_tree(tree: str) -> str:
+    """The value `filters.active_controls_strip` should receive for `tree`.
+
+    That function uses its `tree` argument for TWO jobs at once: the off-default
+    TEST (against `CFG["scenario"]["tree_default"]`, an internal value) and the
+    strip's own DISPLAY text (`copy.STRIP_TREE`). Handing it the display label
+    unconditionally would make the test never match and pin the strip open at
+    the defaults; handing it the internal value keeps "bestfit" on screen, which
+    L29 removed everywhere else. So the internal value goes in when it IS the
+    default (the only case the test reads it) and the display label otherwise
+    (the only case the text is rendered). Splitting that argument in two belongs
+    in `lib/filters.py`, another stream's file this wave."""
+    default = CFG["scenario"]["tree_default"]
+    return default if tree == default else copy.TREE_LABELS[tree]
 
 
 def _hit_label(hits: list[dict], iid: str) -> str:
@@ -354,82 +412,123 @@ def _profile_identity(card: dict, row, bundle: dict) -> None:
     # counts the corpus the app counted -- give or take live-vs-snapshot drift,
     # which the tooltip discloses (measured 0.99907-1.00023 on six seeds,
     # progress/R1_B.md) rather than hiding.
-    parts = [f"[{copy.FIND['LINK_OPENALEX']}]({links.works_url(card['institution_id'])})"]
+    #
+    # R2/L29: that link is now labelled by what it ANSWERS ("what counts as a
+    # publication") rather than by where it points, and the whole row carries
+    # the corpus definition as its tooltip -- stated ONCE for the section, so
+    # every tile and panel beneath can say "publications" without re-explaining
+    # document types, the DOI requirement or the bonus year. The drift sentence
+    # is appended, not dropped: it is the ratified fix for gate-2A bug #9.
+    parts = [f"[{copy.FIND['PUBLICATIONS_LINK_LABEL']}]"
+             f"({links.works_url(card['institution_id'])})"]
     ror = row.get("ror_id")
     if isinstance(ror, str) and ror:
         parts.append(f"[{copy.FIND['LINK_ROR']}]({links.ror_url(ror)})")
     home = row.get("homepage_url")
     if isinstance(home, str) and home:
         parts.append(f"[{copy.FIND['LINK_HOMEPAGE']}]({home})")
-    st.markdown(f" {SEP} ".join(parts), help=copy.FIND["LINK_OPENALEX_HELP"])
+    tooltip = copy.FIND["PUBLICATIONS_TOOLTIP"].format(
+        y0=WINDOW_START, y1=WINDOW_END, bonus_year=CFG["bonus_year"], dash=DASH, sep=SEP)
+    st.markdown(f" {SEP} ".join(parts),
+                help=f"{tooltip} {copy.FIND['LINK_OPENALEX_HELP']}")
 
 
-def _profile_tiles(card: dict, row) -> None:
-    """VIZ_SPEC S2.11 / L18: seven tiles, fixed order, each value + label +
-    subline naming the denominator or reference. `n/a` for anything the data
-    cannot support -- never 0, never a hidden tile."""
-    # Manager edit 2026-08-29 (E2 needs_change #4): seven tiles in ONE st.columns
-    # row measured ~85 px each at 1280 px and broke "Concentration" mid-word; two
-    # rows (4 + 3) keep every tile >= ~280 px at 1280 and still stack at 390.
-    cols = st.columns(4) + st.columns(N_TILES - 4)
-    tot_frac = card["total_frac_2020_2024"]
-    # Manager edit 2026-08-29 (E2 needs_change #1): the ERC-classified numerator is
-    # on the WHOLE-RUN mass basis (2020-2025), so its denominator must be the
-    # whole-run `total_frac`, not the 2020-2024 window (which printed 109.1 % for
-    # Strasbourg). data_contract.yaml index.erc_classified_mass_frac carries the
-    # corrected formula.
-    erc, tot_frac_run = card["erc_classified_mass_frac"], row.get("total_frac")
-    tiles.kpi_tile(cols[0], copy.FIND["TILE_SIZE_FULL"], _count(card["total_full_2020_2024"]),
-                   copy.FIND["TILE_SIZE_FULL_SUB"].format(y0=WINDOW_START, y1=WINDOW_END,
-                                                          dash=DASH))
-    tiles.kpi_tile(cols[1], copy.FIND["TILE_SIZE_FRAC"], _count(tot_frac),
-                   copy.FIND["TILE_SIZE_FRAC_SUB"])
-    # L18 / VIZ_SPEC S2.11: "HHI value + its class tag" -- the VALUE slot takes
-    # the measure, the subline the class tag that discretises it, so the tile
-    # reads like its six numeric neighbours instead of putting a word where
-    # every other tile puts a number.
-    hhi_class = str(row["hhi_class"]) if not pd.isna(row["hhi_class"]) else NA_MARK
-    hhi_value = _hhi(card["hhi_subfield"])
-    tiles.kpi_tile(cols[2], copy.FIND["TILE_HHI"], hhi_value,
-                   copy.FIND["TILE_HHI_SUB"].format(hhi_class=hhi_class, sep=SEP,
-                                                    hhi_value=hhi_value))
-    if card["breadth_subfields"] is None:
-        breadth = NA_MARK
+def _baseline_sub(bundle: dict, kpi: str, value, fmt) -> str:
+    """R2/L31: the tile's SECOND subline, positioning the value in the index --
+    "index median {m} . higher than {pct} of institutions". The median is
+    formatted by the tile's OWN formatter, so a share reads as a share and a
+    count as a count; a null value keeps the median visible and marks its own
+    position NA_MARK (`baselines.percentile` returns None there), because a
+    missing measure has no percentile but the reference still exists."""
+    ref = baselines.stats(bundle["baselines"], kpi)
+    pct = baselines.percentile(bundle["baselines"], kpi, value)
+    if pct is None:
+        pct_text = NA_MARK
     else:
-        breadth = f"{card['breadth_subfields']:,}"
-    tiles.kpi_tile(cols[3], copy.FIND["TILE_BREADTH"], breadth,
-                   copy.FIND["TILE_BREADTH_SUB"].format(floor=CFG["g6_floor"]))
-    tiles.kpi_tile(cols[4], copy.FIND["TILE_SDG"], _pct(card["sdg_tagged_share"]),
-                   copy.FIND["TILE_SDG_SUB"])
-    tiles.kpi_tile(cols[5], copy.FIND["TILE_FRONTIER"], _pct(card["frontier_top25_share_index"]),
-                   copy.FIND["TILE_FRONTIER_SUB"])
-    tiles.kpi_tile(cols[6], copy.FIND["TILE_PP"], _pct(row["pp_top10_frac"]),
-                   copy.FIND["TILE_PP_SUB"].format(lo=_pct(row["pp_ci_low"]),
-                                                   hi=_pct(row["pp_ci_high"]), dash=DASH))
-    # The ERC share the coverage line reports is a RATIO of two card fields;
-    # computed once here so the caption below reads a value, not an expression.
-    if erc is None or tot_frac_run is None or pd.isna(tot_frac_run) or float(tot_frac_run) <= 0:
-        card["_erc_share"] = None
-    else:
-        card["_erc_share"] = erc / float(tot_frac_run)
+        pct_text = f"{pct:.0%}"
+    return copy.FIND["TILE_BASELINE_SUB"].format(median=fmt(ref["median"]), pct=pct_text, sep=SEP)
 
 
-def _profile_coverage(card: dict) -> None:
-    """VIZ_SPEC S2.12: the former per-lens evidence lines, promoted to the seed
-    level and merged into ONE line. Four continuous coverage shares, each a
-    statement about the SEED -- never a gate, never a quality verdict (L8)."""
-    st.caption(
-        copy.FIND["COVERAGE_LINE"].format(
-            erc=_pct(card.get("_erc_share")), sdg=_pct(card["sdg_tagged_share"]),
-            catchall=_pct(card["catchall_811_share"]),
-            l2f=f"{card['n_eligible_subfields_L2f']:,}", sep=SEP),
-        help=catchall_tooltip(card["catchall_811_share"]))
+def _tile_specs(card: dict, row, bundle: dict) -> list[tuple]:
+    """(baseline key, label, value, formatter, own subline) x 8, in the FIXED
+    order of `baselines.KPI_COLUMNS` (VIZ_SPEC S2.11): size full, size
+    fractional, concentration, breadth, SDG-tagged share, frontier top-quartile
+    share, PP(top10%), publications in the bonus year.
+
+    The concentration tile carries NO class word (R2/L32: `hhi_class`'s
+    textbook thresholds called 86 % of the index "generalist", which is not a
+    distinction) -- the index percentile in the baseline subline is what
+    positions it now."""
+    iid = card["institution_id"]
+    return [
+        ("total_full_2020_2024", copy.FIND["TILE_SIZE_FULL"],
+         card["total_full_2020_2024"], _count,
+         copy.FIND["TILE_SIZE_FULL_SUB"].format(y0=WINDOW_START, y1=WINDOW_END, dash=DASH)),
+        ("total_frac_2020_2024", copy.FIND["TILE_SIZE_FRAC"],
+         card["total_frac_2020_2024"], _count,
+         copy.FIND["TILE_SIZE_FRAC_SUB"]),
+        ("hhi_subfield", copy.FIND["TILE_HHI"],
+         card["hhi_subfield"], _hhi,
+         copy.FIND["TILE_HHI_SUB"]),
+        ("breadth_subfields", copy.FIND["TILE_BREADTH"],
+         card["breadth_subfields"], _count,
+         copy.FIND["TILE_BREADTH_SUB"].format(floor=CFG["g6_floor"])),
+        ("sdg_tagged_share", copy.FIND["TILE_SDG"],
+         card["sdg_tagged_share"], _pct,
+         copy.FIND["TILE_SDG_SUB"]),
+        ("frontier_top25_share", copy.FIND["TILE_FRONTIER"],
+         card["frontier_top25_share_index"], _pct,
+         copy.FIND["TILE_FRONTIER_SUB"]),
+        ("pp_top10_frac", copy.FIND["TILE_PP"],
+         row["pp_top10_frac"], _pct,
+         copy.FIND["TILE_PP_SUB"].format(lo=_pct(row["pp_ci_low"]),
+                                         hi=_pct(row["pp_ci_high"]), dash=DASH)),
+        ("bonus_year_full", copy.FIND["TILE_BONUS_YEAR"].format(year=CFG["bonus_year"]),
+         bundle["bonus_year_full"].get(iid), _count,
+         copy.FIND["TILE_BONUS_YEAR_SUB"]),
+    ]
+
+
+def _profile_tiles(card: dict, row, bundle: dict) -> None:
+    """VIZ_SPEC S2.11 / L30 / L31: EIGHT tiles in a 2 x 4 grid filling column 2
+    of the profile's row 1, each `value + label + its own subline + the index
+    baseline`. `n/a` for anything the data cannot support -- never 0, never a
+    hidden tile.
+
+    A grid rather than one row of eight, at TILE_GRID_COLS per row: see that
+    constant for the 1280 px measurement that fixes its value. Streamlit stacks
+    every row one-tile-per-line below its own small breakpoint, so 390 px needs
+    no media query."""
+    st.markdown(f"**{copy.FIND['TILES_HEADER']}**", help=copy.FIND["BASELINE_HELP"])
+    cols = []
+    for _ in range(N_TILES // TILE_GRID_COLS):
+        cols.extend(st.columns(TILE_GRID_COLS))
+    for col, (kpi, label, value, fmt, subline) in zip(cols, _tile_specs(card, row, bundle)):
+        tiles.kpi_tile(col, label, fmt(value), subline, _baseline_sub(bundle, kpi, value, fmt))
+
+
+def _erc_share(card: dict, row) -> float | None:
+    """The ERC-classified share the ERC panel caption reports (R2/L30 moved it
+    off the retired coverage line). A RATIO of two card fields, computed once so
+    the caption reads a value rather than an expression.
+
+    Manager edit 2026-08-29 (E2 needs_change #1): the numerator is on the
+    WHOLE-RUN mass basis (2020-2025), so its denominator must be the whole-run
+    `total_frac`, not the 2020-2024 window (which printed 109.1 % for
+    Strasbourg). `data_contract.yaml` index.erc_classified_mass_frac carries the
+    corrected formula."""
+    erc, tot = card["erc_classified_mass_frac"], row.get("total_frac")
+    if erc is None or tot is None or pd.isna(tot) or float(tot) <= 0:
+        return None
+    return erc / float(tot)
 
 
 def _profile_wordcloud(iid: str, ctl: dict) -> None:
-    """VIZ_SPEC S2.13: a raster, left half of the section's wide row. Size =
-    works on the current basis, colour = domain -- both stated in the caption,
-    because a wordcloud whose size channel is unstated is a decoration."""
+    """VIZ_SPEC S2.13 / R2 L30: a raster in COLUMN 3 of the profile's row 1,
+    beside the tiles it illustrates rather than beside the breakdown pair it was
+    never related to. Size = publications on the current basis, colour = domain
+    -- both stated in the caption, because a wordcloud whose size channel is
+    unstated is a decoration."""
     weights, domains = _wordcloud_inputs(iid, ctl["tree"], ctl["basis"])
     png = render_wordcloud_png(weights, domains)
     if png is None:
@@ -510,24 +609,28 @@ def _profile_breakdown(iid: str, ctl: dict, bundle: dict) -> None:
 
     legend = [(labels[k], colors[k]) for k in keys]
     st.markdown(charts.chip_legend_html(legend), unsafe_allow_html=True)
-    # The two figures are STACKED inside this column rather than placed in two
-    # sub-columns. Measured, not preferred: the profile row is [wordcloud,
-    # breakdown] and at 1280 px two sub-columns leave the global chart ~260 px
-    # of plot, at which width its category labels clip ("hysical Sciences") and
-    # its value ticks rotate to vertical and overlap. This is the same finding,
-    # and the same remedy, that A/B #3 recorded for the share + SI pair at the
-    # narrow breakpoint (VIZ_SPEC S1.8): one shared reading order, read twice
-    # top to bottom, beats two panels too narrow to be charts.
-    st.markdown(f"**{copy.FIND['BREAKDOWN_GLOBAL_TITLE']}**")
-    st.plotly_chart(
-        charts.fig_breakdown_global([labels[k] for k in keys],
-                                    [sum(totals[k]) for k in keys],
-                                    [colors[k] for k in keys]),
-        width="stretch", key="fig_breakdown_global")
-    st.markdown(f"**{copy.FIND['BREAKDOWN_YEARLY_TITLE']}**")
-    st.plotly_chart(
-        charts.fig_breakdown_yearly([str(y) for y in years], keys, labels, colors, totals),
-        width="stretch", key="fig_breakdown_yearly")
+    # R2/L30 reverses R1's stacking. R1 put the two figures one above the other
+    # because this pair shared its row with the wordcloud, which left each
+    # sub-column ~260 px of plot at 1280 px -- a width at which category labels
+    # clip and value ticks rotate to vertical. The wordcloud has moved up into
+    # row 1, so the pair now owns the FULL section width and each panel gets
+    # ~600 px, comfortably past that failure point; side by side is what the
+    # Lorraine lab card does and what makes the two reads comparable at a
+    # glance. Streamlit stacks the two columns anyway below its own small
+    # breakpoint, so the 390 px behaviour is exactly R1's.
+    left, right = st.columns(PROFILE_ROW2_WIDTHS)
+    with left:
+        st.markdown(f"**{copy.FIND['BREAKDOWN_GLOBAL_TITLE']}**")
+        st.plotly_chart(
+            charts.fig_breakdown_global([labels[k] for k in keys],
+                                        [sum(totals[k]) for k in keys],
+                                        [colors[k] for k in keys]),
+            width="stretch", key="fig_breakdown_global")
+    with right:
+        st.markdown(f"**{copy.FIND['BREAKDOWN_YEARLY_TITLE']}**")
+        st.plotly_chart(
+            charts.fig_breakdown_yearly([str(y) for y in years], keys, labels, colors, totals),
+            width="stretch", key="fig_breakdown_yearly")
     st.caption(copy.FIND["BONUS_YEAR_CAPTION"].format(year=CFG["bonus_year"]))
 
 
@@ -543,7 +646,7 @@ def _sort_control(panel: str, default: str = SORT_VOLUME) -> str:
     return SORT_VOLUME if picked == copy.FIND["SORT_VOLUME"] else SORT_TAXONOMY
 
 
-def _panel_fields(iid: str, ctl: dict) -> None:
+def _panel_fields(iid: str, ctl: dict, card: dict) -> None:
     """VIZ_SPEC S2.15: one row per field, coloured by its DOMAIN, share bars +
     SI lollipops. No SI floor at field grain (the G6 floor is a subfield rule
     -- the data contract says so on both rows)."""
@@ -558,26 +661,31 @@ def _panel_fields(iid: str, ctl: dict) -> None:
     st.caption(copy.FIND["CAPTION_SI"])
 
 
-def _panel_subfields(iid: str, ctl: dict) -> None:
-    """VIZ_SPEC S2.16: the top subfields by volume on the CURRENT basis; SI is
-    `n/a` (no mark at all) below the G6 fractional floor, which on real data is
-    the common case rather than an edge case."""
+def _panel_subfields(iid: str, ctl: dict, card: dict) -> None:
+    """VIZ_SPEC S2.16 / R2 L34: the top SUBFIELDS_TOP_N subfields by volume on
+    the current basis, and NO sort toggle -- "top 30" is itself a volume-ordered
+    concept, so a taxonomy re-sort of it would read as an arbitrary 30 rows in
+    ID order. The SI mark is solid at or above the solid floor, hollow between
+    the two floors and absent below the thin one; `charts.fig_share_si` reads
+    that off the frame's own `si_status` column, and the floors are printed from
+    `profile_data`'s constants, the ONE place those numbers are typed."""
     df = _subfields_frame(iid, ctl["tree"], ctl["basis"])
     if df.empty:
         st.caption(copy.FIND["PANEL_EMPTY"])
         return
-    sort = _sort_control("subfields")
     vol = _vol_col(ctl["basis"])
     top = df.nlargest(SUBFIELDS_TOP_N, vol)
-    st.plotly_chart(charts.fig_share_si(top, family="oa", sort=sort, label_col="subfield_name",
-                                        volume_col=vol),
+    st.plotly_chart(charts.fig_share_si(top, family="oa", sort=SORT_VOLUME,
+                                        label_col="subfield_name", volume_col=vol),
                     width="stretch", key="fig_subfields")
     st.caption(copy.FIND["CAPTION_TOP_N_VOLUME"].format(n=f"{len(top):,}"))
     st.caption(copy.FIND["CAPTION_SI"])
-    st.caption(copy.FIND["CAPTION_SI_FLOOR"].format(floor=CFG["g6_floor"]))
+    st.caption(copy.FIND["CAPTION_SI_FLOOR"].format(
+        floor_solid=int(profile_data.SI_FLOOR_SOLID),
+        floor_thin=int(profile_data.SI_FLOOR_THIN)))
 
 
-def _panel_topics(iid: str, ctl: dict) -> None:
+def _panel_topics(iid: str, ctl: dict, card: dict) -> None:
     """VIZ_SPEC S2.17: the top topics by share. A catch-all (out-of-scope, 811)
     topic is FLAGGED and COUNTED, never dropped -- its presence is exactly what
     a reader needs in order to discount every other number in the section."""
@@ -590,34 +698,61 @@ def _panel_topics(iid: str, ctl: dict) -> None:
     st.plotly_chart(charts.fig_topics(top, sort=sort, volume_col=_vol_col(ctl["basis"])),
                     width="stretch", key="fig_topics")
     st.caption(copy.FIND["CAPTION_TOP_N_SHARE"].format(n=f"{len(top):,}"))
+    # R2/L30: the seed's catch-all SHARE moved off the retired coverage line
+    # into this caption, which already counted the flagged rows from the data --
+    # a caveat is read where the rows it qualifies are on screen.
     st.caption(copy.FIND["CAPTION_TOPICS_CATCHALL"].format(
-        n=f"{int(top['is_excluded'].fillna(False).sum()):,}", glyph=charts.EXCLUDED_GLYPH))
+        n=f"{int(top['is_excluded'].fillna(False).sum()):,}", glyph=charts.EXCLUDED_GLYPH,
+        catchall=_pct(card["catchall_811_share"])))
 
 
-def _panel_frontier(iid: str, ctl: dict) -> None:
-    """VIZ_SPEC S2.18: Expansion x Acceleration, bubble area = mass on the
-    current basis, colour = domain, an INK outline on a top-quartile topic.
+def _frontier_modes() -> tuple[str, str]:
+    """The two L33 mode labels, built once so the control, the default and the
+    comparison below all read the same strings."""
+    return (copy.FIND["FRONTIER_MODE_TOP"].format(n=FRONTIER_TOP_N),
+            copy.FIND["FRONTIER_MODE_EMERGING"])
+
+
+def _panel_frontier(iid: str, ctl: dict, card: dict) -> None:
+    """VIZ_SPEC S2.18 / R2 L33: Expansion x Acceleration, bubble area = volume
+    on the current basis, colour = domain, an INK outline on a top-quartile
+    topic. TWO modes behind one segmented control, each handing `fig_frontier` a
+    pre-filtered frame (the builder never learns which mode produced its input):
+    the seed's biggest FRONTIER_TOP_N topics by volume, or every topic in the
+    global top quartile of emergence -- NOT a subset of the first, since a topic
+    can be small and highly emergent or large and static.
+
     Topics that cannot be PLACED (unscored on either axis) or that are
-    out-of-scope are dropped and COUNTED in the caption -- the panel states
-    what it could not place rather than letting it vanish."""
+    out-of-scope are dropped and COUNTED in the caption, mode-independently:
+    that count is a fact about the seed's topic set, not about the cut on
+    screen, while the count SHOWN is the mode's own."""
     df = _topics_frame(iid, ctl["tree"], ctl["basis"])
     if df.empty:
         st.caption(copy.FIND["PANEL_EMPTY"])
         return
+    mode_top, mode_emerging = _frontier_modes()
+    st.segmented_control(copy.FIND["FRONTIER_MODE_LABEL"], [mode_top, mode_emerging],
+                         default=mode_top, required=True, key="frontier_mode", **state.PERSIST)
+    pick = st.session_state.get("frontier_mode") or mode_top
+
     placeable = (df["frontier_score_latest"].notna() & df["expansion_latest"].notna()
                  & df["acceleration_latest"].notna())
-    keep = placeable & ~df["is_excluded"].fillna(False)
-    dropped = int((~keep).sum())
-    scored = df[keep]
-    if scored.empty:
+    scored = placeable & ~df["is_excluded"].fillna(False)
+    if pick == mode_emerging:
+        keep = scored & df["top25pct_frontier"].fillna(False)
+    else:
+        keep = scored & (df["rank_volume"] <= FRONTIER_TOP_N)
+    subset = df[keep]
+    if subset.empty:
         st.caption(copy.FIND["FRONTIER_EMPTY"])
-        return
-    st.plotly_chart(charts.fig_frontier(scored, size_col=_vol_col(ctl["basis"])),
-                    width="stretch", key="fig_frontier")
-    st.caption(copy.FIND["CAPTION_FRONTIER"].format(n_excluded=f"{dropped:,}"))
+    else:
+        st.plotly_chart(charts.fig_frontier(subset, size_col=_vol_col(ctl["basis"])),
+                        width="stretch", key="fig_frontier")
+    st.caption(copy.FIND["CAPTION_FRONTIER"].format(
+        n_shown=f"{len(subset):,}", n_excluded=f"{int((~scored).sum()):,}"))
 
 
-def _panel_sdg(iid: str, ctl: dict) -> None:
+def _panel_sdg(iid: str, ctl: dict, card: dict) -> None:
     """VIZ_SPEC S2.19: sixteen bars in FIXED goal order (the one panel with no
     sort toggle -- the SDG numbers are a canonical sequence a reader navigates
     by position), official UN colours, ESI in the SI slot."""
@@ -632,7 +767,7 @@ def _panel_sdg(iid: str, ctl: dict) -> None:
         st.caption(copy.FIND["FRACTIONAL_ONLY_PANEL"])
 
 
-def _panel_erc(iid: str, ctl: dict) -> None:
+def _panel_erc(iid: str, ctl: dict, card: dict) -> None:
     """VIZ_SPEC S2.20: one row per ERC evaluation panel, coloured by its ERC
     DOMAIN (three hues that share nothing with the OpenAlex four -- a different
     taxonomy of the same output), grouped PE -> LS -> SH under the taxonomy
@@ -644,13 +779,22 @@ def _panel_erc(iid: str, ctl: dict) -> None:
     sort = _sort_control("erc", default=SORT_TAXONOMY)
     st.plotly_chart(charts.fig_erc(df, sort=sort), width="stretch", key="fig_erc")
     st.caption(copy.FIND["CAPTION_SI"])
-    st.caption(copy.FIND["CAPTION_ERC"].format(n_panels=f"{len(df):,}"))
+    # R2/L30: the ERC-classified share moved off the retired coverage line into
+    # this caption, where the panel it qualifies is on screen.
+    st.caption(copy.FIND["CAPTION_ERC"].format(n_panels=f"{len(df):,}",
+                                               erc_share=_pct(card.get("_erc_share"))))
     if ctl["basis"] == "full":
         st.caption(copy.FIND["FRACTIONAL_ONLY_PANEL"])
 
 
 # The six panels of VIZ_SPEC S1.9 block 5, in their fixed order. The key is
 # BOTH the expander's session-state key and the widget key suffix.
+#
+# A panel whose TITLE states its own cut takes its arguments from here rather
+# than typing the number into copy.py (L10): R2/L34's "Top {n} subfields" is the
+# only such title today.
+PANEL_LABEL_ARGS = {"subfields": {"n": SUBFIELDS_TOP_N}}
+
 PANELS = (
     ("fields", "PANEL_FIELDS", _panel_fields),
     ("subfields", "PANEL_SUBFIELDS", _panel_subfields),
@@ -661,7 +805,7 @@ PANELS = (
 )
 
 
-def _profile_panels(iid: str, ctl: dict) -> None:
+def _profile_panels(iid: str, ctl: dict, card: dict) -> None:
     """The six panels are COLLAPSED by default (VIZ_SPEC S1.9) but their bodies
     run every rerun -- `st.expander` folds the display, never the execution.
 
@@ -675,26 +819,33 @@ def _profile_panels(iid: str, ctl: dict) -> None:
     always built and the `key=` is kept only as a stable DOM hook
     (`.st-key-panel_<name>`) for the probe."""
     for name, copy_key, body in PANELS:
-        with st.expander(copy.FIND[copy_key], expanded=False, key=f"panel_{name}"):
-            body(iid, ctl)
+        label = copy.FIND[copy_key].format(**PANEL_LABEL_ARGS.get(name, {}))
+        with st.expander(label, expanded=False, key=f"panel_{name}"):
+            body(iid, ctl, card)
 
 
-def _render_profile(bundle: dict, subs: dict, seed_id: str, ctl: dict) -> None:
-    """VIZ_SPEC S1.9 / L17 -- the section that replaces the pre-R1 seed card."""
+def _render_profile(bundle: dict, subs: dict, seed_id: str, ctl: dict) -> dict:
+    """VIZ_SPEC S1.9 / L30 -- the Lorraine lab card's grid. Row 1 in three
+    columns (identity | eight KPI tiles | wordcloud), row 2 full width (one
+    control and one chip legend above the breakdown pair), then the six
+    collapsed panels. Returns the seed card, which the L2f tab intro and the
+    export path both read after the profile has rendered."""
     ctx = bundle["ctx"]
     card = seed_card(ctx, seed_id, subs, bundle["catchall"])
     row = ctx["index_by_id"].loc[seed_id]
+    card["_erc_share"] = _erc_share(card, row)
     st.header(copy.FIND["PROFILE_HEADER"])
     with st.container(border=True, key="profile"):
-        _profile_identity(card, row, bundle)
-        _profile_tiles(card, row)
-        _profile_coverage(card)
-        left, right = st.columns(PROFILE_ROW_WIDTHS)
-        with left:
+        c_identity, c_tiles, c_cloud = st.columns(PROFILE_ROW1_WIDTHS)
+        with c_identity:
+            _profile_identity(card, row, bundle)
+        with c_tiles:
+            _profile_tiles(card, row, bundle)
+        with c_cloud:
             _profile_wordcloud(seed_id, ctl)
-        with right:
-            _profile_breakdown(seed_id, ctl, bundle)
-        _profile_panels(seed_id, ctl)
+        _profile_breakdown(seed_id, ctl, bundle)
+        _profile_panels(seed_id, ctl, card)
+    return card
 
 
 # --------------------------------------------------------- controls row -----
@@ -846,14 +997,19 @@ def _gloss_values(bundle: dict) -> dict:
             "depth_max": CFG["depth"]["max"]}
 
 
-def _lens_intro(lens: str, ranking: dict, subs: dict, basis: str, bundle: dict) -> None:
+def _lens_intro(lens: str, ranking: dict, subs: dict, basis: str, bundle: dict,
+                card: dict) -> None:
     """Gloss + caveat + this seed's evidence line + the basis disclosure, all
-    above the table and never tooltip-only (VIZ_SPEC S2.4). The per-lens
-    evidence line stays here, where it is about THIS lens; the seed-level
-    coverage shares moved up to the profile's coverage caption (S2.12)."""
+    above the table and never tooltip-only (VIZ_SPEC S2.4). R2/L30 adds the
+    L2f-eligible cell count here, on the L2f tab and nowhere else: it is a
+    precondition for THAT lens's ranking, so a reader meets it on the tab whose
+    list it explains rather than in the profile's retired coverage line."""
     vals = _gloss_values(bundle)
     st.markdown(f"**{copy.LENS_GLOSS[lens].format(**vals)}**")
     st.caption(copy.LENS_CAVEAT[lens].format(**vals))
+    if lens == "L2f":
+        st.caption(copy.FIND["EV_L2F"].format(
+            value=f"{card['n_eligible_subfields_L2f']:,}"))
     ev = {k: v for k, v in (ranking.get("evidence") or {}).items() if isinstance(v, (int, float))}
     if ev:
         text = "; ".join(f"{k.replace('_', ' ')}: {v:,.3f}" for k, v in ev.items())
@@ -913,9 +1069,14 @@ def _basket_button(selected: list, key: str) -> None:
 def _render_lens_tab(lens: str, ranking: dict, bundle: dict, subs: dict, filters: dict,
                      seed_row, ctx_bits: dict) -> None:
     """VIZ_SPEC S2.4 / S2.22, the one shared form every lens renders through."""
-    _lens_intro(lens, ranking, subs, ctx_bits["basis"], bundle)
+    _lens_intro(lens, ranking, subs, ctx_bits["basis"], bundle, ctx_bits["card"])
     if ranking["undefined"]:
-        st.info(copy.UNDEFINED_LENS_TEMPLATE.format(lens=lens, reason=ranking["reason"]))
+        # R2/L29: the engine's own `reason` is a debugging string (it names
+        # internal structures and types digits this app bans in copy), so the
+        # reader gets the lens's plain-language precondition instead. The
+        # engine's version stays in its own log, unchanged.
+        st.info(copy.UNDEFINED_LENS_TEMPLATE.format(
+            lens=copy.LENS_NAMES[lens], reason=copy.LENS_UNDEFINED_REASON[lens]))
         return
     ctx, depth = bundle["ctx"], ctx_bits["depth"]
     kept_ids, kept_scores = _filtered(ranking, bundle, filters, seed_row, ctx_bits["family"])
@@ -950,6 +1111,10 @@ def _render_overview(bundle: dict, rankings: dict, lenses: list, filters: dict, 
     selected = render_concordance_table(
         format_concordance(kept, lenses=lenses, N=CONCORDANCE_N), key="tbl_concordance")
     st.caption(concordance_caption(n_defined, CONCORDANCE_N, len(kept)))
+    # R2/L29: the chips are lens CODES, which are stable identifiers rather than
+    # self-explaining names -- so the table says what a chip means and points at
+    # the guide that names every lens in full.
+    st.caption(copy.FIND["LENS_LEGEND_CAPTION"].format(N=CONCORDANCE_N))
     _basket_button(selected, "add_concordance")
 
 
@@ -1063,8 +1228,20 @@ def _lenses_shown(ctl: dict) -> list:
     return shown
 
 
+def _lens_guide(lenses: list) -> None:
+    """R2/L29: "How to read the lenses", a collapsed expander at the head of the
+    Benchmark section. One plain sentence per SHOWN lens (the guide never
+    describes a tab that is not on screen), each headed by the same label its
+    tab carries, so the code in the Overview chips, the evidence column and the
+    CSV can stay a bare identifier without being unexplained."""
+    with st.expander(copy.FIND["LENS_INTRO_HEADER"], expanded=False, key="lens_guide"):
+        st.caption(copy.FIND["LENS_INTRO_LEAD"])
+        for lens in lenses:
+            st.markdown(f"**{copy.LENS_NAMES[lens]}** {DASH} {copy.LENS_INTRO[lens]}")
+
+
 def _ctx_bits(ctl: dict, filters: dict, seed_id: str, rankings: dict, strip: str | None,
-              family) -> dict:
+              family, card: dict) -> dict:
     """The per-render constants every tab needs, assembled once."""
     filtered = any(v not in (None, False, []) for v in filters.values())
     if strip:
@@ -1074,16 +1251,17 @@ def _ctx_bits(ctl: dict, filters: dict, seed_id: str, rankings: dict, strip: str
     return {"tree": ctl["tree"], "basis": ctl["basis"], "depth": ctl["depth"],
             "snapshot": manifest().get("snapshot") or CFG["snapshot"], "seed_id": seed_id,
             "filters_label": label, "filtered": filtered, "family": family,
-            "cross": _cross_lens(rankings)}
+            "card": card, "cross": _cross_lens(rankings)}
 
 
 def render() -> None:
     """The whole Find page, in the argument order VIZ_SPEC S1.3/S1.9/S2 fixes.
 
-    Computation order (L16/L17): sidebar scenario -> header -> seed search ->
-    substrates -> rank_all -> PROFILE -> controls row (which needs the rankings
-    for the same-country tooltip) -> the strip, rendered back into the slot
-    reserved under the title -> tabs."""
+    Computation order (L16/L17/L29): sidebar counting & taxonomy -> header ->
+    seed search -> substrates -> rank_all -> PROFILE (which returns the seed
+    card the L2f tab intro reads) -> controls row (which needs the rankings for
+    the same-country tooltip) -> the lens guide -> the strip, rendered back into
+    the slot reserved under the title -> tabs."""
     bundle = _bundle()
     qp_seed = st.query_params.get("seed")
     if qp_seed and "seed_id" not in st.session_state and qp_seed in bundle["ctx"]["id_pos"]:
@@ -1101,18 +1279,23 @@ def render() -> None:
     rankings = rank_all(ctx, subs, seed_id)
     seed_row = ctx["index_by_id"].loc[seed_id]
     _sidebar_basket(bundle)
-    _render_profile(bundle, subs, seed_id, scenario)
+    card = _render_profile(bundle, subs, seed_id, scenario)
     benchmark, filters = _controls_row(bundle, rankings, seed_row)
     ctl = {**scenario, **benchmark}
-    strip = active_controls_strip(tree=ctl["tree"], basis=ctl["basis"], depth=ctl["depth"],
-                                  c1_on=ctl["c1_on"], l7_on=ctl["l7_on"], filters=filters)
+    lenses = _lenses_shown(ctl)
+    _lens_guide(lenses)
+    strip = active_controls_strip(tree=_strip_tree(ctl["tree"]), basis=ctl["basis"],
+                                  depth=ctl["depth"], c1_on=ctl["c1_on"], l7_on=ctl["l7_on"],
+                                  filters=filters)
     if strip:
         with strip_slot.container(key="strip"):
             st.markdown(strip)
-    lenses = _lenses_shown(ctl)
-    bits = _ctx_bits(ctl, filters, seed_id, rankings,
-                     strip, _family_scores(bundle, subs, seed_id, filters))
-    tabs = st.tabs([copy.FIND["TAB_OVERVIEW"], *lenses, copy.FIND["TAB_ASPIRATIONAL"]])
+    bits = _ctx_bits(ctl, filters, seed_id, rankings, strip,
+                     _family_scores(bundle, subs, seed_id, filters), card)
+    # R2/L29: the tab carries the lens's NAME; the code stays the identifier the
+    # Overview chips, the evidence column and the CSV cross-reference.
+    tabs = st.tabs([copy.FIND["TAB_OVERVIEW"], *[copy.LENS_NAMES[ln] for ln in lenses],
+                    copy.FIND["TAB_ASPIRATIONAL"]])
     with tabs[0]:
         _render_overview(bundle, rankings, lenses, filters, seed_row)
     for tab, lens in zip(tabs[1:-1], lenses):

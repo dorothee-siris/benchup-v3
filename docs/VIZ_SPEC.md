@@ -589,6 +589,9 @@ otherwise the R1 text unaltered.
 
 ### 2.11 KPI tiles
 
+> **Shipped deviation (R2-E3, manager-accepted 2026-08-29):** the eight tiles render as **4 rows × 2 columns** inside the ruled `[1.0, 2.0, 1.4]` middle column — at 1280 px that column measures ~344 px, so four tiles across would be ~74 px each with every label broken mid-word (`e3_find_top_1280.png`). One constant (`views_find.TILE_GRID_COLS`) flips it back if the column widths are re-ruled.
+
+
 **R2 rewrite (L30, L31 — user ruling items 3 and 7: "profile space not
 optimised... coverage line reads as leftovers" / "every KPI positioned against
 the index baseline").** Two changes at once, both forced by the same feedback:

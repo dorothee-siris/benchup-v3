@@ -10,6 +10,7 @@ import pytest
 
 from lib.app_config import CFG
 from lib.engine import build_rows, build_substrates, load_context, rank_all
+from lib import copy
 from lib.filters import active_controls_strip, apply_filters, explain_empty
 
 DATA_DIR = Path(__file__).resolve().parents[1] / "data"
@@ -65,7 +66,9 @@ def test_strip_is_none_at_all_defaults():
 
 
 @pytest.mark.parametrize("patch,expected_substr", [
-    ({"tree": "original"}, "original"),
+    # R2/L29: `views_find._strip_tree` hands this function the DISPLAY label
+    # for an off-default taxonomy, so the strip never prints "original".
+    ({"tree": copy.TREE_LABELS["original"]}, copy.TREE_LABELS["original"]),
     ({"depth": 50}, "depth = 50"),
     ({"c1_on": True}, "core-shape"),
     ({"l7_on": True}, "SDG-specialisation"),

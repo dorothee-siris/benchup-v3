@@ -26,7 +26,7 @@ from pathlib import Path
 import pytest
 from streamlit.testing.v1 import AppTest
 
-from lib import copy, tiles
+from lib import copy, tiles, views_find
 
 APP_DIR = Path(__file__).resolve().parents[1]
 # AppTest.from_file resolves a RELATIVE path against the file that CALLS it
@@ -125,18 +125,24 @@ def test_find_c1_and_l7_toggles_add_two_tabs():
     assert not at.exception, [str(e) for e in at.exception]
     labels = [t.label for t in at.tabs]
     assert len(at.tabs) == 12, labels
-    assert "C1" in labels and "L7" in labels, labels
+    # R2/L29: a tab is labelled with the lens's NAME; the code stays the
+    # identifier the Overview chips, the evidence column and the CSV use.
+    assert copy.LENS_NAMES["C1"] in labels and copy.LENS_NAMES["L7"] in labels, labels
 
 
 def test_undefined_lens_shows_template(undefined_l2f_seed):
     at = _find_app(seed_id=undefined_l2f_seed).run()
     assert not at.exception, [str(e) for e in at.exception]
     labels = [t.label for t in at.tabs]
-    assert "L2f" in labels, labels
-    tab = at.tabs[labels.index("L2f")]
+    assert copy.LENS_NAMES["L2f"] in labels, labels
+    tab = at.tabs[labels.index(copy.LENS_NAMES["L2f"])]
     text = " ".join(x.value for x in (*tab.info, *tab.caption, *tab.markdown))
     fixed = _template_literal_segment(copy.UNDEFINED_LENS_TEMPLATE)
     assert fixed in text, text
+    # R2/L29: the reader gets the lens's own plain-language precondition, never
+    # the engine's debugging string (which names internal structures).
+    assert copy.LENS_UNDEFINED_REASON["L2f"] in text, text
+    assert "excess-SI" not in text, text
 
 
 def test_type_filter_empties_a_lens_list():
@@ -157,7 +163,7 @@ def test_type_filter_empties_a_lens_list():
     at.run()
     assert not at.exception, [str(e) for e in at.exception]
     labels = [t.label for t in at.tabs]
-    tab = at.tabs[labels.index("L1")]
+    tab = at.tabs[labels.index(copy.LENS_NAMES["L1"])]
     text = " ".join(x.value for x in tab.info)
     fixed = _template_literal_segment(copy.EMPTY_STATE_TEMPLATE)
     assert fixed in text, text
@@ -209,21 +215,149 @@ CONTROLS_ROW_KEYS = ("depth", "c1_on", "l7_on")
 POST_FILTER_KEYS = ("f_types", "f_countries", "f_excl_own", "f_size", "f_guard", "f_family")
 
 
-def test_find_profile_section_renders_header_and_seven_tiles():
-    """L17 blocks 1-2: the profile section holds the seed's name and exactly
-    seven KPI tiles. AppTest exposes no container element type (see
+def test_find_profile_section_renders_header_and_eight_tiles():
+    """L30/L31: the profile section holds the seed's name and exactly EIGHT
+    KPI tiles, each carrying TWO sublines (its own reference line and the index
+    baseline). AppTest exposes no container element type (see
     test_menu_has_at_least_three_nav_cards), so the tiles are counted by
-    lib/tiles.py's own stable class hook, never by a user-facing string."""
+    lib/tiles.py's own stable class hooks, never by a user-facing string."""
     at = _find_app(seed_id=STRASBOURG).run()
     assert not at.exception, [str(e) for e in at.exception]
     headers = [h.value for h in at.header]
     assert copy.FIND["PROFILE_HEADER"] in headers, headers
     assert copy.FIND["BENCHMARK_HEADER"] in headers, headers
     rendered = [m.value for m in at.markdown if tiles.TILE_CLASS in m.value]
-    assert len(rendered) == 7, len(rendered)
+    assert len(rendered) == views_find.N_TILES == 8, len(rendered)
+    for html in rendered:
+        assert html.count(tiles.SUBLINE_CLASS) == 2, html
     for label_key in ("TILE_SIZE_FULL", "TILE_SIZE_FRAC", "TILE_HHI", "TILE_BREADTH",
                       "TILE_SDG", "TILE_FRONTIER", "TILE_PP"):
         assert any(copy.FIND[label_key] in html for html in rendered), label_key
+    from lib.app_config import CFG
+    bonus = copy.FIND["TILE_BONUS_YEAR"].format(year=CFG["bonus_year"])
+    assert any(bonus in html for html in rendered), bonus
+    # ...and every tile's second subline is the index baseline itself.
+    baseline_fixed = _template_literal_segment(copy.FIND["TILE_BASELINE_SUB"])
+    for html in rendered:
+        assert baseline_fixed in html, html
+
+
+def test_find_profile_has_no_coverage_line():
+    """L30 / VIZ_SPEC S2.12 RETIRED: the coverage caption is REMOVED from the
+    page, not shortened -- its four items now live in the panel, tile or tab
+    that each one qualifies."""
+    at = _find_app(seed_id=STRASBOURG).run()
+    assert not at.exception, [str(e) for e in at.exception]
+    page_text = " ".join(x.value for x in (*at.caption, *at.markdown, *at.info))
+    fixed = _template_literal_segment(copy.FIND["COVERAGE_LINE"])
+    assert fixed not in page_text, fixed
+    # ...and the relocated items ARE on the page, where they were moved to.
+    erc_fixed = _template_literal_segment(copy.FIND["CAPTION_ERC"])
+    catchall_fixed = _template_literal_segment(copy.FIND["CAPTION_TOPICS_CATCHALL"])
+    assert erc_fixed in page_text
+    assert catchall_fixed in page_text
+
+
+def test_find_sidebar_selectboxes_show_display_labels():
+    """L29: the sidebar renders a LABEL for every internal value; the option
+    values themselves are untouched (every frame, cache key and export reads
+    them), which is why only the rendered options are asserted here."""
+    at = _find_app(seed_id=STRASBOURG).run()
+    assert not at.exception, [str(e) for e in at.exception]
+    boxes = {s.key: s for s in at.sidebar.selectbox}
+    assert set(copy.TREE_LABELS.values()) == set(boxes["tree"].options), boxes["tree"].options
+    assert set(copy.BASIS_LABELS.values()) == set(boxes["basis"].options), boxes["basis"].options
+    for internal in copy.TREE_LABELS:
+        assert internal not in boxes["tree"].options, internal
+
+
+def test_find_lens_tabs_carry_the_lens_names_and_the_guide_is_present():
+    """L29: every lens tab is labelled "L1 . Subfield overlap"-style, and the
+    "How to read the lenses" expander at the head of the Benchmark section
+    describes each SHOWN lens in one plain sentence."""
+    at = _find_app(seed_id=STRASBOURG).run()
+    assert not at.exception, [str(e) for e in at.exception]
+    labels = [t.label for t in at.tabs]
+    from lib.app_config import CFG
+    shown = list(CFG["lenses"]["default"])
+    for lens in shown:
+        assert copy.LENS_NAMES[lens] in labels, (lens, labels)
+        assert lens not in labels, (lens, labels)   # never the bare code
+    expander_labels = [e.label for e in at.expander]
+    assert copy.FIND["LENS_INTRO_HEADER"] in expander_labels, expander_labels
+    guide = at.expander[expander_labels.index(copy.FIND["LENS_INTRO_HEADER"])]
+    text = " ".join(x.value for x in (*guide.markdown, *guide.caption))
+    assert copy.FIND["LENS_INTRO_LEAD"] in text
+    for lens in shown:
+        assert copy.LENS_INTRO[lens] in text, lens
+
+
+def test_frontier_mode_swap_changes_the_plotted_point_count():
+    """L33: the segmented control swaps which frame `charts.fig_frontier`
+    receives. AppTest cannot read a Plotly trace, so the page's own caption
+    (which states the count SHOWN, from the data) is the proxy -- and the two
+    counts are recomputed from the engine frame here so the assertion is not
+    circular."""
+    from lib import profile_data
+    from lib.engine import build_substrates, load_context
+
+    ctx = load_context(APP_DIR / "data")
+    subs = build_substrates(ctx, "bestfit", "frac")
+    df = profile_data.topics_table(ctx, subs, STRASBOURG)
+    placeable = (df["frontier_score_latest"].notna() & df["expansion_latest"].notna()
+                 & df["acceleration_latest"].notna())
+    scored = placeable & ~df["is_excluded"].fillna(False)
+    n_top = int((scored & (df["rank_volume"] <= views_find.FRONTIER_TOP_N)).sum())
+    n_emerging = int((scored & df["top25pct_frontier"].fillna(False)).sum())
+    assert n_top != n_emerging, (n_top, n_emerging)
+    assert n_top <= views_find.FRONTIER_TOP_N, n_top
+
+    mode_top = copy.FIND["FRONTIER_MODE_TOP"].format(n=views_find.FRONTIER_TOP_N)
+    at = _find_app(seed_id=STRASBOURG).run()
+    assert not at.exception, [str(e) for e in at.exception]
+    controls = {c.key: c.value for c in at.segmented_control}
+    assert controls.get("frontier_mode") == mode_top, controls
+    assert f"{n_top:,}" in " ".join(c.value for c in at.caption)
+
+    at.session_state["frontier_mode"] = copy.FIND["FRONTIER_MODE_EMERGING"]
+    at.run()
+    assert not at.exception, [str(e) for e in at.exception]
+    assert f"{n_emerging:,}" in " ".join(c.value for c in at.caption)
+
+
+def test_top_subfields_panel_has_no_sort_control_and_cuts_at_thirty():
+    """L34: the top-subfields panel is a volume-ordered cut of
+    SUBFIELDS_TOP_N rows with NO sort toggle (the other bar panels keep
+    theirs), and the cut is stated parametrically in its own title."""
+    at = _find_app(seed_id=STRASBOURG).run()
+    assert not at.exception, [str(e) for e in at.exception]
+    radio_keys = {r.key for r in at.radio}
+    assert "sort_subfields" not in radio_keys, radio_keys
+    assert {"sort_fields", "sort_topics", "sort_erc"} <= radio_keys, radio_keys
+    assert views_find.SUBFIELDS_TOP_N == 30
+    expected = copy.FIND["PANEL_SUBFIELDS"].format(n=views_find.SUBFIELDS_TOP_N)
+    assert expected in [e.label for e in at.expander], [e.label for e in at.expander]
+
+    from lib import profile_data
+    from lib.engine import build_substrates, load_context
+
+    ctx = load_context(APP_DIR / "data")
+    subs = build_substrates(ctx, "bestfit", "frac")
+    df = profile_data.subfields_table(ctx, subs, STRASBOURG)
+    assert len(df) > views_find.SUBFIELDS_TOP_N, len(df)
+    assert len(df.nlargest(views_find.SUBFIELDS_TOP_N, "vol_frac")) == 30
+
+
+def test_strip_shows_a_display_label_for_a_non_default_tree():
+    """L29: the "Filtered by..." strip names the taxonomy the reader chose in
+    the words the sidebar used, never the internal value."""
+    at = _find_app(seed_id=STRASBOURG)
+    at.session_state["tree"] = "original"
+    at.run()
+    assert not at.exception, [str(e) for e in at.exception]
+    text = " ".join(m.value for m in at.markdown)
+    assert copy.STRIP_TREE.format(tree=copy.TREE_LABELS["original"]) in text, text
+    assert copy.STRIP_TREE.format(tree="original") not in text, text
 
 
 def test_find_profile_has_wordcloud_image_and_breakdown_control():
@@ -244,8 +378,10 @@ def test_find_six_chart_panels_are_expanders_in_the_ruled_order():
     at = _find_app(seed_id=STRASBOURG).run()
     assert not at.exception, [str(e) for e in at.exception]
     labels = [e.label for e in at.expander]
-    expected = [copy.FIND[k] for k in ("PANEL_FIELDS", "PANEL_SUBFIELDS", "PANEL_TOPICS",
-                                       "PANEL_FRONTIER", "PANEL_SDG", "PANEL_ERC")]
+    expected = [copy.FIND[k].format(**views_find.PANEL_LABEL_ARGS.get(name, {}))
+                for name, k in (("fields", "PANEL_FIELDS"), ("subfields", "PANEL_SUBFIELDS"),
+                                ("topics", "PANEL_TOPICS"), ("frontier", "PANEL_FRONTIER"),
+                                ("sdg", "PANEL_SDG"), ("erc", "PANEL_ERC"))]
     assert labels[:len(expected)] == expected, labels
     assert copy.FIND["POSTFILTERS_EXPANDER"] in labels, labels
 

@@ -18,6 +18,12 @@ expanders and one of them really holds a Plotly figure once opened; the
 benchmark controls live in the MAIN area and no longer in the sidebar; the
 breakdown segmented control swaps the chip legend; the wordcloud <img> exists.
 
+R2 checks added by stream E3 (BUILD_PLAN_2A.md S10.2 L29-L34): the profile's
+row 1 is three columns with the wordcloud in the third; there are eight KPI
+tiles; the frontier panel's segmented control really changes how many points
+the scatter plots (read off the live Plotly trace, not off a caption); the
+sidebar selectboxes render display LABELS, not internal values.
+
 Usage:  python ops/_probe_find.py [--port 8602]
 Exit 0 when every check passes; 1 otherwise. Stdout is ASCII-only (cp1252
 console).
@@ -35,6 +41,9 @@ from pathlib import Path
 from playwright.sync_api import sync_playwright
 
 APP_DIR = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(APP_DIR))
+
+from lib import copy as ui_copy  # noqa: E402  (needs APP_DIR on sys.path first)
 PAGE = "pages/1_\U0001F50E_Find.py"
 DEFAULT_PORT = 8602
 SEEDS = ["I40413290", "I265217849", "I277688954"]
@@ -42,10 +51,11 @@ SHOT_SEED = "I68947357"   # Universite de Strasbourg -- the R1 reference seed
 GOLD_SEED = "I40413290"   # University of Gdansk -- the seed the L1 golden pins
 SHOT_DIR = APP_DIR / "tests" / "ui" / "screenshots"
 WIDTHS = [1920, 1280, 390]
+SHOT_HEIGHT_PX = 2400   # see _probe_widths: full_page=True is a no-op here
 N_DEFAULT_TABS = 10   # Overview + the 8 default lenses + Aspirational
 N_TOGGLED_TABS = 12   # ... + C1 + L7
 N_PANELS = 6          # Fields, Top subfields, Top topics, Frontier, SDG, ERC
-N_TILES = 7
+N_TILES = 8           # R2/L30: 2 x 4 grid, the eighth being the bonus year
 GOLD_RANK1 = ("I34250744", 0.793119)
 
 PORT = DEFAULT_PORT
@@ -84,6 +94,45 @@ def _chip_legend(page) -> str:
         ".map(e => e.textContent).join('|')")
 
 
+def _row1_columns(page) -> int:
+    """How many COLUMNS the profile's first horizontal block has. `:scope >`
+    keeps the count on that block's own children, so the nested `st.columns`
+    the KPI grid builds inside column 2 cannot inflate it."""
+    return page.evaluate(
+        "(() => { const b = document.querySelector("
+        "'.st-key-profile [data-testid=\"stHorizontalBlock\"]');"
+        " return b ? b.querySelectorAll(':scope > [data-testid=\"stColumn\"]').length : -1;"
+        "})()")
+
+
+def _row1_images(page) -> int:
+    return page.evaluate(
+        "(() => { const b = document.querySelector("
+        "'.st-key-profile [data-testid=\"stHorizontalBlock\"]');"
+        " return b ? b.querySelectorAll('[data-testid=\"stImage\"] img').length : -1;"
+        "})()")
+
+
+def _selectbox_text(page, key: str) -> str:
+    """A sidebar selectbox's rendered LABEL plus its CURRENT selection. The
+    selection is the react-aria ComboBox input's `value`, not text content."""
+    root = f'[data-testid="stSidebar"] .st-key-{key}'
+    label = page.locator(root).first.inner_text()
+    value = page.locator(f"{root} input").first.input_value()
+    return f"{label} {value}"
+
+
+def _frontier_points(page) -> int:
+    """Total marker count across the frontier scatter's own Plotly traces --
+    read off the live figure object, so the mode swap is verified on what is
+    actually PLOTTED rather than on a caption the page prints."""
+    return page.evaluate(
+        "(() => { const el = document.querySelector("
+        "'.st-key-panel_frontier .js-plotly-plot');"
+        " if (!el || !el.data) return -1;"
+        " return el.data.reduce((a, t) => a + ((t.x && t.x.length) || 0), 0); })()")
+
+
 def _load(page, seed: str) -> None:
     page.goto(f"http://127.0.0.1:{PORT}/?seed={seed}", wait_until="domcontentloaded")
     page.wait_for_selector('[role="tab"]', timeout=180_000)
@@ -101,33 +150,64 @@ def _probe_seed(page, seed: str) -> None:
 
 
 def _probe_profile(page) -> None:
-    """R1/L17: the profile section, its tiles, its wordcloud and its six panels."""
+    """R1/L17 + R2/L30-L34: the profile section's grid, its tiles, its
+    wordcloud, its six panels and the frontier panel's two modes."""
     _load(page, SHOT_SEED)
+    SHOT_DIR.mkdir(parents=True, exist_ok=True)
+    top_shot = SHOT_DIR / "e3_find_top_1280.png"
+    page.screenshot(path=str(top_shot))          # viewport only: y = 0, seed loaded
+    print("Saved screenshot:", top_shot)
+    check(top_shot.is_file(), "top-of-page screenshot written at 1280 px with the seed loaded")
+
     check(page.locator(".st-key-profile").count() == 1,
           "the profile container renders exactly once")
+    cols = _row1_columns(page)
+    check(cols == 3, f"the profile's row 1 is three columns (found {cols})")
+    imgs = _row1_images(page)
+    check(imgs >= 1, f"the wordcloud <img> sits inside that row-1 block (found {imgs})")
     tiles = page.locator(".st-key-profile .benchup-kpi").count()
     check(tiles == N_TILES, f"the profile carries {N_TILES} KPI tiles (found {tiles})")
-    check(page.locator('.st-key-profile [data-testid="stImage"] img').count() >= 1,
-          "the subfield wordcloud renders as an <img> inside the profile")
+    subs = page.locator(".st-key-profile .benchup-kpi-sub").count()
+    check(subs == N_TILES * 2,
+          f"every tile carries two sublines (found {subs} for {N_TILES} tiles)")
+    check(_captions(page).find(ui_copy.FIND["COVERAGE_LINE"].split("{")[0].strip()) == -1,
+          "the retired coverage line is nowhere on the page")
 
     panels = [f".st-key-panel_{n}" for n in
               ("fields", "subfields", "topics", "frontier", "sdg", "erc")]
     present = sum(1 for sel in panels if page.locator(sel).count() >= 1)
     check(present == N_PANELS, f"the six chart panels are keyed expanders (found {present})")
 
-    # Open the Fields panel and check a real Plotly figure is VISIBLE inside it
-    # (the body renders collapsed too -- st.expander folds the display, not the
-    # execution -- so visibility, not presence, is the meaningful assertion).
-    page.locator(".st-key-panel_fields summary").first.click()
+    # Open the Top-subfields panel (the panel R2/L34 rewrote) and check a real
+    # Plotly figure is VISIBLE inside it -- the body renders collapsed too
+    # (st.expander folds the display, not the execution), so visibility, not
+    # presence, is the meaningful assertion.
+    page.locator(".st-key-panel_subfields summary").first.click()
     page.wait_for_timeout(2500)
-    fig = page.locator(".st-key-panel_fields .js-plotly-plot").first
+    fig = page.locator(".st-key-panel_subfields .js-plotly-plot").first
     check(fig.count() >= 1 and fig.is_visible(),
-          "opening the Fields panel reveals a Plotly figure inside it")
-    SHOT_DIR.mkdir(parents=True, exist_ok=True)
-    shot = SHOT_DIR / "e2_find_fields_open.png"
+          "opening the Top-subfields panel reveals a Plotly figure inside it")
+    check(page.locator(".st-key-panel_subfields .st-key-sort_subfields").count() == 0,
+          "the Top-subfields panel carries NO sort control (R2/L34)")
+    shot = SHOT_DIR / "e3_find_subfields_open_1280.png"
     page.screenshot(path=str(shot), full_page=True)
     print("Saved screenshot:", shot)
-    check(shot.is_file(), "screenshot written with the Fields panel open")
+    check(shot.is_file(), "screenshot written with the Top-subfields panel open")
+
+    # L33: the frontier panel's segmented control hands `fig_frontier` a
+    # different frame, so the scatter must plot a different number of points.
+    page.locator(".st-key-panel_frontier summary").first.click()
+    page.wait_for_timeout(3000)
+    before_pts = _frontier_points(page)
+    check(before_pts > 0, f"the frontier scatter plots points in its default mode ({before_pts})")
+    page.locator(".st-key-frontier_mode button").nth(1).click()
+    page.wait_for_timeout(5000)
+    after_pts = _frontier_points(page)
+    check(after_pts > 0 and after_pts != before_pts,
+          f"the frontier mode control changes the plotted point count "
+          f"({before_pts} -> {after_pts})")
+    page.locator(".st-key-frontier_mode button").nth(0).click()
+    page.wait_for_timeout(3000)
 
     # The segmented control swaps the identity family for BOTH figures at once,
     # so the ONE shared chip legend must change with it.
@@ -153,7 +233,23 @@ def _probe_controls(page) -> None:
               f"controls-row widget `{key}` is NOT in the sidebar any more")
     for key in ("tree", "basis"):
         check(page.locator(f'[data-testid="stSidebar"] .st-key-{key}').count() >= 1,
-              f"scenario control `{key}` stays in the sidebar")
+              f"counting & taxonomy control `{key}` stays in the sidebar")
+    # R2/L29: the sidebar shows a display LABEL; the internal value never
+    # reaches the reader. A Streamlit selectbox is a react-aria ComboBox, so its
+    # CURRENT selection lives in the input's `value` property and not in the
+    # element's text (measured on this build: inner_text returns the widget
+    # LABEL alone) -- `_selectbox_text` reads both, which is what makes the
+    # negative half of this check meaningful too.
+    tree_text = _selectbox_text(page, "tree")
+    check(ui_copy.TREE_LABELS["bestfit"] in tree_text,
+          "the taxonomy selectbox renders its display label, not the internal value")
+    check("bestfit" not in tree_text,
+          "the internal taxonomy value never appears in the sidebar")
+    basis_text = _selectbox_text(page, "basis")
+    check(ui_copy.BASIS_LABELS["frac"] in basis_text,
+          "the counting-basis selectbox renders its display label")
+    check("frac" not in basis_text.replace(ui_copy.BASIS_LABELS["frac"], ""),
+          "the internal counting-basis value never appears in the sidebar")
 
     before = _captions(page)
     for key in ("c1_on", "l7_on"):
@@ -184,15 +280,21 @@ def _probe_controls(page) -> None:
 
 
 def _probe_widths(browser) -> None:
+    # A TALL viewport, not `full_page=True`: Streamlit's content scrolls inside
+    # `[data-testid="stMain"]` rather than `document.body`, so Playwright's
+    # full-page capture silently returns the viewport alone (measured by stream
+    # R2-D on the same build). A 2400 px viewport is what actually puts the
+    # whole profile section -- identity, the eight tiles and the breakdown pair
+    # -- into the screenshot a reviewer reads.
     SHOT_DIR.mkdir(parents=True, exist_ok=True)
     for width in WIDTHS:
-        page = browser.new_page(viewport={"width": width, "height": 1000})
+        page = browser.new_page(viewport={"width": width, "height": SHOT_HEIGHT_PX})
         _load(page, SHOT_SEED)
         scroll = page.evaluate("document.documentElement.scrollWidth")
         inner = page.evaluate("window.innerWidth")
         check(scroll <= inner + 2,
               f"{width} px: scrollWidth {scroll} <= innerWidth+2 {inner + 2}")
-        path = SHOT_DIR / f"e2_find_{width}.png"
+        path = SHOT_DIR / f"e3_find_{width}.png"
         page.screenshot(path=str(path), full_page=True)
         print("Saved screenshot:", path)
         check(path.is_file(), f"{width} px: screenshot written")

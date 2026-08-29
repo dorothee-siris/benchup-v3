@@ -86,6 +86,28 @@ LENS_INTRO = {
           "finds.",
 }
 
+# R2 / L29 (stream R2-E3): the reader-facing reason a lens has nothing to show
+# for this seed. `lib/engine/lenses.py` produces its own diagnostic string
+# ("seed's excess-SI vector is empty under candidate (f), papers>=30
+# (n_eligible_cells=0)") which is a debugging artefact, not copy: it names
+# internal structures and types digits this file bans everywhere else. The
+# engine keeps it for its own log; the page renders the sentence below.
+LENS_UNDEFINED_REASON = {
+    "L0": "none of the seed's publications could be placed in a field, so there is no field profile "
+          "to compare",
+    "L1": "none of the seed's publications could be placed in a subfield, so there is no subfield "
+          "profile to compare",
+    "L3": "none of the seed's publications could be placed in a topic, so there is no topic profile "
+          "to compare",
+    "F1": "the seed holds no publications in the topics the world is currently expanding into",
+    "L2f": "the seed has no subfield where it publishes enough for a specialisation to be measured",
+    "L4": "none of the seed's publications could be placed in an ERC evaluation panel",
+    "L5": "the seed has no ERC panel where it publishes enough for a specialisation to be measured",
+    "L6": "none of the seed's publications carries an SDG tag, so there is no goal profile to compare",
+    "C1": "the seed has no strongest subfields to narrow the comparison to",
+    "L7": "the seed has no goal where it publishes enough for a specialisation to be measured",
+}
+
 # --------------------------------------------------------- lens glosses -----
 # Source: VIZ_SPEC.md S2.4 / INDICATOR_SPEC_v2.md S1, every digit replaced by
 # a named placeholder the caller fills from CFG/data. The placeholders these
@@ -333,6 +355,7 @@ FIND = {
 
     # L17/L18: the profile section that replaces the old seed card.
     "PROFILE_HEADER": "Profile",
+    "TILES_HEADER": "Key figures",
     "TILE_SIZE_FULL": "Size (full)",
     "TILE_SIZE_FULL_SUB": "publications {y0}{dash}{y1}, whole publication credited",
     "TILE_SIZE_FRAC": "Size (fractional)",
