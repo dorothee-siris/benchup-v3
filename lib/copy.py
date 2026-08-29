@@ -21,7 +21,7 @@ import re
 LENS_GLOSS = {
     "L0": "Field-grain overlap -- the coarsest shape, {n_fields} OpenAlex fields",
     "L1": "Subfield overlap -- the anchor lens",
-    "L3": "Topic overlap -- the workhorse, highest recall of all {n_named_lenses} lenses",
+    "L3": "Topic overlap -- the workhorse lens for broad recall",
     "F1": "Frontier-topic overlap",
     "L2f": "Shared specialisations (a floor of {floor_papers} papers per cell)",
     "L4": "ERC panel overlap",
@@ -33,18 +33,17 @@ LENS_GLOSS = {
 
 LENS_CAVEAT = {
     "L0": "Generic look-alikes for concentrated profiles; moderate outlier crowding among the defaults",
-    "L1": "Safe to read to rank {depth_max}; the most consistently informative lens across seeds",
-    "L3": "Highest same-country clustering of any lens (country post-filter tooltip shown on this tab specifically)",
+    "L1": "Safe to read to rank {depth_max}",
+    "L3": "Same-country clustering is noticeably higher on this lens (hence the country post-filter tooltip on this tab)",
     "F1": "Under-represents Social Sciences & Humanities profiles",
     "L2f": "The failure axis is a diffuse profile, not raw institution size -- reads well for concentrated "
            "mid-size institutions, poorly for very diffuse or very thin ones",
     "L4": "Occasional company/governance leakage into the candidate set",
-    "L5": "The lens with the thinnest external corroboration of the {n_default_lenses} defaults -- kept "
-          "because it still surfaced peers no other lens found; read its candidates with that in mind",
-    "L6": "Country clustering below L1's -- not a peer-finding artefact",
+    "L5": "Kept because it surfaced peers no other lens found, with less external corroboration than the "
+          "other defaults; read its candidates with that in mind",
+    "L6": "Country clustering is modest on this lens -- not a peer-finding artefact",
     "C1": "A refinement of L1, not a sibling of L7; noise grows faster than L1's past rank {core_top_n}",
-    "L7": "Mostly noise, occasionally unique -- the worst judged read of any lens/mode this cycle; kept "
-          "for the rare peer no other lens surfaces",
+    "L7": "Mostly noise, occasionally unique -- kept for the rare peer no other lens surfaces",
 }
 
 # ------------------------------------------------------------ toggles -------

@@ -3,6 +3,7 @@
 A thematic benchmarking tool for European research institutions: find who resembles a
 given institution across independent lenses, compare institutions side by side, and
 explore collaboration patterns. Candidates for review, not a verdict.
+Find ships in Phase 2A (this build); Compare and Collaborate are Phase 2B.
 
 ## Run
 
