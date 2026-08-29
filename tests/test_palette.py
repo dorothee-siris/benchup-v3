@@ -138,3 +138,32 @@ def test_type_group_mapping():
     assert palette.type_group("funder") == "government+funder"
     for other_type in ("company", "nonprofit", "archive", "other", "nonsense-value"):
         assert palette.type_group(other_type) == "other"
+
+
+def test_theme_primary_is_focal():
+    """BUILD_PLAN_2A.md Decisions log 2026-08-29 ("`.streamlit/config.toml`
+    `primaryColor = #0072B2` (= palette.FOCAL) is the ONE hex outside
+    palette.py"): Streamlit paints ProgressColumn bars, links and buttons
+    with the theme's primaryColor, so it must track lib.palette.FOCAL rather
+    than drift to Streamlit's off-palette default red. Stream G extension
+    named explicitly in that decisions-log row.
+    """
+    import sys
+
+    if sys.version_info >= (3, 11):
+        import tomllib
+    else:  # pragma: no cover -- this app's pinned interpreter is 3.12
+        import tomli as tomllib  # type: ignore[import-not-found]
+
+    sys.path.insert(0, str(APP_DIR))
+    from lib import palette  # noqa: E402
+
+    config_path = APP_DIR / ".streamlit" / "config.toml"
+    assert config_path.exists(), f"missing {config_path}"
+    with open(config_path, "rb") as f:
+        config = tomllib.load(f)
+
+    primary_color = config.get("theme", {}).get("primaryColor")
+    assert primary_color, f"[theme] primaryColor not set in {config_path}"
+    assert primary_color.upper() == palette.FOCAL.upper(), (
+        f"config.toml theme.primaryColor={primary_color!r} != palette.FOCAL={palette.FOCAL!r}")

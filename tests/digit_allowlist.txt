@@ -1,0 +1,24 @@
+# BenchUp v3 digit-ban allowlist (BUILD_PLAN_2A.md L10 / Stream G).
+# One token per line; comment lines start with #. tests/test_narrative.py
+# strips every token below (and every `{...}` placeholder) from a scoped
+# string before checking for a leftover digit character.
+# Kept <=15 non-comment lines ON PURPOSE (a growing allowlist is the
+# historical failure mode BUILD_PLAN_2A.md Stream G calls out) -- do not
+# add a token here to make a real violation disappear; fix the string or
+# get the manager to re-scope the rule instead (test_narrative.py's own
+# test_allowlist_has_required_tokens_and_stays_small enforces the cap).
+L0
+L1
+L2f
+L3
+L4
+L5
+L6
+L7
+F1
+C1
+top10
+PP(top10%)
+SDG
+Phase 2B
+BenchUp v3
