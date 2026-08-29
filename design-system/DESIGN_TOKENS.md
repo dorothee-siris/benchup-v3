@@ -76,16 +76,32 @@ Every badge in the app (umbrella/aggregate, type-corrected, catch-all-share,
 tie-inclusive-rank, undefined-lens) follows one shape:
 
 ```
-[optional coloured dot from lib.palette.TYPE_COLORS]  short text label  [ⓘ tooltip trigger]
+short text label  [ⓘ tooltip trigger]
 ```
+
+**R1 change (2026-08-29, stream R-D2):** the optional leading coloured dot is
+GONE. BUILD_PLAN_2A.md L22 removed the badge column from every table (user ruling
+#8 at gate 2A: the type post-filter covers the need), which left the
+institution-type identity set with no consumer, so `lib.palette.TYPE_COLORS` and
+`type_group` were DELETED — a grep before deletion found them referenced only by
+`palette.py` itself, `tests/test_palette.py` and two prose lines in THIS file. No
+badge in the app carries a colour any more; every one is text + an optional
+tooltip trigger. Colour in R1 belongs exclusively to the four IDENTITY FAMILIES
+of `VIZ_SPEC.md` §1.1 (OpenAlex domain, ERC domain, SDG, document type), one
+family per chart. The five deleted hexes stay recorded in
+`design-system/palette_validation.txt` run 1 and in `lib/palette.py`'s removal
+note, so restoring them would need a consumer and a ledger line, not a new
+validator run.
 
 - Colour is never the only signal — RULES §4 "status: never encode good/bad as
   red/green alone" generalises here to *any* categorical fact worth flagging.
   Concretely: `type-corrected` renders as the text "type corrected by SIRIS (was:
-  {type_openalex})", no colour at all; `umbrella` renders as the text "EXPERIMENTAL"
-  + a tooltip, no colour; only the institution-TYPE badge (facility / healthcare /
-  government+funder / other) carries a `TYPE_COLORS` dot, and it is always paired
-  with the type's own text name in the same cell.
+  {type_openalex})" and `umbrella` as the text "EXPERIMENTAL" + a tooltip —
+  neither carries colour, and since R1 neither does anything else that calls
+  itself a badge. The same principle governs the two CHART flags that replaced
+  the idea of a badge hue: a catch-all (811) topic is marked by a glyph plus
+  reduced fill opacity, and a top-quartile frontier topic by an ink outline —
+  shape and opacity on top of the family colour, never a new hue.
 - **Never both an umbrella badge and a type-corrected badge on one row**
   (BUILD_PLAN_2A L7 / WT #14 — the two are mutually exclusive by construction on
   the patched `type` field).
@@ -164,3 +180,119 @@ category "Analytics Dashboard", query "peer benchmarking analytics dashboard
 higher education research" (`--design-system` mode) + 3 targeted `--domain ux`
 queries ("ranked table dense rows readable", "active filters disclosure strip",
 "tab navigation many tabs").
+
+## 8. R1 addendum — the profile section (stream R-D2, 2026-08-29)
+
+Refinement R1 adds a chart-heavy profile section (VIZ_SPEC §1.9, §2.10–§2.20).
+Two sources were consulted for it, in the house order: `dataviz` first and
+binding (form heuristic, colour formula, the runnable validator, mark specs),
+then ONE `ui-ux-pro-max` pass for a FORM second opinion only. **SIRIS wins every
+conflict, and no colour of any kind was taken from ui-ux-pro-max** — the four
+identity families come from `lib/palette.py`, validated by the dataviz script.
+
+### 8.1 Colour: four identity families, one per chart
+
+See `VIZ_SPEC.md` §1.1 and `lib/palette.py` for the values, the validator runs
+and the rejected candidates. The token-level consequences for this file:
+
+| Token | Value | Role |
+|---|---|---|
+| `SURFACE` | `#FFFFFF` | every figure's `paper_bgcolor` + `plot_bgcolor`; also the `--surface` of every R1 validator run |
+| `INK_SECONDARY` | `#5A5F66` | KPI-tile sublines, volume-gutter numbers, chip labels, axis ticks, chart annotations (6.43:1 on white — above the body-text floor) |
+| `BORDER` | `#E3E6EA` | tile/panel hairlines, the gutter's zero baseline |
+| `GRID` | `#D9DDE2` | gridlines and zero lines — must RECEDE; the low contrast is the requirement, not the defect |
+| `MUTED_OPACITY` | `0.35` | fill opacity of a flagged-but-included mark (catch-all topics) — a transparency, never a hue |
+| `OUTLINE_WIDTH` | `2` | ink outline on a top-quartile frontier topic — the dataviz "surface ring on overlapping marks" spacer, used as a flag |
+
+All three chrome tokens are EXCLUDED from categorical validation by design;
+`palette_validation.txt` run 8 reproduces the expected FAIL for exactly these
+hexes before they were locked in, the same way run 2 did for COMPARISON /
+NEUTRAL / INK.
+
+### 8.2 `dataviz` findings applied (binding)
+
+- **Colour last, and computed.** Every family was run through
+  `scripts/validate_palette.js --mode light --surface "#FFFFFF" --pairs all`
+  (runs 3–8), `--pairs all` rather than `adjacent` because a sort toggle can put
+  any two categories side by side.
+- **Never a dual axis.** This is why A/B #3's rival had to be built as a
+  single-axis expected-share tick rather than "SI on a second x-scale": the
+  literal reading of the brief would have been the skill's #1 anti-pattern.
+- **Colour follows the entity, never its rank.** The sort toggle re-orders rows
+  and repaints nothing; `tests/test_charts.py` pins it.
+- **Selective direct labels, never a number on every point.** Applied to the
+  yearly global breakdown (one label per bar, the bar's own value) and NOT to the
+  frontier scatter (hover only).
+- **Legend always present for ≥ 2 series.** The breakdown pair carries one shared
+  chip legend for two figures; the single-series panels carry none, their axis
+  names them.
+- **Recessive grid/axes; text wears text tokens.** `GRID` for lines,
+  `INK`/`INK_SECONDARY` for every number and label — a value never wears its
+  series colour.
+- **Step 7, render it and look at it.** Eight PNGs at 1280 and 390 px, read
+  visually, not inferred from the code (`design-system/ab/`).
+
+### 8.3 `ui-ux-pro-max` R1 pass — kept
+
+Queries: `--domain chart "horizontal bar chart ranking comparison scatter bubble"`,
+`--domain ux "expander collapsible panel KPI card scatter plot legend placement"`,
+`--domain ux "progressive disclosure accordion"`.
+
+- **`charts.csv` "Compare Categories" volume thresholds** — "<20 categories:
+  vertical bar; 20–50: horizontal bar; >50: paginated table". Adopted as
+  confirmation: fields (25), ERC panels (28) and the top-subfield/topic cuts
+  (20) all sit in the horizontal-bar band, which is the form the panels use.
+- **`charts.csv` accessibility note** — "never encode category solely by bar
+  colour; use direct category/value labels". Restates the house rule and is the
+  documented structural relief for the fixed UN SDG palette (VIZ_SPEC §1.1
+  family 3), so it is kept as an independent corroboration of a rule we already
+  had rather than as new guidance.
+- **`charts.csv` "Correlation / Distribution" fit for the frontier panel** —
+  scatter/bubble is the right form for two continuous variables with clusters and
+  outliers, and its own "when NOT to use" list (categorical variables, fewer than
+  ~20 points, mobile-primary) does not describe this panel. Kept as a check that
+  the form choice was not merely inherited from BenchUp V1.
+- **`charts.csv` A11y fallback pattern** — "visible data table plus summary".
+  Already satisfied: every panel's numbers ship as CSV and its caption states the
+  reading (VIZ_SPEC §1.7, and no panel is a PNG-only artefact).
+
+### 8.4 `ui-ux-pro-max` R1 pass — rejected (explicit)
+
+1. **"Colour axis: gradient (blue → red)" for the scatter** — rejected. That is a
+   sequential ramp for a third continuous variable; the frontier scatter's colour
+   is a CATEGORICAL family (domain), and a blue→red ramp would additionally read
+   as good→bad on a panel whose whole caveat is that it measures attention
+   dynamics, not quality.
+2. **"Opacity 0.6–0.8 to show density" on the scatter** — rejected. Opacity is
+   already load-bearing in this app as the catch-all flag (`MUTED_OPACITY`); a
+   blanket density opacity would make every mark look flagged. Overlap is handled
+   instead by a bounded bubble-size range and the `SURFACE` ring on each marker,
+   which is the dataviz mark spec for overlapping marks.
+3. **"Always sort descending by value"** — rejected as an absolute. Every panel
+   ships a sort TOGGLE, because for the ERC panels and the SDG goals the taxonomy
+   order IS the read (a canonical sequence the reader navigates by position);
+   value-descending is the default, not the only option.
+4. **`ux-guidelines.csv` "Error Placement" (the only ux hit for the panel query)**
+   — not applicable: the profile section has no form inputs. Recorded so the
+   thin ux return is visible rather than dressed up.
+5. **The persisted "Enterprise Gateway" pattern and its palette** — already
+   rejected in §6 and re-rejected here; nothing about a chart-heavy profile
+   section changes that verdict.
+6. **The KB's stack CSVs generally** — 22 stacks, none of them Streamlit, and
+   none of its component code is transferable to `st.expander` /
+   `st.segmented_control` / `st.plotly_chart`. Form vocabulary only, as the house
+   rule says.
+
+### 8.5 New numeric tokens (chart geometry, `lib/charts.py`)
+
+These live as int/float constants in `lib/charts.py`, never inside a string —
+the digit-ban makes that a mechanical requirement, not a style preference.
+
+| Token | Value | Use |
+|---|---:|---|
+| `ROW_PX` / `BASE_PX` / `MIN_HEIGHT` | 22 / 60 / 300 | `row_height(n) = max(300, 22n + 60)` — the one height idiom for every category chart |
+| `GUTTER_FRACTION` / `GUTTER_INSET` | 0.16 / 0.06 | the left volume gutter (A/B #4 winner) as a fraction of the x range |
+| `MARKER_PX` / `LINE_PX` / `HAIRLINE_PX` | 10 / 2 / 1 | SI dot, SI stem and every hairline — thin marks, per the dataviz mark specs |
+| `BUBBLE_MIN_PX` / `BUBBLE_MAX_PX` | 6 / 34 | frontier bubble range (area ∝ mass via a sqrt scale) |
+| `DEFAULT_GROUP_SPAN` / `DEFAULT_GROUP_FILL` | 0.8 / 0.9 | Lorraine's grouped-bar geometry, verbatim — `offsetgroup` is broken on plotly 5.24.1 |
+| `SHARE_DECIMALS` / `SI_DECIMALS` | 1 / 2 | one precision level per measure (RULES §5); number formats are composed from these |

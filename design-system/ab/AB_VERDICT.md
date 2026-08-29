@@ -123,3 +123,136 @@ than the overview's own decision sentence, and is exactly the question a
 - `format_concordance` / `render_concordance_table` implement A/B #2's
   winner: k-of-n + hit-lens-chip text, never the full rank matrix, for the
   concordance overview tab.
+
+---
+
+# A/B verdict -- Refinement R1, stream R-D2 (2026-08-29)
+
+Two more A/Bs, both run on REAL deployed data through a throwaway Streamlit
+prototype photographed by Playwright at 1280x900 and 390x844 (kaleido is not
+installed and is not to be added, so every PNG below is a real browser paint).
+
+* prototype: `design-system/ab/proto_r1.py` (one app, `?variant=` selects the form)
+* runner:    `design-system/ab/run_ab_r1.py` (launch -> screenshot -> measure -> terminate)
+* frames:    `design-system/ab/_common_r1.py` builds the BUILD_PLAN_2A.md section 9.4
+  column contracts straight from `data/fields.parquet` / `data/subfields.parquet`
+  (`lib/profile_data.py` is stream R-B's and did not exist yet -- deliberately
+  not imported)
+* seeds:     **Universite de Strasbourg `I68947357`** (resolved by `display_name`
+  in `data/index.parquet`; 19,402 full works, 25 fields) and **University of
+  Gdansk `I40413290`** (8,786 full works, top-20 subfields), tree `bestfit`,
+  basis `frac`
+
+Commands, verbatim:
+
+```
+$ python design-system/ab/run_ab_r1.py --port 8631
+ab3_a: saved ab3_a_1280.png  {'n_plots': 2, 'plot_w': 1120, 'plot_h': 610, 'plot_area_w': 549, 'y_labels': 25, 'n_bars': 25, 'longest_bar_px': 521, 'scroll_ok': True}
+ab3_b: saved ab3_b_1280.png  {'n_plots': 2, 'plot_w': 1120, 'plot_h': 610, 'plot_area_w': 857, 'y_labels': 25, 'n_bars': 25, 'longest_bar_px': 540, 'scroll_ok': True}
+ab4_a: saved ab4_a_1280.png  {'n_plots': 1, 'plot_w': 1120, 'plot_h': 610, 'plot_area_w': 857, 'y_labels': 25, 'n_bars': 25, 'n_annotations': 25, 'annotations_clipped': 0, 'longest_bar_px': 726, 'scroll_ok': True}
+ab4_b: saved ab4_b_1280.png  {'n_plots': 1, 'plot_w': 1120, 'plot_h': 610, 'plot_area_w': 857, 'y_labels': 25, 'n_bars': 25, 'n_annotations': 25, 'annotations_clipped': 0, 'longest_bar_px': 726, 'scroll_ok': True}
+PASS
+
+$ python design-system/ab/run_ab_r1.py --port 8632 --widths 390
+ab3_a: saved ab3_a_390.png  {'plot_area_w': 61,  'n_bars': 25, 'scroll_ok': True}
+ab3_b: saved ab3_b_390.png  {'plot_area_w': 95,  'n_bars': 25, 'scroll_ok': True}
+ab4_a: saved ab4_a_390.png  {'plot_area_w': 95,  'n_annotations': 25, 'annotations_clipped': 0, 'longest_bar_px': 81, 'scroll_ok': True}
+ab4_b: saved ab4_b_390.png  {'plot_area_w': 95,  'n_annotations': 25, 'annotations_clipped': 1, 'longest_bar_px': 81, 'scroll_ok': True}
+PASS
+```
+
+No server was left running (the runner terminates its subprocess in a `finally`).
+
+## A/B #3 -- the share + SI form
+
+**A** -- two aligned panels of ONE figure, sharing the y axis: horizontal share
+bars on the left, SI as a lollipop (stem from the neutral reference to the
+value, dot at the value) on its own x-axis on the right, with a dashed vertical
+reference line at the neutral value; a row whose SI is `n/a` gets no mark.
+
+**B** -- one panel, ONE axis: the share bar, plus a tick on the same row at that
+row's EXPECTED share (`share / SI`), so SI is read as the ratio of two lengths.
+This is the strongest LEGAL form of the brief's "SI as a secondary marker on the
+same row": a second x-scale on the same row would be a dual-axis chart, which
+the `dataviz` non-negotiables forbid outright ("the #1 chart mistake"). B is
+therefore a real rival, not a strawman.
+
+| Criterion (measured, not eyeballed) | A: aligned panels | B: expected-share tick |
+|---|---|---|
+| Is SI comparable ACROSS rows? | **Yes** -- one shared x-scale; two rows with the same SI put their dots at the same x, so the panel reads as a ranking | **No** -- the tick's position depends on that row's own share, so equal SIs land at different x. Ranking by SI needs a hover on every row |
+| Rows where SI is unreadable without hover (mark within 4 px of its reference or of the bar end) | 1 of 25 (Strasbourg), 1 of 20 (Gdansk) | **2 of 25** (Strasbourg), 1 of 20 (Gdansk) -- and these are the rows whose SI sits *near the neutral value*, the single most consequential read on the panel |
+| Effect on the PRIMARY measure (share) | none -- the share axis ends at the largest share | **share axis stretched x1.59** on Strasbourg: the largest share is 21.1 % but Medicine's expected share (0.2114 / 0.6303) is 33.5 %, so every share bar is drawn ~37 % shorter than the panel could draw it. Any row with SI below the neutral value does this |
+| Plot-area width at 1280 px | 549 px share + 549 px SI | 857 px share only |
+| Category labels drawn | once (shared y) | once |
+| `n/a` rendering | literally no mark; the row keeps its share bar and its hover says `n/a` | the tick is simply absent, which is visually identical to "expected share = 0" |
+| Plot-area width at 390 px | **61 px per panel** -- the form's real cost | 95 px |
+
+**Winner: A (two aligned panels, shared y, SI lollipop from a dashed reference).**
+
+B loses on the criterion that decides what the panel is FOR. The SI column exists
+so a reader can see at a glance which of an institution's fields it is over- and
+under-specialised in *relative to each other*; B's encoding makes that comparison
+unavailable, because the same SI renders at a different x on every row. Worse, B
+degrades the primary measure to do it: on real Strasbourg data the share axis
+stretches by a factor of 1.59 to fit a tick belonging to a row whose bar ends at
+21 % -- visible in `ab3_b_1280.png`, where the axis runs past 30 % and the bars
+are visibly foreshortened.
+
+A pays for its win with width, and with a genuine 390 px problem: at that width
+each panel collapses to 61 px, which is not a chart. **Consequence, written into
+VIZ_SPEC section 1.8 rather than waved away: below the small breakpoint the two
+panels STACK vertically (share above, SI below, same row order) instead of
+sitting side by side.** Implemented in `lib/charts.py::fig_share_si`, which also
+collapses to a single panel when NO row in the frame has a defined SI --
+exercised by `tests/test_charts.py::test_fig_share_si_all_na_si_collapses_to_one_panel`
+on Gdansk's real below-floor subfields.
+
+## A/B #4 -- where the volume number goes
+
+**A** -- a LEFT TEXT GUTTER (BenchUp V2 `Streamlit/benchup_topics.py`'s
+`left_pad_px = 80` idiom): the x range starts below zero and the volume prints in
+that reserved strip, in one aligned column, with a hairline marking the zero
+baseline. **B** -- RIGHT-OF-BAR annotations (BenchUp V1 `my_app/lib/viz_helpers.py`;
+Lorraine `plot_global_breakdown_h`'s `xanchor="left", xshift=8` with an x1.18
+range headroom).
+
+Both variants were given the SAME horizontal budget on purpose (gutter = 0.16 of
+the range; right headroom = x1.18 -- both a 1.18x span), so the comparison
+isolates PLACEMENT and not space. The measurement confirms the control held:
+identical `plot_area_w` (857 px at 1280, 95 px at 390) and identical
+`longest_bar_px` (726 / 81) in both variants.
+
+| Criterion | A: left gutter | B: right of the bar |
+|---|---|---|
+| Annotations clipped at 390 px | **0 of 25** | **1 of 25** -- the top row's number is cut off mid-digit (visible in `ab4_b_390.png`) |
+| Annotations clipped at 1280 px | 0 of 25 | 0 of 25 |
+| Horizontal travel from a row's category label to its volume number | **constant** (std 0 px) -- one aligned column | 17 px to 865 px, **std 204 px** (Strasbourg); 101-865 px, std 183 px (Gdansk) |
+| Can volumes be compared down the column? | yes -- one column, a vertical scan | no -- a zig-zag; the eye finds each number at a different x |
+| Does the number sit next to the thing it describes? | yes -- immediately right of the category name | no -- at the far end of a variable-length bar |
+| Zero baseline | clean; nothing attached to the bar's end | clean, but every bar carries a trailing label that reads as extra bar length at a glance |
+| Plot area / longest bar at 1280 px | 857 px / 726 px | 857 px / 726 px (identical by construction) |
+
+**Winner: A (left text gutter), with the numbers RIGHT-ALIGNED against the
+baseline.** Right alignment is the one change made between the prototype (which
+left-aligned them) and the shipped `lib/charts.py`: aligning the digits is the
+whole point of putting the numbers in a column.
+
+The decisive evidence is the 390 px clip -- B loses a digit off a real number at
+a width this app is required to render at, and it does so on the largest, most
+important row. The travel measurement is the second reason and the one that holds
+at every width: B scatters 25 numbers across 850 px of chart, so "which field has
+the most works" becomes a search rather than a scan.
+
+**Scope of this verdict, stated so it is not over-applied:** it governs a volume
+number sitting BESIDE a bar that encodes a DIFFERENT measure (a share). It does
+NOT govern a direct label on a bar that encodes that very number -- the
+yearly-breakdown global panel, where the bar IS the count. There the number stays
+at the bar's end (`lib/charts.py::fig_breakdown_global`, Lorraine
+`plot_global_breakdown_h`), which is the textbook direct-label case from the
+`dataviz` mark specs.
+
+## Screenshots
+
+`ab3_a_1280.png` `ab3_b_1280.png` `ab4_a_1280.png` `ab4_b_1280.png`
+`ab3_a_390.png` `ab3_b_390.png` `ab4_a_390.png` `ab4_b_390.png`
+(all in `design-system/ab/`)

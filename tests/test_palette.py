@@ -101,43 +101,103 @@ def test_viz_spec_has_rejected_alternative_per_view_row():
     )
 
 
-def test_type_colors_shape():
-    """lib.palette.TYPE_COLORS covers exactly the 5 collapsed identity groups,
-    education is deliberately uncoloured, and no colour repeats FOCAL.
-    """
+def _palette():
     import sys
-
     sys.path.insert(0, str(APP_DIR))
     from lib import palette  # noqa: E402
+    return palette
 
-    assert set(palette.TYPE_COLORS) == {
-        "education",
-        "facility",
-        "healthcare",
-        "government+funder",
-        "other",
-    }
-    assert palette.TYPE_COLORS["education"] is None
-    used = [v for v in palette.TYPE_COLORS.values() if v is not None]
-    assert len(used) == len(set(used)), "TYPE_COLORS hues must be distinct"
-    assert palette.FOCAL not in used, "FOCAL must never double as a type-identity colour"
+
+def test_type_colors_removed_in_r1():
+    """R1 (BUILD_PLAN_2A.md L22, user ruling #8 at gate 2A) removed the badge
+    column from every table, which left the institution-type identity set with
+    no consumer. `TYPE_COLORS` and `type_group` were DELETED (grep before
+    deletion returned only palette.py, this test file and two prose lines in
+    DESIGN_TOKENS.md -- no live code path). This test pins the deletion so the
+    symbols cannot creep back as dead colour: restoring them needs a real
+    consumer and a ledger line, not an import."""
+    palette = _palette()
+    assert not hasattr(palette, "TYPE_COLORS")
+    assert not hasattr(palette, "type_group")
     assert palette.NA_MARK == "n/a"
 
 
-def test_type_group_mapping():
-    import sys
+# ---------------------------------------------------------------------------
+# R1 -- the four identity families (BUILD_PLAN_2A.md L19)
+# ---------------------------------------------------------------------------
+HEX6 = re.compile(r"^#[0-9A-Fa-f]{6}$")
 
-    sys.path.insert(0, str(APP_DIR))
-    from lib import palette  # noqa: E402
+EXPECTED_KEYS = {
+    "OA_DOMAIN_COLORS": {1, 2, 3, 4},
+    "ERC_DOMAIN_COLORS": {"PE", "LS", "SH"},
+    "SDG_COLORS": set(range(1, 18)),
+    "DOCTYPE_COLORS": {"article", "review", "book", "book-chapter", "letter"},
+}
 
-    assert palette.type_group("education") == "education"
-    assert palette.type_group("Education") == "education"
-    assert palette.type_group("facility") == "facility"
-    assert palette.type_group("healthcare") == "healthcare"
-    assert palette.type_group("government") == "government+funder"
-    assert palette.type_group("funder") == "government+funder"
-    for other_type in ("company", "nonprofit", "archive", "other", "nonsense-value"):
-        assert palette.type_group(other_type) == "other"
+
+def test_identity_families_have_the_exact_key_sets():
+    palette = _palette()
+    for name, keys in EXPECTED_KEYS.items():
+        fam = getattr(palette, name)
+        assert set(fam) == keys, f"{name} keys: {sorted(map(str, set(fam)))}"
+    assert len(palette.SDG_COLORS) == 17
+    assert len(palette.OA_DOMAIN_COLORS) == 4
+    assert len(palette.ERC_DOMAIN_COLORS) == 3
+    assert len(palette.DOCTYPE_COLORS) == 5
+
+
+def test_every_family_value_is_a_six_digit_hex():
+    palette = _palette()
+    for name in EXPECTED_KEYS:
+        for key, value in getattr(palette, name).items():
+            assert isinstance(value, str) and HEX6.match(value), f"{name}[{key!r}] = {value!r}"
+    for token in ("FOCAL", "COMPARISON", "NEUTRAL", "INK", "SURFACE",
+                  "INK_SECONDARY", "BORDER", "GRID"):
+        assert HEX6.match(getattr(palette, token)), token
+
+
+def test_no_duplicate_hue_across_oa_erc_and_doctype():
+    """The three families that can appear in adjacent panels of the same page
+    must not share a hex: an identical colour in two families would read as one
+    identity across a scroll or a segmented-control swap."""
+    palette = _palette()
+    used = ([v.upper() for v in palette.OA_DOMAIN_COLORS.values()]
+            + [v.upper() for v in palette.ERC_DOMAIN_COLORS.values()]
+            + [v.upper() for v in palette.DOCTYPE_COLORS.values()])
+    dupes = {h for h in used if used.count(h) > 1}
+    assert not dupes, f"hue(s) reused across OA / ERC / DOCTYPE: {sorted(dupes)}"
+    assert palette.FOCAL.upper() not in used, (
+        "FOCAL is the seed highlight and never an identity hue (coexistence rule)")
+
+
+def test_sdg_seventeen_is_stored_but_declared_uncovered():
+    palette = _palette()
+    assert palette.SDG_UNCOVERED == (17,)
+    assert 17 in palette.SDG_COLORS
+    assert palette.SDG_COLORS[17] == "#19486A"
+
+
+def test_domain_and_family_helpers_fall_back_to_comparison_grey():
+    palette = _palette()
+    assert palette.domain_color(1) == palette.OA_DOMAIN_COLORS[1]
+    assert palette.domain_color("3") == palette.OA_DOMAIN_COLORS[3]
+    for unknown in (0, 9, None, float("nan"), "", "unclassified"):
+        assert palette.domain_color(unknown) == palette.COMPARISON
+    assert palette.erc_color("pe") == palette.ERC_DOMAIN_COLORS["PE"]
+    assert palette.erc_color("XX") == palette.COMPARISON
+    assert palette.sdg_color(1) == palette.SDG_COLORS[1]
+    assert palette.sdg_color(99) == palette.COMPARISON
+    assert palette.doctype_color("Article") == palette.DOCTYPE_COLORS["article"]
+    assert palette.doctype_color("preprint") == palette.COMPARISON
+
+
+def test_fixed_display_orders_cover_their_families():
+    palette = _palette()
+    assert set(palette.OA_DOMAIN_ORDER) == set(palette.OA_DOMAIN_COLORS)
+    assert set(palette.ERC_DOMAIN_ORDER) == set(palette.ERC_DOMAIN_COLORS)
+    assert set(palette.DOCTYPE_ORDER) == set(palette.DOCTYPE_COLORS)
+    assert set(palette.DOCTYPE_LABELS) == set(palette.DOCTYPE_COLORS)
+    assert set(palette.ERC_DOMAIN_LABELS) == set(palette.ERC_DOMAIN_COLORS)
 
 
 def test_theme_primary_is_focal():
@@ -167,3 +227,18 @@ def test_theme_primary_is_focal():
     assert primary_color, f"[theme] primaryColor not set in {config_path}"
     assert primary_color.upper() == palette.FOCAL.upper(), (
         f"config.toml theme.primaryColor={primary_color!r} != palette.FOCAL={palette.FOCAL!r}")
+
+
+def test_hex_scan_actually_covers_the_new_charts_module():
+    """Non-vacuity guard for `test_no_stray_hex_literals_outside_palette`: that
+    test walks whatever exists under lib/, so it would pass trivially if
+    lib/charts.py ever disappeared from the walk. Pin the file into the scan."""
+    charts = APP_DIR / "lib" / "charts.py"
+    assert charts.exists(), "lib/charts.py missing -- the hex scan would be vacuous"
+    scanned: list[Path] = []
+    for d in SCAN_DIRS:
+        if d.exists():
+            scanned.extend(sorted(d.rglob("*.py")))
+    assert charts in scanned
+    assert charts not in ALLOWLIST, "charts.py must NOT be allowed a hex literal"
+    assert not _hexes_in(charts.read_text(encoding="utf-8"))
