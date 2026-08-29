@@ -33,6 +33,11 @@ def subs_original(ctx):
     return build_substrates(ctx, tree="original", basis="frac")
 
 
+@pytest.fixture(scope="module")
+def subs_full(ctx):
+    return build_substrates(ctx, tree="bestfit", basis="full")
+
+
 def _parse_packed(s: str) -> dict:
     return {int(k): float(v) for k, v in (tok.split(":") for tok in s.split("|"))}
 
@@ -48,14 +53,53 @@ def test_fields_table_columns_and_share_sum(ctx, subs_bestfit, seed_id):
 
 
 @pytest.mark.parametrize("seed_id", SEEDS)
-def test_subfields_table_columns_share_sum_and_si_floor(ctx, subs_bestfit, seed_id):
+def test_subfields_table_columns_and_share_sum(ctx, subs_bestfit, seed_id):
     df = P.subfields_table(ctx, subs_bestfit, seed_id)
     assert list(df.columns) == P.SUBFIELDS_COLS
     assert abs(df["share"].astype("float64").sum() - 1.0) <= 1e-6
-    below_floor = df["vol_frac"].astype("float64") < 30.0
-    assert below_floor.any(), f"{seed_id}: no subfield below the G6 floor to test against"
-    assert df.loc[below_floor, "si"].isna().all(), f"{seed_id}: a below-floor subfield has a defined si"
-    assert df.loc[~below_floor, "si"].notna().all(), f"{seed_id}: an at/above-floor subfield has NaN si"
+
+
+@pytest.mark.parametrize("seed_id", SEEDS)
+def test_subfields_table_si_status_thresholds_and_unfloored_si(ctx, subs_bestfit, seed_id):
+    """R2 L34: si_status thresholds are exact on `vol_frac` (a direct
+    recount from the frame), and si is now DEFINED (unfloored) for every
+    solid/thin row -- only "none" rows may still be NaN. Where the frame's
+    own ratified-floor si IS defined (vol_frac >= 30), our recomputed si is
+    numerically identical to it (same formula, same population)."""
+    df = P.subfields_table(ctx, subs_bestfit, seed_id)
+    vol = df["vol_frac"].astype("float64")
+    solid = vol >= P.SI_FLOOR_SOLID
+    thin = (vol >= P.SI_FLOOR_THIN) & ~solid
+    none_ = ~solid & ~thin
+    assert solid.any(), f"{seed_id}: no solid subfield to test against"
+    assert thin.any(), f"{seed_id}: no thin subfield to test against"
+    assert (df.loc[solid, "si_status"] == "solid").all()
+    assert (df.loc[thin, "si_status"] == "thin").all()
+    assert (df.loc[none_, "si_status"] == "none").all()
+    assert df.loc[solid | thin, "si"].notna().all(), \
+        f"{seed_id}: a solid/thin subfield has a missing (unfloored) si"
+
+    raw = subs_bestfit["subfields_df"]
+    raw_row = raw[raw["institution_id"] == seed_id]
+    merged = df.merge(raw_row[["subfield_id", "si"]], on="subfield_id", suffixes=("", "_floored"))
+    have_floored = merged["si_floored"].notna()
+    assert have_floored.any(), f"{seed_id}: no at/above-ratified-floor subfield to test the identity against"
+    np.testing.assert_allclose(
+        merged.loc[have_floored, "si"].astype("float64"),
+        merged.loc[have_floored, "si_floored"].astype("float64"),
+        rtol=1e-5,
+    )
+
+
+@pytest.mark.parametrize("seed_id", SEEDS)
+def test_fields_table_si_status(ctx, subs_bestfit, seed_id):
+    """L34: fields carry no floor at all (data_contract.yaml) -- solid
+    whenever vol_frac > 0 and si is defined, "thin" never appears at this
+    grain."""
+    df = P.fields_table(ctx, subs_bestfit, seed_id)
+    assert set(df["si_status"]) <= {"solid", "none"}
+    want_solid = (df["vol_frac"].astype("float64") > 0) & df["si"].notna()
+    assert (df["si_status"] == np.where(want_solid, "solid", "none")).all()
 
 
 def test_fields_table_follows_the_tree(ctx, subs_bestfit, subs_original):
@@ -81,6 +125,25 @@ def test_topics_table_columns(ctx, subs_bestfit, seed_id):
     assert len(df) > 0
     assert df["topic_name"].notna().all()
     assert df["subfield_id"].notna().all()  # every topic resolves through the fixed map
+
+
+@pytest.mark.parametrize("seed_id", SEEDS)
+def test_topics_table_rank_volume_unique_1_to_n(ctx, subs_bestfit, seed_id):
+    """L33 top-200-by-volume mode: rank_volume is a unique permutation of
+    1..n, 1 = largest volume on the CURRENT basis, ties broken by topic_id."""
+    df = P.topics_table(ctx, subs_bestfit, seed_id)
+    n = len(df)
+    assert sorted(df["rank_volume"].tolist()) == list(range(1, n + 1))
+    top = df.loc[df["rank_volume"] == 1].iloc[0]
+    assert top["vol_frac"] == df["vol_frac"].max()
+
+
+def test_topics_table_rank_volume_follows_basis(ctx, subs_full):
+    """basis='full' ranks by vol_full, not vol_frac -- the two can disagree."""
+    df = P.topics_table(ctx, subs_full, "I40413290")
+    order = df.sort_values(["vol_full", "topic_id"], ascending=[False, True])["topic_id"].tolist()
+    got = df.sort_values("rank_volume")["topic_id"].tolist()
+    assert order == got
 
 
 # ------------------------------------------------------------ yearly trend --
@@ -137,12 +200,41 @@ def test_sdg_table_dense_16_rows(ctx, seed_id):
 
 
 @pytest.mark.parametrize("seed_id", SEEDS)
+def test_sdg_table_numbered_labels_and_si_status(ctx, seed_id):
+    """L36: sdg_label_numbered is present for all 16 rows and its number/dot
+    are exactly the row's own sdg_number/sdg_label (never a copy-typed
+    string). L34: si_status thresholds the fractional `mass` column."""
+    df = P.sdg_table(ctx, seed_id)
+    assert df["sdg_label_numbered"].notna().all()
+    want = "SDG " + df["sdg_number"].astype(str) + " · " + df["sdg_label"].astype(str)
+    assert (df["sdg_label_numbered"] == want).all()
+    mass = df["mass"].astype("float64")
+    want_status = np.select([mass >= P.SI_FLOOR_SOLID, mass >= P.SI_FLOOR_THIN],
+                             ["solid", "thin"], default="none")
+    assert (df["si_status"] == want_status).all()
+
+
+@pytest.mark.parametrize("seed_id", SEEDS)
 def test_erc_table_columns_and_labels(ctx, seed_id):
     df = P.erc_table(ctx, seed_id)
     assert list(df.columns) == P.ERC_COLS
     if len(df):
         assert df["panel_code"].notna().all()
         assert set(df["erc_domain"].unique()) <= {"LS", "PE", "SH"}
+
+
+def test_erc_table_si_status_thresholds(ctx):
+    """si_status thresholds exact on `mass` -- direct recount against
+    P.SI_FLOOR_SOLID/_THIN for a seed with enough ERC-classified mass to
+    exercise all three buckets."""
+    seed_id = "I40413290"  # Gdansk
+    df = P.erc_table(ctx, seed_id)
+    mass = df["mass"].astype("float64")
+    want = np.select([mass >= P.SI_FLOOR_SOLID, mass >= P.SI_FLOOR_THIN],
+                      ["solid", "thin"], default="none")
+    assert (df["si_status"] == want).all()
+    counts = df["si_status"].value_counts().to_dict()
+    print(f"[erc si_status] {seed_id}: {counts}")
 
 
 # ---------------------------------------------------------------- wordcloud -

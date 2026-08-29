@@ -11,12 +11,21 @@ these columns by name, so nothing here is free to rename or drop one.
 Tree-awareness: `fields_table`/`subfields_table` read `subs["fields_df"]` /
 `subs["subfields_df"]` -- the SAME scenario frames `lib/engine/substrates.py`
 already computes for the L0/L1 lenses (`derive_shapes` output, or the shipped
-`fields.parquet` on the default scenario) -- so `share` follows `subs["basis"]`
-and `si` is the scenario's own (basis-appropriate, G6-floored at subfield
-grain) column, never recomputed here. `topics_table` resolves a topic's
-tree-aware subfield/field/domain from `topics_dim.parquet`'s `{tree}_subfield_id`
-through the FIXED subfield->field->domain map (subfield->field never changes
-per tree, `trees_agg.subfield_to_field_map`).
+`fields.parquet` on the default scenario) -- so `share` follows `subs["basis"]`.
+`topics_table` resolves a topic's tree-aware subfield/field/domain from
+`topics_dim.parquet`'s `{tree}_subfield_id` through the FIXED subfield->field
+->domain map (subfield->field never changes per tree, `trees_agg.
+subfield_to_field_map`).
+
+R2 L34 (BUILD_PLAN_2A.md S10.2): `si` at subfield grain is now RECOMPUTED here
+without the ratified G6 floor (`_unfloored_si`) -- `subs["subfields_df"]`'s own
+`si` column is NaN below `vol_frac >= 30` (the ratified LENS floor, untouched),
+but the profile display wants a value down to `vol_frac >= 10` ("thin" cells,
+hollow mark) so it can distinguish "thin" from "none" instead of collapsing
+both into a blank. `si_status` (`{"solid", "thin", "none"}`, thresholds
+`SI_FLOOR_SOLID`/`SI_FLOOR_THIN`) is added to `subfields_table`/`erc_table`/
+`sdg_table` (mass-based) and `fields_table` (no-floor-observed basis) so
+`lib/charts.py` never has to re-derive a threshold from a typed number.
 """
 from __future__ import annotations
 
@@ -29,15 +38,25 @@ import pandas as pd
 from .engine.derive import _detect_year_cols
 from .engine.substrates import _topic_share_values
 
-FIELDS_COLS = ["field_id", "field_name", "domain_id", "domain_name", "vol_full", "vol_frac", "share", "si"]
+FIELDS_COLS = ["field_id", "field_name", "domain_id", "domain_name", "vol_full", "vol_frac", "share",
+              "si", "si_status"]
 SUBFIELDS_COLS = ["subfield_id", "subfield_name"] + FIELDS_COLS
 TOPICS_COLS = ["topic_id", "topic_name", "subfield_id", "subfield_name", "field_id", "field_name",
               "domain_id", "domain_name", "vol_full", "vol_frac", "share", "is_excluded",
               "frontier_score_latest", "expansion_latest", "acceleration_latest", "quadrant",
-              "top25pct_frontier"]
+              "top25pct_frontier", "rank_volume"]
 YEARLY_COLS = ["year", "domain_id", "domain_name", "vol_full", "vol_frac"]
-SDG_COLS = ["sdg_idx", "sdg_number", "sdg_label", "share", "esi", "mass"]
-ERC_COLS = ["panel_idx", "panel_code", "panel_label", "erc_domain", "share", "si", "mass"]
+SDG_COLS = ["sdg_idx", "sdg_number", "sdg_label", "sdg_label_numbered", "share", "esi", "mass", "si_status"]
+ERC_COLS = ["panel_idx", "panel_code", "panel_label", "erc_domain", "share", "si", "mass", "si_status"]
+
+# R2 L34 (BUILD_PLAN_2A.md S10.2): harmonised display floors on FRACTIONAL mass
+# (vol_frac for subfields, `mass` for ERC/SDG) -- solid = safe to plot as a
+# filled mark, thin = hollow mark (small sample), none = no mark at all (this
+# is the "no SI mark at zero volume" ERC fix, triage #9). These are a PROFILE
+# DISPLAY rule only; the ratified lens floor (`trees_agg.G6_FLOOR` = 30, same
+# number, different purpose) lives in `derive.py`/`build_substrates` untouched.
+SI_FLOOR_SOLID = 30.0
+SI_FLOOR_THIN = 10.0
 
 
 # --------------------------------------------------------- cached lookups ---
@@ -108,26 +127,78 @@ def _year_cols(ctx: dict) -> list[int]:
     return ctx["topics_all_year_cols"]
 
 
+# -------------------------------------------------------- R2 L34 SI floors --
+
+def si_status_from_mass(mass) -> pd.Series:
+    """Harmonised display-floor status (L34): >= `SI_FLOOR_SOLID` -> "solid",
+    `SI_FLOOR_THIN` <= mass < `SI_FLOOR_SOLID` -> "thin", else (incl. zero and
+    NaN) -> "none". `mass` is ALWAYS the fractional-mass column -- `vol_frac`
+    for subfields, the `mass` column for ERC/SDG -- never a raw work count,
+    never a share/si value. `np.select`'s comparisons are False on NaN, so a
+    missing mass falls through to "none" without a separate branch."""
+    m = pd.Series(mass).astype("float64")
+    return pd.Series(
+        np.select([m >= SI_FLOOR_SOLID, m >= SI_FLOOR_THIN], ["solid", "thin"], default="none"),
+        index=m.index,
+    )
+
+
+def _unfloored_si(df: pd.DataFrame, group_col: str, share_col: str) -> pd.Series:
+    """`share_col / mean(share_col over the rows PRESENT in df for that
+    group_col value)` -- the exact population `derive.py`'s own
+    `mean_share_v` averages over (only rows already present in the frame,
+    i.e. institutions with nonzero mass in that cell -- derive.py's
+    'MEAN-SHARE POPULATION' note), but WITHOUT derive.py's G6-floor gate on
+    the numerator (`AND s.vol_frac >= g6_floor`). A display-only
+    re-derivation (L34): the ratified lens floor is untouched in derive.py."""
+    share = df[share_col].astype("float64")
+    mean_share = share.groupby(df[group_col]).transform("mean")
+    with np.errstate(invalid="ignore", divide="ignore"):
+        si = np.where(mean_share > 0, share / mean_share, np.nan)
+    return pd.Series(si, index=df.index)
+
+
+def _subfields_si_unfloored(subs: dict, share_col: str) -> pd.Series:
+    """Cached on `subs` (same idiom as ctx's `_field_domain_map` etc.): the
+    groupby mean is a whole-population pass, so it runs once per (tree,
+    basis, share_col) scenario, not once per institution/profile view."""
+    cache_key = f"_si_unfloored_{share_col}"
+    if cache_key not in subs:
+        subs[cache_key] = _unfloored_si(subs["subfields_df"], "subfield_id", share_col)
+    return subs[cache_key]
+
+
 # ------------------------------------------------------------ fields/subs ---
 
 def fields_table(ctx: dict, subs: dict, iid: str) -> pd.DataFrame:
     """One row per field this institution has nonzero mass in, scenario-aware
     (`subs['fields_df']`): share on `subs['basis']`, si with NO floor at
-    field grain (data_contract.yaml)."""
+    field grain (data_contract.yaml). `si_status` (L34) is "solid" whenever
+    vol_frac > 0 AND si is defined, else "none" -- fields.si carries no floor
+    at all, so there is no "thin" state at this grain (contrast subfields)."""
     share_col = "share_frac" if subs["basis"] == "frac" else "share_full"
     df = subs["fields_df"]
-    row = df[df["institution_id"] == iid]
+    row = df[df["institution_id"] == iid].copy()
+    row["si_status"] = np.where(
+        (row["vol_frac"].astype("float64") > 0) & row["si"].notna(), "solid", "none")
     out = row.merge(_field_domain_map(ctx), on="field_id", how="left")
     out = out.rename(columns={share_col: "share"})
     return out.reindex(columns=FIELDS_COLS).reset_index(drop=True)
 
 
 def subfields_table(ctx: dict, subs: dict, iid: str) -> pd.DataFrame:
-    """Same as `fields_table` at the subfield grain; si is NaN below the G6
-    floor on `vol_frac` (the scenario frame already carries this)."""
+    """Same as `fields_table` at the subfield grain. `si` is RECOMPUTED
+    unfloored (`_unfloored_si`, L34) so "thin" cells (10 <= vol_frac < 30)
+    carry a real value instead of the ratified-floor NaN; `si_status` flags
+    solid/thin/none on `vol_frac` (`SI_FLOOR_SOLID`/`SI_FLOOR_THIN`). Where
+    the frame's own (ratified-floor) si IS defined, this si is numerically
+    identical to it (same formula, same population) -- see
+    tests/test_profile_data.py's identity check."""
     share_col = "share_frac" if subs["basis"] == "frac" else "share_full"
     df = subs["subfields_df"]
-    row = df[df["institution_id"] == iid]
+    row = df[df["institution_id"] == iid].copy()
+    row["si"] = _subfields_si_unfloored(subs, share_col).loc[row.index]
+    row["si_status"] = si_status_from_mass(row["vol_frac"])
     fd = _subfield_field_domain_map(ctx)[["subfield_id", "subfield_name"]]
     out = row.merge(fd, on="subfield_id", how="left").merge(_field_domain_map(ctx), on="field_id", how="left")
     out = out.rename(columns={share_col: "share"})
@@ -136,13 +207,19 @@ def subfields_table(ctx: dict, subs: dict, iid: str) -> pd.DataFrame:
 
 # ------------------------------------------------------------------ topics --
 
+_TOPICS_COLS_NO_RANK = [c for c in TOPICS_COLS if c != "rank_volume"]
+
+
 def topics_table(ctx: dict, subs: dict, iid: str) -> pd.DataFrame:
     """One row per topic this institution has ANY mass in (`topics_all`),
     tree-aware subfield/field/domain (`subs['tree']`'s own `{tree}_subfield_id`
     resolved through the FIXED subfield->field->domain map), share on
     `subs['basis']` (frac = `topics_all.share_frac` verbatim; full = the
     vol_full-normalised share `substrates._topic_share_values` already
-    computes for L3/F1)."""
+    computes for L3/F1). `rank_volume` (L33) ranks topics by volume ON THE
+    SAME BASIS (`vol_full` when basis='full', else `vol_frac`) -- 1 = largest,
+    unique ints 1..n, ties broken by `topic_id` ascending (never a silent
+    ambiguous tie) -- for the "top {n} topics by volume" frontier-panel mode."""
     idx = ctx["id_pos"][iid]
     mask = ctx["ta_inst"] == idx
     topic_pos = ctx["ta_topic"][mask]
@@ -162,7 +239,14 @@ def topics_table(ctx: dict, subs: dict, iid: str) -> pd.DataFrame:
     dim = dim.merge(_topics_dim_extra(ctx), on="topic_id", how="left")
     out = df.merge(dim, on="topic_id", how="left")
     out = out.merge(_subfield_field_domain_map(ctx), on="subfield_id", how="left")
-    return out.reindex(columns=TOPICS_COLS).reset_index(drop=True)
+    out = out.reindex(columns=_TOPICS_COLS_NO_RANK).reset_index(drop=True)
+
+    vol_col = "vol_full" if subs["basis"] == "full" else "vol_frac"
+    order = out.sort_values([vol_col, "topic_id"], ascending=[False, True]).index.to_numpy()
+    ranks = np.empty(len(out), dtype="int64")
+    ranks[order] = np.arange(1, len(out) + 1)
+    out["rank_volume"] = ranks
+    return out.reindex(columns=TOPICS_COLS)
 
 
 # ------------------------------------------------------------ yearly trend --
@@ -253,17 +337,24 @@ def _parse_packed_years(packed) -> dict[int, float]:
 
 def sdg_table(ctx: dict, iid: str) -> pd.DataFrame:
     """DENSE 16-row SDG profile (`sdg.parquet` ships all 16 per institution,
-    data_contract.yaml) joined to `resources/sdg_labels.csv`."""
+    data_contract.yaml) joined to `resources/sdg_labels.csv` (carries both
+    `sdg_label` and the numbered `sdg_label_numbered`, L36). `si_status`
+    (L34) thresholds the fractional `mass` column -- `esi` itself has no
+    floor observed (data_contract.yaml) and is kept as shipped."""
     row = ctx["sdg_df"][ctx["sdg_df"]["institution_id"] == iid]
     out = row.merge(_sdg_labels(ctx), on="sdg_idx", how="right")  # right join: 16 rows even if iid is thin
     out["institution_id"] = iid
+    out["si_status"] = si_status_from_mass(out["mass"])
     return out.reindex(columns=SDG_COLS).reset_index(drop=True)
 
 
 def erc_table(ctx: dict, iid: str) -> pd.DataFrame:
     """Sparse (nonzero-mass panels only, matching `erc.parquet`'s own
-    convention) ERC profile joined to `resources/erc_panels.csv`."""
-    row = ctx["erc_df"][ctx["erc_df"]["institution_id"] == iid]
+    convention) ERC profile joined to `resources/erc_panels.csv`. `si_status`
+    (L34) thresholds the fractional `mass` column -- `si` itself has no floor
+    observed (data_contract.yaml) and is kept as shipped."""
+    row = ctx["erc_df"][ctx["erc_df"]["institution_id"] == iid].copy()
+    row["si_status"] = si_status_from_mass(row["mass"])
     out = row.merge(_erc_panels(ctx), on="panel_idx", how="left")
     return out.reindex(columns=ERC_COLS).reset_index(drop=True)
 
