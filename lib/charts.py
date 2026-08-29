@@ -74,9 +74,46 @@ BASE_PX = 60                # axes + margins
 MIN_HEIGHT = 300
 SCATTER_HEIGHT = 520
 
-GUTTER_FRACTION = 0.16      # of the x range, reserved left of zero for the volume gutter
-GUTTER_INSET = 0.06         # of the gutter, the padding between the number and the baseline
 BAR_GAP = 0.3
+
+# --- Fix X3 (Refinement R1, inspection finding I-4) ------------------------
+# The volume gutter used to be a SEPARATE `add_annotation` sitting in a
+# negative-x sliver reserved left of the zero baseline (`GUTTER_FRACTION`/
+# `GUTTER_INSET`, retired by this fix), drawn independently of the y-axis
+# category label. At a narrow plot width the two
+# text elements are laid out by two different systems with no shared
+# knowledge of each other's extent, so they can (and at 390 px, did) end up
+# with zero space between them, reading as one garbled word.
+#
+# Measured on plotly 5.24.1 (see `progress/R1_X3.md`): `yaxis.automargin`
+# does NOT reserve room away from the plot's own bars for a long tick label --
+# it only stops a label being clipped by the OUTER edge of the figure. A
+# label longer than the current margin simply draws on top of the plot area
+# instead. So automargin alone cannot be the fix; it stays on as a backstop
+# for a container narrower than our own estimate, below.
+#
+# The fix: fold the volume INTO the y tick text as one right-anchored string
+# (`_tick_display`) -- there is then only ONE text element per row, so there
+# is nothing left for it to collide with -- truncate any label beyond
+# `MAX_LABEL_CHARS` from the RIGHT only, never the left (`_truncate_label`,
+# full label always kept in hover/customdata), and reserve the left margin
+# ourselves from the longest resulting string (`_gutter_margin_px`) rather
+# than assume automargin will do it.
+MAX_LABEL_CHARS = 36        # a y tick label longer than this is ellipsised;
+                            # chosen to keep even the paired share+SI panel
+                            # readable at the narrowest shipped breakpoint
+TICK_LABEL_GAP = "  "       # between the (possibly truncated) label and its
+                            # volume inside one right-anchored tick string
+CHAR_WIDTH_EM = 0.6         # empirical average glyph width, as a fraction of
+                            # font size, for the shipped sans stack -- used
+                            # ONLY to reserve a left margin big enough that a
+                            # long label never overlaps the bars (verified by
+                            # `tests/ui/smoke.py`'s bounding-box check, not by
+                            # this estimate alone)
+GUTTER_MARGIN_PAD_PX = 12   # extra breathing room beyond the estimated width
+GUTTER_MARGIN_MIN_PX = 8    # the old fixed margin, kept as the floor when
+                            # there is nothing long enough to reserve room for
+ELLIPSIS = "\N{HORIZONTAL ELLIPSIS}"
 MARKER_PX = 10
 LINE_PX = 2
 HAIRLINE_PX = 1
@@ -163,6 +200,44 @@ def _fmt_vol(v) -> str:
     if abs(v - round(v)) < 1e-9:
         return format(int(round(v)), ",").replace(",", THIN_SPACE)
     return format(v, f",.{SHARE_DECIMALS}f").replace(",", THIN_SPACE)
+
+
+def _truncate_label(label, max_chars: int = MAX_LABEL_CHARS) -> str:
+    """Ellipsise a y-axis category label from the RIGHT only, never the left --
+    a reader always sees where a name STARTS. The caller keeps the full,
+    untruncated string as the row's identity (`y=`) and in its hover text;
+    only the rendered tick text is ever shortened."""
+    s = str(label)
+    if len(s) <= max_chars:
+        return s
+    return s[: max_chars - 1].rstrip() + ELLIPSIS
+
+
+def _tick_display(short_label: str, vol_text: str | None) -> tuple[str, str]:
+    """One right-anchored tick string carrying BOTH the (already truncated)
+    label and its volume, so there is a single text element per row instead
+    of two independently-laid-out ones. Returns `(plain, styled)`: `plain` is
+    used only to estimate how much left margin the row needs
+    (`_gutter_margin_px`); `styled` is what plotly actually draws, with the
+    volume in the secondary ink and gutter font size via plotly's limited
+    tick pseudo-html (`<span style="...">`, verified to render as a coloured,
+    resized `<tspan>` on the pinned plotly 5.24.1 -- see `progress/R1_X3.md`)."""
+    if vol_text is None:
+        return short_label, short_label
+    plain = f"{short_label}{TICK_LABEL_GAP}{vol_text}"
+    styled = (f"{short_label}{TICK_LABEL_GAP}"
+              f'<span style="color:{P.INK_SECONDARY};font-size:{GUTTER_FONT_PX}px">{vol_text}</span>')
+    return plain, styled
+
+
+def _gutter_margin_px(plain_texts: Sequence[str], font_px: int = FONT_PX) -> int:
+    """The left margin to RESERVE for the longest tick text actually shown,
+    since automargin will not do this on its own (see the fix note above).
+    A generous per-character estimate plus padding; the real proof that this
+    is enough is `tests/ui/smoke.py`'s bounding-box check on the real app, not
+    this estimate."""
+    longest = max((len(t) for t in plain_texts), default=0)
+    return max(GUTTER_MARGIN_MIN_PX, int(round(longest * font_px * CHAR_WIDTH_EM)) + GUTTER_MARGIN_PAD_PX)
 
 
 def _first_col(df: pd.DataFrame, candidates: Sequence[str]) -> str | None:
@@ -342,20 +417,26 @@ def fig_share_si(
         showlegend=False,
     ), row=1, col=1)
 
+    # Volume gutter (A/B #4): folded into the y tick text as ONE right-anchored
+    # string per row -- see the fix note above `MAX_LABEL_CHARS`. Truncation
+    # applies to every row's label whether or not `gutter` is on, because a
+    # long category name can overrun the plot on its own.
+    short_names = [_truncate_label(nm) for nm in names]
+    if gutter and vol is not None:
+        pairs = [_tick_display(short_names[i], _fmt_vol(vol[i])) for i in range(n)]
+        plain_display = [p for p, _ in pairs]
+        styled_display = [s for _, s in pairs]
+    else:
+        plain_display = list(short_names)
+        styled_display = list(short_names)
+    fig.update_yaxes(tickmode="array", tickvals=names, ticktext=styled_display)
+
     xmax = float(np.nanmax(share)) if n and np.isfinite(share).any() else 1.0
     xmax = xmax if xmax > 0 else 1.0
     if gutter and vol is not None:
-        pad = xmax * GUTTER_FRACTION
-        for i, nm in enumerate(names):
-            fig.add_annotation(
-                x=-pad * GUTTER_INSET, y=nm, xref="x", yref="y",
-                text=_fmt_vol(vol[i]), showarrow=False,
-                xanchor="right", yanchor="middle",
-                font=dict(size=GUTTER_FONT_PX, color=P.INK_SECONDARY),
-            )
         fig.add_shape(type="line", x0=0, x1=0, y0=-0.5, y1=n - 0.5,
                       xref="x", yref="y", line=dict(color=P.BORDER, width=HAIRLINE_PX))
-        fig.update_xaxes(range=[-pad, xmax * 1.02], tickvals=_nice_ticks(xmax), row=1, col=1)
+    fig.update_xaxes(range=[0, xmax * 1.02], tickvals=_nice_ticks(xmax), row=1, col=1)
 
     if has_si:
         ok = np.isfinite(si)
@@ -382,7 +463,8 @@ def fig_share_si(
     fig.update_xaxes(gridcolor=P.GRID, zerolinecolor=P.GRID, linecolor=P.BORDER)
     fig.update_xaxes(title_text=AX_SHARE, tickformat=_AXIS_PCT_FMT, row=1, col=1)
     height = row_height(n) * (2 if (has_si and stacked) else 1)
-    return _base_layout(fig, height, margin=dict(t=BASE_PX // 2, l=8, r=16, b=BASE_PX))
+    margin_l = _gutter_margin_px(plain_display)
+    return _base_layout(fig, height, margin=dict(t=BASE_PX // 2, l=margin_l, r=16, b=BASE_PX))
 
 
 # ---------------------------------------------------------------------------
@@ -410,6 +492,11 @@ def fig_topics(
     colors = _colors_for(d, "oa")
     names = [f"{EXCLUDED_GLYPH}{THIN_SPACE}{v}" if excluded[i] else str(v)
              for i, v in enumerate(d[label_col])]
+    # `names` (identity, kept full for y positions / hover) vs the truncated,
+    # volume-folded string actually drawn as the tick -- see fig_share_si's
+    # fix note by MAX_LABEL_CHARS above; topic names are the longest labels
+    # in the app, so this panel is the mechanism's harder test.
+    short_names = [_truncate_label(nm) for nm in names]
     share = d[share_col].to_numpy(dtype=float)
     vol = d[volume_col].to_numpy() if volume_col else None
 
@@ -429,21 +516,26 @@ def fig_topics(
                     line=dict(color=P.SURFACE, width=HAIRLINE_PX)),
         customdata=hover, hovertemplate="%{customdata}<extra></extra>", showlegend=False,
     ))
+    if gutter and vol is not None:
+        pairs = [_tick_display(short_names[i], _fmt_vol(vol[i])) for i in range(n)]
+        plain_display = [p for p, _ in pairs]
+        styled_display = [s for _, s in pairs]
+    else:
+        plain_display = list(short_names)
+        styled_display = list(short_names)
+    fig.update_yaxes(tickmode="array", tickvals=names, ticktext=styled_display)
+
     xmax = float(np.nanmax(share)) if n and np.isfinite(share).any() else 1.0
     xmax = xmax if xmax > 0 else 1.0
     if gutter and vol is not None:
-        pad = xmax * GUTTER_FRACTION
-        for i, nm in enumerate(names):
-            fig.add_annotation(x=-pad * GUTTER_INSET, y=nm, text=_fmt_vol(vol[i]),
-                               showarrow=False, xanchor="right", yanchor="middle",
-                               font=dict(size=GUTTER_FONT_PX, color=P.INK_SECONDARY))
         fig.add_shape(type="line", x0=0, x1=0, y0=-0.5, y1=n - 0.5,
                       line=dict(color=P.BORDER, width=HAIRLINE_PX))
-        fig.update_xaxes(range=[-pad, xmax * 1.02], tickvals=_nice_ticks(xmax))
+    fig.update_xaxes(range=[0, xmax * 1.02], tickvals=_nice_ticks(xmax))
     fig.update_yaxes(autorange="reversed", showgrid=False, automargin=True)
     fig.update_xaxes(title_text=AX_SHARE, tickformat=_AXIS_PCT_FMT,
                      gridcolor=P.GRID, zerolinecolor=P.GRID, linecolor=P.BORDER)
-    return _base_layout(fig, row_height(n), margin=dict(t=BASE_PX // 2, l=8, r=16, b=BASE_PX))
+    margin_l = _gutter_margin_px(plain_display)
+    return _base_layout(fig, row_height(n), margin=dict(t=BASE_PX // 2, l=margin_l, r=16, b=BASE_PX))
 
 
 # ---------------------------------------------------------------------------

@@ -150,9 +150,11 @@ def test_fig_share_si_fields_two_panels_and_colour_source(fields_df):
     assert fig.layout.xaxis2.title.text == C.AX_SI
     assert fig.layout.paper_bgcolor == P.SURFACE and fig.layout.plot_bgcolor == P.SURFACE
     assert fig.layout.height == C.row_height(len(fields_df))
-    # the volume gutter: one annotation per row, plus the baseline hairline
-    assert len(fig.layout.annotations) == len(fields_df)
-    assert all(a.font.color == P.INK_SECONDARY for a in fig.layout.annotations)
+    # the volume gutter (fix X3): folded into the y ticktext, one string per
+    # row, no separate annotation left to collide with it
+    assert len(fig.layout.annotations) == 0
+    assert len(fig.layout.yaxis.ticktext) == len(fields_df)
+    assert all(P.INK_SECONDARY in t for t in fig.layout.yaxis.ticktext)
 
 
 def test_fig_share_si_sort_taxonomy_reorders_but_keeps_entity_colour(fields_df):
@@ -301,6 +303,92 @@ def test_invalid_family_and_sort_raise(fields_df):
         C.fig_share_si(fields_df, family="nonsense")
     with pytest.raises(ValueError):
         C.fig_share_si(fields_df, sort="alphabetical")
+
+
+# ---------------------------------------------------------------------------
+# Fix X3 (inspection finding I-4): the label/gutter collision at narrow width.
+# `lib/charts.py::fig_share_si` / `fig_topics` fold the volume into the y
+# ticktext as ONE right-anchored string per row instead of a separate
+# annotation, so there is nothing left for it to collide with; a label longer
+# than `MAX_LABEL_CHARS` is ellipsised from the RIGHT only (never the left),
+# and the full label always survives in hover/customdata.
+# ---------------------------------------------------------------------------
+def test_truncate_label_never_cuts_from_the_left():
+    long_name = "Biochemistry, Genetics and Molecular Biology"
+    assert len(long_name) > C.MAX_LABEL_CHARS, "fixture assumption: this name IS the I-4 example"
+    short = C._truncate_label(long_name)
+    assert len(short) <= C.MAX_LABEL_CHARS
+    assert short.startswith(long_name[: C.MAX_LABEL_CHARS - 1].rstrip())
+    assert short.endswith(C.ELLIPSIS)
+    # the leading characters are never the ones dropped
+    assert long_name[:4] in short
+    # a label already within budget is untouched
+    assert C._truncate_label("Mathematics") == "Mathematics"
+
+
+def test_fig_share_si_folds_volume_into_ticktext_full_label_survives_in_hover(fields_df):
+    """Uses the REAL long field name from the I-4 screenshot ("Biochemistry,
+    Genetics and Molecular Biology", 46 chars) straight out of the fixture
+    `fields_df` already builds from the deployed parquet -- no synthetic data."""
+    fig = C.fig_share_si(fields_df, family="oa", sort="volume", gutter=True)
+    long_name = next(n for n in fields_df["field_name"] if len(n) > C.MAX_LABEL_CHARS)
+    assert long_name == "Biochemistry, Genetics and Molecular Biology"
+
+    names = list(fig.data[0].y)  # identity axis: FULL names, unaffected by truncation
+    idx = names.index(long_name)
+    assert long_name in fig.data[0].customdata[idx], "full label must survive in hover"
+
+    tickvals = list(fig.layout.yaxis.tickvals)
+    ticktext = list(fig.layout.yaxis.ticktext)
+    shown = ticktext[tickvals.index(long_name)]
+    assert C._truncate_label(long_name) in shown
+    assert long_name not in shown, "the raw, untruncated label is never drawn on screen"
+    assert P.INK_SECONDARY in shown, "the volume rides in the secondary ink, inside the tick text"
+
+    # no tick label's VISIBLE (label) portion exceeds MAX_LABEL_CHARS + 1
+    # (the +1 covers the single ellipsis glyph replacing the cut characters)
+    for shown in ticktext:
+        label_part = shown.split(C.TICK_LABEL_GAP)[0]
+        assert len(label_part) <= C.MAX_LABEL_CHARS + 1
+
+
+def test_fig_share_si_automargin_and_reserved_margin_grow_for_long_labels(fields_df):
+    short_only = fields_df[fields_df["field_name"].str.len() <= C.MAX_LABEL_CHARS].reset_index(drop=True)
+    fig_short = C.fig_share_si(short_only, family="oa")
+    fig_long = C.fig_share_si(fields_df, family="oa")  # includes the 46-char Biochemistry row
+    assert fig_short.layout.yaxis.automargin is True
+    assert fig_long.layout.yaxis.automargin is True
+    assert fig_long.layout.margin.l > fig_short.layout.margin.l, (
+        "a frame containing a long label must reserve more left margin than one that doesn't"
+    )
+    assert fig_long.layout.margin.l > C.GUTTER_MARGIN_MIN_PX
+
+
+def test_fig_topics_folds_volume_and_truncates_the_longest_labels_in_the_app(topics_df):
+    long_names = [str(n) for n in topics_df["topic_name"] if len(str(n)) > C.MAX_LABEL_CHARS]
+    assert long_names, "fixture must include a real long topic name (topics are the app's longest labels)"
+    fig = C.fig_topics(topics_df, sort="volume")
+    assert fig.layout.yaxis.automargin is True
+    ticktext = list(fig.layout.yaxis.ticktext)
+    assert any(C.ELLIPSIS in t for t in ticktext), "at least one real long topic name must be ellipsised"
+    for shown in ticktext:
+        label_part = shown.split(C.TICK_LABEL_GAP)[0]
+        assert len(label_part) <= C.MAX_LABEL_CHARS + 1
+    # full label survives in hover even where the tick was truncated
+    long_hit = long_names[0]
+    row_idx = [i for i, y in enumerate(fig.data[0].y) if long_hit in y]
+    assert row_idx and long_hit in fig.data[0].customdata[row_idx[0]]
+
+
+def test_fig_erc_reuses_the_same_folded_gutter_mechanism(erc_df):
+    """ERC panel labels run up to 66 chars in the real app (`panel_label` here
+    is the short `panel_code` since `erc_panels.csv` is stream R-B's, but the
+    mechanism under test is family-agnostic: `fig_erc` delegates to
+    `fig_share_si`, so whatever labels arrive get the same treatment)."""
+    fig = C.fig_erc(erc_df)
+    assert fig.layout.yaxis.automargin is True
+    assert len(fig.layout.yaxis.ticktext) == len(erc_df)
+    assert all(P.INK_SECONDARY in t for t in fig.layout.yaxis.ticktext)
 
 
 # ---------------------------------------------------------------------------

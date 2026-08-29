@@ -39,7 +39,7 @@ real repo.
 | **Persistence** (load-bearing) | After Menu->Find->Menu->Find (4 real sidebar-nav-link hops from the settings state above): the basket still lists 2 items, the L7 tab is still present (tab count 11), the profile heading is still "Gda...", and the strip still names `tree = original`, `depth = 50` and the education type filter. The SAME 6 assertions run once at baseline (right after Settings), once after just 2 hops (a second-visit **re-mount** check -- a bug that only appears the second time a page mounts, e.g. a widget id collision, would pass a first-visit-only test and is a real, previously-observed failure mode), and once more after all 4. |
 | Type filter clear | The education filter set in Settings is confirmed still active, then cleared (the tag's own close icon, or a keyboard Backspace fallback); the strip stops naming it. |
 | Undefined lens | A helper (`_find_undefined_l2f_seed`) scans institutions smallest-`total_full_2020_2024`-first through `lib.engine.rank_all` until it finds one whose L2f ranking is `undefined` (found this run: Transport and Telecommunication Institute, I24568809) -- searched for through the same seed search box, its L2f tab shows `copy.UNDEFINED_LENS_TEMPLATE`'s fixed wording ("... is undefined for this seed: ..."). |
-| Screenshots | Menu and Find (Gdansk seed, **one profile panel opened -- R1's own acceptance line**) at 1920/1280/390 px, each asserting `document.documentElement.scrollWidth <= window.innerWidth + 2` (no horizontal overflow) before the screenshot is written to `tests/ui/screenshots/smoke_{menu,find}_<width>.png`. At 390 px the sidebar nav is Streamlit's own collapsed/mobile drawer -- opened via `[data-testid="stSidebarCollapsedControl"]` before any nav click. |
+| Screenshots | Menu and Find (Gdansk seed, **one profile panel opened -- R1's own acceptance line**) at 1920/1280/390 px, each asserting `document.documentElement.scrollWidth <= window.innerWidth + 2` (no horizontal overflow) before the screenshot is written to `tests/ui/screenshots/smoke_{menu,find}_<width>.png`. At 390 px the sidebar nav is Streamlit's own collapsed/mobile drawer -- opened via `[data-testid="stSidebarCollapsedControl"]` before any nav click. **Fix X3 additions (finding I-4/I-5):** at 390 px AND 1280 px, `check_fields_panel_no_overlap` reads the bounding box of every `.st-key-fig_fields .js-plotly-plot .ytick text` node and the plot's own `.main-svg` box, and FAILS if any tick label starts left of the plot's own left edge (the old collision) or overflows its right edge; a viewport-only (non-full-page) `smoke_find_top_1280.png` is captured scrolled to `y=0` right after the seed loads and BEFORE any panel opens (I-5 -- no other screenshot in this suite proves the header/tiles/coverage/wordcloud actually render); a dedicated `smoke_find_fields_390.png` captures the Fields panel open at the narrowest width. |
 
 Every selector is locale-independent: `.st-key-<key>` classes from the
 page's own keyed widgets/containers (`app/lib/views_find.py`, `Menu.py`),
@@ -260,3 +260,15 @@ python tests/ui/smoke.py --port 8678
 ```
 Result: **exit 0**, 101 of 101 checks passed, 6 screenshots written, no
 server process left running afterward.
+
+### Fix X3 (Refinement R1 re-gate): bounding-box + top-of-page additions
+
+```
+python tests/ui/smoke.py --port 8711
+```
+Result: **exit 0**, 105 of 105 checks passed (the 4 new ones: a bounding-box
+no-overlap check on the open Fields panel at 390 px AND 1280 px, each PASSing
+with 25 y-tick labels fully inside the plot's own `.main-svg`; and the two new
+named screenshots below both written), 8 screenshots total, no server process
+left running afterward (`netstat -ano | findstr :<port>` showed only
+`TIME_WAIT` rows).

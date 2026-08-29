@@ -697,6 +697,30 @@ of what the pre-R1 page did.
 > laid over four different hues is not comparable across hues — the reader cannot
 > tell a "strong" yellow from a "weak" green.
 
+> **Fix X3 (Refinement R1, inspection finding I-4).** A/B #4's own verdict
+> (§5, "left text gutter, numbers right-aligned against the zero baseline")
+> held at 1280 px but broke at 390 px: the gutter number was a SEPARATE
+> annotation from the y-axis category label, so nothing kept the two apart at
+> the narrow breakpoint — they merged into unreadable text ("hemistry,
+> Genetics and Molecular Biolog213.7"), truncated from BOTH ends. Verdict kept,
+> mechanism made robust: the volume now folds INTO the y tick text as ONE
+> right-anchored string per row (`lib/charts.py::_tick_display`), so there is
+> nothing separate left to collide with; a label longer than
+> `charts.MAX_LABEL_CHARS` is ellipsised from the RIGHT only, never the left,
+> with the full label kept in hover/customdata (`_truncate_label`); the left
+> margin is reserved from the longest resulting string
+> (`_gutter_margin_px`) because `yaxis.automargin` — measured on plotly 5.24.1
+> — only stops a label being clipped by the figure's OUTER edge, not by the
+> plot's own bars, so it cannot be relied on alone to keep a long label out of
+> the data area. **Robustness rule for any future y-axis-label form in this
+> app:** a caption or number placed BESIDE a category label must never be laid
+> out by a second, independent text system (a separate annotation, a second
+> `<text>` element) at a width where the two can run out of room to stay
+> apart — fold them into one string, or reserve the margin the wider of the
+> two actually needs, never assume. Proof: `tests/test_charts.py`'s
+> truncation/margin tests plus `tests/ui/smoke.py`'s bounding-box check at
+> 390 px and 1280 px (`progress/R1_X3.md`).
+
 ### 2.16 Panel — Top subfields (share + SI)
 
 - **Form.** As §2.15, `charts.fig_share_si`, on the top subfields by volume.
@@ -997,6 +1021,14 @@ criteria, commands and screenshots: `design-system/ab/AB_VERDICT.md` (R1 section
   governs a volume printed BESIDE a bar encoding a different measure; a direct
   label on a bar encoding that very number (the yearly global breakdown) keeps
   its end label.
+
+  **Fix X3 note (Refinement R1 re-gate, inspection finding I-4):** the verdict
+  above still stands, but the ORIGINAL implementation of it (a separate
+  `add_annotation` per row, independent of the y tick label) collided with the
+  category label at 390 px — see §2.15's fix note for the mechanism, the
+  measured cause (`yaxis.automargin` does not reserve room away from a plot's
+  own bars), and the robustness rule this leaves for the next A/B that places
+  a number beside a label.
 
 Both winners are implemented in `lib/charts.py` and exercised on the real frames
 by `tests/test_charts.py`.

@@ -562,10 +562,56 @@ def check_undefined_lens(page, seed_id: str, seed_name: str) -> None:
     _no_exception(page, "Undefined L2f seed")
 
 
+def check_fields_panel_no_overlap(page, width: int) -> None:
+    """Fix X3 (inspection finding I-4): bounding-box proof that opening the
+    Fields panel at this width never lets a y-axis tick label collide with
+    anything. `lib/charts.py::fig_share_si` now folds the volume INTO the tick
+    text as one right-anchored string (so there is nothing separate left to
+    merge into it) and reserves its own left margin from the longest resulting
+    string -- this check is the thing that would have failed before that fix:
+    every `.ytick text` must lie fully inside its plot's own `.main-svg`, never
+    clipped past the left edge (where the old collision put the leading
+    characters underneath the volume gutter) and never overflowing the right
+    edge either. A page-level scrollWidth check cannot see this: it is a
+    collision INSIDE one chart's own layout, not a page overflow."""
+    fig = page.locator(".st-key-fig_fields .js-plotly-plot").first
+    fig.wait_for(state="visible", timeout=ACTION_TIMEOUT_MS)
+    plot_box = fig.locator(".main-svg").first.bounding_box()
+    if plot_box is None:
+        check(False, f"Fields panel {width}px: could not read the plot's own .main-svg bounding box")
+        return
+    ticks = fig.locator(".ytick text")
+    n = ticks.count()
+    plot_left = plot_box["x"]
+    plot_right = plot_box["x"] + plot_box["width"]
+    offenders = []
+    for i in range(n):
+        box = ticks.nth(i).bounding_box()
+        if box is None:
+            continue
+        text = ticks.nth(i).text_content() or ""
+        # a 1px slack absorbs sub-pixel rounding, never a real clip/overflow
+        if box["x"] < plot_left - 1:
+            offenders.append(f"{text!r} clipped at left (x={box['x']:.1f} < plot left {plot_left:.1f})")
+        elif box["x"] + box["width"] > plot_right + 1:
+            offenders.append(f"{text!r} overflows right "
+                             f"(right={box['x'] + box['width']:.1f} > plot right {plot_right:.1f})")
+    check(n > 0 and not offenders,
+          f"Fields panel {width}px: {n} y-tick label(s) all stay inside the plot's own svg"
+          + (f" -- offenders: {offenders}" if offenders else ""))
+
+
 def check_screenshots(browser, shot_dir: Path) -> None:
     """R1: at each width, the seed is loaded AND one profile panel is opened
     before the scrollWidth assertion (S9.3 R-H2's own acceptance line) -- the
-    widest real state the page can be in, not just the collapsed default."""
+    widest real state the page can be in, not just the collapsed default.
+
+    Fix X3 additions: a bounding-box no-overlap check on the open Fields panel
+    at 390 px AND 1280 px (finding I-4); a plain (non-full-page) top-of-page
+    screenshot at 1280 px, scrolled to y=0 with the seed loaded but BEFORE any
+    panel is opened, since every R1 glance screenshot happened to be scrolled
+    past the profile header/tiles/coverage/wordcloud (finding I-5); and a
+    dedicated 390 px screenshot with the Fields panel open."""
     shot_dir.mkdir(parents=True, exist_ok=True)
     for width in WIDTHS:
         page = browser.new_page(viewport={"width": width, "height": 900})
@@ -584,6 +630,18 @@ def check_screenshots(browser, shot_dir: Path) -> None:
 
             _click_nav(page, "Find")
             _search_and_pick(page, GDANSK_QUERY)
+
+            if width == 1280:
+                # I-5: the untouched top of the page -- header/tiles/coverage/
+                # wordcloud -- BEFORE any expander is opened, viewport-only
+                # (not full_page) so it is actually scrolled to y=0, not just
+                # stitched in as the top slice of a taller image.
+                page.evaluate("window.scrollTo(0, 0)")
+                _settle(page, 500)
+                top_p = shot_dir / "smoke_find_top_1280.png"
+                page.screenshot(path=str(top_p), full_page=False)
+                check(top_p.is_file(), f"Find top-of-page 1280px: screenshot written ({top_p.name})")
+
             _ensure_expander_open(page, "panel_fields",
                                   ".st-key-sort_fields [data-testid='stRadioOption']")
             _settle(page, 1500)
@@ -593,6 +651,13 @@ def check_screenshots(browser, shot_dir: Path) -> None:
             p2 = shot_dir / f"smoke_find_{width}.png"
             page.screenshot(path=str(p2), full_page=True)
             check(p2.is_file(), f"Find {width}px: screenshot written ({p2.name})")
+
+            if width in (390, 1280):
+                check_fields_panel_no_overlap(page, width)
+            if width == 390:
+                fields_p = shot_dir / "smoke_find_fields_390.png"
+                page.screenshot(path=str(fields_p), full_page=True)
+                check(fields_p.is_file(), f"Find Fields panel 390px: screenshot written ({fields_p.name})")
         except Exception as exc:  # noqa: BLE001 -- one width's failure must not skip the rest
             fail_section(f"Screenshots at {width}px", exc)
         finally:
