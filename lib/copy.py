@@ -685,6 +685,48 @@ COMPARE = {
                      "snapshot."),
     "EMPTY_FRONTIER_POINTS": ("None of the compared institutions holds publications in topics that "
                               "carry a frontier score."),
+
+    # ---- added by Stream C (page composition): controls, reading keys and ---
+    # ---- the strings the shipped chart forms turned out to need ------------
+    "DEEPLINK_LABEL": "Share this comparison, exactly as it stands, with this link.",
+    "MOVE_UP": "Up",
+    "MOVE_DOWN": "Down",
+    "MOVE_HELP": ("The order sets how the institutions are listed and what the shared link "
+                  "carries. Colours do not move with it."),
+    "READING_ORDER": ("Inside every row, the institutions read from top to bottom in the order the "
+                      "legend lists them from left to right."),
+    "CAPTION_SUBFIELDS_TOP": ("Showing the {n} subfields the compared set holds the most "
+                              "publications in."),
+    "FRONTIER_FORM_LABEL": "Layout",
+    "FRONTIER_FORM_FACETS": "One panel per institution",
+    "FRONTIER_FORM_OVERLAY": "Every institution in one plane",
+    "CAPTION_FRONTIER_OVERLAY": ("In this layout nearly every mark is covered by a mark of another "
+                                 "institution, measured on a full comparison at this width. Read it "
+                                 "for which topics sit furthest out over the whole set, and read the "
+                                 "panels for the shape of one institution's cloud."),
+    "CAPTION_FRONTIER_FACETS": ("Every panel shares the same axes and the same mark scale, so the "
+                                "clouds can be compared as shapes."),
+    "CAPTION_IMPACT_SHOWN": ("Showing the {n} of the {n_union} subfields in the union that this set "
+                             "holds the most publications in."),
+    "CAPTION_TRENDS_SHARE": ("Each line is the share of that institution's own publications of the "
+                             "year that sits in the subfield of its panel, on the {basis} basis and "
+                             "the {tree} taxonomy. Every panel shares one vertical scale, so a line "
+                             "can be read against any other line on the grid."),
+    "CAPTION_CLASSIFIED_SHARES": ("Share of each institution's output behind these bars, in the "
+                                  "order of the legend: {shares}."),
+    "DOWNLOAD_VIEW": "Download the figures behind this view",
+    "STRIP_LINK_PUBS": "Publications",
+    "HANDOFF_HEADER": "Take one pair further",
+    "HANDOFF_HELP": ("Two institutions at a time can be read as a possible collaboration: what they "
+                     "already share, and what each one publishes in that the other does not."),
+    "HANDOFF_A_LABEL": "First institution",
+    "HANDOFF_B_LABEL": "Second institution",
+    "HANDOFF_LINK": "Open this pair",
+    "XLSX_SHEET_IMPACT_INDEX": "Impact overall",
+    "XLSX_SHEET_IMPACT_SUBFIELDS": "Impact by subfield",
+    "XLSX_ROW_FLOORS": "Floors in force",
+    "XLSX_ROW_SHEETS": "Sheets, and what each one counts",
+    "XLSX_SOURCE_PAGE": "The Compare page, as it stood when this file was written.",
 }
 
 # ----------------------------------------------------- Collaborate page ----

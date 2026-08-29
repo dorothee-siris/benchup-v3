@@ -32,7 +32,7 @@ from .engine.substrates import load_impact_cells
 # construction, never a dropped row).
 QUADRANTS = ["accelerating_expansion", "accelerating_contraction",
              "decelerating_expansion", "decelerating_contraction"]
-NOT_SCORED = "not_scored"  # A2: frontier_excluded_share + frontier_unscored_share
+NOT_SCORED = "not_frontier_scored"  # A2: frontier_excluded_share + frontier_unscored_share; ONE vocabulary shared with charts_compare.NOT_SCORED (manager fix 2026-08-29, C needs_change #1)
 
 FIELDS_LONG_COLS = ["institution_id"] + P.FIELDS_COLS
 SUBFIELDS_LONG_COLS = ["institution_id"] + P.SUBFIELDS_COLS

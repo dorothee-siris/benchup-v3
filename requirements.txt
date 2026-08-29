@@ -12,3 +12,6 @@ pyyaml==6.0.3          # app/config.yaml loader (lib/app_config.py)
 wordcloud==1.9.6      # R1/L17: the subfield wordcloud (lib/wordcloud_png.py, Lorraine's own pin);
                        # pulls pillow + matplotlib transitively. Wheel + render verified in env-app
                        # on CPython 3.12 before the pin was written (progress/R1_E2.md).
+openpyxl==3.1.5      # 2B-13 / A11: the Compare workbook (pandas ExcelWriter engine).
+                      # Pure-Python wheel, Lorraine's own pin; installed into env-app
+                      # and the sheet round trip verified before the pin was written.
