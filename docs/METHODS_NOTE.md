@@ -1,0 +1,272 @@
+# BenchUp v3 methods note (source text)
+
+**This file is not rendered by the app.** The Methods page renders `lib/copy.py`'s `METHODS` dict,
+whose numbers are `{placeholders}` filled at run time from the config, the manifest and the index
+(`BUILD_PLAN_2B.md` §0 A5). This file carries the same sections with the numbers written out and a
+citation per claim, so a reviewer can check what the page says without reading the data. Keep the
+two in step: `tests/test_methods_note.py` fails when a `METHODS` section has no `## ` heading here,
+or when a template grows a placeholder `METHODS_SOURCES` does not document.
+
+Snapshot described here: **august_2026** (`app/data/MANIFEST.json` `snapshot`), index of **7,557**
+institutions (`MANIFEST.json` `files["index.parquet"].n_rows`).
+
+---
+
+## What counts as a publication
+
+A publication is an OpenAlex record of type article, review, book, book chapter or letter, carrying
+a DOI and published between 2020 and 2024 (`app/config.yaml` `corpus_types`, `openalex_filters`,
+`window`; harvest filter in `pipeline/01b_harvest_eu27_aug.py` lines 10 to 14). 2025 is harvested as
+a bonus year and reported for volumes only (`app/config.yaml` `bonus_year`; `DESIGN.md` §2.2, D1).
+
+Every institution in the index sits in one of the 31 perimeter countries: the European Union, the
+United Kingdom, Switzerland, Norway and Iceland (`app/config.yaml` `perimeter_countries`;
+`DESIGN.md` §2.1, D10). Retracted records are counted in the totals and left out of the subject
+classification, so the subfield, topic, ERC and SDG panels rest on a slightly smaller set than the
+size figures (`pipeline/agg/enriched_corpus.py::classify_grey_state`).
+
+The page reuses the Find tab's own tooltip for this section (`copy.FIND["PUBLICATIONS_TOOLTIP"]`),
+so the two can never diverge.
+
+## Attribution, and the two counting bases
+
+An institution is credited with a publication when the record names that institution directly.
+OpenAlex's lineage graph is never used: for a French institution sharing a joint unit with a
+partner it grafts the partner's whole portfolio onto the parent, inflating the count by up to
+eight times (`DESIGN.md` §2.2, D5; SIRIS `CLAUDE.md`, OpenAlex gotchas).
+
+Full counting credits the whole publication to every institution named on it. Fractional counting
+gives each author 1/n of the publication and splits that part across the institutions the author
+declares (`DESIGN.md` §2.2, D5). ERC, SDG and impact figures are fractional whatever the counting
+setting says (`app/docs/data_contract.yaml`, `erc.share` and `sdg.share` entries;
+`copy.FIND["BASIS_NOT_APPLIED_TOOLTIP"]`).
+
+OpenAlex list endpoints truncate `authorships` at 100 entries without saying so, so any work
+returning exactly 100 authorships is re-fetched singly (about 9,325 EU27 works, the
+mega-collaborations); `DESIGN.md` §2.2, R1.1.
+
+## The subject taxonomy and its three versions
+
+Three trees ship: the original OpenAlex taxonomy, a conservative repair (955 corrections, about one
+in twenty arguable) and a best-fit repair (1,673 differences, about one in seven arguable, winning
+86% of blind A/B tests where the two differ). Release v1.3, copied into
+`V3/reference/taxonomy_repair_v1.3/`; `METHODS_FAISCEAU.md` §6.1 and §6.6.
+
+Every topic keeps a subfield under all three trees, so subfield volumes sum to the institution's
+total under each (`METHODS_FAISCEAU.md` §6.1). Golden-set accuracy of the repair is 0.975 to 1.000
+per domain, and `fit_quality` flags 859 forced or no-fit topics, 15.2% of world mass and 5.2% of
+the median institution's mass (`METHODS_FAISCEAU.md` §6.6).
+
+Impact is decided against the world threshold of a work's **original** subfield, so a top-decile
+flag is tree-independent and only the roll-up moves with the selected tree (`METHODS_FAISCEAU.md`
+§6.4).
+
+## The lenses, one by one
+
+Eight lenses display by default (L0, L1, L3, F1, L2f, L4, L5, L6) and two are one click away (C1,
+L7): `app/config.yaml` `lenses`; `INDICATOR_SPEC_v2.md` §1, rulings M5.1 and M5.2.
+
+The Methods page builds this section from `copy.LENS_NAMES`, `copy.LENS_INTRO` and
+`copy.LENS_CAVEAT`, the same three dicts the Find tab's lens guide renders, so the wording cannot
+drift between the two pages. The per-lens definitions, recall figures and caveats behind those
+sentences are in `INDICATOR_SPEC_v2.md` §1.0 to §1.9; the grain-by-method rationale is in
+`METHODS_FAISCEAU.md` §3.
+
+Two figures worth carrying into a review of this section: the default-set union recovers 61.9% of
+independently graded external peers at depth 20 and 77.9% at depth 50 (`INDICATOR_SPEC_v2.md` §7),
+and noise grows with depth at very different rates per lens, from 19.4% non-education rows in
+L1's ranks 31 to 50 up to 51.0% for L7 (`INDICATOR_SPEC_v2.md` §1). The depth control stays one
+global setting, and that difference is disclosed rather than encoded (§9 ruling 10).
+
+## Concordance
+
+Concordance counts how many lenses place a candidate inside their own top-30
+(`app/config.yaml` `concordance_N`; `INDICATOR_SPEC_v2.md` §3, ruling M5.5). Both numbers, the
+depth and the count of lenses defined for the seed, are stated on every render
+(`app/docs/data_contract.yaml` `concordance_denominator_disclosure`).
+
+It adds nothing the lenses miss: zero unique candidates against the default set at every depth and
+population tested, which is why it is displayed as an aid and never as the ranking
+(`INDICATOR_SPEC_v2.md` §3, H7). Judged read: 15 sensible, 1 mixed, 0 nonsense over the 16 seeds of
+panel v2.
+
+## The aspirational view
+
+The shipped rule keeps L1 candidates whose PP(top10%) interval sits entirely above the seed's, in
+L1 order (`evals/aspirational_R2/REPORT.md` §1, variant V0; ruling A in §4, applied as the
+default-if-silent at `GATE_2A_MEMO.md` §4.1).
+
+Six definitions were generated for eight seeds and graded 0 to 3 by two fresh-context judges whose
+expectations were pre-registered and read only after grading. V0 scored 2.62, tied first with
+A-combined; A-frontier 2.50, A-size and A-impact+size 2.38, A-complement 1.50
+(`evals/aspirational_R2/REPORT.md` §2). Non-university crowding on V0 is 3%.
+
+V0's two weak spots are structural: it empties for a seed at the top of its pool (ETH Zurich,
+Sorbonne on size) and thins to four rows for a narrow small seed (Burgos)
+(`evals/aspirational_R2/REPORT.md` §3.1). A-frontier is the judges' best variant whenever V0
+empties and for the RTO seed, and is carried as a candidate mode rather than shipped
+(`BUILD_PLAN_2B.md` 2B-12).
+
+## Specialisation, and the floors it is displayed at
+
+The specialisation index is an institution's share of a cell divided by the mean share across the
+institutions active in that cell, so a value of 1 is what an average active institution holds
+(`app/docs/data_contract.yaml`, `subfields.si`).
+
+Display floors, in fractional publications: solid at 30 or more, hollow between 10 and 30, no mark
+below 10 (`lib/profile_data.py` `SI_FLOOR_SOLID` = 30.0, `SI_FLOOR_THIN` = 10.0; ruling L34 in
+`GATE_2A_MEMO.md` §2 item 8). The lens floor is separate and unchanged: L2f counts only cells where
+both institutions hold at least 30 papers (`app/config.yaml` `l2f_floor`, basis `paper_count`;
+`INDICATOR_SPEC_v2.md` §1.4).
+
+Measured effect of the display floor on a small institution: IFPEN's top 30 subfields show two
+marks under 30 fractional publications and seventeen under 10 (`GATE_2A_MEMO.md` §2 item 8), which
+is why the hollow state exists rather than a single cut.
+
+## Impact: PP(top10%)
+
+PP(top10%) is the share of an institution's articles and reviews from 2020 to 2024 landing in the
+world top decile of citations for their own subfield, year and document type (`DESIGN.md` §4, D6;
+`app/docs/data_contract.yaml`, `index.pp_top10_frac`). Thresholds are computed on the world, not on
+Europe or on the index.
+
+The denominator is the institution's own fractional mass of articles and reviews; per-cell
+denominators ship explicitly as `pp_denominator_frac` and `n_works_full`
+(`app/docs/data_contract.yaml`, `impact_cells`). 2025 is excluded (`app/config.yaml` `bonus_year`).
+
+Intervals come from 1,000 bootstrap resamples (`app/data/source_manifest.json` `bootstrap_reps`)
+and are always rendered with the point estimate; `pp_ci_low <= pp_top10_frac <= pp_ci_high` holds
+for all 7,557 index rows and all 328,978 impact cells (verified 2026-08-29,
+`app/docs/data_contract.yaml`).
+
+Per-subfield cells ship at two mass floors, 30 (default) and 10 (`app/config.yaml` `g6_floor`,
+`g6_impact_floor_alt`; `impact_cells.floor`). The floor 30 intersection across several institutions
+is usually empty: only 3,342 of 7,557 institutions have any floor-30 cell, median 2, and 40 of 40
+random four-institution tuples share none (`evals/wind_tunnel_2B.md`, absorbed as
+`BUILD_PLAN_2B.md` §0 A1). The Compare page therefore renders the union with `n/a` where an
+institution does not clear the floor.
+
+Two normalised-impact traps are deliberately avoided: `fwci` (a mean of ratios whose world mean is
+not 1) and `cited_by_percentile_year` (normalised by year, not by field); SIRIS `CLAUDE.md`,
+OpenAlex gotchas, and `DESIGN.md` §4.
+
+## Frontier scores
+
+Frontier scores are the ACCORD artefact, per topic: expansion, acceleration and a composite, with
+the quadrant of expansion against acceleration as the primary visual (`DESIGN.md` §4, D2). They
+measure attention dynamics rather than novelty or quality, and a low score can mark a foundational
+area (same source, UI copy rule).
+
+811 topics carry no score by construction: they are the catch-all topics outside the subject scope
+of the taxonomy, and the exclusion list is versioned with a reason code per topic
+(`METHODS_FAISCEAU.md` §6.2; verified 2026-08-29 against `app/data/topics_dim.parquet`,
+`is_excluded` sums to 811). Their mass is shown, never dropped.
+
+`index.frontier_quadrant_mix` sums to 1 only once the excluded and unscored shares are added
+(median 0.967, minimum 0.128; one institution holds three quadrants), which is why the Compare
+quadrant bar carries a fifth segment (`BUILD_PLAN_2B.md` §0 A2).
+
+## The ERC classifier
+
+`SIRIS-Lab/erc-classifiers`, a SPECTER-base multilabel model with a sigmoid head, over the 28 ERC
+evaluation panels (`DESIGN.md` §5, D13; 28 panels verified against `app/data/erc.parquet`,
+`panel_idx` distinct count). Global threshold tau = 0.5 (`app/config.yaml` `erc_tau`;
+`app/data/source_manifest.json` `erc_tau`). No panel above tau leaves the work `erc_unclassified`;
+a work clearing several panels is split 1/n across them (`DESIGN.md` §5).
+
+Biotechnology and Arts have recall of about 0.26 in the model's published evaluation and carry an
+inline caveat wherever ERC panels are drawn (`DESIGN.md` §5; `copy.FIND["CAPTION_ERC"]`).
+
+The denominator of `erc.share` is the institution's own `erc_classified_mass_frac`, verified exact
+(`app/docs/data_contract.yaml`, `erc.share`). Coverage varies widely between institutions:
+Université de Strasbourg reads 92.1% of `total_frac`, the remainder being grey mass.
+
+## The SDG classifier
+
+VocTagger route B, 16 independent per-SDG passes on the parse-once engine, VocTagger defaults, any
+keyword hit yielding 0 to N goals per document (`DESIGN.md` §5, D8/F1; 16 goals verified against
+`app/data/sdg.parquet`, `sdg_idx` distinct count).
+
+**SDG 17 is not covered** and is left out rather than drawn as an empty row (`DESIGN.md` §5). The
+denominator of `sdg.share` is the institution's SDG-tagged mass, not its classified or eligible
+mass, verified exact (`app/docs/data_contract.yaml`, `sdg.share`); per-institution shares can sum
+above 1 (observed maximum 3.52) because a work can carry several goals.
+
+Epistemic label, kept verbatim in the UI: matches reflect the SIRIS classifier's reading of the
+SDGs, and different classifiers disagree substantially. Comparison with another provider's SDG
+numbers is never invited (`DESIGN.md` §5, hard rule). SDG classification requires an abstract;
+title-only works go to grey (`DESIGN.md` §2.3, D12).
+
+## Grey accounting: what happened to every publication
+
+Six exclusive states, whose `mass_*` columns sum to `total_frac` exactly for all 7,557 institutions:
+`mass_classified_eligible`, `mass_title_only`, `mass_lang_uncertain`, `mass_untranslated_grey`,
+`mass_retracted_excluded`, `mass_unusable` (`app/docs/data_contract.yaml`, index `mass_*` entries;
+sum verified in `evals/wind_tunnel_2B.md`, absorbed as `BUILD_PLAN_2B.md` §0 A9). Europe-wide
+totals are in `app/data/source_manifest.json` `grey_totals_frac_mass` (classified eligible:
+4,618,728.8 fractional publications).
+
+The country by field breakdown planned in `DESIGN.md` §4 was descoped to institution level by user
+ruling at gate 2A (`BUILD_PLAN_2A.md` L25). SDG-untagged mass is reported as unknown, never as zero
+(`DESIGN.md` §4).
+
+## Corrected institution types
+
+34 type corrections ship (`app/data/MANIFEST.json` `type_overrides.n_rows`;
+`data/overrides/type_overrides.csv`): 16 from the gate rev 6 review (`INDICATOR_SPEC_v2.md` §5,
+ruling M5.8/H13, plus the four rows adjudicated on 2026-08-29) and 18 from the R2 scan (IFPEN,
+Ifremer, six Inria centres, ONERA, INERIS, CSTB, IRSN, Météo-France, Santé publique France to
+`government`; Ikerbasque, DLR e.V., SINTEF to `nonprofit`; IT Carlow to `education`), listed in
+`evals/type_scan_R2/TYPE_SCAN.md` and `GATE_2A_MEMO.md` §2 item 1.
+
+7 cases were adjudicated to a gate rather than applied (CNR Italy, TNO, VTT, DZHK, DZNE, DZL,
+DZIF): `data/overrides/type_overrides_GATE_R2.md`. 391 university hospitals matching the HEI name
+pattern were left as `healthcare` as a category rather than reviewed one by one
+(`evals/type_scan_R2/TYPE_SCAN.md`, method section).
+
+An override changes the label and the type post-filter, never a rank and never inclusion;
+`type_openalex` is kept for audit and shown on the badge (`INDICATOR_SPEC_v2.md` §5). The regex
+rule's own recall is unknown, and the file is a living list the operator extends
+(`INDICATOR_SPEC_v2.md` §5, E7 fix-cycle disclosure).
+
+## Which institutions are in the index
+
+7,557 institutions, with the population rule: at least 200 publications over the window and at
+least 20 in each of 2023 and 2024 (`app/docs/data_contract.yaml`, index `grain`).
+
+The population is dominated by small specialised institutes and hospitals: median 572 full
+publications and median breadth of 1 subfield at the G6 floor, with roughly 21% universities
+(`app/docs/data_contract.yaml` `percentile_definition`; `GATE_2A_MEMO.md` §2 item 7). Every tile
+positioned against the index carries that caveat (`copy.FIND["BASELINE_HELP"]`), because a median
+computed on this population describes the population and is not a level to reach.
+
+## Snapshot and vintage
+
+Snapshot august_2026 (`app/config.yaml` `snapshot`; `app/data/MANIFEST.json` `snapshot`), source
+manifest generated 2026-08-27, deployed 2026-08-29 (`MANIFEST.json`). The EU27 harvest is April
+2026 vintage with an August 2026 attribution and citation patch, so impact inputs share the August
+vintage with the world thresholds; the skew is accepted and stamped (`DESIGN.md` §2.2, D20 and
+R1.3).
+
+OpenAlex is a living database, and about 21% of works change their title or abstract text per year
+between snapshots (SIRIS `CLAUDE.md`, vintage churn). A deterministic re-run means the same code
+against the same archived snapshot, not the same live counts. Link-outs carry the snapshot's own
+filters and still drift a little (`copy.FIND["LINK_OPENALEX_HELP"]`).
+
+## What the tool cannot find, and how it was checked
+
+26 external peers of the 16 panel v2 seeds, 8 of them GOLD, are found by no lens at depth 50
+despite being the same type and a compatible size: Bologna to Barcelona, Burgos to León, Télécom
+Paris to École Polytechnique, Iscte to Sciences Po and CEU, and 21 others
+(`INDICATOR_SPEC_v2.md` §8, ruling M5.10; full list in `evals/campaign_v2/recall_v2.md` §10).
+National-system and mission peers are not recoverable from output shape alone, which is why every
+page keeps a free-text "add a comparator" affordance.
+
+The validation base has a known weakness. Only 46.0% of the earlier round's LLM-pre-registered
+peers were confirmed by independent evidence, and only 24.3% of the confirmed external peers had
+been pre-registered at all, so the earlier recall figures were measured against a weaker
+denominator than the current ones (`INDICATOR_SPEC_v2.md` §8, H12 disclosure, ruling M5.9). The
+figures in this note come from the external evidence base. Judged reads are LLM-produced, not
+domain-expert-produced, with a second judge only on L0, L5 and L7 (`INDICATOR_SPEC_v2.md` §8).
+
+Candidates for review, not a verdict.

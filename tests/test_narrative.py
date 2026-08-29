@@ -131,13 +131,25 @@ def collect_copy_module_strings(copy_module) -> list[tuple[str, str]]:
     for name, value in vars(copy_module).items():
         if name.startswith("_") or not name.isupper():
             continue
-        if isinstance(value, dict):
-            for k, v in value.items():
-                if isinstance(v, str):
-                    out.append((f"{mod_name}::{name}[{k}]", v))
-        elif isinstance(value, str):
-            out.append((f"{mod_name}::{name}", value))
+        for path, v in _walk_strings(value, name):
+            out.append((f"{mod_name}::{path}", v))
     return out
+
+
+def _walk_strings(value, path: str):
+    """Recursive, because Phase 2B's `copy.METHODS` is a dict of
+    {"title", "body"} sub-dicts: the one-level walk this collector used
+    before 2B would have silently skipped every Methods-page sentence, i.e.
+    gone vacuous exactly where the longest new copy lives. `lib/copy.py`'s
+    own `_iter_strings` carries the same widening independently."""
+    if isinstance(value, str):
+        yield path, value
+    elif isinstance(value, dict):
+        for k, v in value.items():
+            yield from _walk_strings(v, f"{path}[{k}]")
+    elif isinstance(value, (list, tuple)):
+        for i, v in enumerate(value):
+            yield from _walk_strings(v, f"{path}[]")
 
 
 def _literal_parts(node: ast.AST) -> list[str]:
@@ -216,6 +228,10 @@ def test_copy_and_extra_copy_scan_is_not_vacuous():
     from lib import copy as copy_mod
     n = len(collect_copy_module_strings(copy_mod))
     assert n >= 50, f"only {n} strings collected from copy.py (incl. copy.FIND) -- collector likely broken"
+    from lib import copy as _c
+    nested = [v for _, v in collect_copy_module_strings(copy_mod) if "METHODS[" in _]
+    assert len(nested) >= 2 * len(_c.METHODS), (
+        "the collector is not walking copy.METHODS's nested {title, body} dicts")
 
 
 def test_no_digit_ban_violations():
