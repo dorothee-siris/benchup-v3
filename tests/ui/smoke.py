@@ -268,6 +268,14 @@ def check_menu(page) -> None:
     nav = page.locator(".st-key-nav_cards")
     check(nav.count() >= 1, "Menu: .st-key-nav_cards container present")
     cards = nav.locator("[class*='st-key-nav_card_']")
+    # Manager fix 2026-08-29: on a COLD server the container can be present before
+    # its cards have mounted (seen once: "found 0" on the first run after startup,
+    # 105/105 on the re-run). Wait for the first card, then count -- a genuine
+    # absence still fails the check below after the timeout.
+    try:
+        cards.first.wait_for(state="visible", timeout=ACTION_TIMEOUT_MS)
+    except Exception:  # noqa: BLE001 -- the count check reports the failure
+        pass
     check(cards.count() >= 3, f"Menu: >=3 nav cards (found {cards.count()})")
     find_link = nav.locator("a").filter(has_text="Find")
     check(find_link.count() >= 1, "Menu: Find card is live (st.page_link anchor present)")
