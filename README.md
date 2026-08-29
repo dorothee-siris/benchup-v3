@@ -3,7 +3,23 @@
 A thematic benchmarking tool for European research institutions: find who resembles a
 given institution across independent lenses, compare institutions side by side, and
 explore collaboration patterns. Candidates for review, not a verdict.
-Find ships in Phase 2A (this build); Compare and Collaborate are Phase 2B.
+
+Four pages, in the order most readings take (2B-10):
+
+1. **Find peers** -- start from one institution, see who resembles it lens by lens. Phase 2A.
+2. **Compare** -- put a shortlist of 2-6 institutions side by side across the same lenses:
+   subject profile, specialisations, ERC/SDG mirrors, frontier positioning, impact
+   intervals, trends and coverage. Phase 2B.
+3. **Collaborate** -- take one pair and read what they already share, what each lacks that
+   the other holds, and where their publications meet on OpenAlex. Phase 2B.
+4. **How it is built** (the Methods page) -- one section per objection a reader is entitled
+   to raise, every figure filled in at run time from the same snapshot the other three
+   pages read, plus a download of the same sections as a human-readable note
+   (`docs/METHODS_NOTE.md`). Phase 2B.
+
+`Menu.py` enumerates the four cards in that order and lights up each one only once its
+page file exists under `pages/`, so it never breaks while a later page is still being
+built.
 
 ## Run
 

@@ -754,6 +754,18 @@ COLLAB = {
     "EMPTY_GAPS": ("{b} publishes in no topic inside {a}'s strongest subfields that {a} is absent "
                    "from."),
     "EMPTY_BREADTH": "Neither institution carries topic-level publications in this snapshot.",
+
+    # ---- Stream L additions (Collaborate page, 2B-7): the row count the
+    # shared caption does not carry, the breadth floor the page passes to
+    # `collab_data.breadth_jaccard`, the two CSV buttons, and the label above
+    # the shareable pair link.
+    "SHARED_ROWS": "{n} topics are held by both institutions under the current settings.",
+    "BREADTH_FLOOR": ("A topic counts for an institution once at least {min_pubs} of its "
+                      "full-counted publications sit there, so a single co-authored paper does "
+                      "not by itself put a topic in a portfolio."),
+    "DOWNLOAD_SHARED": "Download the shared topics (CSV)",
+    "DOWNLOAD_GAPS": "Download this gap list (CSV)",
+    "DEEPLINK_LABEL": "Link to this pair",
 }
 
 # --------------------------------------------------------- Methods page ----
@@ -1042,6 +1054,14 @@ METHODS_SOURCES = {
     "floor_recent": "index population rule, per-recent-year floor (docs/data_contract.yaml, index grain)",
     "snapshot": "MANIFEST.json snapshot, falling back to CFG snapshot",
     "n_unfound": "count of external peers reached by no lens, indicator spec section eight, recall ceiling",
+}
+
+# ------------------------------------------------ Methods page chrome (2B, manager) --
+METHODS_UI = {
+    "DOWNLOAD_LABEL": "Download the source note (Markdown)",
+    "DOWNLOAD_CAPTION": ("This page and the file above come from the same templates: the numbers here are "
+                         "filled at run time from the snapshot loaded, the file states them in full with a "
+                         "citation per section."),
 }
 
 # ----------------------------------------------------- digit-ban self-check -

@@ -58,3 +58,12 @@ corpus_types: [article, review, book, book-chapter, letter]  # harvest server-si
 openalex_filters: {has_doi: true}  # same harvest filter; L23
 
 basket_cap: 6  # BUILD_PLAN_2B.md decision 2B-8/2B-1 -- Compare is 2-6 institutions; additive key, Stream S (config.yaml otherwise unowned in 2B)
+
+# Facts the Methods page states whose SOURCE lives outside this repo (manager, 2B, 2026-08-29):
+# each value is copied here with its provenance so the page never types a number (L10) and
+# never renders n/a for a known fact. Update when the source changes.
+methods_facts:
+  n_gated: 7                        # rows in V3/data/overrides/type_overrides_GATE_R2.md (GATE_2A_MEMO rev 3 §2 item 1)
+  aspirational_seeds: 8             # V3/evals/aspirational_R2/results.json seed count
+  aspirational_definitions: 6       # V3/evals/aspirational_R2/REPORT.md §1 (V0, A-size, A-impact+size, A-frontier, A-complement, A-combined)
+  external_peers_unfound: 26        # INDICATOR_SPEC_v2.md §8 recall ceiling (N's source table, progress/2B_N.md §2)
