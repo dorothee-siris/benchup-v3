@@ -32,14 +32,15 @@ real repo.
 | Menu | The landing page renders: a heading, the `.st-key-nav_cards` container, >=3 cards, the Find card is a live `st.page_link` (not greyed "Phase 2B"), no exception. |
 | Find search | A real sidebar nav click (never `page.goto`) reaches Find; typing "gdansk" + Enter populates the results selectbox; picking the first result loads the University of Gdansk profile (heading contains "Gda"); the default tab count is exactly 10 (Overview + 8 default lenses + Aspirational) -- C1/L7 are OFF by default. |
 | Basket | The sidebar "add a comparator" flow (search box -> results selectbox -> Add button) adds Sorbonne then Bologna; the basket panel lists exactly 2 items (counted via the `[class*="st-key-rm_"]` remove buttons, one per item -- never by reading `st.dataframe` text, which is a canvas grid). |
-| **Controls placement (R1)** | The sidebar carries ONLY `.st-key-tree` / `.st-key-basis` (scenario) -- `.st-key-depth`, `.st-key-f_types`, `.st-key-c1_on` are absent from `[data-testid="stSidebar"]`. `.st-key-depth`/`.st-key-c1_on`/`.st-key-l7_on` render in the main-area controls row instead (same widget keys as 2A, just relocated -- L16). Opening the `.st-key-postfilters` expander reveals `.st-key-f_types` and `.st-key-f_countries`; typing "Fra" into the country multiselect surfaces an option containing "France" (country NAMES, not codes -- L22). |
-| **Profile / panels (R1)** | `.st-key-profile` renders once (replaces the old seed card, L17); the subfield wordcloud renders as a real `<img>`; the six `.st-key-panel_<name>` expanders carry their exact `copy.FIND["PANEL_*"]` header text (icon-ligature prefix stripped, EXACT match -- see non-vacuity proof (b) below for why substring is not enough); the `breakdown_dim` segmented control swaps the chip legend text and both breakdown figures stay visible after the swap; the bonus-year caption is present; opening the Fields panel reveals a live Plotly figure, and its own `sort_fields` radio changes the FIRST rendered y-axis tick label (read from the SVG, `.st-key-fig_fields .ytick text`). |
-| **Tables / export (R1)** | A lens tab's ranked table renders (`.st-key-tbl_L0 [data-testid="stDataFrame"]`); its CSV (captured via Playwright's real download API, never a mocked click) has a header containing `total_frac_2020_2024`, `country` and `evidence`, and NO `badge` column (badges moved to the profile header only, L22); the Aspirational tab renders its own table (`.st-key-tbl_aspirational`). |
-| Settings | Opening the post-filters expander and selecting "education" in the type multiselect; switching the depth radio to its max option changes the depth caption; switching the tree selectbox to "original" (waited out with a poll, not a blind sleep -- see DOM facts below) and turning the L7 toggle on adds the L7 tab (tab count 11); the "Filtered by..." strip names `tree = original`, `depth = 50` and `type = ...education...` (`lib/copy.py`'s `STRIP_*` templates) -- all four settings are set here so the persistence check below has something real to lose. |
-| **Persistence** (load-bearing) | After Menu->Find->Menu->Find (4 real sidebar-nav-link hops from the settings state above): the basket still lists 2 items, the L7 tab is still present (tab count 11), the profile heading is still "Gda...", and the strip still names `tree = original`, `depth = 50` and the education type filter. The SAME 6 assertions run once at baseline (right after Settings), once after just 2 hops (a second-visit **re-mount** check -- a bug that only appears the second time a page mounts, e.g. a widget id collision, would pass a first-visit-only test and is a real, previously-observed failure mode), and once more after all 4. |
+| **Controls placement (R1; sidebar labels R2)** | The sidebar carries ONLY `.st-key-tree` / `.st-key-basis` (scenario) -- `.st-key-depth`, `.st-key-f_types`, `.st-key-c1_on` are absent from `[data-testid="stSidebar"]`. `.st-key-depth`/`.st-key-c1_on`/`.st-key-l7_on` render in the main-area controls row instead (same widget keys as 2A, just relocated -- L16). **R2/L29:** the `tree`/`basis` selectboxes show their DISPLAY label ("Repaired taxonomy (best fit, default)" / "Fractional counting"), read off the react-aria ComboBox `input`'s own `value` property, never the internal value ("bestfit"/"frac") anywhere in that string. Opening the `.st-key-postfilters` expander reveals `.st-key-f_types` and `.st-key-f_countries`; typing "Fra" into the country multiselect surfaces an option containing "France" (country NAMES, not codes -- L22). |
+| **Profile / panels (R1 layout; R2 tiles/labels/floors/modes)** | `.st-key-profile` renders once; the subfield wordcloud renders as a real `<img>`; **R2/L30-L31:** exactly 8 `.benchup-kpi` tiles, 16 `.benchup-kpi-sub` sublines, and every tile's second subline contains "index median" (the index-baseline reference, `copy.FIND["TILE_BASELINE_SUB"]`); the "Key figures" header renders; the retired coverage line's "ERC-classified share" phrase is nowhere on the page (its items were relocated into panel captions). The six `.st-key-panel_<name>` expanders carry their exact `copy.FIND["PANEL_*"]` header text (icon-ligature prefix stripped, EXACT match -- see non-vacuity proof (b) below for why substring is not enough); **R2/L34:** the Top-subfields panel carries NO `.st-key-sort_subfields` control and its Plotly figure has between 1 and 30 `.ytick` groups; **R2/L36:** every SDG-panel y-tick's `.ytick`-group textContent starts with "SDG"; **R2/L34:** the ERC panel's Plotly figure carries at least one grid tickval on its SI (last `xaxis*`) axis -- the unit grid; **R2/L33:** the frontier panel's `frontier_mode` segmented control (inside the SAME collapsed expander) swaps the scatter's plotted point count, read off the live figure's own `el.data`, never a caption; the `breakdown_dim` segmented control swaps the chip legend text and both breakdown figures stay visible after the swap; the bonus-year caption is present. |
+| **Benchmark lens guide (R2/L29)** | The `.st-key-lens_guide` expander's header is exactly "How to read the lenses"; it carries at least 8 `<strong>` lens-name lines (one per shown default lens); the first default-lens tab (`[role="tab"]` index 1, lens `L0`) carries its `copy.LENS_NAMES` text ("L0 · Field overlap"), not a bare code; the Overview's caption points back at the guide ("...see the lens guide above."). |
+| **Tables / export (R1)** | A lens tab's ranked table renders (`.st-key-tbl_L0 [data-testid="stDataFrame"]`) -- lens CODES stay the table/CSV key material even though the TAB text now carries the lens's full name; its CSV (captured via Playwright's real download API, never a mocked click) has a header containing `total_frac_2020_2024`, `country` and `evidence`, and NO `badge` column (badges moved to the profile header only, L22); the Aspirational tab renders its own table (`.st-key-tbl_aspirational`). |
+| Settings | Opening the post-filters expander and selecting "education" in the type multiselect; switching the depth radio to its max option changes the depth caption; switching the tree selectbox to its **R2 display label** "OpenAlex taxonomy as published" (waited out with a poll, not a blind sleep -- see DOM facts below) and turning the L7 toggle on adds the L7 tab (tab count 11); the "Filtered by..." strip names `taxonomy: OpenAlex taxonomy as published` (R2's `STRIP_TREE` wording, the display label -- never "original"), `depth = 50` and `type: education` (R2's `STRIP_TYPE` wording: a colon, not " = ") -- all set here so the persistence check below has something real to lose. `frontier_mode` and `breakdown_dim` are already off-default from the Profile/panels section above and are deliberately left untouched here (see that section's own docstring). |
+| **Persistence** (load-bearing) | After Menu->Find->Menu->Find (4 real sidebar-nav-link hops from the settings state above): the basket still lists 2 items, the L7 tab is still present (tab count 11), the profile heading is still "Gda...", and the strip still names the taxonomy's display label, `depth = 50` and the education type filter. **R2 additions:** the frontier scatter's plotted point count still equals the emerging-mode count captured right after the swap (not the default top-200-by-volume count), and the breakdown pair's chip legend still equals the document-type legend captured right after that swap (not the domain legend) -- both compared against a value this run itself recorded, since neither has a fixed expected literal the way `depth = 50` does. The SAME 8 assertions run once at baseline (right after Settings), once after just 2 hops (a second-visit **re-mount** check -- a bug that only appears the second time a page mounts, e.g. a widget id collision, would pass a first-visit-only test and is a real, previously-observed failure mode), and once more after all 4. |
 | Type filter clear | The education filter set in Settings is confirmed still active, then cleared (the tag's own close icon, or a keyboard Backspace fallback); the strip stops naming it. |
-| Undefined lens | A helper (`_find_undefined_l2f_seed`) scans institutions smallest-`total_full_2020_2024`-first through `lib.engine.rank_all` until it finds one whose L2f ranking is `undefined` (found this run: Transport and Telecommunication Institute, I24568809) -- searched for through the same seed search box, its L2f tab shows `copy.UNDEFINED_LENS_TEMPLATE`'s fixed wording ("... is undefined for this seed: ..."). |
-| Screenshots | Menu and Find (Gdansk seed, **one profile panel opened -- R1's own acceptance line**) at 1920/1280/390 px, each asserting `document.documentElement.scrollWidth <= window.innerWidth + 2` (no horizontal overflow) before the screenshot is written to `tests/ui/screenshots/smoke_{menu,find}_<width>.png`. At 390 px the sidebar nav is Streamlit's own collapsed/mobile drawer -- opened via `[data-testid="stSidebarCollapsedControl"]` before any nav click. **Fix X3 additions (finding I-4/I-5):** at 390 px AND 1280 px, `check_fields_panel_no_overlap` reads the bounding box of every `.st-key-fig_fields .js-plotly-plot .ytick text` node and the plot's own `.main-svg` box, and FAILS if any tick label starts left of the plot's own left edge (the old collision) or overflows its right edge; a viewport-only (non-full-page) `smoke_find_top_1280.png` is captured scrolled to `y=0` right after the seed loads and BEFORE any panel opens (I-5 -- no other screenshot in this suite proves the header/tiles/coverage/wordcloud actually render); a dedicated `smoke_find_fields_390.png` captures the Fields panel open at the narrowest width. |
+| Undefined lens | A helper (`_find_undefined_l2f_seed`) scans institutions smallest-`total_full_2020_2024`-first through `lib.engine.rank_all` until it finds one whose L2f ranking is `undefined` (found this run: Transport and Telecommunication Institute, I24568809) -- searched for through the same seed search box, its L2f tab shows `copy.UNDEFINED_LENS_TEMPLATE`'s **R2 wording** ("L2f cannot be computed for this seed: ..."). |
+| Screenshots | Menu and Find (Gdansk seed, **the Top-subfields panel opened**) at 1920/1280/390 px, each asserting `document.documentElement.scrollWidth <= window.innerWidth + 2` (no horizontal overflow) before the screenshot is written to `tests/ui/screenshots/smoke_{menu,find}_<width>.png`. At 390 px the sidebar nav is Streamlit's own collapsed/mobile drawer -- opened via `[data-testid="stSidebarCollapsedControl"]` before any nav click. A viewport-only (non-full-page) `smoke_find_top_1280.png` is captured scrolled to `y=0` right after the seed loads and BEFORE any panel opens (no other screenshot in this suite proves the header/tiles/wordcloud actually render). **R2 (adapted from fix X3's finding I-4):** at 390 px AND 1280 px, `check_subfields_panel_no_overlap` reads the bounding box of every `.st-key-fig_subfields .js-plotly-plot .ytick` GROUP (not `.ytick text` -- see DOM facts below) against the plot's own `.main-svg` box, and FAILS if any tick label starts left of the plot's own left edge or overflows its right edge; a dedicated `smoke_find_subfields_390.png` captures the Top-subfields panel open at the narrowest width. |
 
 Every selector is locale-independent: `.st-key-<key>` classes from the
 page's own keyed widgets/containers (`app/lib/views_find.py`, `Menu.py`),
@@ -157,6 +158,60 @@ plain DOM elements instead).
   Profile section (`lib/views_find.py::_render_profile`), so the heading is
   now `.st-key-profile h3` (an `st.subheader`), not `.st-key-seed_card h3`.
 
+### R2 additions (Refinement R2, stream R2-H3)
+
+- **A keyed selectbox's CURRENT selection** lives in the react-aria ComboBox
+  `input`'s own `value` property, never in the container's `textContent`/
+  `inner_text` (measured on this build, same finding `ops/_probe_find.py`
+  already recorded: those return the widget LABEL alone). `_selectbox_value`
+  reads `.st-key-<key> input`'s `input_value()`. This is what makes the
+  negative half of a "the internal value never shows" check meaningful.
+- **A Plotly figure mounted inside a COLLAPSED `st.expander` is still fully
+  queryable from JS.** `lib/views_find.py`'s own docstring states every panel
+  body executes on every rerun regardless of the expander's visual state; this
+  file relies on that for the `frontier_mode` control, which now lives inside
+  the `panel_frontier` expander: `document.querySelector('.st-key-panel_frontier
+  .js-plotly-plot')` finds the scatter and its `.data`/`.layout` are populated
+  even while the expander is visually closed (confirmed empirically -- the
+  persistence checks read the point count after two real Menu<->Find hops
+  with the panel never re-opened, and pass). `_capture_persisted_state` still
+  calls `_ensure_expander_open` before reading it, belt-and-suspenders around
+  that finding rather than a substitute for it.
+- **A wrapped (two-line) y-axis tick label** (`lib/charts.py::wrap_label`,
+  R2/L35) renders as separate `<tspan>` children of ONE `<text>` node inside
+  its `.ytick` group, not as two sibling `.ytick text` nodes. Reading or
+  bounding-box-ing `.ytick text` directly still technically works for a
+  single-line label, but the robust, wrap-proof read is the GROUP:
+  `.ytick` (not `.ytick text`) for both `.text_content()` (concatenates every
+  tspan) and `.bounding_box()` (spans every line). `check_subfields_panel_no_overlap`
+  and the SDG-label check both read the group, never the `text` child.
+- **The KPI tile grid** (`lib/tiles.py`, R2/L30/L31) is counted via its own
+  stable hooks, never a label: `.benchup-kpi` (one per tile, 8 of them) and
+  `.benchup-kpi-sub` (two per tile, 16 of them -- the tile's own reference line
+  plus the index-baseline line, which always contains the fixed substring
+  "index median").
+- **Tabs carry a lens NAME, not a bare code** (`copy.LENS_NAMES`, R2/L29):
+  `[role="tab"]` index 1 (the first default lens, `L0` per
+  `config.yaml`'s `lenses.default` order) reads "L0 · Field overlap" in full.
+  Lens-keyed selectors elsewhere on the page (`.st-key-tbl_L0`, `.st-key-dl_L0`,
+  `has_text="L2f"` for the undefined-lens tab) are UNCHANGED: the code stays
+  the stable identifier for every DOM hook and export column; only the tab's
+  own rendered text changed.
+- **Two `STRIP_*` wordings changed under R2's copy pass** (easy to miss
+  because the OLD text still reads as plausible): `STRIP_TYPE` is now
+  `"type: {types}"` (a colon, not `"type = {types}"`), and
+  `UNDEFINED_LENS_TEMPLATE` is now `"{lens} cannot be computed for this seed:
+  {reason}."` (not "... is undefined for this seed: ..."). Both were caught by
+  actually running this file against the real app rather than trusting the R1
+  wording forward -- see the first real-app run in "Then: the real app,
+  unmutated" below.
+- **Panel/tile/lens labels compared for exact text are HARDCODED literals in
+  this file** (`PANEL_LABELS`, `TREE_LABEL_*`, `BASIS_LABEL_FRAC`,
+  `LENS0_TAB_TEXT`, `LENS_GUIDE_HEADER`), never re-imported from
+  `lib/copy.py`: importing the very string a rename would change makes the
+  check compare a mutated value against itself and pass vacuously -- the
+  reason proof (b) below still works after the R2 rewrite.
+
 ## The two non-vacuity proofs (2A originals, Stream H)
 
 Both ran against a **throwaway copy** of `app/` (never the real repo), built
@@ -169,106 +224,103 @@ history (this section replaced by the R1 proofs below, which exercise the
 SAME two mechanisms after R1 moved depth into the main-area controls row and
 replaced the seed card with the profile section).
 
-## The two non-vacuity proofs (R1, stream R-H2)
+## The two non-vacuity proofs (R1, stream R-H2; Fix X3 re-gate)
 
-Both run against a **throwaway copy** of `app/` (never the real repo), one
-copy per mutation so they cannot interfere with each other:
+Both ran against **throwaway copies** of `app/` (never the real repo), one
+copy per mutation. Proof (a) removed `persist_state` from the depth radio only
+(moved by R1 out of the sidebar into the controls row) -> exit 1, 99 of 101
+checks passed, surgically exactly the 2 depth-reading persistence checks
+failed. Proof (b) renamed `PANEL_FIELDS` to `"Fields Overview"` -> exit 1, 100
+of 101, exactly the fields-panel label check failed (its FIRST version used a
+substring test and passed vacuously against that same mutation -- fixed to an
+exact-equality comparison after stripping the `st.expander` summary's
+icon-font ligature, which is what made the proof genuine). The unmutated app
+then passed 101/101, and Fix X3's bounding-box + top-of-page additions brought
+it to 105/105. Full detail archived in git history (this section condensed by
+R2-H3, which re-ran the SAME two mechanisms -- `persist_state` on a
+segmented/radio control, and one `PANEL_*` rename -- against the R2 page
+below).
+
+## The two non-vacuity proofs (R2, stream R2-H3)
+
+Both ran against **throwaway copies** of `app/` (never the real repo, one copy
+per mutation so they cannot interfere with each other), built with:
 
 ```
-robocopy "<repo>/app" "<scratch>/h2_copy_a" /E /XD "tests\ui\screenshots" ".git" "__pycache__" /NFL /NDL /NJH /NJS /NC /NS /NP
-robocopy "<repo>/app" "<scratch>/h2_copy_b" /E /XD "tests\ui\screenshots" ".git" "__pycache__" /NFL /NDL /NJH /NJS /NC /NS /NP
+MSYS_NO_PATHCONV=1 robocopy "<repo>/app" "<scratch>/h3_copy_a" /E /XD "tests\ui\screenshots" ".git" "__pycache__" /NFL /NDL /NJH /NJS /NC /NS /NP
+MSYS_NO_PATHCONV=1 robocopy "<repo>/app" "<scratch>/h3_copy_b" /E /XD "tests\ui\screenshots" ".git" "__pycache__" /NFL /NDL /NJH /NJS /NC /NS /NP
 ```
 (In Git Bash on Windows, `robocopy`'s single-slash switches like `/E` get
 mis-parsed by MSYS path translation into a drive letter -- run with
-`MSYS_NO_PATHCONV=1` set, and keep the switches single-slash, e.g.
-`MSYS_NO_PATHCONV=1 robocopy ... /E /XD ...`.)
+`MSYS_NO_PATHCONV=1` set. Robocopy's own exit code `1` means "files copied
+successfully", not failure.)
 
-### Proof (a): remove `persist_state` from the depth radio ONLY -> exactly the depth persistence checks FAIL
+### Proof (a): remove `persist_state` from the `frontier_mode` control ONLY -> exactly its persistence checks FAIL
 
-R1 moved `depth` out of the sidebar into the Benchmark section's controls
-row (`lib/views_find.py::_controls_row`); `tree`/`basis` stayed in the
-sidebar untouched. The mutation targets ONLY the depth radio, so the proof
-demonstrates the mechanism is still load-bearing at its new location without
-also touching `tree` (unlike the 2A proof, which mutated both together):
+R2/L33 added `frontier_mode`, a `st.segmented_control` INSIDE the (collapsed
+by default) `panel_frontier` expander -- a different widget TYPE and a
+different DOM location from R1's depth-radio proof, so this demonstrates the
+persistence mechanism is load-bearing there too:
 
 ```python
-# lib/views_find.py, in the throwaway copy only, _controls_row()
-depth = st.radio(copy.FIND["DEPTH_LABEL"], DEPTH_OPTIONS, index=0, horizontal=True,
-                 help=copy.FIND["DEPTH_HELP"], key="depth")   # **state.PERSIST removed
+# lib/views_find.py, in the throwaway copy only, _panel_frontier()
+st.segmented_control(copy.FIND["FRONTIER_MODE_LABEL"], [mode_top, mode_emerging],
+                     default=mode_top, required=True, key="frontier_mode")   # **state.PERSIST removed
 ```
 
 Command:
 ```
-python tests/ui/smoke.py --port 8674 --app-dir "<scratch>/h2_copy_a"
+python tests/ui/smoke.py --port 8731 --app-dir "<scratch>/h3_copy_a"
 ```
 
-Result: **exit 1**, 99 of 101 checks passed -- surgically exactly the 2
-depth-reading persistence checks fail, nothing else:
+Result: **exit 1**, 129 of 131 checks passed -- surgically exactly the 2
+frontier-mode-reading persistence checks fail, nothing else:
 ```
-FAIL: Persistence: 2nd Find visit (re-mount check): depth still at max in the strip
-FAIL: Persistence: 3rd Find visit (after 4 hops): depth still at max in the strip
+FAIL: Persistence: 2nd Find visit (re-mount check): frontier_mode still shows its off-default (emerging) point count (expected 488, got 168)
+FAIL: Persistence: 3rd Find visit (after 4 hops): frontier_mode still shows its off-default (emerging) point count (expected 488, got 168)
 ```
-`tree` (untouched), the basket, the L7 tab count and the type filter all
-still passed at both visits.
+The baseline capture (taken right after the swap, before any hop) still
+reads 488 and passes, as expected -- only a real Menu<->Find hop resets an
+un-persisted widget to its coded default. `tree`, `depth`, `L7`, the type
+filter, the basket and `breakdown_dim` (untouched by this mutation) all still
+passed at both visits.
 
-**A genuine flake was found and fixed while proving this, not silenced by
-loosening the check.** The first two attempts at this proof also failed
-`Settings: L7 tab appeared, tab count is 11 (got 10)` -- reproducible on a
-**cold, freshly-copied** `app/` even with NO mutation applied at all (verified
-by re-running the same copy again before mutating it). Root cause: switching
-`tree` to `"original"` is the first time that (tree, basis) pair is built in
-a fresh server process (`build_substrates` costs a measured ~4.6 s cold,
-`progress/R1_E2.md`), and the old code followed it with a single fixed
-`_settle(page, 3000)` before clicking the L7 checkbox -- too short on a cold
-box, so the L7 click could land while the tree-switch rerun was still in
-flight. Fixed in `smoke.py` itself: the tree-switch and the L7-toggle are
-each now followed by `_wait_for(...)`, a poll on the real tab count, instead
-of a blind sleep (see "R1 additions" in the DOM facts above). Re-run against
-an unmutated copy confirmed the flake was gone before the proof above was
-taken as clean.
-
-### Proof (b): rename one `PANEL_*` label -> exactly the expander-label check FAILS
+### Proof (b): rename `PANEL_SUBFIELDS` -> exactly the label check FAILS
 
 ```python
 # lib/copy.py, in the throwaway copy only
-"PANEL_FIELDS": "Fields Overview",   # was "Fields"
+"PANEL_SUBFIELDS": "Top {n} subfields overview",   # was "Top {n} subfields"
 ```
 
 Command:
 ```
-python tests/ui/smoke.py --port 8676 --app-dir "<scratch>/h2_copy_b"
+python tests/ui/smoke.py --port 8732 --app-dir "<scratch>/h3_copy_b"
 ```
 
-Result: **exit 1**, 100 of 101 checks passed -- exactly one check fails:
+Result: **exit 1**, 130 of 131 checks passed -- exactly one check fails:
 ```
-FAIL: Panel 'fields': header label is exactly 'Fields' (got 'keyboard_arrow_rightFields Overview')
+FAIL: Panel 'subfields': header label is exactly 'Top 30 subfields' (got 'keyboard_arrow_rightTop 30 subfields overview')
 ```
-
-**This proof caught a vacuous check on its first run and the check was
-fixed, not the mutation.** The first version compared with a plain substring
-test (`label in text`); since `"Fields"` is a substring of `"Fields
-Overview"`, that mutation passed 101/101 -- a vacuous proof. Fixed by
-stripping the `st.expander` summary's leading icon-font ligature
-(`keyboard_arrow_right`/`keyboard_arrow_down`) and comparing for **exact**
-equality instead (see "R1 additions" above); the re-run above is the clean
-result under the corrected check.
+This confirms the R1 fix (hardcoded literal + exact-equality comparison,
+never a re-import of the string under test) still holds after the R2 rewrite:
+`SUBFIELDS_TOP_N = 30` is filled into the HARDCODED expected string in
+`smoke.py` itself, so the app's own (mutated) `PANEL_SUBFIELDS` template
+never gets a chance to grade its own homework.
 
 ### Then: the real app, unmutated
 
 ```
-python tests/ui/smoke.py --port 8678
+python tests/ui/smoke.py --port 8722
 ```
-Result: **exit 0**, 101 of 101 checks passed, 6 screenshots written, no
-server process left running afterward.
+Result: **exit 0**, 131 of 131 checks passed, 8 screenshots written, port
+`8722` showed only `TIME_WAIT` rows afterward (no `LISTENING`), no orphan
+`python.exe`/`streamlit` process left running.
 
-### Fix X3 (Refinement R1 re-gate): bounding-box + top-of-page additions
-
-```
-python tests/ui/smoke.py --port 8711
-```
-Result: **exit 0**, 105 of 105 checks passed (the 4 new ones: a bounding-box
-no-overlap check on the open Fields panel at 390 px AND 1280 px, each PASSing
-with 25 y-tick labels fully inside the plot's own `.main-svg`; and the two new
-named screenshots below both written), 8 screenshots total, no server process
-left running afterward (`netstat -ano | findstr :<port>` showed only
-`TIME_WAIT` rows).
+The first attempt against the real app (port 8721) surfaced two genuine
+wording mismatches between this file's inherited-from-R1 expectations and
+R2-C's actual copy pass -- `STRIP_TYPE` ("type: ..." not "type = ...") and
+`UNDEFINED_LENS_TEMPLATE` ("cannot be computed for this seed" not "is
+undefined for this seed") -- both real app-side changes this file had not
+caught up with, not flakes: 125 of 131 passed, all 6 failures traced to those
+two strings, fixed in `smoke.py` (never in the app), and the clean 131/131
+re-run above is the result under the corrected checks.

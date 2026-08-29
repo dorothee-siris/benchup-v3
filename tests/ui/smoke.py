@@ -1,11 +1,26 @@
 """
 tests/ui/smoke.py -- Playwright smoke test against the LIVE Streamlit server
-(BUILD_PLAN_2A.md Stream H; extended for Refinement R1 stream R-H2 against
-S9.2 L16-L22 / S9.3's R-H2 row). Cross-page persistence is the load-bearing
-claim: the basket (a plain, non-widget session_state list) and every keyed
-widget (persist_state="session") -- INCLUDING the ones R1 moved out of the
-sidebar into the Benchmark section's controls row -- must survive real
-Menu<->Find navigation with their widget KEYS unchanged.
+(BUILD_PLAN_2A.md Stream H; extended for Refinement R1 stream R-H2, then for
+Refinement R2 stream R2-H3 against S10.2 L29-L36 / S10.3's R2-H3 row).
+Cross-page persistence is the load-bearing claim: the basket (a plain,
+non-widget session_state list) and every keyed widget (persist_state="session")
+-- INCLUDING the ones R1 moved out of the sidebar and the two R2 added
+(`frontier_mode`, `breakdown_dim`) -- must survive real Menu<->Find navigation
+with their widget KEYS unchanged.
+
+R2 changes to this file (BUILD_PLAN_2A.md L29-L36): the sidebar's two
+selectboxes now render DISPLAY labels (`copy.TREE_LABELS`/`BASIS_LABELS`) --
+picking an option in the dropdown means clicking the LABEL text, never the
+internal value, and the "Filtered by..." strip names the label too; the
+profile carries eight `.benchup-kpi` tiles (`lib/tiles.py`), each with two
+`.benchup-kpi-sub` sublines, the second always containing "index median"; the
+Top-subfields panel lost its sort control and is cut at `SUBFIELDS_TOP_N`; the
+frontier panel gained a `frontier_mode` segmented control INSIDE a collapsed
+`st.expander` (its body still executes and its Plotly figure still mounts
+while collapsed -- see the DOM-facts note below, this is what makes reading
+its point count without re-opening it after a hop safe); tabs carry
+`copy.LENS_NAMES` text ("L1 . Subfield overlap") instead of a bare code; a
+"How to read the lenses" expander sits at the head of the Benchmark section.
 
 Navigation uses the app's OWN sidebar nav link (`[data-testid="stSidebarNav"] a`)
 for every Menu<->Find hop -- NEVER `page.goto()` for a persistence check.
@@ -20,20 +35,27 @@ All selectors are locale-independent: `.st-key-<key>` classes from the keyed
 widgets/containers `app/lib/views_find.py` and `Menu.py` already emit,
 `[role=...]`, `[data-testid=...]` -- text is read only via `textContent`
 (never `innerText`, which is empty for a Streamlit tab panel that is not the
-currently active one -- confirmed by Stream E's own probe, app/ops/_probe_find.py)
-and only to ASSERT content, never to locate an element (locating uses keyed
-classes, roles or DOM position -- e.g. "the second radio option" -- never a
-literal label). `st.dataframe` renders a canvas grid with no real text nodes
-for cell values, so row-level facts (the basket count, the seed heading, the
-strip, a CSV's own header row) are read from captions/keyed containers/a real
-downloaded file, never from a table cell.
+currently active one, AND empty for a collapsed `st.expander` body even though
+that body's own DOM nodes exist -- confirmed by Stream E's probe,
+app/ops/_probe_find.py) and only to ASSERT content, never to locate an element
+(locating uses keyed classes, roles or DOM position -- e.g. "the second radio
+option" -- never a literal label). Panel/tile/lens LABELS compared for exact
+text are HARDCODED literals in this file (not imported from `lib/copy.py`):
+importing the very string under test would make a renamed label compare
+against itself and pass vacuously -- the point of non-vacuity proof (b) below.
+`st.dataframe` renders a canvas grid with no real text nodes for cell values,
+so row-level facts (the basket count, the seed heading, the strip, a CSV's own
+header row) are read from captions/keyed containers/a real downloaded file,
+never from a table cell.
 
 Usage:
     python tests/ui/smoke.py --port 8611
     python tests/ui/smoke.py --port 8612 --app-dir "<throwaway copy of app/>"
 
 Exit 0 iff every check passes, 1 otherwise. Prints one PASS/FAIL line per
-check. Stdout is ASCII-only (cp1252 console).
+check. Stdout is ASCII-only (cp1252 console) -- the SEP characters below are
+the only non-ASCII bytes in this file, matched only against browser-rendered
+UTF-8 text, never printed to stdout inside a PASS/FAIL message on their own.
 """
 from __future__ import annotations
 
@@ -53,18 +75,53 @@ GDANSK_TAB_COUNT = 10          # Overview + 8 default lenses + Aspirational
 L7_ON_TAB_COUNT = 11           # ... + the L7 toggle's own tab
 ACTION_TIMEOUT_MS = 30_000     # time-box every wait so a hang FAILS, never blocks
 
-# R1/L17: the six profile chart panels, keyed `panel_<name>`, with their
-# `copy.FIND["PANEL_*"]` header text (lib/copy.py) -- hardcoded here (not
+SEP = "·"  # middle dot, matches lib/copy.py's own separator
+
+# R2/L34: the top-subfields panel's display cut, hardcoded (not imported from
+# lib/views_find.py) so a changed cut is a genuine DOM-vs-expectation mismatch,
+# same reasoning as PANEL_LABELS below.
+SUBFIELDS_TOP_N = 30
+
+# R2/L30/L31: the profile's 2 x 4 (rendered as 4 rows x 2, VIZ_SPEC S2.11
+# deviation) KPI tile grid, `lib/tiles.py`'s TILE_CLASS/SUBLINE_CLASS hooks.
+N_TILES = 8
+
+# R2/L29: the six profile chart panels, keyed `panel_<name>`, with their
+# `copy.FIND["PANEL_*"]` header text (lib/copy.py) -- HARDCODED here (not
 # re-imported from the app under test) so a renamed label in a throwaway copy
 # is a real DOM-vs-expectation mismatch, never a comparison against itself.
+# "Top {n} subfields" is filled with SUBFIELDS_TOP_N above, the one place this
+# file types that number, mirroring how `lib/views_find.py::PANEL_LABEL_ARGS`
+# fills the same template on the app side without ever typing it into copy.py.
 PANEL_LABELS = [
     ("fields", "Fields"),
-    ("subfields", "Top subfields"),
+    ("subfields", f"Top {SUBFIELDS_TOP_N} subfields"),
     ("topics", "Top topics"),
     ("frontier", "Frontier positioning"),
     ("sdg", "SDG profile"),
     ("erc", "ERC profile"),
 ]
+
+# R2/L29: sidebar display labels and the strip's rendering of an off-default
+# taxonomy -- hardcoded literals from `lib/copy.py`'s TREE_LABELS/BASIS_LABELS/
+# STRIP_TREE, same non-vacuity reasoning as PANEL_LABELS.
+TREE_LABEL_BESTFIT = "Repaired taxonomy (best fit, default)"
+TREE_LABEL_ORIGINAL = "OpenAlex taxonomy as published"
+BASIS_LABEL_FRAC = "Fractional counting"
+STRIP_TREE_ORIGINAL = f"taxonomy: {TREE_LABEL_ORIGINAL}"
+
+# R2/L29: the lens guide header and the first default lens's tab label
+# ([L0, L1, L3, F1, L2f, L4, L5, L6] per config.yaml `lenses.default`, so the
+# first lens TAB after Overview is L0). Hardcoded literals from `lib/copy.py`.
+LENS_GUIDE_HEADER = "How to read the lenses"
+LENS0_TAB_TEXT = f"L0 {SEP} Field overlap"
+LENS_LEGEND_SUBSTR = "see the lens guide above"
+
+# R2/L33: the frontier panel's second mode button, by POSITION (nth(1)), never
+# by its label text (same idiom as `breakdown_dim` below) -- both are
+# `st.segmented_control`s and render as a row of real <button> elements.
+FRONTIER_MODE_TOP_IDX, FRONTIER_MODE_EMERGING_IDX = 0, 1
+BREAKDOWN_DOMAIN_IDX, BREAKDOWN_DOCTYPE_IDX = 0, 1
 
 RESULTS: list[tuple[bool, str]] = []
 PORT = 8611
@@ -136,10 +193,20 @@ def _wait_for(page, predicate, timeout_ms: int = 15_000, interval_ms: int = 300)
 def _all_text(page, selector: str) -> str:
     """textContent (not innerText) joined across every match -- reads content
     inside an inactive Streamlit tab panel too (st.tabs runs every tab body
-    every rerun; only the active panel has non-empty innerText)."""
+    every rerun; only the active panel has non-empty innerText), and inside a
+    collapsed `st.expander` body (same story: the body executes and mounts,
+    only the visual display folds -- lib/views_find.py's own docstring)."""
     return page.evaluate(
         "(sel) => Array.from(document.querySelectorAll(sel)).map(e => e.textContent).join('|')",
         selector)
+
+
+def _full_page_text(page) -> str:
+    """The whole body's textContent -- reaches text inside a collapsed
+    `st.expander` too (see `_all_text`'s note), which a scoped selector like
+    `[data-testid="stCaptionContainer"]` also would, but this is the broadest
+    net for a page-wide "this string appears nowhere" negative claim."""
+    return page.evaluate("document.body.textContent") or ""
 
 
 def _no_exception(page, label: str) -> bool:
@@ -163,6 +230,14 @@ def _pick_option(page, text: str | None = None) -> None:
     target.click(timeout=ACTION_TIMEOUT_MS)
 
 
+def _selectbox_value(page, key: str) -> str:
+    """A keyed selectbox's CURRENT selection -- the react-aria ComboBox
+    input's own `value` property, not the container's text (measured on this
+    build, ops/_probe_find.py::_selectbox_text: `inner_text`/`textContent` on
+    the container returns the widget LABEL alone, never the selection)."""
+    return page.locator(f".st-key-{key} input").first.input_value()
+
+
 def _ensure_sidebar_open(page) -> None:
     """At a narrow viewport Streamlit collapses the sidebar (and its nav
     links) behind a hamburger control; open it first so the nav is
@@ -176,11 +251,11 @@ def _ensure_sidebar_open(page) -> None:
 
 def _ensure_expander_open(page, key: str, probe_selector: str) -> None:
     """Open a keyed `st.expander` if its content is not currently visible.
-    R1's `_post_filters`/`_profile_panels` bodies EXECUTE every rerun
-    regardless of the expander's visual state (lib/views_find.py docstring),
-    but that visual open/closed state resets to the coded `expanded=` default
-    on the very next rerun -- so this is called before every interaction
-    inside one, never assumed to still be open from an earlier action."""
+    Every panel's/expander's body EXECUTES every rerun regardless of the
+    expander's visual state (lib/views_find.py docstring), but that visual
+    open/closed state resets to the coded `expanded=` default on the very next
+    rerun -- so this is called before every interaction inside one, never
+    assumed to still be open from an earlier action."""
     probe = page.locator(probe_selector).first
     if probe.count() == 0 or not probe.is_visible():
         page.locator(f".st-key-{key} summary").first.click(timeout=ACTION_TIMEOUT_MS)
@@ -222,6 +297,45 @@ def _seed_heading(page) -> str:
 
 def _strip_text(page) -> str:
     return _all_text(page, ".st-key-strip")
+
+
+def _chip_legend(page) -> str:
+    """The ONE chip legend the breakdown pair shares -- `charts.chip_legend_html`
+    is the only markup on the page with a `flex-wrap` inline style, so this
+    finds it without matching any user-facing string (ops/_probe_find.py's
+    own idiom)."""
+    return _all_text(page, '.st-key-profile div[style*="flex-wrap"]')
+
+
+def _frontier_points(page) -> int:
+    """Total marker count across the frontier scatter's own Plotly traces --
+    read off the LIVE figure object (`el.data`), so the mode swap is verified
+    on what is actually PLOTTED rather than on a caption the page prints. This
+    reads correctly whether the `panel_frontier` expander is currently open or
+    collapsed: the figure still mounts either way (module docstring)."""
+    return page.evaluate(
+        "(() => { const el = document.querySelector("
+        "'.st-key-panel_frontier .js-plotly-plot');"
+        " if (!el || !el.data) return -1;"
+        " return el.data.reduce((a, t) => a + ((t.x && t.x.length) || 0), 0); })()")
+
+
+def _erc_grid_tick_count(page) -> int:
+    """R2/L34: the unit grid on the ERC panel's SI axis is drawn by setting
+    `tickvals` at every integer up to the axis max (`lib/charts.py::fig_share_si`
+    -- plotly draws a gridline at each tickval when `showgrid` stays at its
+    default True, so the tick COUNT on that axis is the grid-line count). The
+    SI axis is the LAST `xaxis*` key in the figure's own layout object (the
+    share panel is `xaxis`, the SI panel is `xaxis2`) -- read directly off the
+    live Plotly figure, not off a caption."""
+    return page.evaluate(
+        "(() => { const el = document.querySelector("
+        "'.st-key-panel_erc .js-plotly-plot');"
+        " if (!el || !el.layout) return -1;"
+        " const keys = Object.keys(el.layout).filter(k => /^xaxis/.test(k)).sort();"
+        " if (!keys.length) return 0;"
+        " const ax = el.layout[keys[keys.length - 1]];"
+        " return (ax && ax.tickvals) ? ax.tickvals.length : 0; })()")
 
 
 def _search_and_pick(page, query: str, pick_key: str = "seed_pick",
@@ -320,14 +434,15 @@ def check_basket(page) -> None:
     _no_exception(page, "Basket add flow")
 
 
-# ----------------------------------------------------- R1 controls layout ---
+# --------------------------------------------------- controls / sidebar -----
 
 def check_controls_placement(page) -> None:
-    """R1/L16: the sidebar holds ONLY the scenario selects (tree, basis) and
+    """L16: the sidebar holds ONLY the scenario selects (tree, basis) and
     the basket; depth/C1/L7/post-filters render in the MAIN area's controls
     row at the head of the Benchmark section, with their widget KEYS
     unchanged. The post-filters expander reveals the type/country filters,
-    and the country multiselect shows country NAMES, not codes."""
+    the country multiselect shows country NAMES, not codes. R2/L29: the
+    scenario selectboxes render DISPLAY labels, never the internal value."""
     sidebar = page.locator('[data-testid="stSidebar"]')
     check(sidebar.locator(".st-key-tree").count() >= 1, "Sidebar: .st-key-tree (scenario) present")
     check(sidebar.locator(".st-key-basis").count() >= 1, "Sidebar: .st-key-basis (scenario) present")
@@ -341,6 +456,18 @@ def check_controls_placement(page) -> None:
           "Controls row: .st-key-c1_on renders in the main area")
     check(page.locator(".st-key-l7_on").count() >= 1,
           "Controls row: .st-key-l7_on renders in the main area")
+
+    # R2/L29: the tree/basis selectboxes show their DISPLAY label; the
+    # internal value never reaches the reader.
+    tree_val = _selectbox_value(page, "tree")
+    check(tree_val == TREE_LABEL_BESTFIT,
+          f"Sidebar: taxonomy selectbox shows the default DISPLAY label (got {tree_val!r})")
+    check("bestfit" not in tree_val, "Sidebar: the internal taxonomy value never appears")
+    basis_val = _selectbox_value(page, "basis")
+    check(basis_val == BASIS_LABEL_FRAC,
+          f"Sidebar: counting-basis selectbox shows the default DISPLAY label (got {basis_val!r})")
+    check("frac" not in basis_val.replace(BASIS_LABEL_FRAC, ""),
+          "Sidebar: the internal counting-basis value never appears")
 
     _ensure_expander_open(page, "postfilters", ".st-key-f_types input")
     check(page.locator(".st-key-f_types").count() >= 1,
@@ -357,20 +484,46 @@ def check_controls_placement(page) -> None:
     page.keyboard.press("Escape")
     _settle(page, 500)
     cinp.fill("")
-    _no_exception(page, "Controls placement / post-filters")
+    _no_exception(page, "Controls placement / sidebar labels / post-filters")
 
 
-# ----------------------------------------------------------- R1 profile -----
+# ----------------------------------------------------------- R2 profile -----
 
-def check_profile_and_panels(page) -> None:
-    """R1/L17: the profile container, its wordcloud, its six chart-panel
-    expanders (labels intact), the breakdown segmented control, and the
-    per-panel sort toggle changing what the Fields chart actually shows."""
+def check_profile_and_panels(page) -> dict:
+    """R2/L30-L34: the profile container, its 8 KPI tiles (each with an index
+    baseline subline), its wordcloud, its six chart-panel expanders (exact
+    labels), the top-subfields cut with no sort control, the SDG panel's
+    numbered labels, the ERC panel's unit grid, the frontier panel's two
+    modes, and the breakdown pair's segmented control.
+
+    Returns `{"frontier_points": int, "breakdown_legend": str}`, the OFF-
+    DEFAULT values this function deliberately leaves the page in (frontier
+    mode swapped to "emerging", breakdown swapped to "Document type") -- the
+    persistence checks compare against these exact values after later
+    Menu<->Find hops instead of resetting them back here."""
     check(page.locator(".st-key-profile").count() == 1,
           "Profile: .st-key-profile container renders exactly once")
     check(page.locator('.st-key-profile [data-testid="stImage"] img').count() >= 1,
           "Profile: subfield wordcloud renders as an <img>")
 
+    # ---- R2/L30/L31: the 8 KPI tiles -------------------------------------
+    tiles = page.locator(".st-key-profile .benchup-kpi")
+    check(tiles.count() == N_TILES, f"Profile: {N_TILES} KPI tiles render (found {tiles.count()})")
+    sublines = page.locator(".st-key-profile .benchup-kpi-sub")
+    n_sub = sublines.count()
+    check(n_sub == N_TILES * 2, f"Profile: every tile carries two sublines (found {n_sub})")
+    sub_texts = [sublines.nth(i).text_content() or "" for i in range(n_sub)]
+    n_baseline = sum(1 for t in sub_texts if "index median" in t)
+    check(n_baseline == N_TILES,
+          f"Profile: every tile's second subline reads 'index median ...' (found {n_baseline} of {N_TILES})")
+    check("Key figures" in _full_page_text(page), "Profile: 'Key figures' header renders")
+    # R2/L32: the retired coverage line's ERC-classified-share phrase must not
+    # leak anywhere on the page (its items were relocated into panel captions
+    # under different wording -- lib/views_find.py `_erc_share`/CAPTION_ERC).
+    check("ERC-classified share" not in _full_page_text(page),
+          "Profile: the retired coverage-line phrase 'ERC-classified share' is nowhere on the page")
+
+    # ---- R2/L29/L34: the six panels, exact labels -------------------------
     for name, label in PANEL_LABELS:
         summary = page.locator(f".st-key-panel_{name} summary").first
         check(summary.count() >= 1, f"Panel '{name}': expander present (.st-key-panel_{name})")
@@ -381,13 +534,64 @@ def check_profile_and_panels(page) -> None:
         # Overview" satisfy an expected "Fields" and never catch a rename.
         raw = (summary.text_content() or "").strip()
         clean = raw.replace("keyboard_arrow_right", "").replace("keyboard_arrow_down", "").strip()
-        check(clean == label, f"Panel '{name}': header label is exactly '{label}' (got {raw!r})")
+        check(clean == label, f"Panel '{name}': header label is exactly {label!r} (got {raw!r})")
 
-    before_legend = _all_text(page, '.st-key-profile div[style*="flex-wrap"]')
-    check(bool(before_legend.strip()), "Breakdown: chip legend renders")
-    page.locator(".st-key-breakdown_dim button").nth(1).click(timeout=ACTION_TIMEOUT_MS)
+    # ---- R2/L34: top subfields, no sort control, cut at SUBFIELDS_TOP_N --
+    _ensure_expander_open(page, "panel_subfields", ".st-key-fig_subfields")
+    _settle(page, 1500)
+    fig = page.locator(".st-key-fig_subfields .js-plotly-plot").first
+    check(fig.count() >= 1 and fig.is_visible(),
+          "Panel Top subfields: opening it reveals a visible Plotly figure")
+    check(page.locator(".st-key-panel_subfields .st-key-sort_subfields").count() == 0,
+          "Panel Top subfields: carries NO sort control (R2/L34)")
+    sf_ticks = page.locator(".st-key-fig_subfields .ytick")
+    n_sf = sf_ticks.count()
+    check(0 < n_sf <= SUBFIELDS_TOP_N,
+          f"Panel Top subfields: {n_sf} y-tick group(s), within (0, {SUBFIELDS_TOP_N}]")
+
+    # ---- R2/L36: SDG numbered labels --------------------------------------
+    _ensure_expander_open(page, "panel_sdg", ".st-key-fig_sdg")
+    _settle(page, 1500)
+    sdg_ticks = page.locator(".st-key-fig_sdg .ytick")
+    n_sdg = sdg_ticks.count()
+    # Read the GROUP's textContent (not `.ytick text`): a wrapped two-line
+    # label (`wrap_label`'s `<br>`) renders as separate <tspan> children of
+    # one <text> node, and the GROUP's textContent concatenates every line
+    # reliably regardless of how plotly splits them across nodes.
+    sdg_texts = [sdg_ticks.nth(i).text_content() or "" for i in range(n_sdg)]
+    non_sdg = [t for t in sdg_texts if not t.strip().startswith("SDG")]
+    check(n_sdg > 0 and not non_sdg,
+          f"Panel SDG profile: all {n_sdg} y-tick labels start with 'SDG' (offenders: {non_sdg})")
+
+    # ---- R2/L34: ERC panel unit grid on the SI axis -----------------------
+    _ensure_expander_open(page, "panel_erc", ".st-key-sort_erc [data-testid='stRadioOption']")
+    _settle(page, 1500)
+    n_grid = _erc_grid_tick_count(page)
+    check(n_grid >= 1, f"Panel ERC profile: unit grid present on the SI axis ({n_grid} grid line(s))")
+
+    # ---- R2/L33: frontier panel, two modes --------------------------------
+    _ensure_expander_open(page, "panel_frontier", ".st-key-frontier_mode button")
+    _settle(page, 1500)
+    top_points = _frontier_points(page)
+    check(top_points > 0, f"Panel Frontier positioning: default mode plots points ({top_points})")
+    page.locator(".st-key-frontier_mode button").nth(FRONTIER_MODE_EMERGING_IDX).click(
+        timeout=ACTION_TIMEOUT_MS)
     _settle(page, 4000)
-    after_legend = _all_text(page, '.st-key-profile div[style*="flex-wrap"]')
+    emerging_points = _frontier_points(page)
+    check(emerging_points > 0 and emerging_points != top_points,
+          f"Panel Frontier positioning: the mode control changes the plotted point count "
+          f"({top_points} -> {emerging_points})")
+    # Deliberately LEFT on "emerging": the persistence checks assert this
+    # exact value survives later Menu<->Find hops (see this function's
+    # docstring and README "R2 additions").
+
+    # ---- R2/L30: the breakdown pair's shared segmented control ------------
+    before_legend = _chip_legend(page)
+    check(bool(before_legend.strip()), "Breakdown: chip legend renders")
+    page.locator(".st-key-breakdown_dim button").nth(BREAKDOWN_DOCTYPE_IDX).click(
+        timeout=ACTION_TIMEOUT_MS)
+    _settle(page, 4000)
+    after_legend = _chip_legend(page)
     check(after_legend != before_legend and bool(after_legend.strip()),
           "Breakdown: segmented control swaps the chip legend (domain <-> document type)")
     check(page.locator(".st-key-fig_breakdown_global .js-plotly-plot").first.is_visible()
@@ -395,23 +599,36 @@ def check_profile_and_panels(page) -> None:
           "Breakdown: both plotly figures still render after the swap")
     caption = _all_text(page, '[data-testid="stCaptionContainer"]')
     check("bonus year" in caption, "Breakdown: bonus-year caption is present")
-    page.locator(".st-key-breakdown_dim button").nth(0).click(timeout=ACTION_TIMEOUT_MS)
-    _settle(page, 3000)
+    # Deliberately LEFT on "Document type": see this function's docstring.
 
-    _ensure_expander_open(page, "panel_fields", ".st-key-sort_fields [data-testid='stRadioOption']")
-    _settle(page, 1500)
-    fig = page.locator(".st-key-fig_fields .js-plotly-plot").first
-    check(fig.count() >= 1 and fig.is_visible(),
-          "Panel Fields: opening it reveals a visible Plotly figure")
-    before_tick = page.locator(".st-key-fig_fields .ytick text").first.text_content() or ""
-    page.locator('.st-key-sort_fields [data-testid="stRadioOption"]').nth(1).click(timeout=ACTION_TIMEOUT_MS)
-    _settle(page, 2500)
-    after_tick = page.locator(".st-key-fig_fields .ytick text").first.text_content() or ""
-    check(bool(before_tick) and bool(after_tick) and before_tick != after_tick,
-          f"Panel Fields: the sort toggle changes the first y-axis label ({before_tick!r} -> {after_tick!r})")
-    page.locator('.st-key-sort_fields [data-testid="stRadioOption"]').nth(0).click(timeout=ACTION_TIMEOUT_MS)
-    _settle(page, 2500)
     _no_exception(page, "Profile / panels")
+    return {"frontier_points": emerging_points, "breakdown_legend": after_legend}
+
+
+def check_benchmark_lens_guide(page) -> None:
+    """R2/L29: the "How to read the lenses" expander at the head of the
+    Benchmark section (one line per shown lens, >= 8 by default), tabs
+    carrying `copy.LENS_NAMES` text, and the Overview's legend caption
+    pointing back at the guide."""
+    _ensure_expander_open(page, "lens_guide", ".st-key-lens_guide strong")
+    summary = page.locator(".st-key-lens_guide summary").first
+    raw = (summary.text_content() or "").strip()
+    clean = raw.replace("keyboard_arrow_right", "").replace("keyboard_arrow_down", "").strip()
+    check(clean == LENS_GUIDE_HEADER,
+          f"Lens guide: header label is exactly {LENS_GUIDE_HEADER!r} (got {raw!r})")
+    n_lines = page.locator(".st-key-lens_guide strong").count()
+    check(n_lines >= 8, f"Lens guide: at least 8 lens lines render (found {n_lines})")
+
+    tabs = page.locator('[role="tab"]')
+    first_lens_text = tabs.nth(1).text_content() or ""
+    check(LENS0_TAB_TEXT in first_lens_text,
+          f"Tabs: the first default-lens tab carries its LENS_NAMES text "
+          f"(expected {LENS0_TAB_TEXT!r} in {first_lens_text!r})")
+
+    caption = _all_text(page, '[data-testid="stCaptionContainer"]')
+    check(LENS_LEGEND_SUBSTR in caption,
+          f"Overview: the legend caption points at the lens guide (looking for {LENS_LEGEND_SUBSTR!r})")
+    _no_exception(page, "Benchmark lens guide")
 
 
 # ----------------------------------------------------------- R1 tables -----
@@ -429,7 +646,9 @@ def check_tables_and_export(page) -> None:
     """VIZ_SPEC S1.7/S2.5, L22: a lens's ranked table renders; its CSV export
     carries `total_frac_2020_2024`, `country` (the NAME column) and `evidence`
     but never a `badge` column (badges moved to the profile header only); the
-    Aspirational tab renders its own table."""
+    Aspirational tab renders its own table. Lens CODES stay the CSV/table key
+    material (L29: codes are stable identifiers) even though the TAB text now
+    carries the lens's name."""
     tabs = page.locator('[role="tab"]')
     tabs.nth(1).click(timeout=ACTION_TIMEOUT_MS)  # first default lens tab (L0)
     _settle(page, 2000)
@@ -454,10 +673,12 @@ def check_tables_and_export(page) -> None:
 # ------------------------------------------------------------- settings ----
 
 def check_settings(page) -> None:
-    """R1: the settings a reader would touch on a first visit -- all now in
-    the Benchmark controls row/expander instead of the sidebar -- set here
-    BEFORE the persistence hops (S9.3 R-H2: depth to max, L7 on, a type
-    filter picked, tree switched)."""
+    """R2: the settings a reader would touch on a first visit -- all in the
+    Benchmark controls row/expander instead of the sidebar -- set here BEFORE
+    the persistence hops (depth to max, L7 on, a type filter picked, tree
+    switched to its non-default DISPLAY label). `frontier_mode` and
+    `breakdown_dim` are ALREADY off-default from check_profile_and_panels and
+    are left untouched here -- see that function's docstring."""
     before = _all_text(page, '[data-testid="stCaptionContainer"]')
 
     _ensure_expander_open(page, "postfilters", ".st-key-f_types input")
@@ -473,8 +694,11 @@ def check_settings(page) -> None:
     after = _all_text(page, '[data-testid="stCaptionContainer"]')
     check(before != after, "Settings: depth caption changed after switching depth to its max")
 
+    # R2/L29: the option clicked in the dropdown is the DISPLAY label, not the
+    # internal value "original" -- `format_func` changes what is rendered in
+    # the option list too.
     _open_select(page, "tree")
-    _pick_option(page, "original")
+    _pick_option(page, TREE_LABEL_ORIGINAL)
     # tree="original" is a NEW (tree, basis) pair for this server process --
     # its substrates build cold (~4.6 s measured), so this waits for actual
     # tab re-render rather than a blind sleep (a fixed 3 s here was an
@@ -490,56 +714,75 @@ def check_settings(page) -> None:
 
     check(page.locator(".st-key-strip").count() >= 1, "Settings: off-default strip is visible")
     strip = _strip_text(page)
-    check("tree = original" in strip, f"Settings: strip mentions tree = original (strip: {strip!r})")
+    check(STRIP_TREE_ORIGINAL in strip,
+          f"Settings: strip shows the taxonomy's DISPLAY label (looking for {STRIP_TREE_ORIGINAL!r} "
+          f"in {strip!r})")
+    check("original" not in strip.replace(TREE_LABEL_ORIGINAL, ""),
+          "Settings: the internal taxonomy value never appears in the strip")
     check("depth = 50" in strip, f"Settings: strip mentions depth = 50 (strip: {strip!r})")
-    check("type = " in strip and "education" in strip,
+    check("type: " in strip and "education" in strip,
           f"Settings: strip mentions the type filter (strip: {strip!r})")
     _no_exception(page, "Settings")
 
 
 def _capture_persisted_state(page) -> dict:
+    # `_ensure_expander_open` guarantees the frontier figure is mounted and
+    # readable regardless of whatever visual open/closed state a fresh page
+    # mount coded it to -- see `_frontier_points`'s own docstring for why
+    # reading it without this call should already be safe, and why this call
+    # is still made (belt and suspenders around that claim).
+    _ensure_expander_open(page, "panel_frontier", ".st-key-frontier_mode button")
     return {"basket": _basket_count(page), "tabs": page.locator('[role="tab"]').count(),
-            "heading": _seed_heading(page), "strip": _strip_text(page)}
+            "heading": _seed_heading(page), "strip": _strip_text(page),
+            "frontier_points": _frontier_points(page), "breakdown_legend": _chip_legend(page)}
 
 
-def _assert_persisted(state: dict, tag: str) -> None:
+def _assert_persisted(state: dict, tag: str, expect: dict) -> None:
     check(state["basket"] == 2, f"{tag}: basket still lists 2 items (got {state['basket']})")
     check(state["tabs"] == L7_ON_TAB_COUNT,
           f"{tag}: L7 tab still present, tab count {L7_ON_TAB_COUNT} (got {state['tabs']})")
     check("Gda" in state["heading"], f"{tag}: seed still selected, heading 'Gda...' (got {state['heading']!r})")
+    check(STRIP_TREE_ORIGINAL in state["strip"], f"{tag}: taxonomy's display label still in the strip")
     check("depth = 50" in state["strip"], f"{tag}: depth still at max in the strip")
-    check("tree = original" in state["strip"], f"{tag}: tree still 'original' in the strip")
-    check("type = " in state["strip"] and "education" in state["strip"],
+    check("type: " in state["strip"] and "education" in state["strip"],
           f"{tag}: type filter (education) still active in the strip")
+    fp_expected = expect.get("frontier_points")
+    check(fp_expected is not None and state["frontier_points"] == fp_expected,
+          f"{tag}: frontier_mode still shows its off-default (emerging) point count "
+          f"(expected {fp_expected}, got {state['frontier_points']})")
+    bl_expected = expect.get("breakdown_legend")
+    check(bool(bl_expected) and state["breakdown_legend"] == bl_expected,
+          f"{tag}: breakdown_dim still shows the swapped (document-type) chip legend")
 
 
-def check_persistence(page) -> None:
+def check_persistence(page, expect: dict) -> None:
     """The load-bearing claim: basket + every keyed widget -- INCLUDING the
-    ones R1 relocated from the sidebar into the controls row/expander --
-    survive real Menu<->Find hops (4 hops total: Menu, Find, Menu, Find), with
-    a second-visit re-mount check at the 2-hop midpoint (a bug that only shows
-    up on a widget's SECOND mount is a real, documented failure mode --
-    Portfolio Mapping INSPECTION_PLAYBOOK.md family 3)."""
-    _assert_persisted(_capture_persisted_state(page), "Persistence: baseline captured before any hop")
+    ones R1 relocated from the sidebar into the controls row/expander AND the
+    two R2 added (`frontier_mode`, `breakdown_dim`) -- survive real Menu<->Find
+    hops (4 hops total: Menu, Find, Menu, Find), with a second-visit re-mount
+    check at the 2-hop midpoint (a bug that only shows up on a widget's SECOND
+    mount is a real, documented failure mode -- Portfolio Mapping
+    INSPECTION_PLAYBOOK.md family 3)."""
+    _assert_persisted(_capture_persisted_state(page), "Persistence: baseline captured before any hop", expect)
 
     _click_nav(page, "Menu")
     _no_exception(page, "Menu (hop 1 of 4)")
     _click_nav(page, "Find")
     _no_exception(page, "Find (hop 2 of 4, second-visit re-mount)")
-    _assert_persisted(_capture_persisted_state(page), "Persistence: 2nd Find visit (re-mount check)")
+    _assert_persisted(_capture_persisted_state(page), "Persistence: 2nd Find visit (re-mount check)", expect)
 
     _click_nav(page, "Menu")
     _no_exception(page, "Menu (hop 3 of 4)")
     _click_nav(page, "Find")
     _no_exception(page, "Find (hop 4 of 4, final)")
-    _assert_persisted(_capture_persisted_state(page), "Persistence: 3rd Find visit (after 4 hops)")
+    _assert_persisted(_capture_persisted_state(page), "Persistence: 3rd Find visit (after 4 hops)", expect)
 
 
 def check_type_filter_clear(page) -> None:
     """The type filter set in Settings and proven to survive the hops above
     can also be CLEARED, and the strip stops naming it once it is."""
     strip = _strip_text(page)
-    check("type = " in strip and "education" in strip,
+    check("type: " in strip and "education" in strip,
           f"Type filter: still active going into the clear check (strip: {strip!r})")
     _ensure_expander_open(page, "postfilters", ".st-key-f_types input")
 
@@ -565,30 +808,32 @@ def check_undefined_lens(page, seed_id: str, seed_name: str) -> None:
     tab.click(timeout=ACTION_TIMEOUT_MS)
     _settle(page, 1500)
     text = _all_text(page, '[role="tabpanel"]')
-    check("L2f" in text and "is undefined for this seed" in text,
+    check("L2f" in text and "cannot be computed for this seed" in text,
           f"Undefined lens: L2f undefined message present for {seed_name}")
     _no_exception(page, "Undefined L2f seed")
 
 
-def check_fields_panel_no_overlap(page, width: int) -> None:
-    """Fix X3 (inspection finding I-4): bounding-box proof that opening the
-    Fields panel at this width never lets a y-axis tick label collide with
-    anything. `lib/charts.py::fig_share_si` now folds the volume INTO the tick
-    text as one right-anchored string (so there is nothing separate left to
-    merge into it) and reserves its own left margin from the longest resulting
-    string -- this check is the thing that would have failed before that fix:
-    every `.ytick text` must lie fully inside its plot's own `.main-svg`, never
-    clipped past the left edge (where the old collision put the leading
-    characters underneath the volume gutter) and never overflowing the right
-    edge either. A page-level scrollWidth check cannot see this: it is a
-    collision INSIDE one chart's own layout, not a page overflow."""
-    fig = page.locator(".st-key-fig_fields .js-plotly-plot").first
+def check_subfields_panel_no_overlap(page, width: int) -> None:
+    """R2/L34/L35 (this stream's adaptation of fix X3's finding I-4): bounding-
+    box proof that opening the TOP-SUBFIELDS panel at this width never lets a
+    y-axis tick label collide with anything, now that a long subfield name can
+    WRAP onto two lines (L35's `wrap_label`) instead of being ellipsised. A
+    wrapped label renders as separate `<tspan>` children of ONE `<text>` node,
+    so this reads and bounding-boxes the `.ytick` GROUP (not `.ytick text`):
+    the group's own bounding box correctly spans both lines, and its
+    textContent concatenates every tspan reliably. Every `.ytick` box must lie
+    fully inside its plot's own `.main-svg`, never clipped past the left edge
+    (where the old collision put the leading characters underneath the volume
+    gutter) and never overflowing the right edge either. A page-level
+    scrollWidth check cannot see this: it is a collision INSIDE one chart's
+    own layout, not a page overflow."""
+    fig = page.locator(".st-key-fig_subfields .js-plotly-plot").first
     fig.wait_for(state="visible", timeout=ACTION_TIMEOUT_MS)
     plot_box = fig.locator(".main-svg").first.bounding_box()
     if plot_box is None:
-        check(False, f"Fields panel {width}px: could not read the plot's own .main-svg bounding box")
+        check(False, f"Top-subfields panel {width}px: could not read the plot's own .main-svg bounding box")
         return
-    ticks = fig.locator(".ytick text")
+    ticks = fig.locator(".ytick")
     n = ticks.count()
     plot_left = plot_box["x"]
     plot_right = plot_box["x"] + plot_box["width"]
@@ -605,21 +850,20 @@ def check_fields_panel_no_overlap(page, width: int) -> None:
             offenders.append(f"{text!r} overflows right "
                              f"(right={box['x'] + box['width']:.1f} > plot right {plot_right:.1f})")
     check(n > 0 and not offenders,
-          f"Fields panel {width}px: {n} y-tick label(s) all stay inside the plot's own svg"
+          f"Top-subfields panel {width}px: {n} y-tick group(s) all stay inside the plot's own svg"
           + (f" -- offenders: {offenders}" if offenders else ""))
 
 
 def check_screenshots(browser, shot_dir: Path) -> None:
-    """R1: at each width, the seed is loaded AND one profile panel is opened
-    before the scrollWidth assertion (S9.3 R-H2's own acceptance line) -- the
-    widest real state the page can be in, not just the collapsed default.
+    """At each width, the seed is loaded AND the Top-subfields panel is opened
+    before the scrollWidth assertion -- the widest real state the page can be
+    in, not just the collapsed default.
 
-    Fix X3 additions: a bounding-box no-overlap check on the open Fields panel
-    at 390 px AND 1280 px (finding I-4); a plain (non-full-page) top-of-page
-    screenshot at 1280 px, scrolled to y=0 with the seed loaded but BEFORE any
-    panel is opened, since every R1 glance screenshot happened to be scrolled
-    past the profile header/tiles/coverage/wordcloud (finding I-5); and a
-    dedicated 390 px screenshot with the Fields panel open."""
+    A bounding-box no-overlap check on the open Top-subfields panel runs at
+    390 px AND 1280 px (R2/L34/L35's wrapped, two-line ticks); a plain
+    (non-full-page) top-of-page screenshot at 1280 px, scrolled to y=0 with
+    the seed loaded but BEFORE any panel is opened; and a dedicated 390 px
+    screenshot with the Top-subfields panel open."""
     shot_dir.mkdir(parents=True, exist_ok=True)
     for width in WIDTHS:
         page = browser.new_page(viewport={"width": width, "height": 900})
@@ -640,18 +884,17 @@ def check_screenshots(browser, shot_dir: Path) -> None:
             _search_and_pick(page, GDANSK_QUERY)
 
             if width == 1280:
-                # I-5: the untouched top of the page -- header/tiles/coverage/
-                # wordcloud -- BEFORE any expander is opened, viewport-only
-                # (not full_page) so it is actually scrolled to y=0, not just
-                # stitched in as the top slice of a taller image.
+                # The untouched top of the page -- header/tiles/wordcloud --
+                # BEFORE any expander is opened, viewport-only (not full_page)
+                # so it is actually scrolled to y=0, not just stitched in as
+                # the top slice of a taller image.
                 page.evaluate("window.scrollTo(0, 0)")
                 _settle(page, 500)
                 top_p = shot_dir / "smoke_find_top_1280.png"
                 page.screenshot(path=str(top_p), full_page=False)
                 check(top_p.is_file(), f"Find top-of-page 1280px: screenshot written ({top_p.name})")
 
-            _ensure_expander_open(page, "panel_fields",
-                                  ".st-key-sort_fields [data-testid='stRadioOption']")
+            _ensure_expander_open(page, "panel_subfields", ".st-key-fig_subfields")
             _settle(page, 1500)
             scroll = page.evaluate("document.documentElement.scrollWidth")
             inner = page.evaluate("window.innerWidth")
@@ -661,11 +904,12 @@ def check_screenshots(browser, shot_dir: Path) -> None:
             check(p2.is_file(), f"Find {width}px: screenshot written ({p2.name})")
 
             if width in (390, 1280):
-                check_fields_panel_no_overlap(page, width)
+                check_subfields_panel_no_overlap(page, width)
             if width == 390:
-                fields_p = shot_dir / "smoke_find_fields_390.png"
-                page.screenshot(path=str(fields_p), full_page=True)
-                check(fields_p.is_file(), f"Find Fields panel 390px: screenshot written ({fields_p.name})")
+                subfields_p = shot_dir / "smoke_find_subfields_390.png"
+                page.screenshot(path=str(subfields_p), full_page=True)
+                check(subfields_p.is_file(),
+                      f"Find Top-subfields panel 390px: screenshot written ({subfields_p.name})")
         except Exception as exc:  # noqa: BLE001 -- one width's failure must not skip the rest
             fail_section(f"Screenshots at {width}px", exc)
         finally:
@@ -688,6 +932,7 @@ def main() -> int:
     shot_dir = app_dir / "tests" / "ui" / "screenshots"
 
     server = _start_server(app_dir, PORT)
+    profile_expect: dict = {}
     try:
         if not _wait_for_port(PORT, timeout=90.0):
             check(False, f"server did not open port {PORT} within timeout")
@@ -698,15 +943,19 @@ def main() -> int:
             page = browser.new_page(viewport={"width": 1280, "height": 900})
             page.set_default_timeout(ACTION_TIMEOUT_MS)
 
+            def _run_profile_panels() -> None:
+                profile_expect.update(check_profile_and_panels(page) or {})
+
             sections = [
                 ("Menu", lambda: check_menu(page)),
                 ("Find search", lambda: check_find_search(page)),
                 ("Basket", lambda: check_basket(page)),
                 ("Controls placement", lambda: check_controls_placement(page)),
-                ("Profile / panels", lambda: check_profile_and_panels(page)),
+                ("Profile / panels", _run_profile_panels),
+                ("Benchmark lens guide", lambda: check_benchmark_lens_guide(page)),
                 ("Tables / export", lambda: check_tables_and_export(page)),
                 ("Settings", lambda: check_settings(page)),
-                ("Persistence", lambda: check_persistence(page)),
+                ("Persistence", lambda: check_persistence(page, profile_expect)),
                 ("Type filter clear", lambda: check_type_filter_clear(page)),
             ]
             for name, fn in sections:
