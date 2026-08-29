@@ -9,3 +9,6 @@ plotly==5.24.1         # last 5.x; ranked-table / chart forms pixel-stable on th
 pyarrow==24.0.0        # parquet reader for app/data/*.parquet
 duckdb==1.5.5          # engine substrate joins (BUILD_PLAN.md Stack line)
 pyyaml==6.0.3          # app/config.yaml loader (lib/app_config.py)
+wordcloud==1.9.6      # R1/L17: the subfield wordcloud (lib/wordcloud_png.py, Lorraine's own pin);
+                       # pulls pillow + matplotlib transitively. Wheel + render verified in env-app
+                       # on CPython 3.12 before the pin was written (progress/R1_E2.md).

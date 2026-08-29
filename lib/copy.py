@@ -212,7 +212,7 @@ FIND = {
     "TILE_SIZE_FRAC": "Size (fractional)",
     "TILE_SIZE_FRAC_SUB": "author-share credited",
     "TILE_HHI": "Concentration",
-    "TILE_HHI_SUB": "{hhi_class} {sep} subfield HHI {hhi_value}",
+    "TILE_HHI_SUB": "{hhi_class} {sep} subfield HHI, higher means more concentrated",  # manager edit 2026-08-29: the value slot already shows the HHI number (E2 needs_change #2)
     "TILE_BREADTH": "Breadth",
     "TILE_BREADTH_SUB": "subfields with at least {floor} fractional works",
     "TILE_SDG": "SDG-tagged share",
@@ -262,6 +262,42 @@ FIND = {
     "CAPTION_ERC": ("Shares of ERC-classified output over {n_panels} panels; the Biotechnology "
                      "and Arts panels have low recall, read them with care"),
     "FRACTIONAL_ONLY_PANEL": "This panel is fractional-only: the counting-basis toggle does not change it",
+
+    # ---- Refinement R1, added by stream R-E2 (the page that composes the
+    # above). Additive only: every key below is a string R-F2's set did not
+    # carry and the composed page needs (BUILD_PLAN_2A.md S9.3 R-E2 fence).
+
+    # The benchmark half of the page -- the section the controls row heads.
+    "BENCHMARK_HEADER": "Benchmark",
+    "BENCHMARK_INTRO": ("Candidate peers, ranked by each lens independently. The controls "
+                        "below govern every tab."),
+
+    # L23 / gate-2A bug #9: the works link carries the harvest's own
+    # server-side filters, so it counts the same corpus the app does -- give
+    # or take the drift between a live query and a frozen snapshot.
+    "LINK_OPENALEX_HELP": ("Live OpenAlex count with the same filters as the snapshot; "
+                           "expect a small difference"),
+
+    # The yearly breakdown's residual series: works the topic table cannot
+    # place in a domain (they carry no primary topic). Shown, never hidden,
+    # so the domain and document-type views sum to the same yearly total.
+    "UNCLASSIFIED_LABEL": "Unclassified",
+    "BREAKDOWN_DOCTYPE_MISSING": ("No document-type rows for this institution in the "
+                                  "snapshot; showing the domain breakdown instead."),
+
+    # Empty states for the profile section's own blocks (VIZ_SPEC S1.6: an
+    # explicit reason, never a blank panel and never a silent gap).
+    "WORDCLOUD_EMPTY": "No subfield mass for this institution under the current scenario.",
+    "PANEL_EMPTY": "No data for this panel under the current scenario.",
+    "FRONTIER_EMPTY": ("No topic of this institution carries a frontier score, so there is "
+                       "nothing to place on the two axes."),
+
+    # The displayed cut of the two "top N" panels, stated parametrically
+    # (VIZ_SPEC S2.16: "the depth of the cut is stated in the panel caption").
+    "CAPTION_TOP_N_VOLUME": ("Showing the top {n} subfields by works on the current counting "
+                             "basis; the CSV export carries every subfield."),
+    "CAPTION_TOP_N_SHARE": ("Showing the top {n} topics by share of output; the CSV export "
+                            "carries every topic."),
 }
 
 # ----------------------------------------------------- digit-ban self-check -

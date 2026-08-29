@@ -1,22 +1,30 @@
 """
-Acceptance probe for the Find page (BUILD_PLAN_2A.md Stream E). Same shape as
+Acceptance probe for the Find page (BUILD_PLAN_2A.md Stream E; extended for
+Refinement R1 by stream R-E2 against S9.2 L16-L23). Same shape as
 ops/_probe_menu.py: start `streamlit run pages/1_<emoji>_Find.py` as a
 subprocess, drive it headless with Playwright, ALWAYS terminate the server.
 
 Selectors are locale-independent: the `st-key-<key>` classes the page's own
-keyed widgets/containers emit, `[role="tab"]`, `[data-testid=...]` --
-never literal UI strings, and never `inner_text` on a table (st.dataframe is a
-canvas grid; the Assembly Line gotcha list forbids text assertions on it, so
-row-level facts are checked against the engine/CSV instead, at the end).
+keyed widgets/containers emit, `[role="tab"]`, `[data-testid=...]` -- never
+literal UI strings, and never `inner_text` on a table (st.dataframe is a canvas
+grid; the Assembly Line gotcha list forbids text assertions on it, so row-level
+facts are checked against the engine/CSV instead, at the end).
 
 The seed is injected through the page's own `?seed=<id>` query parameter, which
 `views_find.render()` reads ONCE into `st.session_state["seed_id"]`.
 
+R1 checks added here: the profile container renders; the six chart panels are
+expanders and one of them really holds a Plotly figure once opened; the
+benchmark controls live in the MAIN area and no longer in the sidebar; the
+breakdown segmented control swaps the chip legend; the wordcloud <img> exists.
+
+Usage:  python ops/_probe_find.py [--port 8602]
 Exit 0 when every check passes; 1 otherwise. Stdout is ASCII-only (cp1252
 console).
 """
 from __future__ import annotations
 
+import argparse
 import io
 import socket
 import subprocess
@@ -28,15 +36,19 @@ from playwright.sync_api import sync_playwright
 
 APP_DIR = Path(__file__).resolve().parent.parent
 PAGE = "pages/1_\U0001F50E_Find.py"
-PORT = 8602
+DEFAULT_PORT = 8602
 SEEDS = ["I40413290", "I265217849", "I277688954"]
-SHOT_SEED = SEEDS[0]
+SHOT_SEED = "I68947357"   # Universite de Strasbourg -- the R1 reference seed
+GOLD_SEED = "I40413290"   # University of Gdansk -- the seed the L1 golden pins
 SHOT_DIR = APP_DIR / "tests" / "ui" / "screenshots"
 WIDTHS = [1920, 1280, 390]
 N_DEFAULT_TABS = 10   # Overview + the 8 default lenses + Aspirational
 N_TOGGLED_TABS = 12   # ... + C1 + L7
+N_PANELS = 6          # Fields, Top subfields, Top topics, Frontier, SDG, ERC
+N_TILES = 7
 GOLD_RANK1 = ("I34250744", 0.793119)
 
+PORT = DEFAULT_PORT
 RESULTS: list[tuple[bool, str]] = []
 
 
@@ -63,10 +75,19 @@ def _captions(page) -> str:
         ".map(e => e.textContent).join('|')")
 
 
+def _chip_legend(page) -> str:
+    """The ONE chip legend the breakdown pair shares -- `charts.chip_legend_html`
+    is the only markup on the page with a `flex-wrap` inline style, so this
+    finds it without matching any user-facing string."""
+    return page.evaluate(
+        "Array.from(document.querySelectorAll('.st-key-profile div[style*=\"flex-wrap\"]'))"
+        ".map(e => e.textContent).join('|')")
+
+
 def _load(page, seed: str) -> None:
     page.goto(f"http://127.0.0.1:{PORT}/?seed={seed}", wait_until="domcontentloaded")
     page.wait_for_selector('[role="tab"]', timeout=180_000)
-    page.wait_for_timeout(2500)
+    page.wait_for_timeout(3000)
 
 
 def _probe_seed(page, seed: str) -> None:
@@ -79,8 +100,61 @@ def _probe_seed(page, seed: str) -> None:
           f"{seed}: optional-lens tabs absent by default (tab count is exactly {N_DEFAULT_TABS})")
 
 
-def _probe_controls(page) -> None:
+def _probe_profile(page) -> None:
+    """R1/L17: the profile section, its tiles, its wordcloud and its six panels."""
     _load(page, SHOT_SEED)
+    check(page.locator(".st-key-profile").count() == 1,
+          "the profile container renders exactly once")
+    tiles = page.locator(".st-key-profile .benchup-kpi").count()
+    check(tiles == N_TILES, f"the profile carries {N_TILES} KPI tiles (found {tiles})")
+    check(page.locator('.st-key-profile [data-testid="stImage"] img').count() >= 1,
+          "the subfield wordcloud renders as an <img> inside the profile")
+
+    panels = [f".st-key-panel_{n}" for n in
+              ("fields", "subfields", "topics", "frontier", "sdg", "erc")]
+    present = sum(1 for sel in panels if page.locator(sel).count() >= 1)
+    check(present == N_PANELS, f"the six chart panels are keyed expanders (found {present})")
+
+    # Open the Fields panel and check a real Plotly figure is VISIBLE inside it
+    # (the body renders collapsed too -- st.expander folds the display, not the
+    # execution -- so visibility, not presence, is the meaningful assertion).
+    page.locator(".st-key-panel_fields summary").first.click()
+    page.wait_for_timeout(2500)
+    fig = page.locator(".st-key-panel_fields .js-plotly-plot").first
+    check(fig.count() >= 1 and fig.is_visible(),
+          "opening the Fields panel reveals a Plotly figure inside it")
+    SHOT_DIR.mkdir(parents=True, exist_ok=True)
+    shot = SHOT_DIR / "e2_find_fields_open.png"
+    page.screenshot(path=str(shot), full_page=True)
+    print("Saved screenshot:", shot)
+    check(shot.is_file(), "screenshot written with the Fields panel open")
+
+    # The segmented control swaps the identity family for BOTH figures at once,
+    # so the ONE shared chip legend must change with it.
+    before = _chip_legend(page)
+    check(bool(before.strip()), "the breakdown pair renders a chip legend")
+    page.locator(".st-key-breakdown_dim button").nth(1).click()
+    page.wait_for_timeout(4000)
+    after = _chip_legend(page)
+    check(after != before,
+          "the breakdown segmented control swaps the chip legend (domain <-> document type)")
+    page.locator(".st-key-breakdown_dim button").nth(0).click()
+    page.wait_for_timeout(3000)
+
+
+def _probe_controls(page) -> None:
+    """R1/L16: the benchmark controls live in the MAIN area, with UNCHANGED
+    widget keys, and the sidebar no longer carries them."""
+    _load(page, SHOT_SEED)
+    for key in ("depth", "c1_on", "l7_on", "postfilters"):
+        check(page.locator(f".st-key-{key}").count() >= 1,
+              f"controls-row widget `{key}` renders in the page")
+        check(page.locator(f'[data-testid="stSidebar"] .st-key-{key}').count() == 0,
+              f"controls-row widget `{key}` is NOT in the sidebar any more")
+    for key in ("tree", "basis"):
+        check(page.locator(f'[data-testid="stSidebar"] .st-key-{key}').count() >= 1,
+              f"scenario control `{key}` stays in the sidebar")
+
     before = _captions(page)
     for key in ("c1_on", "l7_on"):
         page.locator(f".st-key-{key} label").first.click()
@@ -95,6 +169,10 @@ def _probe_controls(page) -> None:
     check(_captions(page) != before, "the depth caption changed when depth switched to its max")
     check(page.locator(".st-key-strip").count() >= 1,
           "the off-default strip appears once a control leaves its default")
+
+    # The post-filters live one click down, inside their own expander.
+    page.locator(".st-key-postfilters summary").first.click()
+    page.wait_for_timeout(1500)
     page.locator(".st-key-f_types input").first.click()
     page.wait_for_timeout(800)
     page.keyboard.press("Enter")
@@ -114,7 +192,7 @@ def _probe_widths(browser) -> None:
         inner = page.evaluate("window.innerWidth")
         check(scroll <= inner + 2,
               f"{width} px: scrollWidth {scroll} <= innerWidth+2 {inner + 2}")
-        path = SHOT_DIR / f"e_find_{width}.png"
+        path = SHOT_DIR / f"e2_find_{width}.png"
         page.screenshot(path=str(path), full_page=True)
         print("Saved screenshot:", path)
         check(path.is_file(), f"{width} px: screenshot written")
@@ -123,19 +201,25 @@ def _probe_widths(browser) -> None:
 
 def _recompute_check() -> None:
     """Read rank 1 back out of the L1 CSV the page's own export path produces
-    (engine -> exports.ranking_csv -> pandas), and compare with the golden."""
+    (engine -> evidence -> exports.ranking_csv -> pandas), and compare with the
+    golden. Also asserts the R1 export columns are present and populated."""
     sys.path.insert(0, str(APP_DIR))
     import pandas as pd
 
     from lib.engine import build_rows, build_substrates, load_context, rank_all
+    from lib.engine.evidence import rows_evidence
     from lib.exports import ranking_csv
 
     ctx = load_context(str(APP_DIR / "data"))
     subs = build_substrates(ctx)
-    rankings = rank_all(ctx, subs, SHOT_SEED)
+    rankings = rank_all(ctx, subs, GOLD_SEED)
     l1 = rankings["L1"]
-    rows = build_rows(l1, ctx, len(l1["sorted_ids"]), rankings)
-    blob = ranking_csv(rows, seed_id=SHOT_SEED, lens="L1", tree=subs["tree"], basis=subs["basis"],
+    rows = build_rows(l1, ctx, len(l1["sorted_ids"]), rankings, subs)
+    head = rows[:50]
+    texts = rows_evidence(ctx, subs, "L1", GOLD_SEED, [r["institution_id"] for r in head])
+    for r in head:
+        r["evidence_text"] = texts.get(r["institution_id"])
+    blob = ranking_csv(rows, seed_id=GOLD_SEED, lens="L1", tree=subs["tree"], basis=subs["basis"],
                        snapshot="", filters_label="")
     df = pd.read_csv(io.BytesIO(blob))
     top = df.iloc[0]
@@ -144,15 +228,24 @@ def _recompute_check() -> None:
     check(str(top["institution_id"]) == GOLD_RANK1[0]
           and abs(float(top["lens_score"]) - GOLD_RANK1[1]) < 1e-3,
           "L1 rank-1 read back from the export CSV matches the golden row")
+    check({"country", "total_frac_2020_2024", "evidence"} <= set(df.columns),
+          "the export CSV carries the R1 columns (country name, fractional size, evidence)")
+    check(bool(str(top["evidence"]).strip()),
+          "the lens-specific evidence cell is populated on the top row")
 
 
 def main() -> int:
+    global PORT
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--port", type=int, default=DEFAULT_PORT,
+                        help="port to run the Streamlit server on")
+    PORT = parser.parse_args().port
+
     server = subprocess.Popen(
         [sys.executable, "-m", "streamlit", "run", PAGE,
          "--server.headless", "true", "--server.port", str(PORT)],
-        # DEVNULL, not PIPE: every rerun logs a `use_container_width` deprecation
-        # per st.dataframe (lib/ranked.py, Stream D1's file), which fills an
-        # unread pipe buffer and blocks the server mid-probe.
+        # DEVNULL, not PIPE: a deprecation warning per rerun would otherwise
+        # fill an unread pipe buffer and block the server mid-probe.
         cwd=str(APP_DIR), stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
     try:
         if not _wait_for_port(PORT):
@@ -163,6 +256,9 @@ def main() -> int:
             page = browser.new_page(viewport={"width": 1280, "height": 1000})
             for seed in SEEDS:
                 _probe_seed(page, seed)
+            _probe_profile(page)
+            page.close()
+            page = browser.new_page(viewport={"width": 1280, "height": 1000})
             _probe_controls(page)
             page.close()
             _probe_widths(browser)

@@ -74,6 +74,28 @@ def topics_all_slim() -> pd.DataFrame:
 
 
 @st.cache_resource
+def doctype_by_year() -> pd.DataFrame:
+    """Document-type volumes per institution x year (R1 artefact, BUILD_PLAN_2A.md
+    S9.2 L24; built by V3/pipeline/09c_doctype_by_year.py, stream R-S5).
+
+    Columns: `inst_key int32, institution_id str, year int16, doc_type
+    category{article,book,book-chapter,letter,review}, vol_full int32,
+    vol_frac float32`.
+
+    Grain: institution x year x doc_type and **SPARSE** -- 141,182 rows, NOT a
+    dense 7,557 x 6 x 5 cube: a cell with zero works has NO row at all (four
+    institutions even lack every year but 2020). Never assume presence; the
+    yearly-breakdown consumer fills a missing (year, type) cell with zero
+    itself, so a series absent for a seed still renders its empty group
+    (VIZ_SPEC S2.14 "a missing year is data").
+
+    `doc_type` is a CATEGORY dtype -- cast `.astype(str)` before any `.map()`
+    (Assembly Line gotcha: `.map(...).fillna(...)` raises on a categorical).
+    """
+    return pd.read_parquet(DATA_DIR / "doctype_by_year.parquet")
+
+
+@st.cache_resource
 def manifest() -> dict:
     """Deploy-time MANIFEST.json if Stream C's ops/deploy.py has run, else the pre-staged
     source_manifest.json (BUILD_PLAN_2A.md Data flow: MANIFEST/source_manifest fallback)."""
