@@ -324,3 +324,172 @@ undefined for this seed") -- both real app-side changes this file had not
 caught up with, not flakes: 125 of 131 passed, all 6 failures traced to those
 two strings, fixed in `smoke.py` (never in the app), and the clean 131/131
 re-run above is the result under the corrected checks.
+
+## Phase 2B additions (BUILD_PLAN_2B.md Stream H): the full four-page journey
+
+After every check above still passes, the same run continues on the SAME
+page/session (never a fresh `browser.new_page()`, which would open a new
+WebSocket session with an EMPTY basket -- the same false-failure a
+`page.goto()` produces, module docstring) through a second, realistic
+journey: clear the basket, re-search Gdansk, add the seed's own top-3 L1
+(subfield-overlap) peers plus the seed itself (basket = 4), walk that set
+through Compare (strip, legend, figures, the frontier Layout control, the
+impact floor toggle, the xlsx workbook, the deep link, reorder, remove),
+hand off a picked pair to Collaborate with a real link click, walk Methods,
+prove tree/basis/basket persistence across all four pages with real
+sidebar-nav hops, and screenshot Compare/Collaborate/Methods at width.
+The genuine, real-app total is now **189 of 189** (131 R2 checks + 58 new).
+
+### New DOM facts (Streamlit 1.61.1)
+
+- **`st.selectbox` is a react-aria `ComboBox`, not a BaseWeb select** --
+  `_open_select`'s `[data-baseweb='select']` locator has always missed on
+  this build (0 count) and its existing fallback (click the widget's own
+  `.st-key-<key>` container) is what actually opens it. That fallback click
+  reliably opens the listbox the FIRST time a given widget key is used in a
+  script run, but a SECOND, already-focused round on the SAME widget (e.g. a
+  second sequential name typed into the sidebar's `basket_query`/
+  `basket_pick` pair, immediately after a first successful add) can leave
+  `aria-expanded="false"` after an IDENTICAL click -- reproduced in
+  isolation (add "Sorbonne", then search "University of Warsaw" in the same
+  box: the second click opens nothing; `page.keyboard.press("ArrowDown")`
+  recovers it every time, since ArrowDown is react-aria's own
+  keyboard-accessible way to open a focused combobox). `_open_select` now
+  tries the click, waits a SHORT 3 s for `[role="option"]`, and falls back
+  to `ArrowDown` + the full `ACTION_TIMEOUT_MS` wait only if the click alone
+  didn't open it -- this was a real, deterministic bug (reproduced twice
+  identically, not a flake) that silently truncated the ORIGINAL R2
+  "Basket" section too (adding Sorbonne then Bologna) whenever the second
+  add landed on an already-focused widget; fixing it here benefits every
+  section, old and new.
+- **`st.link_button`'s `<a href>` is a REAL browser navigation, not
+  Streamlit's own SPA page-link routing.** The Compare-to-Collaborate
+  hand-off (2B-8) is a `link_button`, not a `page_link` (`st.page_link`
+  cannot carry a query string). Clicking it behaves like `page.goto()` in
+  the one respect that matters: it drops the current WebSocket session, so
+  a brand-new Collaborate session starts with an EMPTY basket -- the `?pair=`
+  query string is the ONLY thing carrying the pair across that hop, which is
+  exactly why `views_collab._candidates()` reads `query["pair"]` before ever
+  consulting the basket. Proof (a) below (renaming the query key) shows the
+  failure mode this produces: not "the wrong pair", but NO dataframe at all
+  within the timeout, because the fallback candidate list is then also
+  empty. Located by `a[href^="/Collaborate"][href*="?"]` (path prefix AND
+  "carries a query string"), never by the exact `?pair=` key and never by a
+  button label (this `link_button` carries no `key=`): a bare
+  `href^="/Collaborate"` would match Streamlit's OWN sidebar nav link for
+  the Collaborate page too (a plain `a[href="/Collaborate"]`, no query,
+  rendered ABOVE the main column so `.first` would grab it instead), which
+  the `[href*="?"]` clause rules out while staying immune to a renamed
+  query key.
+- **The Compare page's per-institution reorder/remove buttons** (`st.button`
+  keyed `cmp_up_{iid}` / `cmp_down_{iid}` / `cmp_rm_{iid}`) are found by
+  PARTIAL class match on the stable key PREFIX, never the id itself (which
+  the test does not otherwise need to know): `[class*="st-key-cmp_down_"]
+  button` (`.first` is the FIRST-rendered row, i.e. the reader's own current
+  first institution) -- the same idiom `_basket_count` already uses for
+  `rm_{iid}`.
+- **Two `st.code` deep links can coexist on Compare** (`?compare=...` from
+  the selection block, `?pair=...` from the pair hand-off, once >= 2
+  institutions are compared) -- read the right one by filtering
+  `[data-testid="stCode"]` with `has_text="?compare="` / `has_text="?pair="`,
+  never by DOM position or index.
+- **Compare's `st.segmented_control`s** (`cmp_frontier_form`: Layout,
+  facets/overlay; the existing `frontier_mode`/`breakdown_dim` idiom from R2
+  applies unchanged) render as a row of real `<button>` elements under
+  `.st-key-<key>`, clicked by POSITION (`nth(0)`/`nth(1)`). Its
+  `st.radio(horizontal=True)` sibling (`cmp_impact_floor`) is
+  `[data-testid="stRadioOption"]` scoped under `.st-key-cmp_impact_floor`,
+  same idiom as R1's `depth` radio.
+- **A downloaded `.xlsx` is opened with `openpyxl.load_workbook(io.BytesIO(raw))`**
+  after a real `page.expect_download()` click (`.st-key-dl_workbook button`)
+  -- `book.sheetnames` is then plain Python, checked the same honest way the
+  CSV header is (never a canvas read).
+- **Compare's read-only basket mirror carries NO `rm_{iid}` buttons** (only
+  Find's OWN editable list does), so `_basket_count` (which counts those
+  buttons) cannot see the basket size on Compare/Collaborate. Both pages
+  share the exact same `copy.FIND["BASKET_COUNT"]` sidebar caption template
+  (`"{n} of {cap} added"`) as Find, so `_sidebar_basket_n` reads it there
+  with a regex instead.
+- **`views_methods.render()` calls neither `_sidebar_scenario()` nor
+  `_sidebar_basket()`** -- the Methods page's sidebar carries ONLY
+  Streamlit's own page nav, no tree/basis selects and no basket count. This
+  is a real gap from an assumption in this stream's own brief ("tree and
+  basis... are the sidebar values on Compare, Collaborate AND Methods"): the
+  persistence check verifies tree/basis/basket on Compare and Collaborate
+  only, and settles for "no exception" on Methods. Flagged as `needs_change`
+  for stream M/S, not silently worked around.
+- **The seed's own L1 (subfield-overlap) ranking CSV** (`.st-key-dl_L1
+  button`, downloaded the same honest way as the L0 CSV check above) is
+  where this journey's 3 "real candidates" come from (`display_name` +
+  `institution_id` columns, `lib/exports.py`'s own `_COLUMNS`) -- added to
+  the basket through the SAME sidebar `basket_query`/`basket_pick`/
+  `basket_add` flow as any other name, never through the ranked table's own
+  row-selection checkbox (`st.dataframe(..., selection_mode="multi-row")`),
+  which is a canvas grid this file's own rule already forbids clicking into
+  by pixel position.
+
+### The two non-vacuity proofs (Phase 2B, Stream H)
+
+Both ran against **throwaway copies** of `app/` (never the real repo, one
+copy per mutation), built with the same `MSYS_NO_PATHCONV=1 robocopy ...`
+idiom the R2 proofs above use.
+
+**Proof (a): rename the `pair` query key `_handoff` builds the hand-off link
+with (`views_compare.py`, `"pair"` -> `"duo"`) -> the hand-off checks fail,
+nothing else.**
+
+```
+python tests/ui/smoke.py --port 8645 --app-dir <scratch>/h_copy_a
+```
+Result: **exit 1**, 183 of 185 checks passed (4 fewer TOTAL checks were even
+attempted than the clean 189, because the mutation makes the hand-off
+section fail earlier than it otherwise would -- see below):
+```
+FAILED: Compare: the hand-off link names two distinct ids ('/Collaborate?duo=I34250744,I40413290')
+FAILED: Journey: hand-off to Collaborate: raised TimeoutError: Page.wait_for_selector: Timeout 30000ms exceeded.
+  - waiting for locator("[data-testid=\"stDataFrame\"]") to be visible
+```
+Every one of the other 183 checks passed unchanged, including every OTHER
+Compare check (strip, legend, figures, Layout control, impact floor,
+workbook, deep link, reorder, remove) and Methods/persistence/widths after
+it. The failure is more total than "shows the wrong pair": clicking a
+`link_button` is a REAL navigation that drops the session (see the DOM fact
+above), so Collaborate's fallback candidate list depends ENTIRELY on the
+query string; with the key renamed to `duo`, `query["pair"]` is `None` and
+the fresh session's basket is empty too, so `_candidates()` returns nothing,
+`_pair_picker` never gets past `EMPTY_NO_PAIR`, and no `st.dataframe` ever
+mounts -- exactly the load-bearing claim 2B-8/A11 makes about the query
+string being the one thing that survives the hop, falsified on purpose and
+caught by name.
+
+**Proof (b): drop the workbook's first (Methods) sheet in `exports_xlsx.py`'s
+`workbook_bytes` -> exactly the Methods-sheet check fails, nothing else.**
+
+```python
+# lib/exports_xlsx.py, in the throwaway copy only
+items = list(sheets.items() if hasattr(sheets, "items") else sheets)
+items = items[1:]  # MUTATION: drop the workbook's first (Methods) sheet
+```
+Command:
+```
+python tests/ui/smoke.py --port 8646 --app-dir <scratch>/h_copy_b
+```
+Result: **exit 1**, 188 of 189 checks passed -- exactly one failure:
+```
+FAILED: Compare: the workbook carries a 'Methods' sheet (['Fields', 'Subfields', 'ERC panels', 'SDG profile', 'Frontier positioning', 'Frontier topics', 'Impact overall', 'Impact by subfield', 'Trends', 'Coverage'])
+```
+Note the `>= 8 sheets` floor check (`XLSX_MIN_SHEETS`) does NOT fail here --
+dropping exactly one of 11 sheets still leaves 10, which clears the floor.
+The brief's "sheet-count check" is this Methods-sheet-PRESENCE check in
+practice: it is the one that actually moves when a sheet goes missing, and
+it is the one this proof shows moving, alone.
+
+### Then: the real app, unmutated (Phase 2B)
+
+```
+python tests/ui/smoke.py --port 8644
+```
+Result: **exit 0**, 189 of 189 checks passed, all Phase 2B screenshots
+written (`smoke_compare_{1920,1280,390}.png`, `smoke_collab_1280.png`,
+`smoke_methods_1280.png`), port clean afterward, no orphan
+`python.exe`/`streamlit` process left running.

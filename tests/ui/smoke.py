@@ -60,12 +60,17 @@ UTF-8 text, never printed to stdout inside a PASS/FAIL message on their own.
 from __future__ import annotations
 
 import argparse
+import csv
+import io
+import re
 import socket
 import subprocess
 import sys
 import time
 from pathlib import Path
 
+import openpyxl
+from playwright.sync_api import TimeoutError as PWTimeoutError
 from playwright.sync_api import sync_playwright
 
 DEFAULT_APP_DIR = Path(__file__).resolve().parents[2]  # tests/ui/smoke.py -> app/
@@ -126,6 +131,43 @@ BREAKDOWN_DOMAIN_IDX, BREAKDOWN_DOCTYPE_IDX = 0, 1
 RESULTS: list[tuple[bool, str]] = []
 PORT = 8611
 BASE_URL = "http://127.0.0.1:8611"
+
+# ---------------------------------------------------------------------------
+# Phase 2B (BUILD_PLAN_2B.md Stream H): the full four-page narrative journey,
+# Menu -> Find -> Compare -> Collaborate -> Methods (2B-10's order), appended
+# after every R2 check above still passes. Distinct from the R2 "Basket"
+# section (Sorbonne, Bologna, left in place -- untouched): this journey
+# CLEARS the basket and rebuilds it from the Gdansk seed's own L1 (subfield
+# overlap) ranking, so the compared set is a real top-overlap peer group
+# rather than three arbitrary names, then walks it through Compare,
+# Collaborate (via the real hand-off link) and Methods.
+#
+# Every label compared for exact text below is a HARDCODED literal (same
+# non-vacuity reasoning as PANEL_LABELS above): copy.NAV's four narrative
+# labels for the Menu cards, and the K/collab_data column-order contract from
+# BUILD_PLAN_2B.md S4 for the shared-topics CSV header.
+NAV_CARD_LABELS = ["Find peers", "Compare", "Collaborate", "How it is built"]
+NAV_COMPARE, NAV_COLLAB, NAV_METHODS = "Compare", "Collaborate", "Methods"
+
+COMPARE_MIN_FIGURES = 7        # ops/_probe_compare.py's own acceptance floor
+CMP_FACETS_IDX, CMP_OVERLAY_IDX = 0, 1     # cmp_frontier_form: [facets, overlay]
+CMP_FLOOR_HIGH_IDX, CMP_FLOOR_LOW_IDX = 0, 1  # cmp_impact_floor: IMPACT_FLOORS = (30, 10)
+
+XLSX_METHODS_SHEET = "Methods"  # copy.COMPARE["XLSX_SHEET_METHODS"], hardcoded
+XLSX_MIN_SHEETS = 8             # brief's floor; the shipped workbook carries 11 (10 views + Methods)
+
+COLLAB_LINK_PREFIX = "/Collaborate"
+
+# BUILD_PLAN_2B.md S4, the K -> V/C/L interface contract's own column order for
+# `collab_data.shared_topics(...)`, hardcoded rather than imported from
+# lib.collab_data.SHARED_TOPICS_COLS: importing the very constant the CSV
+# export is built from would make this check compare that module against
+# itself and pass vacuously if either drifted together.
+SHARED_TOPICS_HEADER = ("topic_id,topic_name,subfield_name,share_a,share_b,"
+                        "min_share,keywords,top25pct_frontier")
+
+METHODS_MIN_SECTIONS = 10
+PLACEHOLDER_RE = re.compile(r"\{[a-zA-Z_][a-zA-Z0-9_]*\}")
 
 
 def check(ok: bool, message: str) -> bool:
@@ -215,13 +257,29 @@ def _no_exception(page, label: str) -> bool:
 
 
 def _open_select(page, key: str) -> None:
-    """Open a keyed BaseWeb selectbox: click it, wait for its (portal-rendered)
-    option list."""
+    """Open a keyed selectbox: click it, wait for its (portal-rendered) option
+    list. Streamlit 1.61's selectbox is a react-aria ComboBox, not a BaseWeb
+    select -- `[data-baseweb='select']` always misses on this build, so the
+    fallback (clicking the widget's own container) is what actually runs.
+    That click reliably opens the listbox the FIRST time a given widget
+    instance is used, but a SECOND, already-focused round on the SAME widget
+    (e.g. a second sequential name typed into the same sidebar search box)
+    can leave `aria-expanded="false"` after an identical click -- confirmed
+    by reproduction (fill a second query into `basket_query`/`basket_pick`
+    after one successful add: the click opens nothing, `ArrowDown` recovers
+    it every time). `ArrowDown` is react-aria's own keyboard-accessible way
+    to open a focused combobox, so it is the fallback here rather than a
+    longer sleep or a second click, neither of which reproducibly recovers
+    it."""
     loc = page.locator(f".st-key-{key} [data-baseweb='select']")
     if loc.count() == 0:
         loc = page.locator(f".st-key-{key}")
     loc.first.click(timeout=ACTION_TIMEOUT_MS)
-    page.wait_for_selector('[role="option"]', timeout=ACTION_TIMEOUT_MS)
+    try:
+        page.wait_for_selector('[role="option"]', timeout=3000)
+    except PWTimeoutError:
+        page.keyboard.press("ArrowDown")
+        page.wait_for_selector('[role="option"]', timeout=ACTION_TIMEOUT_MS)
 
 
 def _pick_option(page, text: str | None = None) -> None:
@@ -393,6 +451,23 @@ def check_menu(page) -> None:
     check(cards.count() >= 3, f"Menu: >=3 nav cards (found {cards.count()})")
     find_link = nav.locator("a").filter(has_text="Find")
     check(find_link.count() >= 1, "Menu: Find card is live (st.page_link anchor present)")
+
+    # 2B-10: all four narrative-order cards (Find peers, Compare, Collaborate,
+    # How it is built) are live -- none renders the greyed ":grey[...]"
+    # fallback Menu.py uses for a dimension whose page file does not exist yet.
+    # A greyed card carries NO `st.page_link` anchor (only styled markdown +
+    # caption text, which Streamlit's `:color[]` syntax renders as coloured
+    # text, not a literal string in the DOM) -- so "none greyed" is proven
+    # structurally, by anchor count, never by hunting for ":grey[" text.
+    check(cards.count() == len(NAV_CARD_LABELS),
+          f"Menu: exactly {len(NAV_CARD_LABELS)} nav cards render (found {cards.count()})")
+    live_links = nav.locator("a")
+    check(live_links.count() == len(NAV_CARD_LABELS),
+          f"Menu: all {len(NAV_CARD_LABELS)} cards are live st.page_link anchors, none greyed "
+          f"(found {live_links.count()} anchors, expected {len(NAV_CARD_LABELS)})")
+    for label in NAV_CARD_LABELS:
+        check(live_links.filter(has_text=label).count() >= 1,
+              f"Menu: a live card links to {label!r}")
     _no_exception(page, "Menu")
 
 
@@ -916,6 +991,385 @@ def check_screenshots(browser, shot_dir: Path) -> None:
             page.close()
 
 
+# ------------------------------------------------ Phase 2B: the full journey --
+
+def _n_plotly(page) -> int:
+    return page.locator(".js-plotly-plot").count()
+
+
+def _settle_figures(page, target: int, timeout_ms: int = 60_000) -> int:
+    """Streamlit streams elements in, so a figure count climbs for a while
+    after the first plot appears (ops/_probe_compare.py's own `_settle`
+    documents the same fact for this page). Poll until the count reaches the
+    floor and holds for 3 checks running, rather than a blind sleep -- the
+    same reasoning as `_wait_for` above, applied to a count instead of a
+    boolean predicate."""
+    deadline = time.time() + timeout_ms / 1000
+    last, stable = -1, 0
+    while time.time() < deadline:
+        now = _n_plotly(page)
+        stable = stable + 1 if now == last and now >= target else 0
+        last = now
+        if stable >= 3:
+            break
+        page.wait_for_timeout(800)
+    page.wait_for_timeout(1000)
+    return last
+
+
+def _sidebar_basket_n(page) -> int | None:
+    """The `{n} of {cap} added` sidebar caption (copy.FIND["BASKET_COUNT"]),
+    read wherever it renders: Find's own editable basket AND Compare/
+    Collaborate's read-only mirror share the exact same template. Necessary
+    because `_basket_count` (this file's existing helper) counts `rm_{iid}`
+    remove buttons, which exist ONLY on Find's editable list -- Compare and
+    Collaborate render the basket read-only (a plain `sb.write` per name, no
+    remove button), so they need a different signal for the same fact."""
+    text = _all_text(page, '[data-testid="stSidebar"] [data-testid="stCaptionContainer"]')
+    m = re.search(r"(\d+) of \d+ added", text)
+    return int(m.group(1)) if m else None
+
+
+def _add_l1_candidates(page) -> list[dict]:
+    """Downloads the seed's own L1 (subfield-overlap) ranking CSV and returns
+    the top 3 rows' `{institution_id, display_name}` -- REAL top-overlap
+    peers of the seed, not three names picked out of thin air. `st.tabs`
+    keeps every tab's body mounted every rerun (module docstring), so the L1
+    download button already exists in the DOM before the tab is clicked into;
+    it is clicked anyway for a realistic sequence and so the export reflects
+    whatever is visibly on screen."""
+    tab = page.locator('[role="tab"]').filter(has_text="L1").first
+    tab.click(timeout=ACTION_TIMEOUT_MS)
+    _settle(page, 1500)
+    with page.expect_download(timeout=ACTION_TIMEOUT_MS) as dl_info:
+        page.locator(".st-key-dl_L1 button").first.click(timeout=ACTION_TIMEOUT_MS)
+    path = dl_info.value.path()
+    with open(path, "r", encoding="utf-8", newline="") as fh:
+        rows = list(csv.DictReader(fh))
+    return [{"institution_id": r["institution_id"], "display_name": r["display_name"]}
+            for r in rows[:3] if r.get("institution_id")]
+
+
+def check_journey_basket(page) -> list[dict]:
+    """BUILD_PLAN_2B.md Stream H brief: search Gdansk, add 3 candidates off
+    the L1 table plus the seed itself, both via the SAME sidebar add box the
+    existing "Basket" section above already exercises (`_add_comparator`) --
+    basket = 4. The basket is cleared first: the R2 "Basket" section above
+    left Sorbonne + Bologna in it, and `check_undefined_lens` moved the seed
+    away from Gdansk, so this is a genuine fresh start, not a continuation."""
+    clear_btn = page.locator(".st-key-basket_clear button")
+    if clear_btn.count():
+        clear_btn.first.click(timeout=ACTION_TIMEOUT_MS)
+        _settle(page, 1500)
+    _search_and_pick(page, GDANSK_QUERY)
+    heading = _seed_heading(page)
+    check("Gda" in heading,
+          f"Journey: seed re-loaded to Gdansk before building the basket (got {heading!r})")
+    candidates = _add_l1_candidates(page)
+    check(len(candidates) == 3, f"Journey: read 3 candidates off the L1 CSV (got {len(candidates)})")
+    for row in candidates:
+        _add_comparator(page, row["display_name"])
+    _add_comparator(page, GDANSK_QUERY)  # the seed itself, same sidebar add box
+    n = _basket_count(page)
+    check(n == 4, f"Journey: basket holds 4 (3 L1 candidates + the seed itself), got {n}")
+    _no_exception(page, "Journey basket (L1 candidates + seed)")
+    return candidates
+
+
+def _compare_deeplink_ids(page) -> list[str]:
+    """The `?compare=` deep link `_selection` prints via `st.code` -- located
+    by its own fixed prefix (a data-contract string, 2B-8), never by DOM
+    position, since a second `st.code` (the `?pair=` hand-off link) appears
+    lower on the same page once >= 2 institutions are compared."""
+    loc = page.locator('[data-testid="stCode"]').filter(has_text="?compare=").first
+    if loc.count() == 0:
+        return []
+    text = loc.text_content() or ""
+    if "?compare=" not in text:
+        return []
+    return text.split("?compare=", 1)[1].strip().split(",")
+
+
+def check_compare_journey(page, candidates: list[dict]) -> dict:
+    """The Compare leg: strip + legend + figure floor, the frontier Layout
+    control, the impact floor toggle, the workbook, the deep link, reorder,
+    remove. Returns `{"remaining_ids": [...]}` (unused downstream today, kept
+    for a future stream that wants the post-removal id set without re-reading
+    the page)."""
+    _click_nav(page, NAV_COMPARE)
+    _settle_figures(page, COMPARE_MIN_FIGURES)
+    _no_exception(page, "Compare (initial render)")
+
+    names = [c["display_name"] for c in candidates]
+    strip = _all_text(page, ".st-key-compare_strip")
+    for name in names:
+        check(name in strip, f"Compare: strip names the L1 candidate {name!r}")
+    check("Gda" in strip, f"Compare: strip also names the seed institution (strip[:200]={strip[:200]!r})")
+
+    legend_hits = page.evaluate(
+        "(names) => Array.from(document.querySelectorAll('[data-testid=\"stMarkdownContainer\"]'))"
+        ".filter(e => names.every(n => e.textContent.includes(n))"
+        " && e.querySelectorAll('span').length >= names.length * 2).length",
+        names)
+    check(legend_hits >= 1,
+          f"Compare: at least one legend strip carries all {len(names)} named L1 candidates "
+          f"with >= 2 swatches each (found {legend_hits} such strips)")
+
+    n_figs = _n_plotly(page)
+    check(n_figs >= COMPARE_MIN_FIGURES,
+          f"Compare: >= {COMPARE_MIN_FIGURES} plotly figures render ({n_figs})")
+
+    ids4 = _compare_deeplink_ids(page)
+    check(len(ids4) == 4, f"Compare: the deep link names exactly 4 ids (got {len(ids4)}: {ids4})")
+    l1_ids = [c["institution_id"] for c in candidates]
+    check(all(i in ids4 for i in l1_ids),
+          f"Compare: the deep link carries all 3 L1 candidate ids ({l1_ids} vs {ids4})")
+
+    # --- the frontier Layout control: facets <-> overlay ---------------------
+    facets_panels = page.evaluate(
+        "(() => { const e = document.querySelector('.st-key-cmp_frontier_plot');"
+        " return e ? e.querySelectorAll('g.subplot').length : -1; })()")
+    check(facets_panels > 1, f"Compare: frontier defaults to small multiples ({facets_panels} panels)")
+    page.locator(".st-key-cmp_frontier_form button").nth(CMP_OVERLAY_IDX).click(timeout=ACTION_TIMEOUT_MS)
+    _settle(page, 2500)
+    overlay_panels = page.evaluate(
+        "(() => { const e = document.querySelector('.st-key-cmp_frontier_plot');"
+        " return e ? e.querySelectorAll('g.subplot').length : -1; })()")
+    check(overlay_panels == 1, f"Compare: the Layout control switches to one overlay plane ({overlay_panels})")
+    page.locator(".st-key-cmp_frontier_form button").nth(CMP_FACETS_IDX).click(timeout=ACTION_TIMEOUT_MS)
+    _settle(page, 2500)
+
+    # --- the impact floor toggle ----------------------------------------------
+    before_caps = _all_text(page, '[data-testid="stCaptionContainer"]')
+    page.locator('.st-key-cmp_impact_floor [data-testid="stRadioOption"]').nth(
+        CMP_FLOOR_LOW_IDX).click(timeout=ACTION_TIMEOUT_MS)
+    _settle(page, 2500)
+    after_caps = _all_text(page, '[data-testid="stCaptionContainer"]')
+    check(before_caps != after_caps, "Compare: the impact floor toggle changes the page's captions")
+    page.locator('.st-key-cmp_impact_floor [data-testid="stRadioOption"]').nth(
+        CMP_FLOOR_HIGH_IDX).click(timeout=ACTION_TIMEOUT_MS)
+    _settle(page, 2500)
+
+    # --- the workbook ----------------------------------------------------------
+    with page.expect_download(timeout=120_000) as dl_info:
+        page.locator(".st-key-dl_workbook button").first.click(timeout=ACTION_TIMEOUT_MS)
+    raw = Path(dl_info.value.path()).read_bytes()
+    check(raw[:2] == b"PK", "Compare: the workbook downloads as a real xlsx container")
+    book = openpyxl.load_workbook(io.BytesIO(raw))
+    check(len(book.sheetnames) >= XLSX_MIN_SHEETS,
+          f"Compare: the workbook carries >= {XLSX_MIN_SHEETS} sheets ({len(book.sheetnames)}: "
+          f"{book.sheetnames})")
+    check(XLSX_METHODS_SHEET in book.sheetnames,
+          f"Compare: the workbook carries a {XLSX_METHODS_SHEET!r} sheet ({book.sheetnames})")
+
+    # --- reorder: Down on the FIRST row changes the printed selection order ---
+    before_ids = _compare_deeplink_ids(page)
+    page.locator('[class*="st-key-cmp_down_"] button').first.click(timeout=ACTION_TIMEOUT_MS)
+    _settle(page, 2000)
+    after_ids = _compare_deeplink_ids(page)
+    check(len(after_ids) == len(before_ids) == 4 and after_ids != before_ids
+          and set(after_ids) == set(before_ids),
+          f"Compare: Down on the first row changes the selection order, same 4 ids "
+          f"({before_ids} -> {after_ids})")
+
+    # --- remove one -> 3 names -------------------------------------------------
+    page.locator('[class*="st-key-cmp_rm_"] button').first.click(timeout=ACTION_TIMEOUT_MS)
+    _settle_figures(page, COMPARE_MIN_FIGURES)
+    remaining_ids = _compare_deeplink_ids(page)
+    check(len(remaining_ids) == 3, f"Compare: removing one institution leaves 3 (got {len(remaining_ids)})")
+    _no_exception(page, "Compare (after reorder + remove)")
+    return {"remaining_ids": remaining_ids}
+
+
+def _pair_deeplink_ids(page) -> list[str]:
+    loc = page.locator('[data-testid="stCode"]').filter(has_text="?pair=").first
+    if loc.count() == 0:
+        return []
+    text = loc.text_content() or ""
+    if "?pair=" not in text:
+        return []
+    return text.split("?pair=", 1)[1].strip().split(",")
+
+
+def check_handoff(page, context) -> None:
+    """2B-8's hand-off: force the Compare hand-off's B selectbox to the LAST
+    option (with 3 candidates remaining, the default pair is the first two --
+    picking the third guarantees a NON-default pair), then follow the
+    rendered link with a REAL click -- located by its own `href` prefix
+    (`/Collaborate?pair=`, a data-contract string), never by a button label,
+    since `st.link_button` renders with no `key=` here. Proves the query
+    string the link actually carries is what opens on Collaborate, which a
+    click on the picker's own (unchanged) default pair could not distinguish
+    from "the picker's default happens to also be Collaborate's default"."""
+    _open_select(page, "cmp_pair_b")
+    page.locator('[role="option"]').last.click(timeout=ACTION_TIMEOUT_MS)
+    _settle(page, 2000)
+
+    # Located by PATH + "carries a query string" (`[href*="?"]`), never by the
+    # exact `?pair=` key: Streamlit's OWN sidebar nav also emits a plain
+    # `a[href="/Collaborate"]` (no query) for the page-to-page link, which a
+    # bare `href^="/Collaborate"` locator would match FIRST in DOM order (the
+    # sidebar renders above the main column) -- the `[href*="?"]` clause rules
+    # that one out while staying immune to a renamed query key (proof (a)
+    # below renames it), so the failure that mutation produces shows up in
+    # the ID-EXTRACTION checks just below, not in "does the link even exist".
+    link = page.locator(f'a[href^="{COLLAB_LINK_PREFIX}"][href*="?"]').first
+    check(link.count() >= 1, "Compare: the hand-off link renders (a[href^=/Collaborate][href*=?])")
+    href = link.get_attribute("href") or ""
+    picked_ids = href.split("pair=", 1)[1].split(",") if "pair=" in href else []
+    check(len(picked_ids) == 2 and picked_ids[0] != picked_ids[1],
+          f"Compare: the hand-off link names two distinct ids ({href!r})")
+
+    target_attr = link.get_attribute("target") or ""
+    if target_attr == "_blank":
+        with context.expect_page(timeout=ACTION_TIMEOUT_MS) as new_page_info:
+            link.click(timeout=ACTION_TIMEOUT_MS)
+        collab_page = new_page_info.value
+        opened_new_tab = True
+    else:
+        link.click(timeout=ACTION_TIMEOUT_MS)
+        collab_page = page
+        opened_new_tab = False
+    collab_page.set_default_timeout(ACTION_TIMEOUT_MS)
+    collab_page.wait_for_selector('[data-testid="stDataFrame"]', timeout=ACTION_TIMEOUT_MS)
+    _settle(collab_page, 2500)
+
+    landed_ids = _pair_deeplink_ids(collab_page)
+    check(landed_ids == picked_ids,
+          f"Collaborate: opened on the SAME pair the hand-off link named ({picked_ids} -> {landed_ids})")
+    _no_exception(collab_page, "Collaborate (opened from the Compare hand-off)")
+
+    # --- swap flips the order --------------------------------------------------
+    collab_page.locator(".st-key-pair_swap button").first.click(timeout=ACTION_TIMEOUT_MS)
+    _settle(collab_page, 2000)
+    swapped_ids = _pair_deeplink_ids(collab_page)
+    check(swapped_ids == list(reversed(landed_ids)),
+          f"Collaborate: swap flips A and B ({landed_ids} -> {swapped_ids})")
+
+    # --- the shared-topics caption + its CSV header ----------------------------
+    caps = _all_text(collab_page, '[data-testid="stCaptionContainer"]')
+    check(bool(re.search(r"\d\.\d{3}", caps)),
+          "Collaborate: a shared-topics caption carries the 3-decimal overlap score "
+          "(copy.COLLAB['SHARED_CAPTION']'s own {score:.3f} format)")
+    header = _download_csv_header(collab_page, ".st-key-dl_shared button")
+    check(header.strip() == SHARED_TOPICS_HEADER,
+          f"Collaborate: shared-topics CSV header matches the K contract ({header!r})")
+
+    if opened_new_tab:
+        collab_page.close()
+
+
+def check_methods_journey(page) -> None:
+    _click_nav(page, NAV_METHODS)
+    page.wait_for_selector('[data-testid="stExpander"]', timeout=ACTION_TIMEOUT_MS)
+    _settle(page, 1500)
+
+    n_sections = page.locator('[data-testid="stExpander"]').count()
+    check(n_sections >= METHODS_MIN_SECTIONS,
+          f"Methods: >= {METHODS_MIN_SECTIONS} section expanders render ({n_sections})")
+
+    body = _full_page_text(page)
+    leftover = PLACEHOLDER_RE.findall(body)
+    check(not leftover, f"Methods: no unresolved {{placeholder}} text on the page (found {leftover[:5]})")
+
+    with page.expect_download(timeout=ACTION_TIMEOUT_MS) as dl_info:
+        page.locator(".st-key-dl_methods_note button").first.click(timeout=ACTION_TIMEOUT_MS)
+    raw = Path(dl_info.value.path()).read_bytes()
+    check(len(raw) > 500, f"Methods: the source-note Markdown download is a real document ({len(raw)} bytes)")
+    _no_exception(page, "Methods")
+
+
+def check_narrative_persistence(page) -> dict:
+    """2B-10's narrative order, hopped with real sidebar nav clicks: the
+    tree/basis scenario Find carries (switched to its non-default DISPLAY
+    label back in check_settings) reads the same on Compare and
+    Collaborate's own `.st-key-tree`/`.st-key-basis` sidebar selects. Methods
+    renders NEITHER control -- `views_methods.render()` never calls
+    `_sidebar_scenario()` or `_sidebar_basket()`, a real gap from the
+    brief's assumption that all three downstream pages show them (see this
+    stream's progress note) -- so Methods gets only the exception check here.
+    The basket's `{n} of {cap} added` sidebar count is read (never
+    re-editable) on Compare/Collaborate; returning to Find shows the Gdansk
+    seed still loaded and the SAME count on Find's own editable list."""
+    _click_nav(page, NAV_COMPARE)
+    _settle(page, 1500)
+    tree_c, basis_c = _selectbox_value(page, "tree"), _selectbox_value(page, "basis")
+    check(tree_c == TREE_LABEL_ORIGINAL,
+          f"Compare: sidebar taxonomy still {TREE_LABEL_ORIGINAL!r} (got {tree_c!r})")
+    check(basis_c == BASIS_LABEL_FRAC,
+          f"Compare: sidebar counting basis still {BASIS_LABEL_FRAC!r} (got {basis_c!r})")
+    n_compare = _sidebar_basket_n(page)
+    check(n_compare is not None, f"Compare: sidebar basket count is readable (caption gave {n_compare!r})")
+
+    _click_nav(page, NAV_COLLAB)
+    _settle(page, 1500)
+    tree_l, basis_l = _selectbox_value(page, "tree"), _selectbox_value(page, "basis")
+    check(tree_l == TREE_LABEL_ORIGINAL,
+          f"Collaborate: sidebar taxonomy still {TREE_LABEL_ORIGINAL!r} (got {tree_l!r})")
+    check(basis_l == BASIS_LABEL_FRAC,
+          f"Collaborate: sidebar counting basis still {BASIS_LABEL_FRAC!r} (got {basis_l!r})")
+    n_collab = _sidebar_basket_n(page)
+    check(n_compare is not None and n_compare == n_collab,
+          f"Basket: the sidebar count agrees on Compare and Collaborate ({n_compare} vs {n_collab})")
+
+    _click_nav(page, NAV_METHODS)
+    _settle(page, 1000)
+    _no_exception(page, "Methods (persistence hop)")
+
+    _click_nav(page, "Find")
+    _settle(page, 1500)
+    heading = _seed_heading(page)
+    check("Gda" in heading, f"Find: returning from Methods still shows the Gdansk seed (got {heading!r})")
+    n_find = _basket_count(page)
+    check(n_compare is not None and n_find == n_compare,
+          f"Basket: {n_find} items on Find matches the {n_compare} the sidebar reported on "
+          f"Compare/Collaborate")
+    return {"n_basket": n_find}
+
+
+def check_journey_widths(page, shot_dir: Path) -> None:
+    """Compare at three widths (390 needs the drawer opened, same idiom as
+    `check_screenshots` above); one screenshot each for Collaborate and
+    Methods at 1280 px. Uses `page.set_viewport_size` on the SAME page/session
+    throughout -- a fresh `browser.new_page()` would open a new WebSocket
+    session with an EMPTY basket, exactly the false-failure `page.goto()`
+    produces for a persistence check (module docstring)."""
+    shot_dir.mkdir(parents=True, exist_ok=True)
+    _click_nav(page, NAV_COMPARE)
+    _settle_figures(page, COMPARE_MIN_FIGURES)
+    for width in WIDTHS:
+        page.set_viewport_size({"width": width, "height": 900})
+        _settle(page, 1000)
+        if width == 390:
+            _ensure_sidebar_open(page)
+        scroll = page.evaluate("document.documentElement.scrollWidth")
+        inner = page.evaluate("window.innerWidth")
+        check(scroll <= inner + 2, f"Compare {width}px: scrollWidth {scroll} <= innerWidth+2 {inner + 2}")
+        p = shot_dir / f"smoke_compare_{width}.png"
+        page.screenshot(path=str(p), full_page=True)
+        check(p.is_file(), f"Compare {width}px: screenshot written ({p.name})")
+    page.set_viewport_size({"width": 1280, "height": 900})
+    _settle(page, 800)
+
+    _click_nav(page, NAV_COLLAB)
+    _settle(page, 2000)
+    scroll = page.evaluate("document.documentElement.scrollWidth")
+    inner = page.evaluate("window.innerWidth")
+    check(scroll <= inner + 2, f"Collaborate 1280px: scrollWidth {scroll} <= innerWidth+2 {inner + 2}")
+    p = shot_dir / "smoke_collab_1280.png"
+    page.screenshot(path=str(p), full_page=True)
+    check(p.is_file(), f"Collaborate 1280px: screenshot written ({p.name})")
+
+    _click_nav(page, NAV_METHODS)
+    _settle(page, 1500)
+    scroll = page.evaluate("document.documentElement.scrollWidth")
+    inner = page.evaluate("window.innerWidth")
+    check(scroll <= inner + 2, f"Methods 1280px: scrollWidth {scroll} <= innerWidth+2 {inner + 2}")
+    p = shot_dir / "smoke_methods_1280.png"
+    page.screenshot(path=str(p), full_page=True)
+    check(p.is_file(), f"Methods 1280px: screenshot written ({p.name})")
+
+
 # ------------------------------------------------------------------ main ----
 
 def main() -> int:
@@ -933,6 +1387,7 @@ def main() -> int:
 
     server = _start_server(app_dir, PORT)
     profile_expect: dict = {}
+    journey: dict = {}
     try:
         if not _wait_for_port(PORT, timeout=90.0):
             check(False, f"server did not open port {PORT} within timeout")
@@ -972,6 +1427,30 @@ def main() -> int:
                     check_undefined_lens(page, *undefined)
             except Exception as exc:  # noqa: BLE001
                 fail_section("Undefined lens", exc)
+
+            # Phase 2B (BUILD_PLAN_2B.md Stream H): the full four-page journey,
+            # Menu -> Find -> Compare -> Collaborate -> Methods, on the SAME
+            # page/session the checks above already built up -- a fresh
+            # `browser.new_page()` here would open a new WebSocket session
+            # with an empty basket, the same false-failure a `page.goto()`
+            # produces for a persistence check (module docstring).
+            def _run_compare_journey() -> None:
+                journey.update(check_compare_journey(page, journey.get("candidates", [])) or {})
+
+            journey_sections = [
+                ("Journey: basket (L1 candidates + seed)",
+                 lambda: journey.__setitem__("candidates", check_journey_basket(page))),
+                ("Journey: Compare page", _run_compare_journey),
+                ("Journey: hand-off to Collaborate", lambda: check_handoff(page, page.context)),
+                ("Journey: Methods page", lambda: check_methods_journey(page)),
+                ("Journey: narrative persistence", lambda: check_narrative_persistence(page)),
+                ("Journey: widths + screenshots", lambda: check_journey_widths(page, shot_dir)),
+            ]
+            for name, fn in journey_sections:
+                try:
+                    fn()
+                except Exception as exc:  # noqa: BLE001 -- one section's crash must not hang the run
+                    fail_section(name, exc)
 
             page.close()
             check_screenshots(browser, shot_dir)
