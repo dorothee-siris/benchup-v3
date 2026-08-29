@@ -165,8 +165,10 @@ def format_concordance(rows: list[dict], *, lenses: list[str], N: int) -> pd.Dat
 
 def concordance_caption(n_defined: int, N: int, n_rows: int) -> str:
     """Parametric (BUILD_PLAN_2A.md L10): states N and n per VIZ_SPEC.md §1.6/§2.3."""
-    return (f"{n_rows} candidates found by 2 or more of the {n_defined} lenses defined "
-            f"for this seed, within their top-{N}.")
+    # manager fix 2026-08-29 (Stream G finding): the engine's concordance returns the
+    # tie-inclusive top-50 INCLUDING k=1 rows, so the caption must not assert a k floor.
+    return (f"{n_rows} candidates, ranked by how many of the {n_defined} lenses defined "
+            f"for this seed place them in their top-{N} (the k column).")
 
 
 def render_concordance_table(df: pd.DataFrame, *, key: str):
