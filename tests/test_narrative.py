@@ -14,7 +14,22 @@ a caller fills at render time from CFG or the live data. Two scopes:
 
   (b) string literals passed to a Streamlit UI call, or to that call's
       label=/help=/caption=/placeholder= kwarg, in pages/*.py, Menu.py,
-      lib/views_find.py, lib/ranked.py, lib/filters.py, lib/badges.py.
+      lib/views_*.py (glob -- Phase 2B added lib/views_compare.py,
+      lib/views_collab.py, lib/views_methods.py alongside lib/views_find.py;
+      a future views_*.py needs no edit here), lib/ranked.py, lib/filters.py,
+      lib/badges.py, lib/selection.py, lib/exports_xlsx.py,
+      lib/charts_compare.py, lib/tiles.py, lib/wordcloud_png.py.
+
+      WIDENED FOR PHASE 2B (BUILD_PLAN_2B.md S0 A5, Stream G): rev 0 of this
+      file scanned a five-file literal list + pages/*.py -- nothing Phase 2B
+      created (the Compare/Collaborate pages and their six new lib modules)
+      was covered. `SCOPE_B_FILES` below now globs lib/views_*.py rather than
+      naming lib/views_find.py alone, and explicitly adds the other five new
+      modules the brief names. Two of them (lib/charts_compare.py,
+      lib/exports_xlsx.py) hold no `import streamlit` at all -- they are
+      scanned anyway (the AST walk costs nothing on a file with zero matches)
+      so a future UI call added to either is covered from day one, not
+      discovered by a second widening.
 
       DEVIATION FROM THE LITERAL BRIEF WORDING ("ast walk: Call nodes whose
       func is st.<name> or st.column_config.<name>"): lib/views_find.py
@@ -39,6 +54,21 @@ EXCLUDED (scope fence, one reason each -- BUILD_PLAN_2A.md Stream G):
   lib/app_config.py  -- loads config.yaml verbatim into CFG, defines no strings.
   lib/exports.py     -- CSV filename template, not rendered UI copy.
   lib/engine/**      -- no Streamlit import anywhere in the engine package.
+  lib/compare_data.py, lib/collab_data.py, lib/profile_data.py, lib/links.py,
+  lib/search.py, lib/countries.py -- Phase 2B additions, checked at
+  test-collection time (test_pure_data_modules_hold_no_ui_copy below): none
+  imports streamlit, so none can define a `st.*` UI call for the AST walk to
+  find, and none is an uppercase copy.py-style constant module either --
+  excluded on the same "no UI copy possible" ground as the five files above,
+  not by omission.
+  lib/state.py -- DOES import streamlit (checked, deliberately not in the
+  list above), but only ever calls `st.session_state`'s dict-like methods
+  (`setdefault`/`.remove`/`.clear`/subscript) -- `session_state` is not a
+  callable member of `dir(st)`, so its own attribute accesses never match
+  ST_CALL_NAMES, and `.setdefault`/`.remove`/`.clear` are dict methods, not
+  Streamlit ones. test_pure_data_modules_hold_no_ui_copy checks the weaker,
+  correct claim for this file: zero calls whose function name is itself a
+  `dir(st)` member.
 
 NON-VACUITY PROOF: run standalone (not part of this suite -- see
 V3/progress/2A_G.md for the transcript):
@@ -56,6 +86,31 @@ V3/progress/2A_G.md for the transcript):
     print("scratch violations:", bad)   # -> ['showing 30 rows'] (FAIL as expected)
     PY
     rm lib/_scratch_copy.py
+
+A5 WIDENING NON-VACUITY PROOF (Stream G, 2026-08-29 -- see progress/2B_G.md
+for the full transcript): scope (a) above only proves lib/copy.py was
+already covered; the point of A5 is that scope (b) now reaches the SIX
+Phase 2B files rev 0 never touched. Proof on one of them
+(lib/views_compare.py, none of the five old scope-(b) names):
+    python - <<'PY'
+    import shutil, sys
+    from pathlib import Path
+    APP_DIR = Path(".").resolve()
+    scratch = APP_DIR / "lib" / "_scratch_views_compare.py"
+    shutil.copy(APP_DIR / "lib" / "views_compare.py", scratch)
+    with open(scratch, "a", encoding="utf-8") as f:
+        f.write('\n\ndef _injected_probe():\n    import streamlit as st\n'
+                '    st.caption("showing 30 rows")\n')
+    sys.path.insert(0, str(APP_DIR))
+    from tests.test_narrative import collect_ui_call_strings, has_digit_violation, load_allowlist
+    tokens = load_allowlist()
+    bad = [s for _, s in collect_ui_call_strings(scratch) if has_digit_violation(s, tokens)]
+    print("FAIL-CASE (injected):", bad)     # -> ['showing 30 rows'] (FAIL as expected)
+    shutil.copy(APP_DIR / "lib" / "views_compare.py", scratch)   # remove the injection
+    bad2 = [s for _, s in collect_ui_call_strings(scratch) if has_digit_violation(s, tokens)]
+    print("PASS-CASE (clean):", bad2)        # -> [] (PASS as expected)
+    PY
+    rm lib/_scratch_views_compare.py
 
 Run from cwd `app/`:  python -m pytest tests/test_narrative.py -q
 """
@@ -83,10 +138,16 @@ ST_CALL_NAMES = ({n for n in dir(st) if not n.startswith("_") and callable(getat
 
 SCOPE_B_FILES = [
     APP_DIR / "Menu.py",
-    APP_DIR / "lib" / "views_find.py",
+    *sorted((APP_DIR / "lib").glob("views_*.py")),  # A5: a family, globbed -- covers a new
+                                                     # views_*.py automatically, no edit here
     APP_DIR / "lib" / "ranked.py",
     APP_DIR / "lib" / "filters.py",
     APP_DIR / "lib" / "badges.py",
+    APP_DIR / "lib" / "selection.py",
+    APP_DIR / "lib" / "exports_xlsx.py",
+    APP_DIR / "lib" / "charts_compare.py",
+    APP_DIR / "lib" / "tiles.py",
+    APP_DIR / "lib" / "wordcloud_png.py",
     *sorted((APP_DIR / "pages").glob("*.py")),
 ]
 
@@ -218,10 +279,56 @@ def test_allowlist_has_required_tokens_and_stays_small():
 def test_scope_b_matcher_is_not_vacuous():
     """Guards the AST matcher itself: if this drops to ~0, ST_CALL_NAMES (or
     a file path) broke -- e.g. a Streamlit rename -- not that the app has no
-    UI copy left to scan. 33 is the count measured against this build; the
-    floor is set well below it."""
+    UI copy left to scan. 76 is the count measured against this build after
+    the A5 widening (Menu.py 15, lib/views_*.py 48 across four files,
+    lib/ranked.py 13, the other seven scoped files 0 each -- ranked/views_*
+    alone already clear the old 33-count baseline the pre-2B scope reached);
+    the floor is set well below the measured total, not at it, so a routine
+    copy edit does not make this brittle."""
     total = sum(len(collect_ui_call_strings(f)) for f in SCOPE_B_FILES)
-    assert total >= 20, f"only {total} UI-call strings found across scope (b) -- matcher likely broken"
+    assert total >= 50, f"only {total} UI-call strings found across scope (b) -- matcher likely broken"
+
+
+def test_a5_widening_actually_added_files_versus_the_pre_2b_scope():
+    """Non-vacuity of the WIDENING itself, not just of the matcher: guards
+    against a future edit collapsing SCOPE_B_FILES back to the pre-2B
+    five-name list without anyone noticing (e.g. a bad merge). The four
+    lib/views_*.py files (2A shipped only views_find.py) and the five other
+    Phase 2B additions must all be present."""
+    names = {f.name for f in SCOPE_B_FILES}
+    assert {"views_compare.py", "views_collab.py", "views_methods.py", "views_find.py"} <= names
+    assert {"selection.py", "exports_xlsx.py", "charts_compare.py", "tiles.py",
+            "wordcloud_png.py"} <= names
+
+
+def test_pure_data_modules_hold_no_ui_copy():
+    """Turns the EXCLUDED-list claim above into a live check: every Phase 2B
+    data/logic module named there imports no streamlit, so it structurally
+    cannot define a `st.*` UI call -- if one of these ever gains a Streamlit
+    import, this fails and the module needs adding to SCOPE_B_FILES instead
+    of silently staying excluded."""
+    pure_modules = ["compare_data.py", "collab_data.py", "profile_data.py",
+                    "links.py", "search.py", "countries.py"]
+    for name in pure_modules:
+        path = APP_DIR / "lib" / name
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        imports_st = any(
+            (isinstance(node, ast.Import) and any(a.name == "streamlit" for a in node.names))
+            or (isinstance(node, ast.ImportFrom) and node.module == "streamlit")
+            for node in ast.walk(tree))
+        assert not imports_st, (
+            f"lib/{name} now imports streamlit -- it can define UI copy and must "
+            "move from EXCLUDED into SCOPE_B_FILES")
+
+
+def test_state_module_calls_no_real_streamlit_ui_function():
+    """lib/state.py DOES import streamlit (session_state bookkeeping), so the
+    "imports no streamlit" test above cannot cover it -- this checks the
+    claim that actually matters: no Call in the file resolves to a real
+    `dir(st)` member (session_state's own setdefault/remove/clear do not),
+    so collect_ui_call_strings finds nothing there structurally, not by
+    accident of today's content."""
+    assert collect_ui_call_strings(APP_DIR / "lib" / "state.py") == []
 
 
 def test_copy_and_extra_copy_scan_is_not_vacuous():

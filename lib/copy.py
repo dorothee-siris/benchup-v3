@@ -589,9 +589,6 @@ COMPARE = {
                        "in the world top decile of citations for their own subfield, year and "
                        "document type, with the interval around each figure. Fractional basis "
                        "throughout."),
-    "CAPTION_TRENDS": ("Publications per year in each panel, on the {basis} basis and the {tree} "
-                       "taxonomy. Each panel keeps its own vertical scale, so read the shape of a "
-                       "panel and not its height against the next one."),
     "CAPTION_COVERAGE": ("Share of each institution's whole fractional output in each state. The six "
                          "states are exclusive and sum to that total, so the classified share is "
                          "what the subject, ERC and SDG views above rest on."),
