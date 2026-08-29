@@ -1,0 +1,189 @@
+"""
+Acceptance probe for the Find page (BUILD_PLAN_2A.md Stream E). Same shape as
+ops/_probe_menu.py: start `streamlit run pages/1_<emoji>_Find.py` as a
+subprocess, drive it headless with Playwright, ALWAYS terminate the server.
+
+Selectors are locale-independent: the `st-key-<key>` classes the page's own
+keyed widgets/containers emit, `[role="tab"]`, `[data-testid=...]` --
+never literal UI strings, and never `inner_text` on a table (st.dataframe is a
+canvas grid; the Assembly Line gotcha list forbids text assertions on it, so
+row-level facts are checked against the engine/CSV instead, at the end).
+
+The seed is injected through the page's own `?seed=<id>` query parameter, which
+`views_find.render()` reads ONCE into `st.session_state["seed_id"]`.
+
+Exit 0 when every check passes; 1 otherwise. Stdout is ASCII-only (cp1252
+console).
+"""
+from __future__ import annotations
+
+import io
+import socket
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+from playwright.sync_api import sync_playwright
+
+APP_DIR = Path(__file__).resolve().parent.parent
+PAGE = "pages/1_\U0001F50E_Find.py"
+PORT = 8602
+SEEDS = ["I40413290", "I265217849", "I277688954"]
+SHOT_SEED = SEEDS[0]
+SHOT_DIR = APP_DIR / "tests" / "ui" / "screenshots"
+WIDTHS = [1920, 1280, 390]
+N_DEFAULT_TABS = 10   # Overview + the 8 default lenses + Aspirational
+N_TOGGLED_TABS = 12   # ... + C1 + L7
+GOLD_RANK1 = ("I34250744", 0.793119)
+
+RESULTS: list[tuple[bool, str]] = []
+
+
+def check(ok: bool, message: str) -> bool:
+    RESULTS.append((bool(ok), message))
+    print(("PASS: " if ok else "FAIL: ") + message)
+    return bool(ok)
+
+
+def _wait_for_port(port: int, timeout: float = 60.0) -> bool:
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            if sock.connect_ex(("127.0.0.1", port)) == 0:
+                return True
+        time.sleep(0.5)
+    return False
+
+
+def _captions(page) -> str:
+    """textContent (not innerText) so captions inside inactive tab panels count."""
+    return page.evaluate(
+        "Array.from(document.querySelectorAll('[data-testid=\"stCaptionContainer\"]'))"
+        ".map(e => e.textContent).join('|')")
+
+
+def _load(page, seed: str) -> None:
+    page.goto(f"http://127.0.0.1:{PORT}/?seed={seed}", wait_until="domcontentloaded")
+    page.wait_for_selector('[role="tab"]', timeout=180_000)
+    page.wait_for_timeout(2500)
+
+
+def _probe_seed(page, seed: str) -> None:
+    _load(page, seed)
+    check(page.locator('[data-testid="stException"]').count() == 0,
+          f"{seed}: no Streamlit exception element on the page")
+    tabs = page.locator('[role="tab"]').count()
+    check(tabs >= N_DEFAULT_TABS, f"{seed}: tab count {tabs} >= {N_DEFAULT_TABS}")
+    check(tabs == N_DEFAULT_TABS,
+          f"{seed}: optional-lens tabs absent by default (tab count is exactly {N_DEFAULT_TABS})")
+
+
+def _probe_controls(page) -> None:
+    _load(page, SHOT_SEED)
+    before = _captions(page)
+    for key in ("c1_on", "l7_on"):
+        page.locator(f".st-key-{key} label").first.click()
+        page.wait_for_timeout(4000)
+    tabs = page.locator('[role="tab"]').count()
+    check(tabs == N_TOGGLED_TABS,
+          f"C1 and L7 toggles add their own tabs (tab count is {tabs}, expected {N_TOGGLED_TABS})")
+    check(page.locator('[data-testid="stException"]').count() == 0,
+          "no Streamlit exception after enabling the optional lenses")
+    page.locator('.st-key-depth [data-testid="stRadioOption"]').nth(1).click()
+    page.wait_for_timeout(4000)
+    check(_captions(page) != before, "the depth caption changed when depth switched to its max")
+    check(page.locator(".st-key-strip").count() >= 1,
+          "the off-default strip appears once a control leaves its default")
+    page.locator(".st-key-f_types input").first.click()
+    page.wait_for_timeout(800)
+    page.keyboard.press("Enter")
+    page.wait_for_timeout(5000)
+    check(page.locator(".st-key-strip").count() >= 1,
+          "the strip is still rendered with a type post-filter active")
+    check(page.locator('[data-testid="stException"]').count() == 0,
+          "no Streamlit exception after applying a type post-filter")
+
+
+def _probe_widths(browser) -> None:
+    SHOT_DIR.mkdir(parents=True, exist_ok=True)
+    for width in WIDTHS:
+        page = browser.new_page(viewport={"width": width, "height": 1000})
+        _load(page, SHOT_SEED)
+        scroll = page.evaluate("document.documentElement.scrollWidth")
+        inner = page.evaluate("window.innerWidth")
+        check(scroll <= inner + 2,
+              f"{width} px: scrollWidth {scroll} <= innerWidth+2 {inner + 2}")
+        path = SHOT_DIR / f"e_find_{width}.png"
+        page.screenshot(path=str(path), full_page=True)
+        print("Saved screenshot:", path)
+        check(path.is_file(), f"{width} px: screenshot written")
+        page.close()
+
+
+def _recompute_check() -> None:
+    """Read rank 1 back out of the L1 CSV the page's own export path produces
+    (engine -> exports.ranking_csv -> pandas), and compare with the golden."""
+    sys.path.insert(0, str(APP_DIR))
+    import pandas as pd
+
+    from lib.engine import build_rows, build_substrates, load_context, rank_all
+    from lib.exports import ranking_csv
+
+    ctx = load_context(str(APP_DIR / "data"))
+    subs = build_substrates(ctx)
+    rankings = rank_all(ctx, subs, SHOT_SEED)
+    l1 = rankings["L1"]
+    rows = build_rows(l1, ctx, len(l1["sorted_ids"]), rankings)
+    blob = ranking_csv(rows, seed_id=SHOT_SEED, lens="L1", tree=subs["tree"], basis=subs["basis"],
+                       snapshot="", filters_label="")
+    df = pd.read_csv(io.BytesIO(blob))
+    top = df.iloc[0]
+    print(f"RECOMPUTE: L1 rank {top['rank']} = {top['institution_id']} "
+          f"score {top['lens_score']:.6f} (golden {GOLD_RANK1[0]} {GOLD_RANK1[1]:.6f})")
+    check(str(top["institution_id"]) == GOLD_RANK1[0]
+          and abs(float(top["lens_score"]) - GOLD_RANK1[1]) < 1e-3,
+          "L1 rank-1 read back from the export CSV matches the golden row")
+
+
+def main() -> int:
+    server = subprocess.Popen(
+        [sys.executable, "-m", "streamlit", "run", PAGE,
+         "--server.headless", "true", "--server.port", str(PORT)],
+        # DEVNULL, not PIPE: every rerun logs a `use_container_width` deprecation
+        # per st.dataframe (lib/ranked.py, Stream D1's file), which fills an
+        # unread pipe buffer and blocks the server mid-probe.
+        cwd=str(APP_DIR), stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+    try:
+        if not _wait_for_port(PORT):
+            print("FAIL: server did not open port", PORT)
+            return 1
+        with sync_playwright() as p:
+            browser = p.chromium.launch()
+            page = browser.new_page(viewport={"width": 1280, "height": 1000})
+            for seed in SEEDS:
+                _probe_seed(page, seed)
+            _probe_controls(page)
+            page.close()
+            _probe_widths(browser)
+            browser.close()
+    finally:
+        server.terminate()
+        try:
+            server.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            server.kill()
+            server.wait(timeout=10)
+    _recompute_check()
+    failed = [m for ok, m in RESULTS if not ok]
+    print(f"\n{len(RESULTS) - len(failed)} of {len(RESULTS)} checks passed")
+    if failed:
+        for m in failed:
+            print("FAILED:", m)
+        return 1
+    print("ALL CHECKS PASSED")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

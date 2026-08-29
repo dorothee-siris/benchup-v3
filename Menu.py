@@ -55,7 +55,8 @@ st.markdown("---")
 
 _manifest = manifest()
 _snapshot_label = _manifest.get("snapshot") or CFG.get("snapshot", "n/a")
-_generated_at = _manifest.get("generated_at", "n/a")
+_generated_at = (_manifest.get("source_manifest_generated_at") or _manifest.get("generated_at")
+                 or _manifest.get("deployed_at") or "n/a")  # deploy.py MANIFEST vs source_manifest keys (manager fix 2026-08-29)
 st.caption(
     f"Snapshot: {_snapshot_label} (generated {_generated_at}) -- {len(index())} "
     "institutions in the index."

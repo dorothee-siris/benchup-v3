@@ -114,7 +114,7 @@ def render_ranked_table(df: pd.DataFrame, *, key: str, score_form: str = "progre
     event = st.dataframe(
         df,
         hide_index=True,
-        use_container_width=True,
+        width="stretch",  # manager fix 2026-08-29: use_container_width deprecated in 1.61 (warning flood)
         on_select="rerun",
         selection_mode="multi-row",
         key=key,
@@ -131,7 +131,7 @@ def render_ranked_table(df: pd.DataFrame, *, key: str, score_form: str = "progre
             "badge": st.column_config.TextColumn("Badge"),
             "size": st.column_config.TextColumn("Size (full)"),
             "score": st.column_config.ProgressColumn(
-                "Score", min_value=0, max_value=1, format="%.0f%%"),
+                "Score", min_value=0, max_value=1, format="percent"),  # manager fix 2026-08-29: printf spec on a 0-1 score printed "1%"
             "evidence": st.column_config.TextColumn("Evidence"),
             "rank_under": st.column_config.TextColumn("Rank under"),
         },
@@ -175,7 +175,7 @@ def render_concordance_table(df: pd.DataFrame, *, key: str):
     event = st.dataframe(
         df,
         hide_index=True,
-        use_container_width=True,
+        width="stretch",  # manager fix 2026-08-29: use_container_width deprecated in 1.61 (warning flood)
         on_select="rerun",
         selection_mode="multi-row",
         key=key,
