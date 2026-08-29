@@ -121,7 +121,7 @@ def test_frontier_mix_sums_to_one_and_anchor_strasbourg(ctx):
     row = df[df["institution_id"] == STRASBOURG].set_index("quadrant")["share"]
     want = {"accelerating_expansion": 0.235271, "accelerating_contraction": 0.252417,
             "decelerating_expansion": 0.160118, "decelerating_contraction": 0.240267,
-            "not_scored": 0.111927}
+            "not_frontier_scored": 0.111927}
     for q, v in want.items():
         np.testing.assert_allclose(float(row[q]), v, atol=1e-5)
 

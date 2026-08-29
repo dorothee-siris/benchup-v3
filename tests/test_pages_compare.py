@@ -145,7 +145,7 @@ def test_quadrant_mix_sums_to_one_with_the_fifth_segment_and_is_renamed(engine):
     the builder knows, or the residual is drawn at zero."""
     df = views_compare._frontier_mix(tuple(SIX))
     assert charts_compare.NOT_SCORED in set(df["quadrant"]), "the fifth segment was not renamed"
-    assert compare_data.NOT_SCORED not in set(df["quadrant"])
+    assert compare_data.NOT_SCORED == charts_compare.NOT_SCORED  # ONE vocabulary since the manager fix (C needs_change #1)
     for iid, total in df.groupby("institution_id")["share"].sum().items():
         assert total == pytest.approx(1.0, abs=1e-5), (iid, total)
     # and the builder really keeps it: five rows per institution, none synthesised at zero
