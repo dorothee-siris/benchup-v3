@@ -238,6 +238,9 @@ FIND = {
     "FAMILY_HELP": "Keeps candidates whose L0 field overlap with the seed is at or above {threshold}.",
     "BASKET_HEADER": "Basket",
     "BASKET_EMPTY": "No comparator added yet. Use the add button under any table.",
+    "BASKET_COUNT": "{n} of {cap} added",
+    "BASKET_FULL": ("The basket already holds the most institutions Compare can show at "
+                     "once ({cap}). Remove one before adding another."),
     "BASKET_CLEAR": "Clear basket",
     "BASKET_REMOVE": "Remove",
     "ADD_COMPARATOR_LABEL": "Add a comparator not found above",
@@ -472,6 +475,575 @@ FIND = {
                             "carries every topic."),
 }
 
+# ==========================================================================
+# Sprint 2 Phase 2B, Stream N: the narrative wrapper (NAV), the Compare page
+# (COMPARE), the Collaborate page (COLLAB) and the Methods page (METHODS +
+# METHODS_SOURCES). Same RULE and same VOICE as everything above: no digit
+# outside an allowlisted token or a `{placeholder}`, no em dash and no "--"
+# standing in for one, and no engine vocabulary (the words an engineer uses
+# for the machinery, in place of the words a strategy officer uses for the
+# question). Sources are cited section by section in `docs/METHODS_NOTE.md`,
+# which carries the same text with the numbers written out; the app never
+# renders that file (BUILD_PLAN_2B.md A5).
+# ==========================================================================
+
+# ------------------------------------------------------- nav + Menu cards --
+# 2B-10: four pages, in the order a reader walks them. The label is what the
+# sidebar shows, the blurb is what the Menu card says, the lead is the one
+# sentence the page opens on (the question it answers).
+
+NAV = {
+    "MENU_HEADER": "BenchUp",
+    "MENU_INTRO": ("Four pages, in the order most readings take: find institutions that resemble "
+                   "yours, put a handful of them side by side, look at one pair in detail, and read "
+                   "how every figure on the way was built."),
+
+    "FIND_LABEL": "Find peers",
+    "FIND_BLURB": ("Start from one institution and see who resembles it, lens by lens, with the "
+                   "agreement between lenses shown rather than averaged away."),
+    "FIND_LEAD": "Which institutions have a research profile close to this one?",
+
+    "COMPARE_LABEL": "Compare",
+    "COMPARE_BLURB": ("Put the shortlist side by side: subject profile, specialisations, ERC and SDG "
+                      "mirrors, frontier positioning, impact intervals, trends and coverage."),
+    "COMPARE_LEAD": "Where do these institutions differ, and by how much?",
+
+    "COLLAB_LABEL": "Collaborate",
+    "COLLAB_BLURB": ("Take one pair and read what the two already share, what each one publishes in "
+                     "that the other does not, and where their publications meet on OpenAlex."),
+    "COLLAB_LEAD": "What would these two bring to each other?",
+
+    "METHODS_LABEL": "How it is built",
+    "METHODS_BLURB": ("Every definition, threshold and known weakness behind the figures, one "
+                      "section per question a reader is entitled to ask."),
+    "METHODS_LEAD": "Where does each number come from, and what does it leave out?",
+}
+
+# --------------------------------------------------------- Compare page ----
+# 2B-1 to 2B-6, 2B-13, 2B-14. Stream C renders these keys. Each view carries
+# a caption naming its denominator and its counting basis, because a share
+# read without its denominator is unreadable at a glance.
+
+COMPARE = {
+    "PAGE_TITLE": "Compare",
+    "PAGE_INTRO": ("Institutions side by side on the same measures. Each institution keeps one "
+                   "colour across every chart on the page, so a colour names an institution and the "
+                   "axis names the subject."),
+
+    # ---- selection ------------------------------------------------------
+    "SELECTION_HEADER": "Institutions compared",
+    "SELECTION_HELP": ("The comparison starts from the basket built on the Find page, and can be "
+                       "edited here."),
+    "ADD_LABEL": "Add an institution by name",
+    "ADD_PICK": "Matching institutions",
+    "ADD_BUTTON": "Add to the comparison",
+    "REMOVE_BUTTON": "Remove",
+    "CLEAR_BUTTON": "Clear the comparison",
+    "CAP_REACHED": ("The comparison holds {cap} institutions at a time, which is what keeps the "
+                    "charts readable. Remove one before adding another."),
+    "CAP_HELP": "Two institutions at least, {cap} at most.",
+
+    # ---- the institution strip ------------------------------------------
+    "STRIP_HEADER": "Who is in the comparison",
+    "STRIP_COLOUR_NOTE": "Colours are assigned once and hold across every chart below.",
+    "STRIP_COUNTRY": "Country",
+    "STRIP_TYPE": "Type",
+    "STRIP_SIZE_FULL": "Size (full)",
+    "STRIP_SIZE_FRAC": "Size (fractional)",
+    "STRIP_PP": "PP(top10%)",
+    "STRIP_BREADTH": "Breadth",
+
+    # ---- the nine views: section headers ---------------------------------
+    "VIEW_FIELDS": "Fields",
+    "VIEW_SUBFIELDS": "Subfields",
+    "VIEW_ERC": "ERC panels",
+    "VIEW_SDG": "SDG profile",
+    "VIEW_FRONTIER_MIX": "Frontier positioning",
+    "VIEW_FRONTIER_POINTS": "Frontier topics",
+    "VIEW_IMPACT": "Impact",
+    "VIEW_TRENDS": "Trends",
+    "VIEW_COVERAGE": "Coverage",
+
+    # ---- captions: denominator and basis, one per view -------------------
+    "CAPTION_FIELDS": ("Share of each institution's publications held in each field, on the {basis} "
+                       "basis and the {tree} taxonomy; the shares sum to one per institution. The "
+                       "mark beside each bar is the specialisation, read against that same mass."),
+    "CAPTION_SUBFIELDS": ("Share of each institution's publications held in each subfield, on the "
+                          "{basis} basis and the {tree} taxonomy; the shares sum to one per "
+                          "institution. Subfields are ordered by the mass the compared set holds in "
+                          "them, so every institution is represented."),
+    "CAPTION_ERC": ("Share of each institution's ERC-classified publications held in each panel. The "
+                    "denominator is the institution's own classified mass, which differs from one "
+                    "institution to the next: the coverage view gives each one. Fractional basis "
+                    "only."),
+    "CAPTION_SDG": ("Share of each institution's SDG-tagged publications held under each goal. A "
+                    "publication can carry several goals, so these shares need not sum to one, and "
+                    "the denominator is the institution's own tagged mass. Fractional basis only."),
+    "CAPTION_FRONTIER_MIX": ("Share of each institution's whole output in each quadrant of the "
+                             "frontier map. Frontier scores measure attention dynamics rather than "
+                             "novelty or quality: a low score can mark a foundational area."),
+    "CAPTION_FRONTIER_POINTS": ("One mark per topic, placed on the two frontier axes and coloured by "
+                                "institution; the size of a mark is the publications that "
+                                "institution holds in the topic, on the {basis} basis."),
+    "CAPTION_IMPACT": ("Share of each institution's articles and reviews from {y0} to {y1} that land "
+                       "in the world top decile of citations for their own subfield, year and "
+                       "document type, with the interval around each figure. Fractional basis "
+                       "throughout."),
+    "CAPTION_TRENDS": ("Publications per year in each panel, on the {basis} basis and the {tree} "
+                       "taxonomy. Each panel keeps its own vertical scale, so read the shape of a "
+                       "panel and not its height against the next one."),
+    "CAPTION_COVERAGE": ("Share of each institution's whole fractional output in each state. The six "
+                         "states are exclusive and sum to that total, so the classified share is "
+                         "what the subject, ERC and SDG views above rest on."),
+
+    # ---- frontier quadrant: the fifth segment (A2) ------------------------
+    "QUADRANT_UNSCORED_LABEL": "Not frontier-scored",
+    "QUADRANT_UNSCORED_HELP": ("Publications in topics on the excluded list, plus publications in "
+                               "topics that carry no frontier score for another reason. Showing them "
+                               "is what makes the quadrant shares add up to the whole output."),
+    "QUADRANT_MISSING_HELP": ("A quadrant an institution holds nothing in reads as zero by "
+                              "construction, not as a missing measurement."),
+    "CAPTION_QUADRANT_COUNTS": ("{n_scored} of this set's publications sit in topics carrying a "
+                                "frontier score; {n_unscored} sit in excluded or unscored topics."),
+
+    # ---- impact: the union frame, the missing cells, the floor toggle -----
+    "IMPACT_INDEX_HEADER": "Across the whole output",
+    "IMPACT_SUBFIELD_HEADER": "By subfield",
+    "IMPACT_FLOOR_LABEL": "Minimum publications behind a cell",
+    "IMPACT_FLOOR_OPTION": "at least {floor} fractional publications",
+    "IMPACT_FLOOR_HELP": ("Lowering the floor brings more subfields into the view and widens the "
+                          "intervals around them, because fewer publications sit behind each "
+                          "figure."),
+    "IMPACT_NA_LABEL": "n/a",
+    "IMPACT_UNION_CAPTION": ("Every subfield at least one of the compared institutions clears at this "
+                             "floor is shown. Where an institution does not clear it, the cell reads "
+                             "n/a: it publishes too little there for the figure to be measured, "
+                             "which is a different thing from a low value."),
+    "IMPACT_BONUS_NOTE": ("{bonus_year} is a bonus year and stays out of every impact figure on this "
+                          "page."),
+
+    # ---- trends ----------------------------------------------------------
+    "TRENDS_HEADER": "Trends in the {n} subfields this set publishes most in",
+    "TRENDS_SELECTION_HELP": ("The subfields are chosen by the publication mass the whole compared "
+                              "set holds in them, so a subfield that matters to one institution "
+                              "alone can still appear."),
+
+    # ---- coverage: the six states plus the total -------------------------
+    "STATE_CLASSIFIED": "Classified",
+    "STATE_CLASSIFIED_HELP": ("Publications that cleared every exclusion and were read by the subject "
+                              "and topic classifiers."),
+    "STATE_TITLE_ONLY": "Title only",
+    "STATE_TITLE_ONLY_HELP": ("No abstract in the record, so the subject reading rests on the title "
+                              "alone and the SDG classifier is not run on it."),
+    "STATE_LANG_UNCERTAIN": "Language uncertain",
+    "STATE_LANG_UNCERTAIN_HELP": ("The language of the text could not be established with enough "
+                                  "confidence to route the record to a classifier."),
+    "STATE_UNTRANSLATED": "Untranslated",
+    "STATE_UNTRANSLATED_HELP": ("Written in a language outside the translation set, so the text was "
+                                "never read in English."),
+    "STATE_RETRACTED": "Retracted",
+    "STATE_RETRACTED_HELP": ("Counted in the size figures and left out of the subject "
+                             "classification."),
+    "STATE_UNUSABLE": "Unusable",
+    "STATE_UNUSABLE_HELP": ("Neither a usable title nor a usable abstract, so nothing could be read "
+                            "from the record."),
+    "STATE_TOTAL": "All publications",
+    "STATE_TOTAL_HELP": ("The institution's whole fractional output over the window, which is the "
+                         "denominator of the six states."),
+
+    # ---- the scenario flip (A10) -----------------------------------------
+    "SPINNER_SCENARIO": ("Rebuilding the profiles for this taxonomy and counting basis. This happens "
+                         "once per setting, then the page answers straight away."),
+
+    # ---- export (2B-13) ---------------------------------------------------
+    "EXPORT_XLSX_BUTTON": "Download this comparison (Excel)",
+    "EXPORT_XLSX_HELP": ("One sheet per view, plus a Methods sheet naming the snapshot, the settings "
+                         "and the denominator of every other sheet."),
+    "XLSX_SHEET_METHODS": "Methods",
+    "XLSX_COL_ITEM": "What",
+    "XLSX_COL_VALUE": "Value",
+    "XLSX_COL_SOURCE": "Where it comes from",
+    "XLSX_ROW_SNAPSHOT": "Snapshot",
+    "XLSX_ROW_WINDOW": "Publication window",
+    "XLSX_ROW_TREE": "Subject taxonomy",
+    "XLSX_ROW_BASIS": "Counting basis",
+    "XLSX_ROW_INSTITUTIONS": "Institutions compared",
+    "XLSX_ROW_DENOMINATORS": "Denominator, sheet by sheet",
+    "XLSX_ROW_FILTERS": "Filters in force",
+    "XLSX_ROW_READING": "Reading",
+
+    # ---- empty states -----------------------------------------------------
+    "EMPTY_TOO_FEW": ("Comparing needs at least two institutions. Add one from the search above, or "
+                      "build a basket on the Find page."),
+    "EMPTY_NO_ERC": ("{institution} has no ERC-classified publications in this snapshot, so it holds "
+                     "no bar in this view."),
+    "EMPTY_NO_SDG": ("{institution} has no SDG-tagged publications in this snapshot, so it holds no "
+                     "bar in this view."),
+    "EMPTY_IMPACT_FLOOR": ("No subfield is cleared by any of the compared institutions at this floor. "
+                           "Lower the floor, or read the figure for the whole output above."),
+    "EMPTY_TRENDS": ("None of the compared institutions carries a per-year subfield breakdown in this "
+                     "snapshot."),
+    "EMPTY_FRONTIER_POINTS": ("None of the compared institutions holds publications in topics that "
+                              "carry a frontier score."),
+}
+
+# ----------------------------------------------------- Collaborate page ----
+# 2B-7 / 2B-8: exactly two institutions, read in one direction at a time.
+
+COLLAB = {
+    "PAGE_TITLE": "Collaborate",
+    "PAGE_INTRO": ("Two institutions read against each other: the topics both already publish in, "
+                   "and the topics each one is absent from inside its own strongest subfields."),
+
+    # ---- the pair picker --------------------------------------------------
+    "PAIR_HEADER": "The pair",
+    "PAIR_A_LABEL": "Institution A",
+    "PAIR_B_LABEL": "Institution B",
+    "PAIR_SWAP_BUTTON": "Swap A and B",
+    "PAIR_SWAP_HELP": ("The gap tables read in one direction, so swapping changes which institution "
+                       "the gaps are listed for."),
+    "PAIR_PROMPT": ("Pick two institutions, from the basket or by name, to read what they share and "
+                    "what each one lacks."),
+    "PAIR_PICK": "Matching institutions",
+
+    # ---- shared topics ----------------------------------------------------
+    "SHARED_HEADER": "What both already work on",
+    "SHARED_COL_TOPIC": "Topic",
+    "SHARED_COL_SUBFIELD": "Subfield",
+    "SHARED_COL_SHARE_A": "Share held by A",
+    "SHARED_COL_SHARE_B": "Share held by B",
+    "SHARED_COL_MIN": "Shared share",
+    "SHARED_COL_KEYWORDS": "Keywords",
+    "SHARED_COL_FRONTIER": "Frontier",
+    "SHARED_CAPTION": ("Topics both institutions publish in, ordered by the smaller of the two "
+                       "shares, which is the part of the portfolio the two hold in common on that "
+                       "topic. Summed over every shared topic, those smaller shares come to "
+                       "{score}, the topic-overlap score the Find page ranks on."),
+    "SHARED_KEYWORDS_HELP": ("The keywords OpenAlex attaches to the topic, kept as readable evidence "
+                             "of what the topic covers."),
+
+    # ---- the two gap tables -----------------------------------------------
+    "GAPS_HEADER": "What {a} does not publish in",
+    "GAPS_CAPTION": ("Topics {b} publishes in inside {a}'s strongest subfields, where {a} has no "
+                     "publications; frontier-flagged where the topic is in the global top quartile."),
+    "GAPS_COL_TOPIC": "Topic",
+    "GAPS_COL_SUBFIELD": "Subfield",
+    "GAPS_COL_SHARE": "Share held by the other institution",
+    "GAPS_COL_FRONTIER": "Frontier",
+    "GAPS_FRONTIER_HELP": ("The topic sits in the global top quartile of emergence, so attention to "
+                           "it is rising faster than the world average."),
+
+    # ---- breadth overlap --------------------------------------------------
+    "BREADTH_HEADER": "Breadth overlap",
+    "BREADTH_LINE": ("{jaccard} of the topics either institution touches are touched by both: "
+                     "{n_shared} shared, out of {n_a} for A and {n_b} for B. This counts a topic once "
+                     "whatever mass sits on it, so it answers a different question from the shared "
+                     "table above, which weighs every topic by the publications behind it."),
+
+    # ---- link-outs --------------------------------------------------------
+    "LINKS_HEADER": "Read the publications on OpenAlex",
+    "LINK_PUBS": "{name}: publications",
+    "LINK_COPUBS": "Publications the two have signed together",
+
+    # ---- empty states -----------------------------------------------------
+    "EMPTY_NO_PAIR": ("Two institutions are needed here. Pick them above, or open this page from a "
+                      "pair in the comparison."),
+    "EMPTY_SAME": "The two selections are the same institution. Pick a second one.",
+    "EMPTY_SHARED": ("{a} and {b} publish in no topic in common in this snapshot, which is itself a "
+                     "finding: their portfolios do not meet at topic grain."),
+    "EMPTY_GAPS": ("{b} publishes in no topic inside {a}'s strongest subfields that {a} is absent "
+                   "from."),
+    "EMPTY_BREADTH": "Neither institution carries topic-level publications in this snapshot.",
+}
+
+# --------------------------------------------------------- Methods page ----
+# 2B-9 / A5: one section per objection, ordered as a reader meets them. The
+# app renders these templates and fills every `{placeholder}` at run time
+# from CFG, the manifest or the index (the mapping is METHODS_SOURCES below,
+# and `docs/METHODS_NOTE.md` carries the same sections with the numbers
+# written out and a citation per section). Sources: INDICATOR_SPEC_v2.md S1
+# to S3 and S8, DESIGN.md S2.2/S4/S5/S7, METHODS_FAISCEAU.md S1/S2/S6,
+# app/docs/data_contract.yaml, evals/aspirational_R2/REPORT.md,
+# evals/type_scan_R2/TYPE_SCAN.md.
+
+
+def _lens_paragraphs() -> str:
+    """One paragraph per lens, built from the two dicts the Find page already
+    renders (`LENS_NAMES` + `LENS_INTRO` + `LENS_CAVEAT`) rather than from a
+    second copy of the same sentences: the Methods page and the lens guide
+    can never drift, and the placeholders stay the ones the Find page already
+    fills."""
+    order = ["L0", "L1", "L3", "F1", "L2f", "L4", "L5", "L6", "C1", "L7"]
+    return "\n\n".join(f"{LENS_NAMES[k]}. {LENS_INTRO[k]} {LENS_CAVEAT[k]}" for k in order)
+
+
+METHODS = {
+    "publications": {
+        "title": "What counts as a publication",
+        "body": FIND["PUBLICATIONS_TOOLTIP"] + (
+            " Every institution in the index is based in one of the {n_countries} countries of the "
+            "perimeter: the European Union, the United Kingdom, Switzerland, Norway and Iceland. "
+            "Publications signed with partners outside that perimeter are counted in full, and the "
+            "partners themselves are not in the index."),
+    },
+    "attribution": {
+        "title": "Attribution, and the two counting bases",
+        "body": (
+            "An institution is credited with a publication when the publication's own record names "
+            "it. The chain of parent and child organisations OpenAlex maintains is deliberately not "
+            "followed: for an institution that shares a laboratory with a partner, following it "
+            "grafts the partner's whole portfolio onto the parent and inflates the count several "
+            "times over.\n\n"
+            "Two counting bases are offered. Full counting credits the whole publication to every "
+            "institution named on it, which raises the totals of institutions that co-publish "
+            "widely. Fractional counting gives each author an equal part of the publication and "
+            "splits that part across the institutions the author declares, so a paper written with "
+            "many partners counts for a fraction. Neither is more correct; they answer different "
+            "questions, and the setting that governs them is stated on every page that uses it.\n\n"
+            "The ERC, SDG and impact figures are fractional whatever that setting says, and the "
+            "views that carry them say so on the view itself. Records whose author list is "
+            "truncated by the OpenAlex list endpoint are re-fetched one at a time, so that large "
+            "collaborations keep their full author list and their fractional weights stay right."),
+    },
+    "taxonomy": {
+        "title": "The subject taxonomy and its three versions",
+        "body": (
+            "OpenAlex files every publication under a topic, every topic under a subfield, and every "
+            "subfield under a field. A measurable share of those subfield placements is wrong, so "
+            "the tool ships {n_trees} versions of the taxonomy: the original as OpenAlex publishes "
+            "it, a conservative repair that moves only the clear cases, and a best-fit repair that "
+            "moves more. Every topic keeps a subfield under all three, so subfield volumes always "
+            "sum to the institution's total.\n\n"
+            "Changing the version moves publications between subfields and fields, which shifts the "
+            "profile charts and the subfield lenses; the topic, ERC and SDG views are untouched by "
+            "it. The repair is a judgement in the arguable cases, and a share of the assignments in "
+            "each version is arguable, which is why the original tree stays selectable for "
+            "comparison. Impact is the one exception: a publication's top-decile flag is decided "
+            "against the world threshold of its original subfield, so the flag does not move when "
+            "the version does."),
+    },
+    "lenses": {
+        "title": "The lenses, one by one",
+        "body": (
+            "A lens is one way of asking whether two institutions resemble each other. Each reads a "
+            "different classification at a different grain, so a candidate can rank high on one and "
+            "be absent from another; that disagreement is information, and the tool shows it rather "
+            "than averaging it into a single score. The codes are stable identifiers, reused in the "
+            "overview, the evidence column and the downloads. {n_lenses} lenses are shown by "
+            "default and two more are one click away.\n\n" + _lens_paragraphs()),
+    },
+    "concordance": {
+        "title": "Concordance",
+        "body": (
+            "Concordance counts how many lenses place a candidate inside their own "
+            "top-{concordance_n}. It measures agreement between lenses, and it is not a score: a "
+            "candidate found by several lenses is a candidate several independent readings support, "
+            "not a candidate that resembles the seed several times over. Both numbers are always "
+            "shown, the depth and the count of lenses defined for that seed, so the fraction can be "
+            "read.\n\n"
+            "Concordance was tested for whether it surfaces anything the lenses themselves miss. At "
+            "every depth checked it returned no candidate absent from the union of the individual "
+            "lenses, which is why it opens the page as the cleanest list to read and never stands "
+            "as the only list."),
+    },
+    "aspirational": {
+        "title": "The aspirational view",
+        "body": (
+            "The aspirational view keeps the candidates the subfield lens already found whose impact "
+            "interval sits entirely above the seed's, in the order the subfield lens produced. It "
+            "empties for an institution already at the top of its own pool, and thins to a handful "
+            "of rows for a narrow small one; both are readable results rather than failures.\n\n"
+            "{n_definitions} definitions of the word were generated for {n_seeds} institutions and "
+            "graded by two independent judges reading the lists without knowing what was expected of "
+            "them. The definition shipped here scored highest, with the cleanest lists. A second "
+            "mode, ranking the same pool by shared presence in emerging topics, scored as well and "
+            "returned a full list for the institutions where this one empties: it is a candidate for "
+            "a later release, and it is not what the tool does today."),
+    },
+    "specialisation": {
+        "title": "Specialisation, and the floors it is displayed at",
+        "body": (
+            "A specialisation index compares the share an institution holds in a subject with the "
+            "share held by the average institution active in that subject. A value of one is what "
+            "that average institution holds, which is why the charts draw the line at one rather "
+            "than at zero.\n\n"
+            "A specialisation is never shown without the publications behind it, because a share of "
+            "a very small mass moves for reasons that have nothing to do with strategy. Three "
+            "display states follow from the mass in the cell: a solid mark at {floor_solid} "
+            "fractional publications or more, a hollow mark between {floor_thin} and {floor_solid}, "
+            "and no mark at all below {floor_thin}. The similarity lenses that compare "
+            "specialisations use their own floor of {floor_papers} papers, applied to both "
+            "institutions, so a cell counts only where both publish enough for the comparison to "
+            "mean something."),
+    },
+    "impact": {
+        "title": "Impact: PP(top10%)",
+        "body": (
+            "The impact figure is PP(top10%): the share of an institution's articles and reviews "
+            "that land in the world top decile of citations for their own subfield, year and "
+            "document type. The thresholds are computed on the world rather than on Europe or on "
+            "the index, so an institution is read against the field it publishes in and not against "
+            "its neighbours.\n\n"
+            "The denominator is the institution's own fractional mass of articles and reviews "
+            "between {y0} and {y1}. {bonus_year} is harvested and reported for volumes, and left "
+            "out of every impact figure, because a recent year has not had time to accumulate the "
+            "citations the threshold is built on. Every figure carries an interval from "
+            "{n_bootstrap} resamples and is rendered with it, never as a point estimate alone: for "
+            "a small institution that interval is wide enough to change the reading, and two "
+            "institutions whose intervals overlap are not separated by the data.\n\n"
+            "Per-subfield cells need a minimum mass before an interval means anything. A cell below "
+            "the floor in force is shown as unavailable rather than as a low value, and lowering "
+            "the floor brings more cells in at the cost of wider intervals on all of them."),
+    },
+    "frontier": {
+        "title": "Frontier scores",
+        "body": (
+            "Frontier scores measure attention dynamics: how fast a topic is expanding, and whether "
+            "that expansion is accelerating. They say nothing about novelty or quality, and a low "
+            "score can mark a foundational area a whole discipline rests on. Each topic is placed on "
+            "the two axes, which gives four quadrants, and an institution's position is the share of "
+            "its publications sitting in each.\n\n"
+            "{n_excluded} topics carry no frontier score by construction: they are catch-all topics "
+            "outside the subject scope of the taxonomy, and the exclusion list is versioned with a "
+            "reason recorded per topic. Their mass is shown as a segment of its own rather than "
+            "dropped, so the quadrant shares add up to the institution's whole output and a large "
+            "unscored share is visible instead of hidden."),
+    },
+    "erc": {
+        "title": "The ERC classifier",
+        "body": (
+            "The ERC classifier assigns publications to the {n_panels} evaluation panels the "
+            "European Research Council uses to sort proposals, which is what makes the view "
+            "readable by anyone who has written a proposal. It reads the title and the abstract, "
+            "and assigns a panel when its confidence passes {tau}. A publication no panel reaches "
+            "that level on is left unclassified rather than forced into the nearest one; a "
+            "publication reaching it on several panels is split equally between them.\n\n"
+            "Two panels, Biotechnology and Arts, have low recall in the model's own published "
+            "evaluation, so an institution active in either will read lower there than it is, and "
+            "the panel views say so where they are drawn. The denominator of every ERC share is the "
+            "institution's own classified mass, which the coverage view gives per institution, and "
+            "every ERC figure is fractional whatever the counting setting says."),
+    },
+    "sdg": {
+        "title": "The SDG classifier",
+        "body": (
+            "The SDG classifier reads the title and the abstract against a vocabulary held per goal "
+            "and records every goal it finds a keyword for, so a publication can carry several goals "
+            "or none at all. {n_sdgs} goals are covered; goal {missing} is not, and it is left out "
+            "rather than drawn as an empty row.\n\n"
+            "The denominator of an SDG share is the institution's own tagged mass, so the shares of "
+            "one institution need not sum to one. Matches reflect this classifier's reading of the "
+            "goals, and different classifiers disagree substantially on the same corpus: the "
+            "figures here support a comparison made inside the tool, and they should not be set "
+            "against another provider's SDG numbers. Publications with no abstract are not run "
+            "through the classifier at all, which the coverage view makes visible per institution."),
+    },
+    "grey": {
+        "title": "Grey accounting: what happened to every publication",
+        "body": (
+            "Nothing is dropped silently. Every publication sits in one of six states, and the six "
+            "sum to the institution's whole fractional output: classified, title only, language "
+            "uncertain, untranslated, retracted, and unusable.\n\n"
+            "Retracted publications are counted in the size figures and kept out of the subject "
+            "classification, so the subject, topic, ERC and SDG panels rest on a slightly smaller "
+            "set than the size figures do. Where a classifier found nothing, the result is recorded "
+            "as unknown and never as zero. The coverage view on the Compare page shows the six "
+            "states per institution, which is what makes an ERC or SDG share comparable: an "
+            "institution with a large title-only share has a smaller base behind its classified "
+            "figures than a neighbour showing the same headline number."),
+    },
+    "types": {
+        "title": "Corrected institution types",
+        "body": (
+            "OpenAlex assigns each institution a type, and some assignments do not match what the "
+            "institution is: a public research organisation filed as a facility, a business school "
+            "filed as a company. {n_overrides} corrections have been reviewed one by one against "
+            "the institution's own record and applied. {n_gated} further cases were examined and "
+            "left as they are, because the institution genuinely sits between two categories, a "
+            "hospital and a university department among them.\n\n"
+            "A correction changes the label and what the type filter does, never a rank and never "
+            "whether an institution is in the index; the original type is kept and shown on the "
+            "badge. The list is one an operator is expected to keep extending, and its coverage of "
+            "the cases nobody has examined yet is unknown, so an institution carrying no correction "
+            "has not necessarily been checked."),
+    },
+    "index": {
+        "title": "Which institutions are in the index",
+        "body": (
+            "The index holds {n_institutions} institutions. An institution enters it when its "
+            "record carries at least {floor_total} publications over the window and at least "
+            "{floor_recent} in each of the two most recent full years, which keeps out records too "
+            "thin to profile and records of activity that has stopped.\n\n"
+            "The population that results is not a peer group. It is dominated by small specialised "
+            "institutes and hospitals rather than by universities, so a median computed on it "
+            "describes that population and is not a level to reach. Every figure positioned against "
+            "the index says so, and a value under the median places an institution within the "
+            "population without saying anything on its own about how well it performs."),
+    },
+    "snapshot": {
+        "title": "Snapshot and vintage",
+        "body": (
+            "Every figure in the tool comes from one snapshot, {snapshot}, and that stamp is shown "
+            "on the Find page. OpenAlex is a living database: records are added, abstracts are "
+            "edited and citation counts move, so a query run against the live source today will not "
+            "return exactly what the tool shows.\n\n"
+            "The links out to OpenAlex carry the same filters as the snapshot and will still differ "
+            "by a small amount for that reason, which the links say. Reproducing a figure means "
+            "running the same code against the same archived snapshot; running it again against the "
+            "live source is a different measurement, not a check."),
+    },
+    "ceiling": {
+        "title": "What the tool cannot find, and how it was checked",
+        "body": (
+            "The lenses were checked against a set of peers assembled outside OpenAlex and graded by "
+            "hand. {n_unfound} of those peers are found by no lens at all at depth {depth_max}, "
+            "although they are the same type as their seed and a comparable size: peers that come "
+            "from a shared national system or a shared mission do not show up in the shape of an "
+            "output. The free-text search on every page exists for exactly that case, and a peer no "
+            "list contains is not thereby a wrong peer.\n\n"
+            "The checking itself has a known weakness. An earlier round of validation measured the "
+            "lenses against a list of expected peers written by a language model; when that list "
+            "was set against evidence assembled independently, much of it went unconfirmed and much "
+            "of the independent evidence had been missed. The figures quoted in this note come from "
+            "the independent evidence, and the judged readings that support them were produced by "
+            "language models rather than by domain experts.\n\n" + VERDICT_LINE),
+    },
+}
+
+# Where the app gets each `{placeholder}` above. Stream M fills them; this
+# dict is the contract, and `tests/test_methods_note.py` fails if a template
+# grows a placeholder that is not documented here. Descriptions name the key
+# or the column, never the value, so this dict carries no digit either.
+METHODS_SOURCES = {
+    "n_countries": "number of entries in CFG perimeter_countries",
+    "y0": "first entry of CFG window",
+    "y1": "second entry of CFG window",
+    "bonus_year": "CFG bonus_year",
+    "n_trees": "number of entries in CFG scenario.toggles.tree",
+    "n_lenses": "number of entries in CFG lenses.default",
+    "concordance_n": "CFG concordance_N",
+    "depth_max": "CFG depth.max",
+    "core_top_n": "lib.views_find.CORE_TOP_N, the same value the C1 help text uses",
+    "n_definitions": "count of aspirational variants tested, from the aspirational campaign report in evals",
+    "n_seeds": "count of seeds in the aspirational campaign results file in evals",
+    "floor_solid": "lib.profile_data.SI_FLOOR_SOLID, the same value the profile caption uses",
+    "floor_thin": "lib.profile_data.SI_FLOOR_THIN, the same value the profile caption uses",
+    "floor_papers": "CFG lens floor value for shared specialisations, counted in papers",
+    "n_bootstrap": "source_manifest.json bootstrap_reps",
+    "n_excluded": "count of topics_dim.parquet rows with is_excluded true",
+    "n_panels": "count of distinct panel_idx in erc.parquet",
+    "tau": "CFG erc_tau",
+    "n_sdgs": "count of distinct sdg_idx in sdg.parquet",
+    "missing": "the one goal the SDG vocabulary does not cover (DESIGN.md section five)",
+    "n_overrides": "MANIFEST.json type_overrides.n_rows",
+    "n_gated": "count of gated rows in the type-override gate file under data/overrides",
+    "n_institutions": "MANIFEST.json files, index.parquet, n_rows",
+    "floor_total": "index population rule, total publications floor (docs/data_contract.yaml, index grain)",
+    "floor_recent": "index population rule, per-recent-year floor (docs/data_contract.yaml, index grain)",
+    "snapshot": "MANIFEST.json snapshot, falling back to CFG snapshot",
+    "n_unfound": "count of external peers reached by no lens, indicator spec section eight, recall ceiling",
+}
+
 # ----------------------------------------------------- digit-ban self-check -
 
 _ALLOWLIST_RE = re.compile(
@@ -487,6 +1059,22 @@ _ALLOWLIST_RE = re.compile(
 _PLACEHOLDER_RE = re.compile(r"\{[^{}]*\}")
 
 
+def _iter_strings(value):
+    """Every string inside a constant, however deeply nested. Phase 2B's
+    `METHODS` is a dict of {"title", "body"} sub-dicts, so a one-level walk
+    (the pre-2B behaviour) would have skipped every Methods-page sentence:
+    the scan must recurse or it goes vacuous exactly where the longest new
+    copy lives. `tests/test_narrative.py` carries the same widening."""
+    if isinstance(value, str):
+        yield value
+    elif isinstance(value, dict):
+        for v in value.values():
+            yield from _iter_strings(v)
+    elif isinstance(value, (list, tuple)):
+        for v in value:
+            yield from _iter_strings(v)
+
+
 def scan_for_digit_violations() -> list[tuple[str, str]]:
     """Every string constant above (dict values included), digits allowed only
     inside the allowlisted lens codes / top10 / PP(top10%) / a `{placeholder}`.
@@ -495,10 +1083,7 @@ def scan_for_digit_violations() -> list[tuple[str, str]]:
     for name, value in globals().items():
         if name.startswith("_") or not name.isupper():
             continue
-        candidates = value.values() if isinstance(value, dict) else [value]
-        for v in candidates:
-            if not isinstance(v, str):
-                continue
+        for v in _iter_strings(value):
             cleaned = _PLACEHOLDER_RE.sub("", _ALLOWLIST_RE.sub("", v))
             if re.search(r"\d", cleaned):
                 violations.append((name, v))

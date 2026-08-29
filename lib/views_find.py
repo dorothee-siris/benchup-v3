@@ -298,6 +298,9 @@ def _sidebar_basket(bundle: dict) -> None:
     sb, names = st.sidebar, bundle["ctx"]["index_by_id"]
     sb.header(copy.FIND["BASKET_HEADER"])
     items = state.items()
+    # 2B-8: the count against the cap sits right under the header, the one
+    # place every page hop shows it regardless of which add site was used.
+    sb.caption(copy.FIND["BASKET_COUNT"].format(n=len(items), cap=state.BASKET_CAP))
     if not items:
         sb.caption(copy.FIND["BASKET_EMPTY"])
     else:
@@ -319,8 +322,13 @@ def _sidebar_basket(bundle: dict) -> None:
         pick = sb.selectbox(copy.FIND["ADD_COMPARATOR_PICK"], [h["id"] for h in hits],
                             format_func=lambda i: _hit_label(hits, i), key="basket_pick")
         if sb.button(copy.FIND["ADD_COMPARATOR_BUTTON"], key="basket_add"):
-            state.add(pick)
-            st.rerun()
+            # 2B-8: state.add() never raises -- False means the cap (state.BASKET_CAP)
+            # is already reached and NOTHING changed, so the page is not rerun (the
+            # sidebar has nothing new to reflect) and the message renders right here.
+            if state.add(pick):
+                st.rerun()
+            else:
+                sb.warning(copy.FIND["BASKET_FULL"].format(cap=state.BASKET_CAP))
 
 
 # ------------------------------------------------------- header + search ----
@@ -1081,11 +1089,24 @@ def _tail_and_export(lens: str, ranking: dict, bundle: dict, subs: dict, kept,
 
 
 def _basket_button(selected: list, key: str) -> None:
-    """One "add selected" affordance per table (VIZ_SPEC S2.9)."""
+    """One "add selected" affordance per table (VIZ_SPEC S2.9). 2B-8: a click
+    that would push the basket past state.BASKET_CAP adds as many of the
+    selected rows as still fit and shows the cap message for the rest; the
+    page reruns only when something actually changed (so the sidebar count
+    catches up), never when the whole click was blocked -- in that exact
+    case the message renders on this same run, no rerun needed to see it."""
     if st.button(copy.FIND["ADD_SELECTED"], key=key, disabled=not selected):
+        added_any = False
+        blocked = False
         for iid in selected:
-            state.add(iid)
-        st.rerun()
+            if state.add(iid):
+                added_any = True
+            else:
+                blocked = True
+        if blocked:
+            st.warning(copy.FIND["BASKET_FULL"].format(cap=state.BASKET_CAP))
+        if added_any:
+            st.rerun()
     if not selected:
         st.caption(copy.FIND["ADD_SELECTED_NONE"])
 
