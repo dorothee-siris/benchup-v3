@@ -53,7 +53,7 @@ files:
       - {name: display_name, dtype: object, meaning: "OpenAlex display name; seed search primary key"}
       - {name: display_name_acronyms, dtype: object, meaning: "pipe-delimited acronyms; seed search index"}
       - {name: display_name_alternatives, dtype: object, meaning: "pipe-delimited alternative names; seed search index"}
-      - {name: type, dtype: category, meaning: "SIRIS-PATCHED institution type (education/facility/company/other/funder/government/healthcare/nonprofit/archive). Differs from type_openalex for exactly the 16 institution_ids in overrides/type_overrides.csv -- see 'Type overrides' below. This is the type the app ranks, filters and badges on (never type_openalex)."}
+      - {name: type, dtype: category, meaning: "SIRIS-PATCHED institution type (education/facility/company/other/funder/government/healthcare/nonprofit/archive). Differs from type_openalex for exactly the 34 institution_ids in overrides/type_overrides.csv -- see 'Type overrides' below. This is the type the app ranks, filters and badges on (never type_openalex)."}
       - {name: type_openalex, dtype: category, meaning: "the ORIGINAL, unpatched OpenAlex type, kept for audit and for the 'type corrected by SIRIS (was: {type_openalex})' badge text. Never changes ranking or inclusion (config.yaml proposal_r5.type_overrides.changes_ranking_or_inclusion: false). NOT listed in source_manifest.json table_schemas.index -- present in the real file, verified 2026-08-29; manifest is stale on this one column, contract follows the file."}
       - {name: country_code, dtype: category, meaning: "ISO 3166-1 alpha-2; perimeter = EU27 + GB/CH/NO/IS (config.yaml perimeter_countries, R2.3/D10)"}
       - {name: city, dtype: object, meaning: null}
@@ -99,8 +99,8 @@ files:
     denominator_notes:
       - "scale_guard ratio uses total_full_2020_2024 (index.parquet), never total_frac_2020_2024 (SPEC/config.yaml scale_guard)."
     type_overrides:
-      reference: "gate rev 6 ruling 3, ruled and applied 2026-08-28/29 (type_overrides.csv, all 16 rows locked=True)"
-      n_ids: 16
+      reference: "gate rev 6 ruling 3 (16 rows, 2026-08-28/29) + R2-T L28 scan (18 rows, 2026-08-29); type_overrides.csv, all 34 rows locked=True"
+      n_ids: 34
       institution_ids:
         - I205092303   # Institut d'Etudes Politiques de Paris (Sciences Po) -- facility -> education
         - I124261006   # ESSEC -- other -> education
@@ -118,6 +118,24 @@ files:
         - I4210138806  # Gen. Jonas Zemaitis Military Academy of Lithuania -- government -> education (gate rev 6 ruling 3)
         - I205703379   # Institut Mines-Telecom -- facility -> education (gate rev 6 ruling 3)
         - I4210153845  # FUNIBER -- other -> funder (gate rev 6 ruling 3)
+        - I265217849   # IFP Energies nouvelles (IFPEN) -- facility -> government (R2-T, EPIC)
+        - I154202486   # Ifremer -- facility -> government (R2-T, EPIC)
+        - I4210101348  # Centre Inria de l'Universite Grenoble Alpes -- facility -> government (R2-T, Inria=EPST parent)
+        - I4210106545  # Centre Inria d'Universite Cote d'Azur -- facility -> government (R2-T, Inria=EPST parent)
+        - I4210126360  # Centre Inria de Saclay -- facility -> government (R2-T, Inria=EPST parent)
+        - I4210131512  # Centre Inria de l'universite de Bordeaux -- facility -> government (R2-T, Inria=EPST parent)
+        - I4210133778  # Centre Inria de l'Universite de Rennes -- facility -> government (R2-T, Inria=EPST parent)
+        - I4210138412  # Centre Inria de l'Universite de Lille -- facility -> government (R2-T, Inria=EPST parent)
+        - I2801658355  # ONERA -- facility -> government (R2-T, EPIC)
+        - I4210127141  # INERIS -- facility -> government (R2-T, EPIC)
+        - I205358943   # CSTB -- facility -> government (R2-T, EPIC; ROR parent = French ministry)
+        - I1293448361  # IRSN -- nonprofit -> government (R2-T, EPIC)
+        - I4210113730  # Meteo-France -- other -> government (R2-T, EPA)
+        - I4210092716  # Sante Publique France -- other -> government (R2-T, EPA)
+        - I110594554   # Ikerbasque -- other -> nonprofit (R2-T, Basque public foundation)
+        - I2898391981  # DLR -- facility -> nonprofit (R2-T, own name carries "e.V.")
+        - I173888879   # SINTEF -- facility -> nonprofit (R2-T, Norwegian research foundation/stiftelse)
+        - I70277191    # Institute of Technology Carlow -- government -> education (R2-T, same class as Waterford IT)
 
   # ============================================================================================
   # fields.parquet -- institution x field, bestfit tree only (--ship-default-tree-only)
@@ -283,10 +301,10 @@ files:
   # overrides/type_overrides.csv -- locked, append-only patch list (Annuaire pattern)
   # ============================================================================================
   overrides/type_overrides.csv:
-    grain: "one row per institution whose displayed `type` differs from type_openalex; 16 rows, all locked=True (0 gated rows remain, gate rev 6 ruling 3 resolved the last 4)"
+    grain: "one row per institution whose displayed `type` differs from type_openalex; 34 rows, all locked=True (16 from gate rev 6 ruling 3 + 18 from the R2-T L28 scan, 2026-08-29; 0 gated rows remain from either round)"
     keys: [institution_id]
     columns:
-      - {name: institution_id, dtype: object, meaning: "must equal 16 index.institution_id values where type != type_openalex (str-cast); Class-1 identity invariant, test_contract.py"}
+      - {name: institution_id, dtype: object, meaning: "must equal the index.institution_id values where type != type_openalex (str-cast), one-to-one; Class-1 identity invariant, test_contract.py reads the count from this file, not a typed literal"}
       - {name: display_name, dtype: object, meaning: null}
       - {name: country_code, dtype: object, meaning: null}
       - {name: type_openalex, dtype: object, meaning: "original OpenAlex type at the time of the override decision"}
@@ -295,7 +313,7 @@ files:
       - {name: source_url, dtype: object, meaning: null}
       - {name: decided_by, dtype: object, meaning: null}
       - {name: date, dtype: object, meaning: null}
-      - {name: locked, dtype: bool, meaning: "true for all 16 shipped rows -- the file is append-only per the Annuaire pattern; a locked row is never edited in place"}
+      - {name: locked, dtype: bool, meaning: "true for all 34 shipped rows -- the file is append-only per the Annuaire pattern; a locked row is never edited in place"}
 
   # ============================================================================================
   # overrides/umbrella_supplement.csv -- named-umbrella supplement, ASCII-safe (created this stream)

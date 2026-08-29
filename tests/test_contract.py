@@ -2,7 +2,8 @@
 
 Covers: contract_check.check() clean (every declared file/column/dtype/key present, no
 undeclared drop); fields/subfields shares sum to 1; erc.share sums <= 1; sdg.share per-row
-bounds; the 16-id type-override set identity; topics_dim exclusion reason-code coverage;
+bounds; the type-override set identity (count read from the CSV, not typed -- 34 as of the
+R2-T L28 scan, 2026-08-29); topics_dim exclusion reason-code coverage;
 impact_cells and index PP confidence-interval ordering; umbrella_supplement.csv shape.
 """
 from __future__ import annotations
@@ -78,15 +79,20 @@ def test_sdg_share_bounds_per_row() -> None:
 
 
 def test_type_override_id_set() -> None:
+    """Identity invariant: the set (and count) of index rows where type != type_openalex
+    must equal exactly the locked rows of overrides/type_overrides.csv -- read from the CSV
+    itself (never a typed literal count, L10 house rule), so this test stays correct as the
+    override file grows (16 rows at gate rev 6; 34 rows after the R2-T L28 scan, 2026-08-29)."""
     index = _read("index.parquet")
     overrides = _read("overrides/type_overrides.csv")
     type_s = index["type"].astype(str)
     type_openalex_s = index["type_openalex"].astype(str)
     diff_ids = set(index.loc[type_s != type_openalex_s, "institution_id"])
-    locked_ids = set(overrides.loc[overrides["locked"] == True, "institution_id"])  # noqa: E712
+    locked = overrides.loc[overrides["locked"] == True]  # noqa: E712
+    locked_ids = set(locked["institution_id"])
     print(f"type-patched institution_ids: {len(diff_ids)} (index) vs {len(locked_ids)} (overrides, locked=True)")
     assert diff_ids == locked_ids
-    assert len(diff_ids) == 16
+    assert len(diff_ids) == len(locked)  # no duplicate institution_id among locked rows
     assert "I4210153845" in diff_ids
     funder_row = overrides.loc[overrides["institution_id"] == "I4210153845"].iloc[0]
     assert funder_row["type_override"] == "funder"

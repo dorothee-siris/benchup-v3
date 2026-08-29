@@ -1,13 +1,13 @@
 {
-  "deployed_at": "2026-08-29T08:05:42.191844+00:00",
+  "deployed_at": "2026-08-29T14:04:02.607241+00:00",
   "snapshot": "august_2026",
   "source_manifest_generated_at": "2026-08-27T13:41:28.350794+00:00",
   "contract_version": "1.1",
   "files": {
     "index.parquet": {
-      "sha256": "7a2fb068e392ec1a397d3245ec75199f909b6b873f7a7e23762a2f175c3bf356",
+      "sha256": "ff2ce045d7627e15320cfbbcc4d350d5ba1fdb24431731f8dc9e4d2a85e6c0da",
       "n_rows": 7557,
-      "size_bytes": 6282947
+      "size_bytes": 6283075
     },
     "fields.parquet": {
       "sha256": "6a2c0d8487d9159f0a6ef1d9554213c263908dce138c8b420be8dea06d8d6b23",
@@ -50,9 +50,9 @@
       "size_bytes": 1023183
     },
     "overrides/type_overrides.csv": {
-      "sha256": "2264cc95f5ed8d4d2a327776e4c1e2e64bab782799ebdf63f508cbd4704d812f",
-      "n_rows": 16,
-      "size_bytes": 5964
+      "sha256": "c30c244d8b31c6820c44d6d3958f154a921c2a78af2baec1ee97c9802bec7399",
+      "n_rows": 34,
+      "size_bytes": 12607
     },
     "overrides/umbrella_supplement.csv": {
       "sha256": "6f6b82ab3d6b85c2860d849e644f80f2f2ce07ae3f15c25c159b83e92008c21d",
@@ -61,7 +61,7 @@
     }
   },
   "type_overrides": {
-    "sha256": "2264cc95f5ed8d4d2a327776e4c1e2e64bab782799ebdf63f508cbd4704d812f",
-    "n_rows": 16
+    "sha256": "c30c244d8b31c6820c44d6d3958f154a921c2a78af2baec1ee97c9802bec7399",
+    "n_rows": 34
   }
 }
