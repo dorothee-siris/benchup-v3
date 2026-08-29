@@ -228,6 +228,46 @@ def test_pair_deeplink_seeds_the_page_with_an_empty_basket(engine):
     assert at.selectbox(key="pair_b").value == GDANSK
 
 
+def test_session_pair_from_handoff_wins_over_query_and_is_consumed_once():
+    """Compare's hand-off button stashes `st.session_state["pair"]` before
+    calling `st.switch_page` (lib/views_compare.py `_handoff`,
+    BUILD_PLAN_2B.md progress/2B_X.md) -- the fix for a hand-off that used to
+    drop the whole session, keeping only the pair alive via the query string.
+    A session pair must therefore win even over a `?pair=` query naming the
+    SAME two ids in the other order, and must not linger past the render that
+    consumes it -- a lingering value would keep re-forcing itself onto
+    pair_a/pair_b on every later rerun, defeating any subsequent reader
+    edit."""
+    fake = {"compare": [], "pair": (STRASBOURG, GDANSK), "dropped": []}
+    with mock.patch.object(selection, "read_query", lambda known: fake):
+        at = _app(basket=[], pair=(GDANSK, STRASBOURG)).run()
+        assert not at.exception, [str(e) for e in at.exception]
+        assert at.selectbox(key="pair_a").value == GDANSK
+        assert at.selectbox(key="pair_b").value == STRASBOURG
+        assert "pair" not in at.session_state, "the session pair must be consumed, not left standing"
+
+        # A bare rerun (no session pair left to re-force anything) must hold
+        # steady rather than snap back to the query's own (STRASBOURG, GDANSK).
+        at.run()
+        assert not at.exception, [str(e) for e in at.exception]
+        assert at.selectbox(key="pair_a").value == GDANSK
+        assert at.selectbox(key="pair_b").value == STRASBOURG
+
+
+def test_default_pair_prefers_the_session_pair_over_the_query():
+    known = {STRASBOURG: 0, GDANSK: 1}
+    assert views_collab.default_pair(
+        [STRASBOURG, GDANSK], (STRASBOURG, GDANSK), known, (GDANSK, STRASBOURG)
+    ) == (GDANSK, STRASBOURG)
+    # a stale/invalid session pair (unknown id, or a==b) falls through to the query
+    assert views_collab.default_pair(
+        [STRASBOURG, GDANSK], (STRASBOURG, GDANSK), known, (STRASBOURG, STRASBOURG)
+    ) == (STRASBOURG, GDANSK)
+    assert views_collab.default_pair(
+        [STRASBOURG, GDANSK], (STRASBOURG, GDANSK), known, ("IX", GDANSK)
+    ) == (STRASBOURG, GDANSK)
+
+
 def test_default_pair_prefers_the_query_over_the_basket():
     known = {STRASBOURG: 0, GDANSK: 1, "I3": 2, "I4": 3}
     assert views_collab.default_pair(["I3", "I4"], (STRASBOURG, GDANSK), known) == (STRASBOURG,

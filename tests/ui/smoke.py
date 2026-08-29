@@ -140,7 +140,8 @@ BASE_URL = "http://127.0.0.1:8611"
 # CLEARS the basket and rebuilds it from the Gdansk seed's own L1 (subfield
 # overlap) ranking, so the compared set is a real top-overlap peer group
 # rather than three arbitrary names, then walks it through Compare,
-# Collaborate (via the real hand-off link) and Methods.
+# Collaborate (via the real hand-off button -- an in-session `st.switch_page`
+# hop since Fix X-2B, not a `link_button` anchor) and Methods.
 #
 # Every label compared for exact text below is a HARDCODED literal (same
 # non-vacuity reasoning as PANEL_LABELS above): copy.NAV's four narrative
@@ -155,8 +156,6 @@ CMP_FLOOR_HIGH_IDX, CMP_FLOOR_LOW_IDX = 0, 1  # cmp_impact_floor: IMPACT_FLOORS 
 
 XLSX_METHODS_SHEET = "Methods"  # copy.COMPARE["XLSX_SHEET_METHODS"], hardcoded
 XLSX_MIN_SHEETS = 8             # brief's floor; the shipped workbook carries 11 (10 views + Methods)
-
-COLLAB_LINK_PREFIX = "/Collaborate"
 
 # BUILD_PLAN_2B.md S4, the K -> V/C/L interface contract's own column order for
 # `collab_data.shared_topics(...)`, hardcoded rather than imported from
@@ -1191,72 +1190,72 @@ def _pair_deeplink_ids(page) -> list[str]:
     return text.split("?pair=", 1)[1].strip().split(",")
 
 
-def check_handoff(page, context) -> None:
-    """2B-8's hand-off: force the Compare hand-off's B selectbox to the LAST
+def check_handoff(page) -> None:
+    """2B-8's hand-off, an IN-SESSION `st.switch_page` hop since Fix X-2B
+    (progress/2B_X.md): force the Compare hand-off's B selectbox to the LAST
     option (with 3 candidates remaining, the default pair is the first two --
-    picking the third guarantees a NON-default pair), then follow the
-    rendered link with a REAL click -- located by its own `href` prefix
-    (`/Collaborate?pair=`, a data-contract string), never by a button label,
-    since `st.link_button` renders with no `key=` here. Proves the query
-    string the link actually carries is what opens on Collaborate, which a
-    click on the picker's own (unchanged) default pair could not distinguish
-    from "the picker's default happens to also be Collaborate's default"."""
+    picking the third guarantees a NON-default pair), read the pair off
+    Compare's OWN printed `?pair=` deep link (the same `st.code` text the
+    OLD `link_button` printed alongside itself -- unaffected by the fix), then
+    click the hand-off's `st.button` (`key="cmp_handoff_open"`, no `href` to
+    read any more) and confirm Collaborate opens on that SAME pair in the SAME
+    tab -- no `context.expect_page`, because `st.switch_page` is a
+    client-routed navigation, never a new tab, the same mechanism `_click_nav`
+    already relies on above.
+
+    THE POINT OF THE FIX, checked right here: the sidebar basket count and the
+    tree selection read the SAME on Collaborate as they did on Compare a
+    moment before the click. The bug this fix closes was a `link_button` --a
+    TRUE browser navigation -- starting a brand-new Streamlit session on
+    every hop; on that bug this exact check would have found an EMPTY basket
+    and the tree snapped back to its coded default, with only the pair itself
+    surviving (it rode the query string, never the session)."""
     _open_select(page, "cmp_pair_b")
     page.locator('[role="option"]').last.click(timeout=ACTION_TIMEOUT_MS)
     _settle(page, 2000)
 
-    # Located by PATH + "carries a query string" (`[href*="?"]`), never by the
-    # exact `?pair=` key: Streamlit's OWN sidebar nav also emits a plain
-    # `a[href="/Collaborate"]` (no query) for the page-to-page link, which a
-    # bare `href^="/Collaborate"` locator would match FIRST in DOM order (the
-    # sidebar renders above the main column) -- the `[href*="?"]` clause rules
-    # that one out while staying immune to a renamed query key (proof (a)
-    # below renames it), so the failure that mutation produces shows up in
-    # the ID-EXTRACTION checks just below, not in "does the link even exist".
-    link = page.locator(f'a[href^="{COLLAB_LINK_PREFIX}"][href*="?"]').first
-    check(link.count() >= 1, "Compare: the hand-off link renders (a[href^=/Collaborate][href*=?])")
-    href = link.get_attribute("href") or ""
-    picked_ids = href.split("pair=", 1)[1].split(",") if "pair=" in href else []
+    picked_ids = _pair_deeplink_ids(page)
     check(len(picked_ids) == 2 and picked_ids[0] != picked_ids[1],
-          f"Compare: the hand-off link names two distinct ids ({href!r})")
+          f"Compare: the hand-off's own deep link names two distinct ids ({picked_ids})")
 
-    target_attr = link.get_attribute("target") or ""
-    if target_attr == "_blank":
-        with context.expect_page(timeout=ACTION_TIMEOUT_MS) as new_page_info:
-            link.click(timeout=ACTION_TIMEOUT_MS)
-        collab_page = new_page_info.value
-        opened_new_tab = True
-    else:
-        link.click(timeout=ACTION_TIMEOUT_MS)
-        collab_page = page
-        opened_new_tab = False
-    collab_page.set_default_timeout(ACTION_TIMEOUT_MS)
-    collab_page.wait_for_selector('[data-testid="stDataFrame"]', timeout=ACTION_TIMEOUT_MS)
-    _settle(collab_page, 2500)
+    n_before = _sidebar_basket_n(page)
+    tree_before = _selectbox_value(page, "tree")
+    check(n_before is not None,
+          f"Compare: sidebar basket count is readable before the hop (caption gave {n_before!r})")
 
-    landed_ids = _pair_deeplink_ids(collab_page)
+    page.locator(".st-key-cmp_handoff_open button").first.click(timeout=ACTION_TIMEOUT_MS)
+    page.wait_for_selector('[data-testid="stDataFrame"]', timeout=ACTION_TIMEOUT_MS)
+    _settle(page, 2500)
+
+    landed_ids = _pair_deeplink_ids(page)
     check(landed_ids == picked_ids,
-          f"Collaborate: opened on the SAME pair the hand-off link named ({picked_ids} -> {landed_ids})")
-    _no_exception(collab_page, "Collaborate (opened from the Compare hand-off)")
+          f"Collaborate: opened on the SAME pair the hand-off named ({picked_ids} -> {landed_ids})")
+    _no_exception(page, "Collaborate (opened from the Compare hand-off)")
+
+    # --- the point of the fix: basket + scenario survive the hop --------------
+    n_after = _sidebar_basket_n(page)
+    tree_after = _selectbox_value(page, "tree")
+    check(n_after is not None and n_after == n_before,
+          f"Basket: the sidebar count survives the hand-off hop ({n_before} -> {n_after}) -- "
+          "the old link_button hand-off reset this to an empty basket in a fresh session")
+    check(tree_after == tree_before,
+          f"Scenario: the tree selection survives the hand-off hop ({tree_before!r} -> {tree_after!r})")
 
     # --- swap flips the order --------------------------------------------------
-    collab_page.locator(".st-key-pair_swap button").first.click(timeout=ACTION_TIMEOUT_MS)
-    _settle(collab_page, 2000)
-    swapped_ids = _pair_deeplink_ids(collab_page)
+    page.locator(".st-key-pair_swap button").first.click(timeout=ACTION_TIMEOUT_MS)
+    _settle(page, 2000)
+    swapped_ids = _pair_deeplink_ids(page)
     check(swapped_ids == list(reversed(landed_ids)),
           f"Collaborate: swap flips A and B ({landed_ids} -> {swapped_ids})")
 
     # --- the shared-topics caption + its CSV header ----------------------------
-    caps = _all_text(collab_page, '[data-testid="stCaptionContainer"]')
+    caps = _all_text(page, '[data-testid="stCaptionContainer"]')
     check(bool(re.search(r"\d\.\d{3}", caps)),
           "Collaborate: a shared-topics caption carries the 3-decimal overlap score "
           "(copy.COLLAB['SHARED_CAPTION']'s own {score:.3f} format)")
-    header = _download_csv_header(collab_page, ".st-key-dl_shared button")
+    header = _download_csv_header(page, ".st-key-dl_shared button")
     check(header.strip() == SHARED_TOPICS_HEADER,
           f"Collaborate: shared-topics CSV header matches the K contract ({header!r})")
-
-    if opened_new_tab:
-        collab_page.close()
 
 
 def check_methods_journey(page) -> None:
@@ -1282,15 +1281,15 @@ def check_methods_journey(page) -> None:
 def check_narrative_persistence(page) -> dict:
     """2B-10's narrative order, hopped with real sidebar nav clicks: the
     tree/basis scenario Find carries (switched to its non-default DISPLAY
-    label back in check_settings) reads the same on Compare and
-    Collaborate's own `.st-key-tree`/`.st-key-basis` sidebar selects. Methods
-    renders NEITHER control -- `views_methods.render()` never calls
-    `_sidebar_scenario()` or `_sidebar_basket()`, a real gap from the
-    brief's assumption that all three downstream pages show them (see this
-    stream's progress note) -- so Methods gets only the exception check here.
-    The basket's `{n} of {cap} added` sidebar count is read (never
-    re-editable) on Compare/Collaborate; returning to Find shows the Gdansk
-    seed still loaded and the SAME count on Find's own editable list."""
+    label back in check_settings) reads the same on Compare, Collaborate AND
+    Methods's own `.st-key-tree`/`.st-key-basis` sidebar selects -- Fix X-2B
+    gave Methods the SAME sidebar Compare/Collaborate already had
+    (`views_methods.render()` now calls `_sidebar_scenario()` and
+    `_sidebar_basket()` too, closing the real gap this file used to flag
+    here as a needs_change for stream M/S). The basket's `{n} of {cap} added`
+    sidebar count is read (never re-editable) on all three; returning to
+    Find shows the Gdansk seed still loaded and the SAME count on Find's own
+    editable list."""
     _click_nav(page, NAV_COMPARE)
     _settle(page, 1500)
     tree_c, basis_c = _selectbox_value(page, "tree"), _selectbox_value(page, "basis")
@@ -1314,6 +1313,14 @@ def check_narrative_persistence(page) -> dict:
 
     _click_nav(page, NAV_METHODS)
     _settle(page, 1000)
+    tree_m, basis_m = _selectbox_value(page, "tree"), _selectbox_value(page, "basis")
+    check(tree_m == TREE_LABEL_ORIGINAL,
+          f"Methods: sidebar taxonomy still {TREE_LABEL_ORIGINAL!r} (got {tree_m!r})")
+    check(basis_m == BASIS_LABEL_FRAC,
+          f"Methods: sidebar counting basis still {BASIS_LABEL_FRAC!r} (got {basis_m!r})")
+    n_methods = _sidebar_basket_n(page)
+    check(n_compare is not None and n_compare == n_methods,
+          f"Basket: the sidebar count agrees on Compare and Methods ({n_compare} vs {n_methods})")
     _no_exception(page, "Methods (persistence hop)")
 
     _click_nav(page, "Find")
@@ -1441,7 +1448,7 @@ def main() -> int:
                 ("Journey: basket (L1 candidates + seed)",
                  lambda: journey.__setitem__("candidates", check_journey_basket(page))),
                 ("Journey: Compare page", _run_compare_journey),
-                ("Journey: hand-off to Collaborate", lambda: check_handoff(page, page.context)),
+                ("Journey: hand-off to Collaborate", lambda: check_handoff(page)),
                 ("Journey: Methods page", lambda: check_methods_journey(page)),
                 ("Journey: narrative persistence", lambda: check_narrative_persistence(page)),
                 ("Journey: widths + screenshots", lambda: check_journey_widths(page, shot_dir)),

@@ -335,10 +335,16 @@ journey: clear the basket, re-search Gdansk, add the seed's own top-3 L1
 (subfield-overlap) peers plus the seed itself (basket = 4), walk that set
 through Compare (strip, legend, figures, the frontier Layout control, the
 impact floor toggle, the xlsx workbook, the deep link, reorder, remove),
-hand off a picked pair to Collaborate with a real link click, walk Methods,
-prove tree/basis/basket persistence across all four pages with real
-sidebar-nav hops, and screenshot Compare/Collaborate/Methods at width.
-The genuine, real-app total is now **189 of 189** (131 R2 checks + 58 new).
+hand off a picked pair to Collaborate with a real button click (an in-session
+`st.switch_page` hop since Fix X-2B, not the `link_button` this journey
+originally found -- see the DOM-fact bullet below), walk Methods, prove
+tree/basis/basket persistence across all FOUR pages with real sidebar-nav
+hops (Methods included, since Fix X-2B also gave it the sidebar Compare/
+Collaborate already had), and screenshot Compare/Collaborate/Methods at
+width. The genuine, real-app total is now **194 of 194** (131 R2 checks + 63
+Phase 2B / Fix X-2B checks: the original 58 the journey shipped with, plus 5
+Fix X-2B added to prove the hand-off keeps the session and Methods carries
+the sidebar).
 
 ### New DOM facts (Streamlit 1.61.1)
 
@@ -362,25 +368,35 @@ The genuine, real-app total is now **189 of 189** (131 R2 checks + 58 new).
   "Basket" section too (adding Sorbonne then Bologna) whenever the second
   add landed on an already-focused widget; fixing it here benefits every
   section, old and new.
-- **`st.link_button`'s `<a href>` is a REAL browser navigation, not
+- **FIXED (Fix X-2B, progress/2B_X.md) -- ORIGINAL FINDING, kept for the
+  record: `st.link_button`'s `<a href>` is a REAL browser navigation, not
   Streamlit's own SPA page-link routing.** The Compare-to-Collaborate
-  hand-off (2B-8) is a `link_button`, not a `page_link` (`st.page_link`
-  cannot carry a query string). Clicking it behaves like `page.goto()` in
-  the one respect that matters: it drops the current WebSocket session, so
-  a brand-new Collaborate session starts with an EMPTY basket -- the `?pair=`
-  query string is the ONLY thing carrying the pair across that hop, which is
-  exactly why `views_collab._candidates()` reads `query["pair"]` before ever
-  consulting the basket. Proof (a) below (renaming the query key) shows the
-  failure mode this produces: not "the wrong pair", but NO dataframe at all
-  within the timeout, because the fallback candidate list is then also
-  empty. Located by `a[href^="/Collaborate"][href*="?"]` (path prefix AND
-  "carries a query string"), never by the exact `?pair=` key and never by a
-  button label (this `link_button` carries no `key=`): a bare
-  `href^="/Collaborate"` would match Streamlit's OWN sidebar nav link for
-  the Collaborate page too (a plain `a[href="/Collaborate"]`, no query,
-  rendered ABOVE the main column so `.first` would grab it instead), which
-  the `[href*="?"]` clause rules out while staying immune to a renamed
-  query key.
+  hand-off (2B-8) used to be a `link_button` (`st.page_link` cannot carry a
+  query string). Clicking it behaved like `page.goto()` in the one respect
+  that matters: it dropped the current WebSocket session, so a brand-new
+  Collaborate session started with an EMPTY basket -- the `?pair=` query
+  string was the ONLY thing carrying the pair across that hop. Proof (a)
+  below (renaming the query key, run against the PRE-FIX codebase) shows the
+  failure mode this produced: not "the wrong pair", but NO dataframe at all
+  within the timeout, because the fallback candidate list was then also
+  empty.
+
+  **The fix**: the hand-off is now a plain `st.button` (`key="cmp_handoff_open"`)
+  that stashes the chosen pair in `st.session_state["pair"]` -- a plain,
+  non-widget key, the basket's own idiom -- and calls
+  `st.switch_page(COLLAB_PAGE)`, the SAME client-routed, session-preserving
+  navigation `st.page_link` and the sidebar nav already use (never a new tab:
+  no `context.expect_page` is needed any more). `views_collab._pair_picker`
+  reads and consumes that key FIRST, ahead of the `?pair=` query and the
+  basket order. `check_handoff` below locates the button by its `key`
+  (`.st-key-cmp_handoff_open button`), never by an `href` -- there is no
+  anchor to read any more -- and reads the pair off the SAME printed
+  `?pair=` deep-link text the old code also printed alongside itself (that
+  copyable text is unchanged by the fix; only the CLICK's own mechanism is).
+  The check now also asserts THE POINT OF THE FIX directly: the sidebar
+  basket count and the tree selection read the same on Collaborate as they
+  did on Compare a moment before the click -- on the old bug this would have
+  found an empty basket and the default tree.
 - **The Compare page's per-institution reorder/remove buttons** (`st.button`
   keyed `cmp_up_{iid}` / `cmp_down_{iid}` / `cmp_rm_{iid}`) are found by
   PARTIAL class match on the stable key PREFIX, never the id itself (which
@@ -410,14 +426,16 @@ The genuine, real-app total is now **189 of 189** (131 R2 checks + 58 new).
   share the exact same `copy.FIND["BASKET_COUNT"]` sidebar caption template
   (`"{n} of {cap} added"`) as Find, so `_sidebar_basket_n` reads it there
   with a regex instead.
-- **`views_methods.render()` calls neither `_sidebar_scenario()` nor
-  `_sidebar_basket()`** -- the Methods page's sidebar carries ONLY
-  Streamlit's own page nav, no tree/basis selects and no basket count. This
-  is a real gap from an assumption in this stream's own brief ("tree and
-  basis... are the sidebar values on Compare, Collaborate AND Methods"): the
-  persistence check verifies tree/basis/basket on Compare and Collaborate
-  only, and settles for "no exception" on Methods. Flagged as `needs_change`
-  for stream M/S, not silently worked around.
+- **FIXED (Fix X-2B) -- ORIGINAL FINDING, kept for the record:
+  `views_methods.render()` called neither `_sidebar_scenario()` nor
+  `_sidebar_basket()`** -- the Methods page's sidebar carried ONLY
+  Streamlit's own page nav, no tree/basis selects and no basket count, a
+  real gap from an assumption in this stream's own brief ("tree and basis...
+  are the sidebar values on Compare, Collaborate AND Methods"). Flagged as
+  `needs_change` for stream M/S, not silently worked around, and closed by
+  Fix X-2B: `views_methods.render()` now calls both, read-only, exactly as
+  Collaborate does. `check_narrative_persistence` verifies tree/basis/basket
+  on all THREE downstream pages now, Methods included.
 - **The seed's own L1 (subfield-overlap) ranking CSV** (`.st-key-dl_L1
   button`, downloaded the same honest way as the L0 CSV check above) is
   where this journey's 3 "real candidates" come from (`display_name` +
@@ -432,11 +450,22 @@ The genuine, real-app total is now **189 of 189** (131 R2 checks + 58 new).
 
 Both ran against **throwaway copies** of `app/` (never the real repo, one
 copy per mutation), built with the same `MSYS_NO_PATHCONV=1 robocopy ...`
-idiom the R2 proofs above use.
+idiom the R2 proofs above use. **Proof (a) below ran against the PRE-FIX
+`link_button` codebase and is kept as the historical record of the bug this
+stream's finding led to Fix X-2B fixing** -- the same mutation against
+today's code would not reproduce this failure mode, because the id-carrier
+`_pair_picker` actually reads first is `st.session_state["pair"]`, not the
+printed `?pair=` deep-link text `selection.deeplink` builds (renaming that
+string's own query key, which is all this mutation does, would now change
+only what a shared link outside the session looks like, never what the
+in-session button click itself hands to Collaborate). The regression guard
+for the CURRENT mechanism is `check_handoff`'s own "THE POINT OF THE FIX"
+assertions -- the basket count and the tree selection surviving the hop --
+documented in the DOM-facts bullet above, not a fresh mutation proof.
 
-**Proof (a): rename the `pair` query key `_handoff` builds the hand-off link
-with (`views_compare.py`, `"pair"` -> `"duo"`) -> the hand-off checks fail,
-nothing else.**
+**Proof (a) (historical, pre-fix): rename the `pair` query key `_handoff`
+built the hand-off link with (`views_compare.py`, `"pair"` -> `"duo"`) ->
+the hand-off checks fail, nothing else.**
 
 ```
 python tests/ui/smoke.py --port 8645 --app-dir <scratch>/h_copy_a
@@ -484,12 +513,17 @@ The brief's "sheet-count check" is this Methods-sheet-PRESENCE check in
 practice: it is the one that actually moves when a sheet goes missing, and
 it is the one this proof shows moving, alone.
 
-### Then: the real app, unmutated (Phase 2B)
+### Then: the real app, unmutated (Phase 2B, then Fix X-2B)
 
 ```
 python tests/ui/smoke.py --port 8644
 ```
-Result: **exit 0**, 189 of 189 checks passed, all Phase 2B screenshots
-written (`smoke_compare_{1920,1280,390}.png`, `smoke_collab_1280.png`,
-`smoke_methods_1280.png`), port clean afterward, no orphan
-`python.exe`/`streamlit` process left running.
+Result (Stream H, pre-fix): **exit 0**, 189 of 189 checks passed, all Phase
+2B screenshots written (`smoke_compare_{1920,1280,390}.png`,
+`smoke_collab_1280.png`, `smoke_methods_1280.png`), port clean afterward, no
+orphan `python.exe`/`streamlit` process left running.
+
+Re-run after Fix X-2B (`python tests/ui/smoke.py --port 8678`): **exit 0**,
+**194 of 194** checks passed (the 5 new ones are the hand-off's session
+checks and the Methods sidebar's persistence checks -- see the DOM-facts
+bullets above), same screenshots, port clean.

@@ -104,10 +104,17 @@ IMPACT_FLOOR_DEFAULT = IMPACT_FLOORS[0]
 SEEDED_KEY = "compare_seeded"
 
 FIND_PAGE = "pages/1_\U0001F50E_Find.py"
-# `st.page_link` cannot carry a query string, and the pair hand-off is nothing
-# WITHOUT one, so the hand-off is a link_button on the Collaborate page's own
-# URL path (Streamlit derives it from the file name) plus the deep link itself,
-# printed for copying.
+# `st.page_link` cannot carry a query string, so the SHAREABLE half of the
+# hand-off is still a printed deep link (`selection.deeplink`). But a
+# `st.link_button` to that link is a TRUE browser navigation -- a fresh page
+# load that starts a brand-new Streamlit session, dropping the basket and the
+# tree/basis scenario with it (Stream H's smoke finding, progress/2B_H.md:
+# only the pair survived, because it rode the query string). `COLLAB_PAGE` is
+# the file path `st.switch_page` needs to hop IN-SESSION instead, the same
+# client-routed navigation `st.page_link` and the sidebar nav already use;
+# `COLLAB_URL_PATH` remains only for the printed link's own text, a URL a
+# reader can paste outside this session, never a page_link/switch_page arg.
+COLLAB_PAGE = "pages/3_\U0001F91D_Collaborate.py"
 COLLAB_URL_PATH = "/Collaborate"
 
 # CSV file-name slugs. Code identifiers, never rendered copy -- the visible
@@ -807,9 +814,24 @@ def _exports(ctx: dict, ids: list, sc: dict, floor: int, sheets: list) -> None:
 
 def _handoff(ctx: dict, ids: list) -> None:
     """2B-8's other half: any pair of the compared set opens on Collaborate.
-    `st.page_link` cannot carry a query string and the pair IS the query string,
-    so the link is built from `selection.deeplink`, which owns both ends of that
-    round trip."""
+
+    The button stashes the chosen pair in `st.session_state["pair"]` -- a
+    plain, non-widget key, the same idiom the basket already uses -- and then
+    calls `st.switch_page(COLLAB_PAGE)`, an IN-SESSION client-routed hop that
+    keeps the basket and the tree/basis scenario alive (unlike the
+    `link_button` this replaces: a true browser navigation that started a
+    fresh session every time, see `COLLAB_PAGE`'s comment above).
+    `views_collab._pair_picker` reads and consumes that key first, ahead of
+    the `?pair=` query and the basket order.
+
+    `st.switch_page` raises `StreamlitAPIException` (a plain `Exception`) when
+    no multipage registry exists to switch into -- AppTest and the acceptance
+    probe both run this page standalone, exactly the gap `_sidebar_basket`'s
+    `page_link` call already guards a few hundred lines up. The `except
+    Exception` here is deliberately narrow: `switch_page`'s own real
+    navigation control flow raises `ScriptControlException`, which Streamlit
+    define as a `BaseException` FOR THIS REASON (its own docstring: "to avoid
+    being caught by user code"), so this guard cannot swallow it."""
     st.subheader(copy.COMPARE["HANDOFF_HEADER"])
     st.caption(copy.COMPARE["HANDOFF_HELP"])
     default = selection.pair_from(ids)
@@ -825,7 +847,12 @@ def _handoff(ctx: dict, ids: list) -> None:
     if pair is None:
         return
     link = selection.deeplink("pair", list(pair))
-    cols[2].link_button(copy.COMPARE["HANDOFF_LINK"], f"{COLLAB_URL_PATH}{link}")
+    if cols[2].button(copy.COMPARE["HANDOFF_LINK"], key="cmp_handoff_open"):
+        st.session_state["pair"] = pair
+        try:
+            st.switch_page(COLLAB_PAGE)
+        except Exception:
+            pass
     st.code(link, language=None)
 
 

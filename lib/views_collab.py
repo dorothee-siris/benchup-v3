@@ -199,14 +199,19 @@ def _extras() -> list[str]:
 def _candidates(bundle: dict) -> list[str]:
     """Everything the pair picker may choose from, in a stable order: the
     basket (its own user order, 2B-8), then whatever a deep link named, then
-    whatever was added by name on this page. De-duplicated, and filtered to ids
-    the index really carries."""
+    whatever Compare's hand-off button just stashed in `st.session_state["pair"]`
+    (read here, NOT popped -- `_pair_picker` below is the one place that
+    consumes it, after this function has already folded its ids into the
+    option list `st.selectbox` needs them in), then whatever was added by name
+    on this page. De-duplicated, and filtered to ids the index really
+    carries."""
     known = bundle["ctx"]["id_pos"]
     query = selection.read_query(known)
+    session_pair = st.session_state.get("pair") or ()
     out: list[str] = []
     seen: set[str] = set()
     pair = query["pair"] or ()
-    for iid in (*state.items(), *pair, *_extras()):
+    for iid in (*state.items(), *pair, *session_pair, *_extras()):
         if iid in known and iid not in seen:
             seen.add(iid)
             out.append(iid)
@@ -239,14 +244,19 @@ def _swap() -> None:
     st.session_state["pair_a"], st.session_state["pair_b"] = b, a
 
 
-def default_pair(candidates: list[str], query_pair, known) -> tuple | None:
-    """Pure: the pair the page opens on. A `?pair=` deep link wins (a shared
-    link should show what it names, A11 / 2B-8), then the first two candidates
-    in their own order. `None` when fewer than two are available."""
-    if query_pair and len(query_pair) >= 2:
-        a, b = query_pair[0], query_pair[1]
-        if a != b and a in known and b in known:
-            return (a, b)
+def default_pair(candidates: list[str], query_pair, known, session_pair=None) -> tuple | None:
+    """Pure: the pair the page opens on. `session_pair` -- Compare's hand-off
+    button's `st.session_state["pair"]`, already popped by the caller -- wins
+    FIRST when both its ids are known: it is the reader's own most recent
+    in-session action, the fix for a hand-off that used to drop the session
+    entirely (progress/2B_X.md). Next a `?pair=` deep link wins (a shared link
+    should show what it names, A11 / 2B-8), then the first two candidates in
+    their own order. `None` when fewer than two are available."""
+    for pair in (session_pair, query_pair):
+        if pair and len(pair) >= 2:
+            a, b = pair[0], pair[1]
+            if a != b and a in known and b in known:
+                return (a, b)
     return selection.pair_from(candidates)
 
 
@@ -262,11 +272,23 @@ def _pair_picker(bundle: dict, candidates: list[str]) -> tuple | None:
         return None
 
     query = selection.read_query(ctx["id_pos"])
-    default = default_pair(candidates, query["pair"], ctx["id_pos"])
+    # Popped HERE, once: a hand-off is a one-time seed for the render right
+    # after the hop, never a standing override that would keep fighting a
+    # reader's own later edit to the selectboxes below (progress/2B_X.md).
+    # `_candidates` above already read this same key (without popping) to
+    # fold its ids into the option list, so a hop always resolves to a value
+    # `st.selectbox` accepts.
+    session_pair = st.session_state.pop("pair", None)
+    default = default_pair(candidates, query["pair"], ctx["id_pos"], session_pair)
     # A stored selection that is no longer among the options would make
     # st.selectbox raise, so it is dropped rather than defended against later.
+    # A just-consumed `session_pair` FORCES both boxes to the hand-off's pair
+    # even when an earlier Collaborate visit this session left them on some
+    # other pair that still happens to validate -- otherwise the widgets' own
+    # `persist_state` would win and a second hand-off would silently do
+    # nothing.
     for key, fallback in (("pair_a", default[0]), ("pair_b", default[1])):
-        if st.session_state.get(key) not in candidates:
+        if session_pair or st.session_state.get(key) not in candidates:
             st.session_state[key] = fallback
 
     cols = st.columns([2, 2, 1])

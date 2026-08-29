@@ -46,7 +46,8 @@ from lib.app_config import CFG
 from lib.data_cache import DATA_DIR, erc, index, manifest, sdg, topics_dim
 from lib.palette import NA_MARK
 from lib.profile_data import SI_FLOOR_SOLID, SI_FLOOR_THIN
-from lib.views_find import CORE_TOP_N
+from lib.views_collab import _sidebar_basket
+from lib.views_find import CORE_TOP_N, _bundle, _sidebar_scenario
 
 DOCS_DIR = Path(__file__).resolve().parent.parent / "docs"
 CONTRACT_PATH = DOCS_DIR / "data_contract.yaml"
@@ -177,15 +178,29 @@ def _note_bytes() -> bytes:
 
 
 def render() -> None:
-    """The Methods page: title/lead from copy.NAV, the verdict line, one
-    expander per copy.METHODS section in dict order, and a footer offering
+    """The Methods page: the SAME sidebar as Compare/Collaborate (the scenario
+    picker plus the read-only basket, Fix X-2B / BUILD_PLAN_2B.md
+    progress/2B_H.md's second finding: this page had neither, the one gap in
+    "all three downstream pages carry them" left over from Stream M), then
+    title/lead from copy.NAV, the verdict line, one expander per
+    copy.METHODS section in dict order, and a footer offering
     docs/METHODS_NOTE.md as a download alongside the snapshot stamp.
+
+    The sidebar is READ-ONLY here exactly as on Collaborate, and costs no
+    extra data load: `_bundle()` is the SAME process-wide `st.cache_resource`
+    every other page already pays for once (views_find.py's own docstring),
+    and `_sidebar_scenario()` only renders the tree/basis selectboxes -- this
+    page never calls `_subs()`, so a tree/basis flip here never pays
+    `build_substrates` (this page's numbers do not depend on either toggle).
 
     NOTE for the manager (needs_change, V3/progress/2B_M.md S4): the two
     short strings the download button and its caption use are plain
     literals, not a copy.NAV/copy.METHODS key -- no such key exists yet and
     lib/copy.py is outside this stream's fence. Both are digit-free and
     carry no unresolved figure, so they satisfy the digit-ban as written."""
+    bundle = _bundle()
+    _sidebar_scenario()
+    _sidebar_basket(bundle)
     values = methods_values()
 
     st.title(copy.NAV["METHODS_LABEL"])

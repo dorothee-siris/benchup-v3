@@ -263,6 +263,23 @@ def test_the_pair_handoff_offers_a_collaborate_deep_link():
     assert {"cmp_pair_a", "cmp_pair_b"} <= {sb.key for sb in at.selectbox}
 
 
+def test_the_pair_handoff_button_seeds_session_state_pair_without_crashing():
+    """The FIX (BUILD_PLAN_2B.md progress/2B_X.md): the hand-off used to be a
+    `link_button` to the Collaborate URL, a TRUE browser navigation that
+    started a fresh session and dropped the basket/tree/basis with it. It is
+    now a plain `st.button` that stashes the chosen pair in
+    `st.session_state["pair"]` (a non-widget key, the basket's own idiom)
+    BEFORE calling `st.switch_page` -- which raises `StreamlitAPIException`
+    here (AppTest runs this page standalone, with no multipage registry to
+    switch into, exactly the gap the sidebar's own `page_link` call already
+    guards a few lines up) and must not surface as a page exception."""
+    at = _app().run()
+    assert "pair" not in at.session_state
+    at.button(key="cmp_handoff_open").click().run()
+    assert not at.exception, [str(e) for e in at.exception]
+    assert tuple(at.session_state["pair"]) == (STRASBOURG, GDANSK)
+
+
 # ------------------------------------------------------------- workbook -----
 
 def _frames_for(ids) -> dict:
