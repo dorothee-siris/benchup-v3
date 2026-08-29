@@ -222,9 +222,14 @@ def row_height(n: int, minimum: int = MIN_HEIGHT, n_wrapped: int = 0) -> int:
     is `(WRAP_ROW_FACTOR - 1)` rows per wrapped row, not per label character --
     wrapping is binary (one line or two, never more), so the row-height cost
     is too. Default `0` reproduces the pre-R2 formula exactly."""
+    # Manager fix 2026-08-29 (R2 render check, r2_shipped_builders_1280.png):
+    # plotly spaces a categorical axis UNIFORMLY, so adding height only in
+    # proportion to the number of wrapped rows left each two-line label
+    # overlapping its neighbours (3 wrapped rows of 30 grew the pitch by 7 %).
+    # If ANY label wraps, every row must get the two-line pitch.
     n_wrapped = min(max(int(n_wrapped), 0), int(n))
-    extra_rows = n_wrapped * (WRAP_ROW_FACTOR - 1)
-    return max(minimum, int(round(ROW_PX * (int(n) + extra_rows))) + BASE_PX)
+    pitch = ROW_PX * (WRAP_ROW_FACTOR if n_wrapped > 0 else 1.0)
+    return max(minimum, int(round(pitch * int(n))) + BASE_PX)
 
 
 def _fmt_pct(v: float) -> str:
