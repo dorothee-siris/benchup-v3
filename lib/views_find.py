@@ -1010,11 +1010,35 @@ def _lens_intro(lens: str, ranking: dict, subs: dict, basis: str, bundle: dict,
     if lens == "L2f":
         st.caption(copy.FIND["EV_L2F"].format(
             value=f"{card['n_eligible_subfields_L2f']:,}"))
+    # Manager fix 2026-08-29 (inspection R2, I-2): the per-lens coverage lines the
+    # spec asks for (L8) -- ERC-classified share on the ERC lenses, SDG-tagged
+    # share on the SDG lenses, frontier share on F1, catch-all share on L3 -- were
+    # authored in copy.py (EV_ERC/EV_SDG/EV_FRONTIER/EV_CATCHALL) but never wired
+    # once R2 retired the profile coverage line. Each is a statement about the
+    # SEED's data, never a gate.
+    shown_specific = False
+    if lens in ("L4", "L5"):
+        erc, tot = card.get("erc_classified_mass_frac"), bundle["ctx"]["index_by_id"].loc[card["institution_id"], "total_frac"]
+        if erc is None or pd.isna(tot) or float(tot) <= 0:
+            erc_txt = NA_MARK
+        else:
+            erc_txt = _pct(erc / float(tot))
+        st.caption(copy.FIND["EV_ERC"].format(value=erc_txt))
+        shown_specific = True
+    elif lens in ("L6", "L7"):
+        st.caption(copy.FIND["EV_SDG"].format(value=_pct(card.get("sdg_tagged_share"))))
+        shown_specific = True
+    elif lens == "F1":
+        st.caption(copy.FIND["EV_FRONTIER"].format(value=_pct(card.get("frontier_top25_share_index"))))
+        shown_specific = True
+    elif lens == "L3":
+        st.caption(copy.FIND["EV_CATCHALL"].format(value=_pct(card.get("catchall_811_share"))))
+        shown_specific = True
     ev = {k: v for k, v in (ranking.get("evidence") or {}).items() if isinstance(v, (int, float))}
     if ev:
         text = "; ".join(f"{k.replace('_', ' ')}: {v:,.3f}" for k, v in ev.items())
         st.caption(copy.FIND["EVIDENCE_LABEL"].format(text=text, sep=SEP))
-    else:
+    elif not shown_specific and lens != "L2f":
         st.caption(copy.FIND["EV_NONE"])
     if basis == "full" and not subs["basis_applies"][lens]:
         st.caption(copy.FIND["BASIS_DISCLOSURE"])

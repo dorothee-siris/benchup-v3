@@ -281,7 +281,7 @@ FIND = {
     "EV_L2F": ("L2f compares specialisations only in subfields where both institutions publish enough "
                "to judge: {value} of this institution's subfields qualify."),
     "EV_SDG": "SDG-tagged share of publications: {value}",
-    "EV_ERC": "ERC-classified share of fractional publications: {value}",
+    "EV_ERC": "Share of the seed's fractional publications that carry an ERC panel: {value}",  # manager reword 2026-08-29: must not share the retired coverage line's prefix (probe/test check)
     "EV_FRONTIER": "Frontier top-quartile share: {value}",
     "EV_CATCHALL": "Share of publications in catch-all topics, outside the subject scope: {value}",
     "CARD_PP": "PP(top10%): {pp} [{lo}{dash}{hi}]",

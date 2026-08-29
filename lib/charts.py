@@ -868,6 +868,10 @@ def fig_breakdown_yearly(
     fig = _base_layout(fig, SCATTER_HEIGHT - BASE_PX * 2,
                        margin=dict(t=BASE_PX // 2, l=8, r=16, b=BASE_PX))
     fig.update_layout(bargap=0)   # explicit offsets already own the spacing
+    # Manager fix 2026-08-29 (inspection R2, I-1): with l=8 the rotated y-axis
+    # title clipped to "Publicatio" at 390 px; automargin lets plotly reserve
+    # the title's width whatever the viewport.
+    fig.update_yaxes(automargin=True, title_standoff=6)
     return fig
 
 
