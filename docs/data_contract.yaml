@@ -20,11 +20,15 @@
 #   here because they are still part of the contract between the shipped data and what the UI
 #   is allowed to claim.
 
-contract_version: "1.0"
+contract_version: "1.1"
 snapshot: august_2026                      # config.yaml `snapshot:` (R2.1)
 generated_at: "2026-08-27T13:41:28.350794+00:00"   # source_manifest.json generated_at (= data/artefacts_eu/manifest.json, byte-identical, verified 2026-08-29)
 source_dir: "../data/artefacts_eu"         # default --source for ops/deploy.py, relative to app/
 deploy_target: "data/"
+# v1.1 (Refinement R1, R-S5, 2026-08-29): +doctype_by_year.parquet (BUILD_PLAN_2A.md L24) --
+# 9 parquet tables + 2 override csv = 11 files declared below (was 10 at v1.0). breadth_subfields
+# and sdg.esi meanings corrected against the real data (see their entries); the 6 index.mass_*
+# grey-accounting rows' GAP wording resolved to a ruling (L25).
 
 policy:
   fail_on_missing_column: true     # a declared column absent from the built table -> FAIL
@@ -63,16 +67,16 @@ files:
       - {name: first_year, dtype: int64, meaning: "first year this institution appears in the corpus"}
       - {name: newcomer_flag, dtype: bool, meaning: "0 True rows in the shipped 7,557 (verified 2026-08-29) -- no institution in this snapshot is flagged a corpus newcomer"}
       - {name: hhi_subfield, dtype: float64, meaning: "Herfindahl-Hirschman index of the institution's subfield share_frac vector (bestfit tree); feeds hhi_class"}
-      - {name: breadth_subfields, dtype: int32, meaning: "count of subfields with nonzero vol_frac for this institution"}
+      - {name: breadth_subfields, dtype: int32, meaning: "count of subfields with vol_frac >= 30 (the G6 floor, config.yaml g6_impact_floor / pipeline/agg/trees_agg.G6_FLOOR) for this institution -- VERIFIED 2026-08-29: equals count(subfields.parquet.vol_frac >= 30) exactly on 7 spot-checked institutions (I100063501: 4, I34250744: 58, I4210155399: 1, I2802445252: 11, I4210128123: 3, I4210126694: 2, I2802833755: 1). NOT 'count of subfields with nonzero vol_frac' as an earlier reading of this contract said -- that reading was wrong (152/225 nonzero subfields on the first probe, vs the correct 4 at the G6 floor)."}
       - {name: total_full_this_run, dtype: float64, meaning: "run-scoped bookkeeping total (r2 build internals); not a headline KPI"}
       - {name: total_frac_this_run, dtype: float64, meaning: "run-scoped bookkeeping total; not a headline KPI"}
       - {name: total_frac, dtype: float64, meaning: "fractional total across the FULL corpus window used by this run (superset of total_frac_2020_2024's window in some cases) -- verified equal to sum(topics_all.vol_frac) for a spot-checked institution; treat as the denominator when reconciling topics_all against index-level totals"}
-      - {name: mass_retracted_excluded, dtype: float64, meaning: "GREY ACCOUNTING (fractional mass units): mass excluded as retracted. Europe-wide total in source_manifest.json grey_totals_frac_mass.retracted_excluded. GAP: shipped per-institution only, no country x field breakdown -- see ARTEFACT_GAP_AUDIT.md"}
-      - {name: mass_unusable, dtype: float64, meaning: "grey accounting: unusable mass (Europe total: grey_totals_frac_mass.unusable). Same country x field GAP as above."}
-      - {name: mass_title_only, dtype: float64, meaning: "grey accounting: title-only (no abstract) mass (Europe total: grey_totals_frac_mass.title_only). Same GAP."}
-      - {name: mass_lang_uncertain, dtype: float64, meaning: "grey accounting: language-uncertain mass (Europe total: grey_totals_frac_mass.lang_uncertain). Same GAP."}
-      - {name: mass_untranslated_grey, dtype: float64, meaning: "grey accounting: untranslated-but-non-English mass (Europe total: grey_totals_frac_mass.untranslated_grey). Same GAP."}
-      - {name: mass_classified_eligible, dtype: float64, meaning: "grey accounting: mass that cleared every exclusion and is eligible for classification (Europe total: grey_totals_frac_mass.classified_eligible, 4,618,728.8). Same GAP."}
+      - {name: mass_retracted_excluded, dtype: float64, meaning: "GREY ACCOUNTING (fractional mass units): mass excluded as retracted. Europe-wide total in source_manifest.json grey_totals_frac_mass.retracted_excluded. Shipped per-institution only, no country x field breakdown -- institution-level only by user ruling 2026-08-29 (gate 2A, BUILD_PLAN_2A.md L25); see ARTEFACT_GAP_AUDIT.md."}
+      - {name: mass_unusable, dtype: float64, meaning: "grey accounting: unusable mass (Europe total: grey_totals_frac_mass.unusable). Same institution-level-only ruling as above."}
+      - {name: mass_title_only, dtype: float64, meaning: "grey accounting: title-only (no abstract) mass (Europe total: grey_totals_frac_mass.title_only). Same ruling."}
+      - {name: mass_lang_uncertain, dtype: float64, meaning: "grey accounting: language-uncertain mass (Europe total: grey_totals_frac_mass.lang_uncertain). Same ruling."}
+      - {name: mass_untranslated_grey, dtype: float64, meaning: "grey accounting: untranslated-but-non-English mass (Europe total: grey_totals_frac_mass.untranslated_grey). Same ruling."}
+      - {name: mass_classified_eligible, dtype: float64, meaning: "grey accounting: mass that cleared every exclusion and is eligible for classification (Europe total: grey_totals_frac_mass.classified_eligible, 4,618,728.8). Same ruling."}
       - {name: erc_eligible_mass_frac, dtype: float64, meaning: "fractional mass eligible for ERC classification"}
       - {name: erc_classified_mass_frac, dtype: float64, meaning: "fractional mass actually assigned an ERC panel; DENOMINATOR of erc.parquet's `share` column (verified 2026-08-29: mass/share is constant per institution and equals this column exactly, e.g. 784.2579731515212). Also the denominator for the 'ERC classified mass share' evidence line (L4/L5): erc_classified_mass_frac / total_frac_2020_2024."}
       - {name: sdg_eligible_mass_frac, dtype: float64, meaning: "fractional mass eligible for SDG classification"}
@@ -239,7 +243,7 @@ files:
       - {name: institution_id, dtype: object, meaning: null}
       - {name: sdg_idx, dtype: int16, meaning: "0-based SDG index, 16 values (SDG 17 not covered, DESIGN.md S5)"}
       - {name: share, dtype: float32, meaning: "MULTI-LABEL: mass / (index.sdg_tagged_share * index.sdg_eligible_mass_frac) for this institution -- denominator is the institution's SDG-TAGGED fractional mass, VERIFIED exact 2026-08-29 (a work may carry several SDGs via 'any-keyword-hit', DESIGN.md S5). Invariant is 0 <= share <= 1 PER ROW (verified: range [0.0, 1.0] over all 120,912 rows), NOT Sigma<=1 -- Sigma per institution was observed up to 3.522568941116333 (verified max, 2026-08-29)."}
-      - {name: esi, dtype: float32, meaning: "SDG specialisation index = institution SDG share / a Europe-wide reference average share for that SDG. The reference is conceptually source_manifest.json's esi_europe_avg_sdg_share_classified_mass_basis (16 floats, sdg_idx-ordered) -- VERIFIED that vector itself equals, per sdg_idx, SUM(sdg.mass) over all institutions / SUM(index.sdg_classified_mass_frac) over all institutions (exact, ratio constant to 1e-6 across all 16 entries). METHODS FLAG (non-blocking, verified 2026-08-29): naively computing institution_share / esi_europe_avg_... UNDERSTATES the true divisor -- it overstates the shipped esi by a constant factor of ~4.2046x for EVERY institution and EVERY sdg_idx (spot-checked 5 institutions x 16 SDGs, ratio std < 1e-8, i.e. deterministic and reproducible, just not algebraically tied to the manifest vector by simple division). esi IS an exact, deterministic rescaling of share within each sdg_idx (esi/share constant across institutions per sdg_idx) -- esi and share rank institutions identically within one SDG. Flagged for Stream B/2B methods reconciliation; does not affect the correctness of the shipped esi values."}
+      - {name: esi, dtype: float32, meaning: "SDG specialisation index = institution SDG-tagged share / the Europe-wide average SDG-tagged share for that SDG, i.e. esi = share / europe_avg_tagged where europe_avg_tagged = SUM_index(sdg.mass) / SUM_index(sdg_tagged_share * sdg_eligible_mass_frac) -- the SDG-TAGGED-mass basis, per pipeline/agg/erc_sdg_long.py::build_sdg_long's own `europe_avg` line (mass.sum(axis=0) / tagged_mass.sum()). METHODS FLAG RESOLVED (2026-08-29, R-S5): source_manifest.json's esi_europe_avg_sdg_share_classified_mass_basis vector is a DIFFERENT, CLASSIFIED-mass-basis reference (SUM(sdg.mass) / SUM(index.sdg_classified_mass_frac)) -- naming this the esi denominator and dividing share by it understates the true divisor, overstating a naively-recomputed esi by a constant factor. VERIFIED NUMERICALLY: SUM_index(sdg_classified_mass_frac) / SUM_index(sdg_tagged_share * sdg_eligible_mass_frac) = 4.2046 (to 4 decimals; num=4,609,424.9308, den=1,096,285.9619, app/data/index.parquet, 2026-08-29) -- matches the ~4.2046x offset flagged at gate 2A exactly. The shipped esi column is unaffected (it was always computed on the tagged-mass basis by build_sdg_long, correctly); this entry now names esi's TRUE denominator instead of the manifest's classified-mass vector, closing BUILD_PLAN_2A.md L25's methods flag. esi/share is a constant, deterministic rescaling within each sdg_idx -- esi and share rank institutions identically within one SDG."}
       - {name: mass, dtype: float32, meaning: "fractional work-mass tagged with this SDG (a work's mass is NOT divided across its SDG tags -- it counts in full toward every SDG it is tagged with, which is why Sigma(mass) over an institution's 16 rows can exceed its tagged mass)"}
 
   # ============================================================================================
@@ -259,6 +263,21 @@ files:
       - {name: pp_ci_high, dtype: float32, meaning: "bootstrap 95% CI upper bound. VERIFIED 2026-08-29: pp_ci_low <= pp_top10_frac <= pp_ci_high holds for ALL 328,978 rows."}
       - {name: pp_denominator_frac, dtype: float32, meaning: "fractional-mass denominator (articles+reviews, 2020-2024) the pp_top10_frac cell was computed over"}
       - {name: n_works_full, dtype: int32, meaning: "full work count denominator for the same cell"}
+
+  # ============================================================================================
+  # doctype_by_year.parquet -- institution x year x document type (NEW, R1 R-S5, BUILD_PLAN_2A L24)
+  # ============================================================================================
+  doctype_by_year.parquet:
+    grain: "institution x year x document type, sparse to nonzero cells (institution population x 6 years {2020..2025} x up to 5 doc types; 141,182 rows, 1.0 MB, VERIFIED 2026-08-29). 2025 is the labelled BONUS year (config.yaml bonus_year, same convention as topics_all.vol_full_2025/vol_frac_2025): trends/volume only, excluded from impact indicators (R1.6 composition skew)."
+    keys: [institution_id, year, doc_type]
+    columns:
+      - {name: inst_key, dtype: int32, meaning: "join key to index.inst_key (L14 population order)"}
+      - {name: institution_id, dtype: object, meaning: "OpenAlex institution id; restricted to the 7,557 index institutions (app/data/index.parquet)"}
+      - {name: year, dtype: int16, meaning: "publication year, 2020-2025"}
+      - {name: doc_type, dtype: category, meaning: "OpenAlex `type_effective` (pipeline/agg/enriched_corpus.py) -- the harvest's own server-side type filter restricts this to {article, review, book, book-chapter, letter} (pipeline/01b_harvest_eu27_aug.py / 01_harvest_supplement.py `type:` filter, L23); VERIFIED 2026-08-29: exactly these 5 values observed across all 6 years, 0 other values."}
+      - {name: vol_full, dtype: int32, meaning: "full (unfractionalized, head-count) work count in this institution x year x doc_type cell. Denominator note: SUM(vol_full) over doc_type for a given (institution, year) EQUALS index.vol_full_by_year_this_run's packed value for that year, EXACTLY (Class-1 invariant, BUILD_PLAN_2A L24; verified on all 7,557 x 6 = 45,342 institution x year cells, `pipeline/09c_doctype_by_year.py --check`)."}
+      - {name: vol_frac, dtype: float32, meaning: "D5 fractional-counted work count (pipeline/agg/attribution.explode_fractional_weights) in this cell. Denominator note: SUM(vol_frac) over doc_type for a given (institution, year) equals index.vol_frac_by_year_this_run's packed value for that year within 1e-6 relative (1e-3 absolute for near-zero cells) -- verified on all 45,342 cells."}
+    build_note: "pipeline/09c_doctype_by_year.py; SAME corpus loader (pipeline/agg/enriched_corpus.load_year_corpus, use_aug_harvest=True) and SAME attribution explode (pipeline/agg/attribution.explode_fractional_weights) as 09b_aggregate_eu.py's own year_vol/by_year block that produced index.vol_full_by_year_this_run/vol_frac_by_year_this_run -- this table is that same computation with one extra groupby key (type_effective), never a new opinion about what counts. Per-year checkpoints under data/artefacts_eu/_ckpt_doctype/ (resumable; the GLOBAL cross-year work_id dedup ~50 rows corpus-wide, keep-later-year -- is applied ONCE at final concatenation, matching 09b_aggregate_eu.py's own load_enriched_corpus_years, not per year)."
 
   # ============================================================================================
   # overrides/type_overrides.csv -- locked, append-only patch list (Annuaire pattern)

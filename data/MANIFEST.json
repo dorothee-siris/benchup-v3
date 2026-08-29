@@ -1,8 +1,8 @@
 {
-  "deployed_at": "2026-08-28T23:26:07.895219+00:00",
+  "deployed_at": "2026-08-29T08:05:42.191844+00:00",
   "snapshot": "august_2026",
   "source_manifest_generated_at": "2026-08-27T13:41:28.350794+00:00",
-  "contract_version": "1.0",
+  "contract_version": "1.1",
   "files": {
     "index.parquet": {
       "sha256": "7a2fb068e392ec1a397d3245ec75199f909b6b873f7a7e23762a2f175c3bf356",
@@ -43,6 +43,11 @@
       "sha256": "f415713e134efd6e9f16a0488649ff0dabda1f4bac9de0a0063059831042edbd",
       "n_rows": 328978,
       "size_bytes": 6348905
+    },
+    "doctype_by_year.parquet": {
+      "sha256": "bc401f8a745c9876eac0d5d7b5082865d6265a4d009ca368727eb76905205acd",
+      "n_rows": 141182,
+      "size_bytes": 1023183
     },
     "overrides/type_overrides.csv": {
       "sha256": "2264cc95f5ed8d4d2a327776e4c1e2e64bab782799ebdf63f508cbd4704d812f",

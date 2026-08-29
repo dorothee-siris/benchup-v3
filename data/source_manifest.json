@@ -119,7 +119,8 @@
     "sdg": 1.797232,
     "fields": 3.187823,
     "subfields": 9.477375,
-    "impact_cells": 6.348905
+    "impact_cells": 6.348905,
+    "doctype_by_year": 0.975783
   },
   "total_size_mb": 84.859883,
   "table_schemas": {
@@ -350,6 +351,17 @@
         "vol_frac_by_year": "object",
         "vol_full_by_year": "object"
       }
+    },
+    "doctype_by_year": {
+      "grain": "institution x year x doc_type (7,557 index institutions x 6 years {2020..2025} x up to 5 doc types, sparse to nonzero cells)",
+      "columns": {
+        "inst_key": "int32",
+        "institution_id": "object",
+        "year": "int16",
+        "doc_type": "category",
+        "vol_full": "int32",
+        "vol_frac": "float32"
+      }
     }
   },
   "text_diff_used": true,
@@ -358,5 +370,12 @@
     "n_rows": 16,
     "file": "data/overrides/type_overrides.csv",
     "sha256": "2264cc95f5ed8d4d2a327776e4c1e2e64bab782799ebdf63f508cbd4704d812f"
+  },
+  "doctype_by_year": {
+    "note": "R1 R-S5 addition (BUILD_PLAN_2A.md L24, 2026-08-29): institution x year x document-type volumes, built by pipeline/09c_doctype_by_year.py using the SAME loader (agg.enriched_corpus.load_year_corpus, use_aug_harvest=True) and SAME attribution explode (agg.attribution.explode_fractional_weights) as this file's own year_vol/by_year block (09b_aggregate_eu.py) that produced index.vol_full_by_year_this_run/vol_frac_by_year_this_run -- verified identical to those packed columns on all institution x year cells (python pipeline/09c_doctype_by_year.py --check).",
+    "generated_at": "2026-08-29T08:05:10.716476+00:00",
+    "n_rows": 141182,
+    "file": "data/artefacts_eu/doctype_by_year.parquet",
+    "sha256": "bc401f8a745c9876eac0d5d7b5082865d6265a4d009ca368727eb76905205acd"
   }
 }

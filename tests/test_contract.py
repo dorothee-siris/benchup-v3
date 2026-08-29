@@ -36,8 +36,8 @@ def _read(fname: str) -> pd.DataFrame:
 
 def test_contract_check_clean(contract: dict) -> None:
     """Every declared file present, every declared column/dtype/key verified, no undeclared
-    drop vs source_manifest.json's table_schemas. This single check covers 10 tables (8 parquet
-    + 2 override csv)."""
+    drop vs source_manifest.json's table_schemas. This single check covers 11 tables (9 parquet
+    + 2 override csv) since R1's doctype_by_year.parquet addition (contract_version 1.1)."""
     violations = check(DATA_DIR, contract)
     assert violations == [], "\n".join(violations)
 
@@ -124,3 +124,55 @@ def test_umbrella_supplement_shape() -> None:
     print(f"umbrella_supplement.csv: {len(supp)} rows, columns={list(supp.columns)}")
     assert list(supp.columns) == ["display_name", "institution_id", "note"]
     assert len(supp) >= 24
+
+
+def test_doctype_by_year_keys_unique_and_typed() -> None:
+    """BUILD_PLAN_2A.md L24: (institution_id, year, doc_type) unique; doc_type restricted to
+    the harvest's 5 server-side-filtered types; year within the shipped 2020-2025 window."""
+    dt = _read("doctype_by_year.parquet")
+    n_dupes = int(dt.duplicated(subset=["institution_id", "year", "doc_type"]).sum())
+    print(f"doctype_by_year.parquet: {len(dt):,} rows, {n_dupes} duplicate key(s)")
+    assert n_dupes == 0
+    allowed_types = {"article", "review", "book", "book-chapter", "letter"}
+    other_types = set(dt["doc_type"].astype(str).unique()) - allowed_types
+    print(f"doc_type values outside the 5-type allowlist: {other_types}")
+    assert other_types == set()
+    assert dt["year"].min() >= 2020 and dt["year"].max() <= 2025
+    assert (dt["vol_full"] >= 0).all()
+    assert (dt["vol_frac"] >= -1e-6).all()
+
+
+def test_doctype_by_year_sum_matches_index_by_year() -> None:
+    """L24 Class-1 invariant, spot-checked on 3 institutions from the deployed app/data/ (the
+    full 7,557 x 6 = 45,342-cell check is `python V3/pipeline/09c_doctype_by_year.py --check`,
+    run by the manager separately -- this test is the CI-speed subset)."""
+    dt = _read("doctype_by_year.parquet")
+    idx = _read("index.parquet")
+
+    def _parse_packed(s: str) -> dict[int, float]:
+        return {int(y): float(v) for y, v in (p.split(":") for p in s.split("|"))} if s else {}
+
+    sample_ids = idx["institution_id"].iloc[[0, len(idx) // 2, len(idx) - 1]].tolist()
+    checked = 0
+    for iid in sample_ids:
+        row = idx.loc[idx["institution_id"] == iid].iloc[0]
+        full_packed = _parse_packed(row["vol_full_by_year_this_run"])
+        frac_packed = _parse_packed(row["vol_frac_by_year_this_run"])
+        sub = dt[dt["institution_id"] == iid]
+        for year, expected_full in full_packed.items():
+            got_full = int(sub.loc[sub["year"] == year, "vol_full"].sum())
+            assert got_full == int(round(expected_full)), (
+                f"{iid} year={year}: doctype_by_year Sigma(vol_full)={got_full} != "
+                f"index.vol_full_by_year_this_run={expected_full}"
+            )
+            expected_frac = frac_packed.get(year, 0.0)
+            got_frac = float(sub.loc[sub["year"] == year, "vol_frac"].sum())
+            rel = abs(got_frac - expected_frac) / max(abs(expected_frac), 1e-9)
+            assert rel <= 1e-6 or abs(got_frac - expected_frac) <= 1e-3, (
+                f"{iid} year={year}: doctype_by_year Sigma(vol_frac)={got_frac} != "
+                f"index.vol_frac_by_year_this_run={expected_frac} (rel={rel:.2e})"
+            )
+            checked += 1
+    print(f"doctype_by_year vs index by-year: {checked} (institution, year) cells matched exactly, "
+          f"{len(sample_ids)} institutions")
+    assert checked > 0
