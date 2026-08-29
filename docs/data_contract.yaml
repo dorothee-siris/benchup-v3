@@ -365,3 +365,20 @@ derived_views:
     m: "8 when the SMALLER of the pair is below 20,000 full works; 4 when it is >= 20,000 (config.yaml proposal_r5.scale_guard, M5.6/H15; band-differentiated, a single x5 is NOT band-safe)"
 
   concordance_denominator_disclosure: "the overview caption states N (=30) and n (count of enabled default lenses) explicitly on every render (L3 in BUILD_PLAN) -- never a bare k/n fraction without both numbers spelled out"
+
+  # ---- Refinement R2 (2026-08-29): derived views added by stream R2-P (text supplied in progress/R2_P.md, applied by the manager) ----
+  baselines_r2:
+    what: "Whole-index median + percentile rank for 8 KPIs, computed live by app/lib/baselines.py::build(index.parquet) and cache_resource'd by the page -- NOT a shipped table (R2 L31)."
+    kpis: [total_full_2020_2024, total_frac_2020_2024, hhi_subfield, breadth_subfields, sdg_tagged_share, frontier_top25_share, pp_top10_frac, bonus_year_full]
+    bonus_year_full: "vol_full_by_year_this_run's entry for config.yaml's bonus_year (2025 as shipped), parsed at call time -- not a column."
+    percentile_definition: "share of non-null index.parquet values STRICTLY BELOW the institution's own value (0..1); None when the institution's own value is null. Population = institutions with a non-null value for that KPI. The index is dominated by small specialised institutes (median 572 full publications, median breadth 1 subfield at the G6 floor), so the median is a population fact, not a norm -- the UI says so (copy BASELINE_HELP)."
+  si_status_r2:
+    what: "{solid, thin, none} added to subfields_table/erc_table/sdg_table/fields_table (app/lib/profile_data.py) -- a PROFILE-DISPLAY floor (R2 L34), separate from the ratified G6 lens floor in derive.py (same 30, different purpose, both in force)."
+    subfields: "solid: vol_frac >= 30; thin: 10 <= vol_frac < 30; none: vol_frac < 10."
+    erc_sdg: "same thresholds on the fractional `mass` column (never on share/si/esi); sdg.parquet is dense, so 'none' genuinely occurs there (zero-mass rows carry no SI mark -- the ERC/SDG zero-volume fix)."
+    fields: "solid when vol_frac > 0 and si is not null, else none; fields.si carries no floor, so 'thin' cannot occur at field grain."
+    subfields_si_value: "subfields_table's si is RECOMPUTED unfloored (share / mean(share over the rows present in the scenario frame for that subfield) -- derive.py's own mean_share_v population and formula, minus its G6 gate) so a thin row carries a real value; wherever subfields.parquet's floored si is defined the recomputed value equals it within float32 rounding (tests/test_profile_data.py, rtol 1e-5). erc.si and sdg.esi are not recomputed (no floor shipped)."
+  rank_volume_r2:
+    what: "topics_table gains a 1..n rank by volume on the CURRENT basis (vol_full if basis == full else vol_frac), unique, ties by topic_id -- feeds the frontier panel's 'top N topics by volume' mode (R2 L33); top25pct_frontier is unrelated and not a subset."
+  sdg_label_numbered_r2:
+    what: "resources/sdg_labels.csv and sdg_table gain sdg_label_numbered = 'SDG {n} · {label}' (R2 L36); sdg_label kept alongside."
