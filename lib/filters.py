@@ -8,6 +8,7 @@ DISPLAY-ONLY cut applied by the caller AFTER these filters, never here).
 from __future__ import annotations
 
 from lib import copy
+from lib import countries as countries_lib
 from lib.app_config import CFG
 
 
@@ -64,9 +65,11 @@ def _active_filter_labels(filters: dict) -> list[str]:
     types = filters.get("types")
     if types:
         labels.append(copy.STRIP_TYPE.format(types=", ".join(sorted(types))))
-    countries = filters.get("countries")
-    if countries:
-        labels.append(copy.STRIP_COUNTRY.format(countries=", ".join(sorted(countries))))
+    country_codes = filters.get("countries")
+    if country_codes:
+        # R1/L22: the strip shows country NAMES, sorted by name (not by code).
+        names = sorted(countries_lib.name(c) for c in country_codes)
+        labels.append(copy.STRIP_COUNTRY.format(countries=", ".join(names)))
     if filters.get("exclude_own_country"):
         labels.append(copy.STRIP_EXCLUDE_OWN_COUNTRY)
     size_range = filters.get("size_range")

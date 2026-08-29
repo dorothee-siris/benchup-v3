@@ -253,7 +253,7 @@ def test_active_controls_strip_names_each_post_filter():
 
     cases = [
         ({"types": ["education", "facility"]}, copy.STRIP_TYPE.format(types="education, facility")),
-        ({"countries": ["FR", "DE"]}, copy.STRIP_COUNTRY.format(countries="DE, FR")),
+        ({"countries": ["FR", "DE"]}, copy.STRIP_COUNTRY.format(countries="France, Germany")),
         ({"exclude_own_country": True}, copy.STRIP_EXCLUDE_OWN_COUNTRY),
         ({"size_range": (1000, 5000)}, copy.STRIP_SIZE_RANGE.format(lo=1000, hi=5000)),
         ({"scale_guard": True}, copy.STRIP_SCALE_GUARD),

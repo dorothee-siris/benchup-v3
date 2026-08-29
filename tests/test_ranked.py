@@ -14,6 +14,7 @@ import pytest
 
 from lib.app_config import CFG
 from lib.engine import DEFAULT_LENSES, build_rows, build_substrates, concordance, load_context, rank_all
+from lib.palette import NA_MARK
 from lib.ranked import concordance_caption, depth_caption, format_concordance, format_rows
 
 DATA_DIR = Path(__file__).resolve().parents[1] / "data"
@@ -72,6 +73,51 @@ def test_format_rows_no_nan_score_and_str_type(l1_rows):
     assert df["type"].dtype == object
 
 
+def test_format_rows_no_badge_column(l1_rows):
+    # BUILD_PLAN_2A.md S9.2 L22 (gate-2A feedback #8): badges live on the
+    # seed profile header only, never in a table.
+    df = format_rows(l1_rows, lens="L1", depth=DEPTH)
+    assert "badge" not in df.columns
+
+
+def test_format_rows_takes_no_badges_kwarg(l1_rows):
+    with pytest.raises(TypeError):
+        format_rows(l1_rows, lens="L1", depth=DEPTH, badges={})
+
+
+def test_format_rows_has_two_size_columns(l1_rows):
+    # L22: full AND fractional size, both thousands-formatted or NA_MARK.
+    df = format_rows(l1_rows, lens="L1", depth=DEPTH)
+    assert list(df.columns) == ["rank", "institution", "institution_link", "country",
+                                 "country_code", "type", "size_full", "size_frac", "score",
+                                 "evidence", "rank_under", "institution_id"]
+    for col in ("size_full", "size_frac"):
+        for v in df[col]:
+            assert v == NA_MARK or ("," in v or v.isdigit())
+
+
+def test_format_rows_evidence_passthrough_and_na_default():
+    row_with_text = {"institution_id": "I1", "rank": 1, "display_name": "Alpha U",
+                      "country_code": "FR", "type": "education", "evidence_text": "Physics -- 42% of the overlap"}
+    row_without_text = {"institution_id": "I2", "rank": 2, "display_name": "Beta U",
+                        "country_code": "DE", "type": "education"}
+    row_empty_text = {"institution_id": "I3", "rank": 3, "display_name": "Gamma U",
+                      "country_code": "IT", "type": "education", "evidence_text": ""}
+    df = format_rows([row_with_text, row_without_text, row_empty_text], lens="L1", depth=3)
+    by_id = df.set_index("institution_id")["evidence"]
+    assert by_id["I1"] == "Physics -- 42% of the overlap"
+    assert by_id["I2"] == NA_MARK
+    assert by_id["I3"] == NA_MARK  # empty string counts as absent, never a blank cell
+
+
+def test_format_rows_country_is_english_name_code_kept_hidden():
+    row = {"institution_id": "I1", "rank": 1, "display_name": "Alpha U",
+           "country_code": "GB", "type": "education"}
+    df = format_rows([row], lens="L1", depth=1)
+    assert df.iloc[0]["country"] == "United Kingdom"
+    assert df.iloc[0]["country_code"] == "GB"
+
+
 def test_depth_caption_parametric():
     cap = depth_caption(30, 7556, 30)
     assert "30" in cap
@@ -104,6 +150,15 @@ def test_format_concordance_k_le_n_and_hit_list_len(conc_rows):
         assert 1 <= row["k"] <= row["n"] <= n_lenses
         hit_list = [h for h in row["hit_lenses"].split(", ") if h]
         assert len(hit_list) == row["k"]
+
+
+def test_format_concordance_two_size_columns_and_country_name(conc_rows):
+    # L22: concordance table also carries both size bases and the country
+    # NAME, with the raw code kept hidden.
+    df = format_concordance(conc_rows, lenses=DEFAULT_LENSES, N=N)
+    assert "badge" not in df.columns
+    assert {"size_full", "size_frac", "country", "country_code"} <= set(df.columns)
+    assert df["country"].map(lambda v: isinstance(v, str) and len(v) > 2).all()
 
 
 def test_concordance_caption_parametric():

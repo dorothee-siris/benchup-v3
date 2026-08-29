@@ -164,7 +164,6 @@ FIND = {
     "EV_NONE": "No lens-specific evidence line for this seed.",
     "ADD_SELECTED": "Add selected rows to basket",
     "ADD_SELECTED_NONE": "Select rows in the table above, then use this button.",
-    "BADGE_NOTE": "Some rows carry a badge {sep} hover for what each one compares against.",
     "TAIL_SEARCH_LABEL": "Search the full ranking (beyond the rows shown)",
     "TAIL_CAPTION": "Matches anywhere in this lens's ranking, with their original rank.",
     "POP_CAPTION": "Ranked against {n_pop} institutions in the index, the seed excluded.",
@@ -180,11 +179,89 @@ FIND = {
     "COL_WORKS": "OpenAlex works",
     "COL_COUNTRY": "Country",
     "COL_TYPE": "Type",
-    "COL_BADGE": "Badge",
     "COL_SIZE": "Size (full)",
     "COL_PP": "PP(top10%)",
     "COL_CI": "Interval",
     "COL_L1": "L1 overlap",
+
+    # ---- Refinement R1 (gate-2A feedback, BUILD_PLAN_2A.md S9.2) ----------
+
+    # L22: shared table columns -- both size bases, and the lens-specific
+    # evidence cell (replaces the old "Top field" line: L22/#7, "top field"
+    # only ever fit L1). Names are the contract stream R-E2 looks up.
+    "COL_SIZE_FULL": "Size (full)",
+    "COL_SIZE_FRAC": "Size (fractional)",
+    "COL_EVIDENCE": "Evidence",
+
+    # L16: the controls row (depth / C1 / L7 / post-filters), moved out of
+    # the sidebar to sit with the benchmark tables it controls (feedback #1).
+    "CONTROLS_HEADER": "Benchmark controls",
+    "DEPTH_HELP": ("Sets how many rows are shown per lens. A display cutoff only -- "
+                   "the full ranking is always computed and can be downloaded regardless "
+                   "of this setting."),
+    "C1_HELP": ("Restricts the anchor lens (L1) to the seed's own top-{core_top_n} subfields, "
+                "for a tighter reading of its core specialisation."),
+    "L7_HELP": ("An experimental view, off by default: most of what it surfaces is noise, "
+                "with an occasional peer no other lens finds."),
+    "POSTFILTERS_EXPANDER": "Post-filters (applied after ranking)",
+
+    # L17/L18: the profile section that replaces the old seed card.
+    "PROFILE_HEADER": "Profile",
+    "TILE_SIZE_FULL": "Size (full)",
+    "TILE_SIZE_FULL_SUB": "works {y0}{dash}{y1}, whole work credited",
+    "TILE_SIZE_FRAC": "Size (fractional)",
+    "TILE_SIZE_FRAC_SUB": "author-share credited",
+    "TILE_HHI": "Concentration",
+    "TILE_HHI_SUB": "{hhi_class} {sep} subfield HHI {hhi_value}",
+    "TILE_BREADTH": "Breadth",
+    "TILE_BREADTH_SUB": "subfields with at least {floor} fractional works",
+    "TILE_SDG": "SDG-tagged share",
+    "TILE_SDG_SUB": "of SDG-eligible works, any keyword hit",
+    "TILE_FRONTIER": "Frontier top-quartile share",
+    "TILE_FRONTIER_SUB": "of frontier-scorable output",
+    "TILE_PP": "PP(top10%)",
+    "TILE_PP_SUB": "[{lo}{dash}{hi}] bootstrap interval, articles and reviews",
+    "COVERAGE_LINE": ("ERC-classified share {erc} {sep} SDG-tagged share {sdg} {sep} "
+                       "catch-all share {catchall} {sep} L2f-eligible subfields {l2f}"),
+    "WORDCLOUD_CAPTION": "Subfields {sep} size = works on the current counting basis, colour = domain",
+
+    # Yearly breakdown pair (L17 block 4): one segmented control swaps the
+    # global + per-year charts between a domain view and a document-type view.
+    "BREAKDOWN_CONTROL_LABEL": "Break down by",
+    "BREAKDOWN_DOMAIN": "Domain",
+    "BREAKDOWN_DOCTYPE": "Document type",
+    "BREAKDOWN_GLOBAL_TITLE": "Overall breakdown",
+    "BREAKDOWN_YEARLY_TITLE": "Yearly breakdown",
+    "BONUS_YEAR_CAPTION": "{year} is a bonus year: volume only, excluded from impact indicators",
+
+    # L17 block 5: the six collapsed chart panels.
+    "PANEL_FIELDS": "Fields",
+    "PANEL_SUBFIELDS": "Top subfields",
+    "PANEL_TOPICS": "Top topics",
+    "PANEL_FRONTIER": "Frontier positioning",
+    "PANEL_SDG": "SDG profile",
+    "PANEL_ERC": "ERC profile",
+
+    # L20: the shared sort toggle every bar-chart panel carries.
+    "SORT_LABEL": "Sort by",
+    "SORT_VOLUME": "Volume / share",
+    "SORT_TAXONOMY": "Taxonomy order",
+
+    # L20 panel captions.
+    "CAPTION_SI": ("SI = share divided by the mean share across institutions active in "
+                   "that cell; dashed line = parity"),
+    "CAPTION_SI_FLOOR": "SI shown only for cells with at least {floor} fractional works",
+    "CAPTION_TOPICS_CATCHALL": "{n} of the topics shown are catch-all (out-of-scope) topics, flagged {glyph}",
+    "CAPTION_FRONTIER": ("Frontier scores measure attention dynamics, not novelty or quality; "
+                          "low can mean foundational. {n_excluded} topics are excluded or "
+                          "unscored and do not appear."),
+    "CAPTION_SDG": ("Shares of SDG-tagged output; a work can carry several SDGs, so shares "
+                    "need not sum to one. SDG {n_missing} is not covered. Matches reflect the "
+                    "SIRIS classifier's reading of the SDGs; different classifiers disagree "
+                    "substantially."),
+    "CAPTION_ERC": ("Shares of ERC-classified output over {n_panels} panels; the Biotechnology "
+                     "and Arts panels have low recall, read them with care"),
+    "FRACTIONAL_ONLY_PANEL": "This panel is fractional-only: the counting-basis toggle does not change it",
 }
 
 # ----------------------------------------------------- digit-ban self-check -

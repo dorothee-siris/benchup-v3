@@ -92,6 +92,18 @@ def test_strip_names_active_post_filter():
     assert strip is not None and "education" in strip and "facility" in strip, strip
 
 
+def test_strip_country_shows_english_names_sorted_by_name():
+    # BUILD_PLAN_2A.md S9.2 L22 / gate-2A feedback #4: country codes -> names,
+    # sorted by NAME (France < Germany < United Kingdom), not by ISO2 code
+    # (DE < FR < GB).
+    kwargs = _defaults()
+    kwargs["filters"] = {"countries": ["GB", "FR", "DE"]}
+    strip = active_controls_strip(**kwargs)
+    assert strip is not None
+    assert "France, Germany, United Kingdom" in strip, strip
+    assert "GB" not in strip and "FR" not in strip and "DE" not in strip, strip
+
+
 def test_explain_empty_names_both_size_filters():
     seed_row = {"display_name": "Test Seed University"}
     filters = {"size_range": (1000, 5000), "scale_guard": True}
