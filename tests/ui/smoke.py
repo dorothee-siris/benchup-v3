@@ -1,8 +1,11 @@
 """
 tests/ui/smoke.py -- Playwright smoke test against the LIVE Streamlit server
-(BUILD_PLAN_2A.md Stream H). Cross-page persistence is the load-bearing claim:
-the basket (a plain, non-widget session_state list) and every keyed sidebar
-widget (persist_state="session") must survive real Menu<->Find navigation.
+(BUILD_PLAN_2A.md Stream H; extended for Refinement R1 stream R-H2 against
+S9.2 L16-L22 / S9.3's R-H2 row). Cross-page persistence is the load-bearing
+claim: the basket (a plain, non-widget session_state list) and every keyed
+widget (persist_state="session") -- INCLUDING the ones R1 moved out of the
+sidebar into the Benchmark section's controls row -- must survive real
+Menu<->Find navigation with their widget KEYS unchanged.
 
 Navigation uses the app's OWN sidebar nav link (`[data-testid="stSidebarNav"] a`)
 for every Menu<->Find hop -- NEVER `page.goto()` for a persistence check.
@@ -18,10 +21,12 @@ widgets/containers `app/lib/views_find.py` and `Menu.py` already emit,
 `[role=...]`, `[data-testid=...]` -- text is read only via `textContent`
 (never `innerText`, which is empty for a Streamlit tab panel that is not the
 currently active one -- confirmed by Stream E's own probe, app/ops/_probe_find.py)
-and only to ASSERT content, never to locate an element. `st.dataframe` renders
-a canvas grid with no real text nodes for cell values, so row-level facts
-(the basket count, the seed heading, the strip) are read from captions/keyed
-containers, never from a table cell.
+and only to ASSERT content, never to locate an element (locating uses keyed
+classes, roles or DOM position -- e.g. "the second radio option" -- never a
+literal label). `st.dataframe` renders a canvas grid with no real text nodes
+for cell values, so row-level facts (the basket count, the seed heading, the
+strip, a CSV's own header row) are read from captions/keyed containers/a real
+downloaded file, never from a table cell.
 
 Usage:
     python tests/ui/smoke.py --port 8611
@@ -47,6 +52,19 @@ GDANSK_QUERY = "gdansk"
 GDANSK_TAB_COUNT = 10          # Overview + 8 default lenses + Aspirational
 L7_ON_TAB_COUNT = 11           # ... + the L7 toggle's own tab
 ACTION_TIMEOUT_MS = 30_000     # time-box every wait so a hang FAILS, never blocks
+
+# R1/L17: the six profile chart panels, keyed `panel_<name>`, with their
+# `copy.FIND["PANEL_*"]` header text (lib/copy.py) -- hardcoded here (not
+# re-imported from the app under test) so a renamed label in a throwaway copy
+# is a real DOM-vs-expectation mismatch, never a comparison against itself.
+PANEL_LABELS = [
+    ("fields", "Fields"),
+    ("subfields", "Top subfields"),
+    ("topics", "Top topics"),
+    ("frontier", "Frontier positioning"),
+    ("sdg", "SDG profile"),
+    ("erc", "ERC profile"),
+]
 
 RESULTS: list[tuple[bool, str]] = []
 PORT = 8611
@@ -101,6 +119,20 @@ def _settle(page, ms: int = 2500) -> None:
     page.wait_for_timeout(ms)
 
 
+def _wait_for(page, predicate, timeout_ms: int = 15_000, interval_ms: int = 300) -> bool:
+    """Poll `predicate()` instead of a blind sleep -- needed after a scenario
+    switch (tree/basis), which pays a real, measured cold `build_substrates`
+    cost (~4.6 s, progress/R1_E2.md) the FIRST time that (tree, basis) pair is
+    hit in this server process. A fixed `_settle` long enough for that one
+    rebuild would be needlessly slow for every other, already-warm, rerun."""
+    deadline = time.time() + timeout_ms / 1000
+    while time.time() < deadline:
+        if predicate():
+            return True
+        page.wait_for_timeout(interval_ms)
+    return False
+
+
 def _all_text(page, selector: str) -> str:
     """textContent (not innerText) joined across every match -- reads content
     inside an inactive Streamlit tab panel too (st.tabs runs every tab body
@@ -142,6 +174,19 @@ def _ensure_sidebar_open(page) -> None:
         page.wait_for_timeout(500)
 
 
+def _ensure_expander_open(page, key: str, probe_selector: str) -> None:
+    """Open a keyed `st.expander` if its content is not currently visible.
+    R1's `_post_filters`/`_profile_panels` bodies EXECUTE every rerun
+    regardless of the expander's visual state (lib/views_find.py docstring),
+    but that visual open/closed state resets to the coded `expanded=` default
+    on the very next rerun -- so this is called before every interaction
+    inside one, never assumed to still be open from an earlier action."""
+    probe = page.locator(probe_selector).first
+    if probe.count() == 0 or not probe.is_visible():
+        page.locator(f".st-key-{key} summary").first.click(timeout=ACTION_TIMEOUT_MS)
+        page.wait_for_timeout(700)
+
+
 def _click_nav(page, label: str) -> None:
     """Real in-app sidebar nav-link click -- the ONLY way this file changes
     page for a persistence check (see module docstring). At a narrow (mobile)
@@ -172,7 +217,7 @@ def _basket_count(page) -> int:
 
 
 def _seed_heading(page) -> str:
-    return page.locator(".st-key-seed_card h3").first.text_content() or ""
+    return page.locator(".st-key-profile h3").first.text_content() or ""
 
 
 def _strip_text(page) -> str:
@@ -194,10 +239,10 @@ def _search_and_pick(page, query: str, pick_key: str = "seed_pick",
 # ------------------------------------------------------ undefined-L2f seed --
 
 def _find_undefined_l2f_seed(app_dir: Path, tree: str = "original") -> tuple[str, str] | None:
-    """Smallest-first scan (BUILD_PLAN_2A.md Stream H brief): the smaller an
-    institution, the more likely L2f's own floor-of-papers-per-cell rule
-    leaves it undefined. `tree="original"` matches the scenario the smoke
-    flow has set by the time it reaches this check (Settings section)."""
+    """Smallest-first scan: the smaller an institution, the more likely L2f's
+    own floor-of-papers-per-cell rule leaves it undefined. `tree="original"`
+    matches the scenario the smoke flow has set by the time it reaches this
+    check (Settings section)."""
     sys.path.insert(0, str(app_dir))
     from lib.data_cache import index
     from lib.engine import build_substrates, load_context, rank_all
@@ -245,7 +290,7 @@ def check_find_search(page) -> None:
     page.wait_for_selector('[role="tab"]', timeout=ACTION_TIMEOUT_MS)
     _settle(page, 3000)
     heading = _seed_heading(page)
-    check("Gda" in heading, f"Find: seed card heading contains 'Gda' (got {heading!r})")
+    check("Gda" in heading, f"Find: seed profile heading contains 'Gda' (got {heading!r})")
     tabs = page.locator('[role="tab"]').count()
     check(tabs == GDANSK_TAB_COUNT, f"Find: default tab count is {GDANSK_TAB_COUNT} (got {tabs})")
     _no_exception(page, "Find (Gdansk seed)")
@@ -267,8 +312,154 @@ def check_basket(page) -> None:
     _no_exception(page, "Basket add flow")
 
 
+# ----------------------------------------------------- R1 controls layout ---
+
+def check_controls_placement(page) -> None:
+    """R1/L16: the sidebar holds ONLY the scenario selects (tree, basis) and
+    the basket; depth/C1/L7/post-filters render in the MAIN area's controls
+    row at the head of the Benchmark section, with their widget KEYS
+    unchanged. The post-filters expander reveals the type/country filters,
+    and the country multiselect shows country NAMES, not codes."""
+    sidebar = page.locator('[data-testid="stSidebar"]')
+    check(sidebar.locator(".st-key-tree").count() >= 1, "Sidebar: .st-key-tree (scenario) present")
+    check(sidebar.locator(".st-key-basis").count() >= 1, "Sidebar: .st-key-basis (scenario) present")
+    check(sidebar.locator(".st-key-depth").count() == 0, "Sidebar: no .st-key-depth")
+    check(sidebar.locator(".st-key-f_types").count() == 0, "Sidebar: no .st-key-f_types")
+    check(sidebar.locator(".st-key-c1_on").count() == 0, "Sidebar: no .st-key-c1_on")
+
+    check(page.locator(".st-key-depth").count() >= 1,
+          "Controls row: .st-key-depth renders in the main area")
+    check(page.locator(".st-key-c1_on").count() >= 1,
+          "Controls row: .st-key-c1_on renders in the main area")
+    check(page.locator(".st-key-l7_on").count() >= 1,
+          "Controls row: .st-key-l7_on renders in the main area")
+
+    _ensure_expander_open(page, "postfilters", ".st-key-f_types input")
+    check(page.locator(".st-key-f_types").count() >= 1,
+          "Post-filters expander: reveals .st-key-f_types")
+    check(page.locator(".st-key-f_countries").count() >= 1,
+          "Post-filters expander: reveals .st-key-f_countries")
+
+    cinp = page.locator(".st-key-f_countries input").first
+    cinp.click(timeout=ACTION_TIMEOUT_MS)
+    cinp.fill("Fra")
+    page.wait_for_selector('[role="option"]', timeout=ACTION_TIMEOUT_MS)
+    opt = page.locator('[role="option"]').filter(has_text="France")
+    check(opt.count() >= 1, "Country filter: typing 'Fra' surfaces an option containing 'France'")
+    page.keyboard.press("Escape")
+    _settle(page, 500)
+    cinp.fill("")
+    _no_exception(page, "Controls placement / post-filters")
+
+
+# ----------------------------------------------------------- R1 profile -----
+
+def check_profile_and_panels(page) -> None:
+    """R1/L17: the profile container, its wordcloud, its six chart-panel
+    expanders (labels intact), the breakdown segmented control, and the
+    per-panel sort toggle changing what the Fields chart actually shows."""
+    check(page.locator(".st-key-profile").count() == 1,
+          "Profile: .st-key-profile container renders exactly once")
+    check(page.locator('.st-key-profile [data-testid="stImage"] img').count() >= 1,
+          "Profile: subfield wordcloud renders as an <img>")
+
+    for name, label in PANEL_LABELS:
+        summary = page.locator(f".st-key-panel_{name} summary").first
+        check(summary.count() >= 1, f"Panel '{name}': expander present (.st-key-panel_{name})")
+        # EXACT match, not a substring: `st.expander`'s summary text is the
+        # label plus a leading icon-font ligature (e.g. "keyboard_arrow_right")
+        # that varies by open/closed state -- stripped here so the comparison
+        # is against the label alone. A substring check would let "Fields
+        # Overview" satisfy an expected "Fields" and never catch a rename.
+        raw = (summary.text_content() or "").strip()
+        clean = raw.replace("keyboard_arrow_right", "").replace("keyboard_arrow_down", "").strip()
+        check(clean == label, f"Panel '{name}': header label is exactly '{label}' (got {raw!r})")
+
+    before_legend = _all_text(page, '.st-key-profile div[style*="flex-wrap"]')
+    check(bool(before_legend.strip()), "Breakdown: chip legend renders")
+    page.locator(".st-key-breakdown_dim button").nth(1).click(timeout=ACTION_TIMEOUT_MS)
+    _settle(page, 4000)
+    after_legend = _all_text(page, '.st-key-profile div[style*="flex-wrap"]')
+    check(after_legend != before_legend and bool(after_legend.strip()),
+          "Breakdown: segmented control swaps the chip legend (domain <-> document type)")
+    check(page.locator(".st-key-fig_breakdown_global .js-plotly-plot").first.is_visible()
+          and page.locator(".st-key-fig_breakdown_yearly .js-plotly-plot").first.is_visible(),
+          "Breakdown: both plotly figures still render after the swap")
+    caption = _all_text(page, '[data-testid="stCaptionContainer"]')
+    check("bonus year" in caption, "Breakdown: bonus-year caption is present")
+    page.locator(".st-key-breakdown_dim button").nth(0).click(timeout=ACTION_TIMEOUT_MS)
+    _settle(page, 3000)
+
+    _ensure_expander_open(page, "panel_fields", ".st-key-sort_fields [data-testid='stRadioOption']")
+    _settle(page, 1500)
+    fig = page.locator(".st-key-fig_fields .js-plotly-plot").first
+    check(fig.count() >= 1 and fig.is_visible(),
+          "Panel Fields: opening it reveals a visible Plotly figure")
+    before_tick = page.locator(".st-key-fig_fields .ytick text").first.text_content() or ""
+    page.locator('.st-key-sort_fields [data-testid="stRadioOption"]').nth(1).click(timeout=ACTION_TIMEOUT_MS)
+    _settle(page, 2500)
+    after_tick = page.locator(".st-key-fig_fields .ytick text").first.text_content() or ""
+    check(bool(before_tick) and bool(after_tick) and before_tick != after_tick,
+          f"Panel Fields: the sort toggle changes the first y-axis label ({before_tick!r} -> {after_tick!r})")
+    page.locator('.st-key-sort_fields [data-testid="stRadioOption"]').nth(0).click(timeout=ACTION_TIMEOUT_MS)
+    _settle(page, 2500)
+    _no_exception(page, "Profile / panels")
+
+
+# ----------------------------------------------------------- R1 tables -----
+
+def _download_csv_header(page, click_selector: str) -> str:
+    with page.expect_download(timeout=ACTION_TIMEOUT_MS) as dl_info:
+        page.locator(click_selector).click(timeout=ACTION_TIMEOUT_MS)
+    download = dl_info.value
+    path = download.path()
+    with open(path, "r", encoding="utf-8") as fh:
+        return fh.readline()
+
+
+def check_tables_and_export(page) -> None:
+    """VIZ_SPEC S1.7/S2.5, L22: a lens's ranked table renders; its CSV export
+    carries `total_frac_2020_2024`, `country` (the NAME column) and `evidence`
+    but never a `badge` column (badges moved to the profile header only); the
+    Aspirational tab renders its own table."""
+    tabs = page.locator('[role="tab"]')
+    tabs.nth(1).click(timeout=ACTION_TIMEOUT_MS)  # first default lens tab (L0)
+    _settle(page, 2000)
+    check(page.locator('.st-key-tbl_L0 [data-testid="stDataFrame"]').count() >= 1,
+          "Lens table: L0's ranked table renders (.st-key-tbl_L0)")
+
+    header = _download_csv_header(page, ".st-key-dl_L0 button")
+    check("total_frac_2020_2024" in header, f"CSV export: header carries total_frac_2020_2024 ({header!r})")
+    check("country" in header, f"CSV export: header carries country ({header!r})")
+    check("evidence" in header, f"CSV export: header carries evidence ({header!r})")
+    check("badge" not in header, f"CSV export: header carries NO badge column ({header!r})")
+
+    tabs.last.click(timeout=ACTION_TIMEOUT_MS)  # Aspirational
+    _settle(page, 2500)
+    check(page.locator('.st-key-tbl_aspirational [data-testid="stDataFrame"]').count() >= 1,
+          "Aspirational tab: its own table renders (.st-key-tbl_aspirational)")
+    tabs.nth(0).click(timeout=ACTION_TIMEOUT_MS)  # back to Overview
+    _settle(page, 1500)
+    _no_exception(page, "Tables / export")
+
+
+# ------------------------------------------------------------- settings ----
+
 def check_settings(page) -> None:
+    """R1: the settings a reader would touch on a first visit -- all now in
+    the Benchmark controls row/expander instead of the sidebar -- set here
+    BEFORE the persistence hops (S9.3 R-H2: depth to max, L7 on, a type
+    filter picked, tree switched)."""
     before = _all_text(page, '[data-testid="stCaptionContainer"]')
+
+    _ensure_expander_open(page, "postfilters", ".st-key-f_types input")
+    tinp = page.locator(".st-key-f_types input").first
+    tinp.click(timeout=ACTION_TIMEOUT_MS)
+    tinp.fill("education")
+    page.wait_for_selector('[role="option"]', timeout=ACTION_TIMEOUT_MS)
+    page.locator('[role="option"]').filter(has_text="education").first.click(timeout=ACTION_TIMEOUT_MS)
+    _settle(page, 3500)
+
     page.locator('.st-key-depth [data-testid="stRadioOption"]').last.click(timeout=ACTION_TIMEOUT_MS)
     _settle(page, 3000)
     after = _all_text(page, '[data-testid="stCaptionContainer"]')
@@ -276,10 +467,16 @@ def check_settings(page) -> None:
 
     _open_select(page, "tree")
     _pick_option(page, "original")
-    _settle(page, 3000)
+    # tree="original" is a NEW (tree, basis) pair for this server process --
+    # its substrates build cold (~4.6 s measured), so this waits for actual
+    # tab re-render rather than a blind sleep (a fixed 3 s here was an
+    # intermittent flake on a cold throwaway copy, unrelated to any mutation).
+    _wait_for(page, lambda: page.locator('[role="tab"]').count() >= GDANSK_TAB_COUNT)
+    _settle(page, 1000)
 
     page.locator(".st-key-l7_on label").first.click(timeout=ACTION_TIMEOUT_MS)
-    _settle(page, 3500)
+    _wait_for(page, lambda: page.locator('[role="tab"]').count() == L7_ON_TAB_COUNT)
+    _settle(page, 800)
     tabs = page.locator('[role="tab"]').count()
     check(tabs == L7_ON_TAB_COUNT, f"Settings: L7 tab appeared, tab count is {L7_ON_TAB_COUNT} (got {tabs})")
 
@@ -287,6 +484,8 @@ def check_settings(page) -> None:
     strip = _strip_text(page)
     check("tree = original" in strip, f"Settings: strip mentions tree = original (strip: {strip!r})")
     check("depth = 50" in strip, f"Settings: strip mentions depth = 50 (strip: {strip!r})")
+    check("type = " in strip and "education" in strip,
+          f"Settings: strip mentions the type filter (strip: {strip!r})")
     _no_exception(page, "Settings")
 
 
@@ -302,17 +501,18 @@ def _assert_persisted(state: dict, tag: str) -> None:
     check("Gda" in state["heading"], f"{tag}: seed still selected, heading 'Gda...' (got {state['heading']!r})")
     check("depth = 50" in state["strip"], f"{tag}: depth still at max in the strip")
     check("tree = original" in state["strip"], f"{tag}: tree still 'original' in the strip")
+    check("type = " in state["strip"] and "education" in state["strip"],
+          f"{tag}: type filter (education) still active in the strip")
 
 
 def check_persistence(page) -> None:
-    """The load-bearing claim: basket + every keyed sidebar widget survive
-    real Menu<->Find hops (4 hops total: Menu, Find, Menu, Find), with a
-    second-visit re-mount check at the 2-hop midpoint (a bug that only shows
+    """The load-bearing claim: basket + every keyed widget -- INCLUDING the
+    ones R1 relocated from the sidebar into the controls row/expander --
+    survive real Menu<->Find hops (4 hops total: Menu, Find, Menu, Find), with
+    a second-visit re-mount check at the 2-hop midpoint (a bug that only shows
     up on a widget's SECOND mount is a real, documented failure mode --
     Portfolio Mapping INSPECTION_PLAYBOOK.md family 3)."""
-    baseline = _capture_persisted_state(page)
-    check(baseline["basket"] == 2 and baseline["tabs"] == L7_ON_TAB_COUNT,
-          "Persistence: baseline captured before any hop")
+    _assert_persisted(_capture_persisted_state(page), "Persistence: baseline captured before any hop")
 
     _click_nav(page, "Menu")
     _no_exception(page, "Menu (hop 1 of 4)")
@@ -327,17 +527,13 @@ def check_persistence(page) -> None:
     _assert_persisted(_capture_persisted_state(page), "Persistence: 3rd Find visit (after 4 hops)")
 
 
-def check_type_filter(page) -> None:
-    inp = page.locator(".st-key-f_types input").first
-    inp.click(timeout=ACTION_TIMEOUT_MS)
-    inp.fill("education")
-    page.wait_for_selector('[role="option"]', timeout=ACTION_TIMEOUT_MS)
-    page.locator('[role="option"]').filter(has_text="education").first.click(timeout=ACTION_TIMEOUT_MS)
-    _settle(page, 3500)
+def check_type_filter_clear(page) -> None:
+    """The type filter set in Settings and proven to survive the hops above
+    can also be CLEARED, and the strip stops naming it once it is."""
     strip = _strip_text(page)
     check("type = " in strip and "education" in strip,
-          f"Type filter: strip names the type filter (strip: {strip!r})")
-    _no_exception(page, "Type filter applied")
+          f"Type filter: still active going into the clear check (strip: {strip!r})")
+    _ensure_expander_open(page, "postfilters", ".st-key-f_types input")
 
     tag_close = page.locator(".st-key-f_types [data-baseweb='tag'] [role='button'], "
                               ".st-key-f_types [data-baseweb='tag'] svg")
@@ -367,6 +563,9 @@ def check_undefined_lens(page, seed_id: str, seed_name: str) -> None:
 
 
 def check_screenshots(browser, shot_dir: Path) -> None:
+    """R1: at each width, the seed is loaded AND one profile panel is opened
+    before the scrollWidth assertion (S9.3 R-H2's own acceptance line) -- the
+    widest real state the page can be in, not just the collapsed default."""
     shot_dir.mkdir(parents=True, exist_ok=True)
     for width in WIDTHS:
         page = browser.new_page(viewport={"width": width, "height": 900})
@@ -385,6 +584,9 @@ def check_screenshots(browser, shot_dir: Path) -> None:
 
             _click_nav(page, "Find")
             _search_and_pick(page, GDANSK_QUERY)
+            _ensure_expander_open(page, "panel_fields",
+                                  ".st-key-sort_fields [data-testid='stRadioOption']")
+            _settle(page, 1500)
             scroll = page.evaluate("document.documentElement.scrollWidth")
             inner = page.evaluate("window.innerWidth")
             check(scroll <= inner + 2, f"Find {width}px: scrollWidth {scroll} <= innerWidth+2 {inner + 2}")
@@ -427,9 +629,12 @@ def main() -> int:
                 ("Menu", lambda: check_menu(page)),
                 ("Find search", lambda: check_find_search(page)),
                 ("Basket", lambda: check_basket(page)),
+                ("Controls placement", lambda: check_controls_placement(page)),
+                ("Profile / panels", lambda: check_profile_and_panels(page)),
+                ("Tables / export", lambda: check_tables_and_export(page)),
                 ("Settings", lambda: check_settings(page)),
                 ("Persistence", lambda: check_persistence(page)),
-                ("Type filter", lambda: check_type_filter(page)),
+                ("Type filter clear", lambda: check_type_filter_clear(page)),
             ]
             for name, fn in sections:
                 try:
