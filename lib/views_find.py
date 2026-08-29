@@ -18,12 +18,13 @@ displayed rank is always the ORIGINAL competition rank from the unfiltered
 ranking (`ranking["rmap"]`, verified equal to `build_rows`' own
 `competition_ranks` output), never a renumbering of the filtered list.
 
-STRINGS: `lib/copy.py` is Stream F's file and is closed. Any user-facing string
-this page needs that copy.py does not carry is defined ONCE in `EXTRA_COPY`
-below under copy.py's own rule -- no digit character except inside a lens code
-(L0..L7, L2f, F1, C1) or "top10"/"PP(top10%)"; every other number is a
-`{placeholder}` the caller fills from CFG or the live data. The manager folds
-these into copy.py later (progress/2A_E.md lists every key).
+STRINGS: every user-facing string this page needs lives in `lib/copy.py`
+(`copy.FIND` for the strings specific to this page, folded in from this
+file's former `EXTRA_COPY` dict by Stream X1 -- see progress/2A_E.md for the
+original key list and progress/2A_X1.md for the move) under copy.py's own
+rule -- no digit character except inside a lens code (L0..L7, L2f, F1, C1)
+or "top10"/"PP(top10%)"; every other number is a `{placeholder}` the caller
+fills from CFG or the live data.
 """
 from __future__ import annotations
 
@@ -56,94 +57,6 @@ CORE_TOP_N = 20
 
 SEP = "·"   # middle dot -- the separator copy.STRIP_JOIN already uses
 DASH = "–"  # en dash -- interval rendering
-
-EXTRA_COPY = {
-    "SCENARIO_HEADER": "Scenario",
-    "TREE_LABEL": "Subfield tree",
-    "BASIS_LABEL": "Counting basis",
-    "DEPTH_HEADER": "Depth",
-    "DEPTH_LABEL": "Rows shown per lens",
-    "OPTIONAL_HEADER": "Optional lenses",
-    "L7_HEADER": "Experimental view",
-    "FILTERS_HEADER": "Post-filters",
-    "FILTERS_HELP": "Applied after ranking: they remove rows, they never change a rank.",
-    "TYPE_LABEL": "Institution type",
-    "COUNTRY_LABEL": "Country",
-    "EXCLUDE_OWN_LABEL": "Exclude the seed's own country",
-    "SIZE_LABEL": "Size range (full works)",
-    "SCALE_GUARD_LABEL": "Scale guard (comparable size band)",
-    "SCALE_GUARD_HELP": ("Keeps candidates within a size ratio of the seed; the ratio is banded "
-                          "by the seed's own size."),
-    "FAMILY_LABEL": "Family filter (field-grain overlap)",
-    "FAMILY_HELP": "Keeps candidates whose L0 field-grain overlap with the seed is at or above {threshold}.",
-    "BASKET_HEADER": "Basket",
-    "BASKET_EMPTY": "No comparators added yet -- use the add button under any table.",
-    "BASKET_CLEAR": "Clear basket",
-    "BASKET_REMOVE": "Remove",
-    "ADD_COMPARATOR_LABEL": "Add a comparator not found above",
-    "ADD_COMPARATOR_PICK": "Matching institutions",
-    "ADD_COMPARATOR_BUTTON": "Add to basket",
-    "PAGE_TITLE": "Find",
-    "PAGE_INTRO": "Search for an institution, then read who resembles it across independent lenses.",
-    "SNAPSHOT_CAPTION": ("Snapshot: {snapshot} (generated {generated_at}) {sep} {n_institutions} "
-                          "institutions in the index."),
-    "SEED_SEARCH_LABEL": "Institution name, acronym or alternative name",
-    "SEED_PICK_LABEL": "Matching institutions",
-    "SEED_PROMPT": "Type an institution name above to load its benchmark.",
-    "CARD_SIZE_FULL": "Size (full counting)",
-    "CARD_SIZE_FRAC": "Size (fractional counting)",
-    "CARD_HHI": "Concentration",
-    "CARD_BREADTH": "Breadth (subfields)",
-    "CARD_DENOM_CAPTION": ("Works published {y0}{dash}{y1}. Full counting credits a whole work to the "
-                            "institution; fractional counting credits its author share. Concentration "
-                            "is the subfield HHI ({hhi_value}); breadth is the number of subfields present."),
-    "CARD_TOP_FIELDS": "Top fields",
-    "CARD_TOP_SUBFIELDS": "Top subfields",
-    "CARD_EVIDENCE": "Coverage evidence for this seed",
-    "EV_L2F": "Eligible subfield cells for L2f: {value}",
-    "EV_SDG": "SDG-tagged share of works: {value}",
-    "EV_ERC": "ERC-classified share of fractional mass: {value}",
-    "EV_FRONTIER": "Frontier top-quartile share: {value}",
-    "EV_CATCHALL": "Catch-all (out-of-scope) topic share: {value}",
-    "CARD_PP": "PP(top10%): {pp} [{lo}{dash}{hi}]",
-    "CARD_PP_CAPTION": ("Share of the institution's fractional output in the world top decile of its own "
-                         "citation distribution, with its bootstrap interval -- never the point estimate alone."),
-    "LINK_OPENALEX": "OpenAlex works",
-    "LINK_ROR": "ROR",
-    "LINK_HOMEPAGE": "Homepage",
-    "TAB_OVERVIEW": "Overview",
-    "TAB_ASPIRATIONAL": "Aspirational",
-    "OVERVIEW_INTRO": ("Candidates that several independent lenses agree on. Order here is agreement, "
-                        "not a score."),
-    "CONCORDANCE_EMPTY": ("No candidate is found by more than one of the lenses defined for this seed. "
-                           "Open the single-lens tabs instead."),
-    "BASIS_DISCLOSURE": "This lens is fractional-only: the counting-basis toggle does not change it.",
-    "EVIDENCE_LABEL": "Evidence for this seed {sep} {text}",
-    "EV_NONE": "No lens-specific evidence line for this seed.",
-    "ADD_SELECTED": "Add selected rows to basket",
-    "ADD_SELECTED_NONE": "Select rows in the table above, then use this button.",
-    "BADGE_NOTE": "Some rows carry a badge {sep} hover for what each one compares against.",
-    "TAIL_SEARCH_LABEL": "Search the full ranking (beyond the rows shown)",
-    "TAIL_CAPTION": "Matches anywhere in this lens's ranking, with their original rank.",
-    "POP_CAPTION": "Ranked against {n_pop} institutions in the index, the seed excluded.",
-    "ASP_INTRO": ("Candidates already found by L1 whose impact interval sits entirely above the seed's. "
-                   "Kept in L1-overlap order."),
-    "ASP_SORT_LABEL": "Sort by PP(top10%) instead of L1 overlap",
-    "ASP_EMPTY": "No L1 candidate's impact interval sits fully above {seed}'s in the pool.",
-    "ASP_UNDEFINED": ("The aspirational view needs a defined L1 ranking and a PP(top10%) value with an "
-                       "interval for the seed; one of them is missing here."),
-    "ASP_CAPTION": "{n_rows} candidates clear the interval test, out of {n_pool} in the L1 pool considered.",
-    "COL_RANK": "Rank",
-    "COL_INSTITUTION": "Institution",
-    "COL_WORKS": "OpenAlex works",
-    "COL_COUNTRY": "Country",
-    "COL_TYPE": "Type",
-    "COL_BADGE": "Badge",
-    "COL_SIZE": "Size (full)",
-    "COL_PP": "PP(top10%)",
-    "COL_CI": "Interval",
-    "COL_L1": "L1 overlap",
-}
 
 WINDOW_START, WINDOW_END = CFG["window"]
 DEPTH_OPTIONS = [CFG["depth"]["default"], CFG["depth"]["max"]]
@@ -186,21 +99,21 @@ def _sidebar_scenario() -> dict:
     Menu<->Find round trip does not reset it (state.PERSIST). C1 and L7 are two
     SEPARATE affordances under their own headers, never one bundled control."""
     sb = st.sidebar
-    sb.header(EXTRA_COPY["SCENARIO_HEADER"])
+    sb.header(copy.FIND["SCENARIO_HEADER"])
     trees = CFG["scenario"]["toggles"]["tree"]
-    tree = sb.selectbox(EXTRA_COPY["TREE_LABEL"], trees,
+    tree = sb.selectbox(copy.FIND["TREE_LABEL"], trees,
                         index=trees.index(CFG["scenario"]["tree_default"]),
                         key="tree", **state.PERSIST)
     bases = CFG["scenario"]["toggles"]["basis"]
-    basis = sb.selectbox(EXTRA_COPY["BASIS_LABEL"], bases,
+    basis = sb.selectbox(copy.FIND["BASIS_LABEL"], bases,
                          index=bases.index(CFG["scenario"]["basis_default"]),
                          help=copy.BASIS_NOT_APPLIED_TOOLTIP, key="basis", **state.PERSIST)
-    sb.header(EXTRA_COPY["DEPTH_HEADER"])
-    depth = sb.radio(EXTRA_COPY["DEPTH_LABEL"], DEPTH_OPTIONS, index=0, horizontal=True,
+    sb.header(copy.FIND["DEPTH_HEADER"])
+    depth = sb.radio(copy.FIND["DEPTH_LABEL"], DEPTH_OPTIONS, index=0, horizontal=True,
                      key="depth", **state.PERSIST)
-    sb.header(EXTRA_COPY["OPTIONAL_HEADER"])
+    sb.header(copy.FIND["OPTIONAL_HEADER"])
     c1_on = sb.checkbox(copy.C1_TOGGLE_LABEL, value=False, key="c1_on", **state.PERSIST)
-    sb.caption(EXTRA_COPY["L7_HEADER"])
+    sb.caption(copy.FIND["L7_HEADER"])
     l7_on = sb.checkbox(copy.L7_TOGGLE_LABEL, value=False, key="l7_on", **state.PERSIST)
     return {"tree": tree, "basis": basis, "depth": int(depth), "c1_on": c1_on, "l7_on": l7_on}
 
@@ -223,26 +136,26 @@ def _sidebar_filters(bundle: dict, rankings: dict, seed_row, depth: int) -> dict
     Rendered AFTER the rankings exist so the same-country tooltip carries a
     computed share. Returns exactly `filters.apply_filters`' keyword set."""
     sb, idx = st.sidebar, bundle["index_df"]
-    sb.header(EXTRA_COPY["FILTERS_HEADER"])
-    sb.caption(EXTRA_COPY["FILTERS_HELP"])
-    types = sb.multiselect(EXTRA_COPY["TYPE_LABEL"], sorted(idx["type"].astype(str).unique()),
+    sb.header(copy.FIND["FILTERS_HEADER"])
+    sb.caption(copy.FIND["FILTERS_HELP"])
+    types = sb.multiselect(copy.FIND["TYPE_LABEL"], sorted(idx["type"].astype(str).unique()),
                            default=[], key="f_types", **state.PERSIST)
-    countries = sb.multiselect(EXTRA_COPY["COUNTRY_LABEL"],
+    countries = sb.multiselect(copy.FIND["COUNTRY_LABEL"],
                                sorted(idx["country_code"].astype(str).unique()),
                                default=[], key="f_countries", **state.PERSIST)
-    excl = sb.checkbox(EXTRA_COPY["EXCLUDE_OWN_LABEL"], value=False,
+    excl = sb.checkbox(copy.FIND["EXCLUDE_OWN_LABEL"], value=False,
                        help=copy.L3_COUNTRY_TOOLTIP.format(
                            share=_same_country_share(rankings, bundle["ctx"], seed_row, depth)),
                        key="f_excl_own", **state.PERSIST)
     lo_all = int(np.floor(idx["total_full_2020_2024"].min()))
     hi_all = int(np.ceil(idx["total_full_2020_2024"].max()))
-    lo, hi = sb.slider(EXTRA_COPY["SIZE_LABEL"], lo_all, hi_all, (lo_all, hi_all),
+    lo, hi = sb.slider(copy.FIND["SIZE_LABEL"], lo_all, hi_all, (lo_all, hi_all),
                        key="f_size", **state.PERSIST)
-    guard = sb.checkbox(EXTRA_COPY["SCALE_GUARD_LABEL"], value=False,
-                        help=EXTRA_COPY["SCALE_GUARD_HELP"], key="f_guard", **state.PERSIST)
+    guard = sb.checkbox(copy.FIND["SCALE_GUARD_LABEL"], value=False,
+                        help=copy.FIND["SCALE_GUARD_HELP"], key="f_guard", **state.PERSIST)
     thr = CFG["family_filter_threshold"]
-    fam = sb.checkbox(EXTRA_COPY["FAMILY_LABEL"], value=False,
-                      help=EXTRA_COPY["FAMILY_HELP"].format(threshold=thr),
+    fam = sb.checkbox(copy.FIND["FAMILY_LABEL"], value=False,
+                      help=copy.FIND["FAMILY_HELP"].format(threshold=thr),
                       key="f_family", **state.PERSIST)
     narrowed = (lo, hi) != (lo_all, hi_all)
     return {"types": types or None, "countries": countries or None, "exclude_own_country": excl,
@@ -265,29 +178,29 @@ def _sidebar_basket(bundle: dict) -> None:
     """VIZ_SPEC S1.3 control 5 / S2.9: the basket list, a remove control per
     item, a clear button, and the free-text "add a comparator" box."""
     sb, names = st.sidebar, bundle["ctx"]["index_by_id"]
-    sb.header(EXTRA_COPY["BASKET_HEADER"])
+    sb.header(copy.FIND["BASKET_HEADER"])
     items = state.items()
     if not items:
-        sb.caption(EXTRA_COPY["BASKET_EMPTY"])
+        sb.caption(copy.FIND["BASKET_EMPTY"])
     else:
         for iid in list(items):
             col_a, col_b = sb.columns([4, 1])
             col_a.write(str(names.loc[iid, "display_name"]))
-            if col_b.button(EXTRA_COPY["BASKET_REMOVE"], key=f"rm_{iid}"):
+            if col_b.button(copy.FIND["BASKET_REMOVE"], key=f"rm_{iid}"):
                 state.remove(iid)
                 st.rerun()
-        if sb.button(EXTRA_COPY["BASKET_CLEAR"], key="basket_clear"):
+        if sb.button(copy.FIND["BASKET_CLEAR"], key="basket_clear"):
             state.clear()
             st.rerun()
-    query = sb.text_input(EXTRA_COPY["ADD_COMPARATOR_LABEL"], help=copy.ADD_COMPARATOR_HELP,
+    query = sb.text_input(copy.FIND["ADD_COMPARATOR_LABEL"], help=copy.ADD_COMPARATOR_HELP,
                           key="basket_query", **state.PERSIST)
     hits = search(query, bundle["search_idx"]) if query else []
     if query and not hits:
         sb.caption(copy.SEARCH_EMPTY_TEMPLATE.format(query=query))
     if hits:
-        pick = sb.selectbox(EXTRA_COPY["ADD_COMPARATOR_PICK"], [h["id"] for h in hits],
+        pick = sb.selectbox(copy.FIND["ADD_COMPARATOR_PICK"], [h["id"] for h in hits],
                             format_func=lambda i: _hit_label(hits, i), key="basket_pick")
-        if sb.button(EXTRA_COPY["ADD_COMPARATOR_BUTTON"], key="basket_add"):
+        if sb.button(copy.FIND["ADD_COMPARATOR_BUTTON"], key="basket_add"):
             state.add(pick)
             st.rerun()
 
@@ -297,8 +210,8 @@ def _sidebar_basket(bundle: dict) -> None:
 def _header(bundle: dict) -> None:
     """Title, the standing verdict line, and the snapshot stamp -- both label
     and figures computed from the deployed manifest (BUILD_PLAN_2A.md L11)."""
-    st.title(EXTRA_COPY["PAGE_TITLE"])
-    st.caption(EXTRA_COPY["PAGE_INTRO"])
+    st.title(copy.FIND["PAGE_TITLE"])
+    st.caption(copy.FIND["PAGE_INTRO"])
     st.markdown(f"**{copy.VERDICT_LINE}**")
     mf = manifest()
     # ops/deploy.py writes `source_manifest_generated_at` / `deployed_at`; the
@@ -306,7 +219,7 @@ def _header(bundle: dict) -> None:
     # deployed file actually carries rather than showing NA_MARK for both.
     stamp = (mf.get("generated_at") or mf.get("source_manifest_generated_at")
              or mf.get("deployed_at") or NA_MARK)
-    st.caption(EXTRA_COPY["SNAPSHOT_CAPTION"].format(
+    st.caption(copy.FIND["SNAPSHOT_CAPTION"].format(
         snapshot=mf.get("snapshot") or CFG["snapshot"], generated_at=stamp,
         n_institutions=f"{len(bundle['index_df']):,}", sep=SEP))
 
@@ -314,12 +227,12 @@ def _header(bundle: dict) -> None:
 def _seed_search(bundle: dict) -> str | None:
     """VIZ_SPEC S2.1: search-first, no default listing. The chosen id lives in
     the plain (non-widget) session key `seed_id`, so it survives page hops."""
-    query = st.text_input(EXTRA_COPY["SEED_SEARCH_LABEL"], key="seed_query", **state.PERSIST)
+    query = st.text_input(copy.FIND["SEED_SEARCH_LABEL"], key="seed_query", **state.PERSIST)
     hits = search(query, bundle["search_idx"]) if query else []
     if query and not hits:
         st.info(copy.SEARCH_EMPTY_TEMPLATE.format(query=query))
     if hits:
-        pick = st.selectbox(EXTRA_COPY["SEED_PICK_LABEL"], [h["id"] for h in hits],
+        pick = st.selectbox(copy.FIND["SEED_PICK_LABEL"], [h["id"] for h in hits],
                             format_func=lambda i: _hit_label(hits, i), key="seed_pick")
         if pick:
             st.session_state["seed_id"] = pick
@@ -363,19 +276,19 @@ def _card_kpis(card: dict, row) -> None:
         frac_txt = NA_MARK
     else:
         frac_txt = f"{frac:,.0f}"
-    cols[0].metric(EXTRA_COPY["CARD_SIZE_FULL"], full_txt)
-    cols[1].metric(EXTRA_COPY["CARD_SIZE_FRAC"], frac_txt)
-    cols[2].metric(EXTRA_COPY["CARD_HHI"], str(row["hhi_class"]))
+    cols[0].metric(copy.FIND["CARD_SIZE_FULL"], full_txt)
+    cols[1].metric(copy.FIND["CARD_SIZE_FRAC"], frac_txt)
+    cols[2].metric(copy.FIND["CARD_HHI"], str(row["hhi_class"]))
     if card["breadth_subfields"] is None:
         breadth_txt = NA_MARK
     else:
         breadth_txt = f"{card['breadth_subfields']:,}"
-    cols[3].metric(EXTRA_COPY["CARD_BREADTH"], breadth_txt)
+    cols[3].metric(copy.FIND["CARD_BREADTH"], breadth_txt)
     if card["hhi_subfield"] is None:
         hhi_txt = NA_MARK
     else:
         hhi_txt = f"{card['hhi_subfield']:.3f}"
-    st.caption(EXTRA_COPY["CARD_DENOM_CAPTION"].format(
+    st.caption(copy.FIND["CARD_DENOM_CAPTION"].format(
         y0=WINDOW_START, y1=WINDOW_END, dash=DASH, hhi_value=hhi_txt))
 
 
@@ -384,12 +297,12 @@ def _card_shape(card: dict) -> None:
     cols = st.columns(2)
     fields = card["shape_top3_fields"] or []
     subs = card["top5_subfields_default_scenario"] or []
-    cols[0].markdown(f"**{EXTRA_COPY['CARD_TOP_FIELDS']}**")
+    cols[0].markdown(f"**{copy.FIND['CARD_TOP_FIELDS']}**")
     for f in fields:
         cols[0].write(f"{f['field_name']} {SEP} {f['share']:.1%}")
     if not fields:
         cols[0].write(NA_MARK)
-    cols[1].markdown(f"**{EXTRA_COPY['CARD_TOP_SUBFIELDS']}**")
+    cols[1].markdown(f"**{copy.FIND['CARD_TOP_SUBFIELDS']}**")
     for s in subs:
         cols[1].write(f"{s['name']} {SEP} {s['share_frac']:.1%}")
     if not subs:
@@ -399,26 +312,26 @@ def _card_shape(card: dict) -> None:
 def _card_evidence(card: dict) -> None:
     """VIZ_SPEC S2.2 blocks 4-5: the continuous evidence lines (never a gate)
     and PP(top10%) with its interval."""
-    st.markdown(f"**{EXTRA_COPY['CARD_EVIDENCE']}**")
-    st.write(EXTRA_COPY["EV_L2F"].format(value=f"{card['n_eligible_subfields_L2f']:,}"))
-    st.write(EXTRA_COPY["EV_SDG"].format(value=_pct(card["sdg_tagged_share"])))
+    st.markdown(f"**{copy.FIND['CARD_EVIDENCE']}**")
+    st.write(copy.FIND["EV_L2F"].format(value=f"{card['n_eligible_subfields_L2f']:,}"))
+    st.write(copy.FIND["EV_SDG"].format(value=_pct(card["sdg_tagged_share"])))
     erc, tot = card["erc_classified_mass_frac"], card["total_frac_2020_2024"]
     if erc is None or tot in (None, 0):
         erc_txt = NA_MARK
     else:
         erc_txt = _pct(erc / tot)
-    st.write(EXTRA_COPY["EV_ERC"].format(value=erc_txt))
-    st.write(EXTRA_COPY["EV_FRONTIER"].format(value=_pct(card["frontier_top25_share_index"])))
-    st.caption(EXTRA_COPY["EV_CATCHALL"].format(value=_pct(card["catchall_811_share"])),
+    st.write(copy.FIND["EV_ERC"].format(value=erc_txt))
+    st.write(copy.FIND["EV_FRONTIER"].format(value=_pct(card["frontier_top25_share_index"])))
+    st.caption(copy.FIND["EV_CATCHALL"].format(value=_pct(card["catchall_811_share"])),
                help=catchall_tooltip(card["catchall_811_share"]))
 
 
 def _card_impact(row) -> None:
     """PP(top10%) with CI, "value [low-high]", NA_MARK when null (never 0)."""
-    st.markdown(EXTRA_COPY["CARD_PP"].format(
+    st.markdown(copy.FIND["CARD_PP"].format(
         pp=_pct(row["pp_top10_frac"]), lo=_pct(row["pp_ci_low"]), hi=_pct(row["pp_ci_high"]),
         dash=DASH))
-    st.caption(EXTRA_COPY["CARD_PP_CAPTION"])
+    st.caption(copy.FIND["CARD_PP_CAPTION"])
 
 
 def _card_links(card: dict, row) -> None:
@@ -426,13 +339,13 @@ def _card_links(card: dict, row) -> None:
     iid = card["institution_id"]
     works = (f"https://openalex.org/works?filter=authorships.institutions.id:{iid},"
              f"publication_year:{WINDOW_START}-{WINDOW_END}")
-    parts = [f"[{EXTRA_COPY['LINK_OPENALEX']}]({works})"]
+    parts = [f"[{copy.FIND['LINK_OPENALEX']}]({works})"]
     ror = row.get("ror_id")
     if isinstance(ror, str) and ror:
-        parts.append(f"[{EXTRA_COPY['LINK_ROR']}]({ror})")
+        parts.append(f"[{copy.FIND['LINK_ROR']}]({ror})")
     home = row.get("homepage_url")
     if isinstance(home, str) and home:
-        parts.append(f"[{EXTRA_COPY['LINK_HOMEPAGE']}]({home})")
+        parts.append(f"[{copy.FIND['LINK_HOMEPAGE']}]({home})")
     st.markdown(f" {SEP} ".join(parts))
 
 
@@ -538,11 +451,11 @@ def _lens_intro(lens: str, ranking: dict, subs: dict, basis: str, bundle: dict) 
     ev = {k: v for k, v in (ranking.get("evidence") or {}).items() if isinstance(v, (int, float))}
     if ev:
         text = "; ".join(f"{k.replace('_', ' ')}: {v:,.3f}" for k, v in ev.items())
-        st.caption(EXTRA_COPY["EVIDENCE_LABEL"].format(text=text, sep=SEP))
+        st.caption(copy.FIND["EVIDENCE_LABEL"].format(text=text, sep=SEP))
     else:
-        st.caption(EXTRA_COPY["EV_NONE"])
+        st.caption(copy.FIND["EV_NONE"])
     if basis == "full" and not subs["basis_applies"][lens]:
-        st.caption(EXTRA_COPY["BASIS_DISCLOSURE"])
+        st.caption(copy.FIND["BASIS_DISCLOSURE"])
 
 
 def _tail_and_export(lens: str, ranking: dict, bundle: dict, kept, ctx_bits: dict) -> None:
@@ -552,7 +465,7 @@ def _tail_and_export(lens: str, ranking: dict, bundle: dict, kept, ctx_bits: dic
     downloads."""
     kept_ids, kept_scores = kept
     ctx, norm = bundle["ctx"], bundle["norm_names"]
-    query = st.text_input(EXTRA_COPY["TAIL_SEARCH_LABEL"], key=f"tail_{lens}", **state.PERSIST)
+    query = st.text_input(copy.FIND["TAIL_SEARCH_LABEL"], key=f"tail_{lens}", **state.PERSIST)
     if query:
         q = normalize(query)
         hits = [(i, s) for i, s in zip(kept_ids, kept_scores) if q in norm.get(i, "")]
@@ -561,7 +474,7 @@ def _tail_and_export(lens: str, ranking: dict, bundle: dict, kept, ctx_bits: dic
         else:
             rows = _rows_for_ids(ranking, ctx, [h[0] for h in hits], [h[1] for h in hits],
                                  ctx_bits["cross"])
-            st.caption(EXTRA_COPY["TAIL_CAPTION"])
+            st.caption(copy.FIND["TAIL_CAPTION"])
             render_ranked_table(format_rows(rows, lens=lens, depth=len(rows)),
                                 key=f"tailtbl_{lens}")
 
@@ -579,12 +492,12 @@ def _tail_and_export(lens: str, ranking: dict, bundle: dict, kept, ctx_bits: dic
 
 def _basket_button(selected: list, key: str) -> None:
     """One "add selected" affordance per table (VIZ_SPEC S2.9)."""
-    if st.button(EXTRA_COPY["ADD_SELECTED"], key=key, disabled=not selected):
+    if st.button(copy.FIND["ADD_SELECTED"], key=key, disabled=not selected):
         for iid in selected:
             state.add(iid)
         st.rerun()
     if not selected:
-        st.caption(EXTRA_COPY["ADD_SELECTED_NONE"])
+        st.caption(copy.FIND["ADD_SELECTED_NONE"])
 
 
 def _render_lens_tab(lens: str, ranking: dict, bundle: dict, subs: dict, filters: dict,
@@ -605,9 +518,9 @@ def _render_lens_tab(lens: str, ranking: dict, bundle: dict, subs: dict, filters
     selected = render_ranked_table(format_rows(rows, lens=lens, depth=depth, badges=badges),
                                    key=f"tbl_{lens}")
     st.caption(depth_caption(len(rows), len(kept_ids), depth, max(len(rows) - depth, 0)))
-    st.caption(EXTRA_COPY["POP_CAPTION"].format(n_pop=f"{len(ranking['sorted_ids']):,}"))
+    st.caption(copy.FIND["POP_CAPTION"].format(n_pop=f"{len(ranking['sorted_ids']):,}"))
     if tips:
-        st.caption(EXTRA_COPY["BADGE_NOTE"].format(sep=SEP), help=tips)
+        st.caption(copy.FIND["BADGE_NOTE"].format(sep=SEP), help=tips)
     _basket_button(selected, f"add_{lens}")
     _tail_and_export(lens, ranking, bundle, (kept_ids, kept_scores), ctx_bits)
 
@@ -617,10 +530,10 @@ def _render_lens_tab(lens: str, ranking: dict, bundle: dict, subs: dict, filters
 def _render_overview(bundle: dict, rankings: dict, lenses: list, filters: dict, seed_row) -> None:
     """VIZ_SPEC S2.3: k of n over the UNFILTERED rankings; post-filters remove
     rows and never recompute k (BUILD_PLAN_2A.md L3)."""
-    st.caption(EXTRA_COPY["OVERVIEW_INTRO"])
+    st.caption(copy.FIND["OVERVIEW_INTRO"])
     rows = concordance(bundle["ctx"], rankings, lenses, CONCORDANCE_N)
     if not rows:
-        st.info(EXTRA_COPY["CONCORDANCE_EMPTY"])
+        st.info(copy.FIND["CONCORDANCE_EMPTY"])
         return
     n_defined = rows[0]["n"]
     kept = apply_filters(rows, seed_row=seed_row, family_scores=None, **filters)
@@ -664,21 +577,21 @@ def _render_aspirational_table(df: pd.DataFrame) -> list:
         column_order=["rank", "institution", "institution_link", "country", "type", "badge",
                       "size", "pp", "ci", "l1"],
         column_config={
-            "rank": st.column_config.NumberColumn(EXTRA_COPY["COL_RANK"]),
-            "institution": st.column_config.TextColumn(EXTRA_COPY["COL_INSTITUTION"]),
-            "institution_link": st.column_config.LinkColumn(EXTRA_COPY["COL_WORKS"],
+            "rank": st.column_config.NumberColumn(copy.FIND["COL_RANK"]),
+            "institution": st.column_config.TextColumn(copy.FIND["COL_INSTITUTION"]),
+            "institution_link": st.column_config.LinkColumn(copy.FIND["COL_WORKS"],
                                                             display_text="->"),
             "institution_id": None,
-            "country": st.column_config.TextColumn(EXTRA_COPY["COL_COUNTRY"]),
-            "type": st.column_config.TextColumn(EXTRA_COPY["COL_TYPE"]),
-            "badge": st.column_config.TextColumn(EXTRA_COPY["COL_BADGE"]),
-            "size": st.column_config.TextColumn(EXTRA_COPY["COL_SIZE"]),
-            "pp": st.column_config.TextColumn(EXTRA_COPY["COL_PP"]),
-            "ci": st.column_config.TextColumn(EXTRA_COPY["COL_CI"]),
+            "country": st.column_config.TextColumn(copy.FIND["COL_COUNTRY"]),
+            "type": st.column_config.TextColumn(copy.FIND["COL_TYPE"]),
+            "badge": st.column_config.TextColumn(copy.FIND["COL_BADGE"]),
+            "size": st.column_config.TextColumn(copy.FIND["COL_SIZE"]),
+            "pp": st.column_config.TextColumn(copy.FIND["COL_PP"]),
+            "ci": st.column_config.TextColumn(copy.FIND["COL_CI"]),
             # format="percent" (not a printf "%.0f%%", which renders a 0-1
             # overlap score as "1%" -- see the defect note on lib/ranked.py in
             # progress/2A_E.md).
-            "l1": st.column_config.ProgressColumn(EXTRA_COPY["COL_L1"], min_value=0,
+            "l1": st.column_config.ProgressColumn(copy.FIND["COL_L1"], min_value=0,
                                                   max_value=1, format="percent")})
     rows_sel = event.selection.rows if event and event.selection else []
     return [df.iloc[i]["institution_id"] for i in rows_sel]
@@ -688,11 +601,11 @@ def _render_aspirational(bundle: dict, rankings: dict, filters: dict, seed_row,
                          ctx_bits: dict) -> None:
     """VIZ_SPEC S2.5, kept in L1-overlap order unless the analyst asks for a PP
     sort -- which is a control, never the default (BUILD_PLAN_2A.md L4)."""
-    st.caption(EXTRA_COPY["ASP_INTRO"])
+    st.caption(copy.FIND["ASP_INTRO"])
     l1 = rankings.get("L1")
     if l1 is None or l1["undefined"] or pd.isna(seed_row["pp_top10_frac"]) \
             or pd.isna(seed_row["pp_ci_high"]):
-        st.info(EXTRA_COPY["ASP_UNDEFINED"])
+        st.info(copy.FIND["ASP_UNDEFINED"])
         return
     rows = aspirational(bundle["ctx"], l1)
     pool = len(cut_with_ties(l1["sorted_ids"], l1["sorted_scores"], CFG["depth"]["max"])[0])
@@ -701,12 +614,12 @@ def _render_aspirational(bundle: dict, rankings: dict, filters: dict, seed_row,
         if rows:
             st.info(explain_empty(filters, seed_row))
         else:
-            st.info(EXTRA_COPY["ASP_EMPTY"].format(seed=seed_row["display_name"]))
+            st.info(copy.FIND["ASP_EMPTY"].format(seed=seed_row["display_name"]))
         return
-    if st.checkbox(EXTRA_COPY["ASP_SORT_LABEL"], value=False, key="asp_sort", **state.PERSIST):
+    if st.checkbox(copy.FIND["ASP_SORT_LABEL"], value=False, key="asp_sort", **state.PERSIST):
         kept = sorted(kept, key=lambda r: -r["pp_top10_frac"])
     selected = _render_aspirational_table(_aspirational_frame(kept, bundle))
-    st.caption(EXTRA_COPY["ASP_CAPTION"].format(n_rows=f"{len(kept):,}", n_pool=f"{pool:,}"))
+    st.caption(copy.FIND["ASP_CAPTION"].format(n_rows=f"{len(kept):,}", n_pool=f"{pool:,}"))
     _basket_button(selected, "add_aspirational")
     _aspirational_export(kept, ctx_bits)
 
@@ -769,7 +682,7 @@ def render() -> None:
     strip_slot = st.empty()
     seed_id = _seed_search(bundle)
     if not seed_id:
-        st.info(EXTRA_COPY["SEED_PROMPT"])
+        st.info(copy.FIND["SEED_PROMPT"])
         _sidebar_basket(bundle)
         return
     subs = _subs(ctl["tree"], ctl["basis"])
@@ -787,7 +700,7 @@ def render() -> None:
     lenses = _lenses_shown(ctl)
     bits = _ctx_bits(ctl, filters, seed_id, rankings,
                      strip, _family_scores(bundle, subs, seed_id, filters))
-    tabs = st.tabs([EXTRA_COPY["TAB_OVERVIEW"], *lenses, EXTRA_COPY["TAB_ASPIRATIONAL"]])
+    tabs = st.tabs([copy.FIND["TAB_OVERVIEW"], *lenses, copy.FIND["TAB_ASPIRATIONAL"]])
     with tabs[0]:
         _render_overview(bundle, rankings, lenses, filters, seed_row)
     for tab, lens in zip(tabs[1:-1], lenses):

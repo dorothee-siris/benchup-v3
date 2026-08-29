@@ -6,12 +6,11 @@ RULE: no digit character appears in a Find-page user-facing string except
 inside an allowlisted token (tests/digit_allowlist.txt) or a `{placeholder}`
 a caller fills at render time from CFG or the live data. Two scopes:
 
-  (a) every string constant in lib/copy.py (dict values included) AND every
-      value in lib/views_find.py's EXTRA_COPY dict. views_find.py imports
-      cleanly with no live Streamlit script-run context (its @st.cache_resource
-      decorators apply fine at bare-import time -- verified interactively
-      before writing this test: `python -c "from lib import views_find"`
-      raises nothing), so it is imported directly rather than ast-parsed.
+  (a) every string constant in lib/copy.py (dict values included), which
+      since Stream X1 (2026-08-29) also carries the Find-page strings
+      formerly in lib/views_find.py's EXTRA_COPY dict, folded into
+      lib/copy.py's own `FIND` dict -- one collector, no separate
+      views_find.py import needed for this scope any more.
 
   (b) string literals passed to a Streamlit UI call, or to that call's
       label=/help=/caption=/placeholder= kwarg, in pages/*.py, Menu.py,
@@ -141,11 +140,6 @@ def collect_copy_module_strings(copy_module) -> list[tuple[str, str]]:
     return out
 
 
-def collect_extra_copy_strings(views_find_module) -> list[tuple[str, str]]:
-    return [(f"lib/views_find.py::EXTRA_COPY[{k}]", v)
-            for k, v in views_find_module.EXTRA_COPY.items()]
-
-
 def _literal_parts(node: ast.AST) -> list[str]:
     """The literal text of a plain string Constant, or of a JoinedStr's own
     literal segments -- deliberately excludes a FormattedValue's
@@ -184,10 +178,13 @@ def collect_ui_call_strings(path: Path) -> list[tuple[str, str]]:
 
 def all_scoped_strings() -> list[tuple[str, str]]:
     from lib import copy as copy_mod
-    from lib import views_find
 
+    # copy.FIND (Find-page strings, folded in from views_find.py's former
+    # EXTRA_COPY dict by Stream X1) is scanned here too: it is an uppercase
+    # module-level dict-of-str constant in lib/copy.py, exactly what
+    # collect_copy_module_strings already walks -- no separate collector
+    # needed, and scope (a) no longer needs a views_find.py import.
     out = collect_copy_module_strings(copy_mod)
-    out += collect_extra_copy_strings(views_find)
     for f in SCOPE_B_FILES:
         out += collect_ui_call_strings(f)
     return out
@@ -217,9 +214,8 @@ def test_scope_b_matcher_is_not_vacuous():
 
 def test_copy_and_extra_copy_scan_is_not_vacuous():
     from lib import copy as copy_mod
-    from lib import views_find
-    n = len(collect_copy_module_strings(copy_mod)) + len(collect_extra_copy_strings(views_find))
-    assert n >= 50, f"only {n} strings collected from copy.py + EXTRA_COPY -- collector likely broken"
+    n = len(collect_copy_module_strings(copy_mod))
+    assert n >= 50, f"only {n} strings collected from copy.py (incl. copy.FIND) -- collector likely broken"
 
 
 def test_no_digit_ban_violations():

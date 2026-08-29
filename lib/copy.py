@@ -98,17 +98,115 @@ EXPORT_BUTTON_LABEL = "Download full ranking (CSV)"
 TAIL_SEARCH_EMPTY_TEMPLATE = "'{query}' does not appear anywhere in this lens's ranking for this seed."
 ADD_COMPARATOR_HELP = "Add a comparator by name"
 
+# ---- Find page (moved from lib/views_find.py EXTRA_COPY, Stream X1 2026-08-29) ----
+
+FIND = {
+    "SCENARIO_HEADER": "Scenario",
+    "TREE_LABEL": "Subfield tree",
+    "BASIS_LABEL": "Counting basis",
+    "DEPTH_HEADER": "Depth",
+    "DEPTH_LABEL": "Rows shown per lens",
+    "OPTIONAL_HEADER": "Optional lenses",
+    "L7_HEADER": "Experimental view",
+    "FILTERS_HEADER": "Post-filters",
+    "FILTERS_HELP": "Applied after ranking: they remove rows, they never change a rank.",
+    "TYPE_LABEL": "Institution type",
+    "COUNTRY_LABEL": "Country",
+    "EXCLUDE_OWN_LABEL": "Exclude the seed's own country",
+    "SIZE_LABEL": "Size range (full works)",
+    "SCALE_GUARD_LABEL": "Scale guard (comparable size band)",
+    "SCALE_GUARD_HELP": ("Keeps candidates within a size ratio of the seed; the ratio is banded "
+                          "by the seed's own size."),
+    "FAMILY_LABEL": "Family filter (field-grain overlap)",
+    "FAMILY_HELP": "Keeps candidates whose L0 field-grain overlap with the seed is at or above {threshold}.",
+    "BASKET_HEADER": "Basket",
+    "BASKET_EMPTY": "No comparators added yet -- use the add button under any table.",
+    "BASKET_CLEAR": "Clear basket",
+    "BASKET_REMOVE": "Remove",
+    "ADD_COMPARATOR_LABEL": "Add a comparator not found above",
+    "ADD_COMPARATOR_PICK": "Matching institutions",
+    "ADD_COMPARATOR_BUTTON": "Add to basket",
+    "PAGE_TITLE": "Find",
+    "PAGE_INTRO": "Search for an institution, then read who resembles it across independent lenses.",
+    "SNAPSHOT_CAPTION": ("Snapshot: {snapshot} (generated {generated_at}) {sep} {n_institutions} "
+                          "institutions in the index."),
+    "SEED_SEARCH_LABEL": "Institution name, acronym or alternative name",
+    "SEED_PICK_LABEL": "Matching institutions",
+    "SEED_PROMPT": "Type an institution name above to load its benchmark.",
+    "CARD_SIZE_FULL": "Size (full counting)",
+    "CARD_SIZE_FRAC": "Size (fractional counting)",
+    "CARD_HHI": "Concentration",
+    "CARD_BREADTH": "Breadth (subfields)",
+    "CARD_DENOM_CAPTION": ("Works published {y0}{dash}{y1}. Full counting credits a whole work to the "
+                            "institution; fractional counting credits its author share. Concentration "
+                            "is the subfield HHI ({hhi_value}); breadth is the number of subfields present."),
+    "CARD_TOP_FIELDS": "Top fields",
+    "CARD_TOP_SUBFIELDS": "Top subfields",
+    "CARD_EVIDENCE": "Coverage evidence for this seed",
+    "EV_L2F": "Eligible subfield cells for L2f: {value}",
+    "EV_SDG": "SDG-tagged share of works: {value}",
+    "EV_ERC": "ERC-classified share of fractional mass: {value}",
+    "EV_FRONTIER": "Frontier top-quartile share: {value}",
+    "EV_CATCHALL": "Catch-all (out-of-scope) topic share: {value}",
+    "CARD_PP": "PP(top10%): {pp} [{lo}{dash}{hi}]",
+    "CARD_PP_CAPTION": ("Share of the institution's fractional output in the world top decile of its own "
+                         "citation distribution, with its bootstrap interval -- never the point estimate alone."),
+    "LINK_OPENALEX": "OpenAlex works",
+    "LINK_ROR": "ROR",
+    "LINK_HOMEPAGE": "Homepage",
+    "TAB_OVERVIEW": "Overview",
+    "TAB_ASPIRATIONAL": "Aspirational",
+    "OVERVIEW_INTRO": ("Candidates that several independent lenses agree on. Order here is agreement, "
+                        "not a score."),
+    "CONCORDANCE_EMPTY": ("No candidate is found by more than one of the lenses defined for this seed. "
+                           "Open the single-lens tabs instead."),
+    "BASIS_DISCLOSURE": "This lens is fractional-only: the counting-basis toggle does not change it.",
+    "EVIDENCE_LABEL": "Evidence for this seed {sep} {text}",
+    "EV_NONE": "No lens-specific evidence line for this seed.",
+    "ADD_SELECTED": "Add selected rows to basket",
+    "ADD_SELECTED_NONE": "Select rows in the table above, then use this button.",
+    "BADGE_NOTE": "Some rows carry a badge {sep} hover for what each one compares against.",
+    "TAIL_SEARCH_LABEL": "Search the full ranking (beyond the rows shown)",
+    "TAIL_CAPTION": "Matches anywhere in this lens's ranking, with their original rank.",
+    "POP_CAPTION": "Ranked against {n_pop} institutions in the index, the seed excluded.",
+    "ASP_INTRO": ("Candidates already found by L1 whose impact interval sits entirely above the seed's. "
+                   "Kept in L1-overlap order."),
+    "ASP_SORT_LABEL": "Sort by PP(top10%) instead of L1 overlap",
+    "ASP_EMPTY": "No L1 candidate's impact interval sits fully above {seed}'s in the pool.",
+    "ASP_UNDEFINED": ("The aspirational view needs a defined L1 ranking and a PP(top10%) value with an "
+                       "interval for the seed; one of them is missing here."),
+    "ASP_CAPTION": "{n_rows} candidates clear the interval test, out of {n_pool} in the L1 pool considered.",
+    "COL_RANK": "Rank",
+    "COL_INSTITUTION": "Institution",
+    "COL_WORKS": "OpenAlex works",
+    "COL_COUNTRY": "Country",
+    "COL_TYPE": "Type",
+    "COL_BADGE": "Badge",
+    "COL_SIZE": "Size (full)",
+    "COL_PP": "PP(top10%)",
+    "COL_CI": "Interval",
+    "COL_L1": "L1 overlap",
+}
+
 # ----------------------------------------------------- digit-ban self-check -
 
 _ALLOWLIST_RE = re.compile(
     r"\bL0\b|\bL1\b|\bL2f\b|\bL3\b|\bL4\b|\bL5\b|\bL6\b|\bL7\b|\bF1\b|\bC1\b|top10|PP\(top10%\)"
 )
+# A `{named}` format placeholder is never rendered literally -- the RULE at
+# the top of this file exempts it explicitly -- so a digit inside the
+# placeholder's own name (e.g. the FIND section's "{y0}"/"{y1}") is not a
+# digit-ban violation. Stripped before the scan below, same as this file's
+# independent reimplementation in tests/test_narrative.py's
+# `has_digit_violation` (kept in sync with that stripping behaviour, not with
+# its literal regex source).
+_PLACEHOLDER_RE = re.compile(r"\{[^{}]*\}")
 
 
 def scan_for_digit_violations() -> list[tuple[str, str]]:
     """Every string constant above (dict values included), digits allowed only
-    inside the allowlisted lens codes / top10 / PP(top10%). Returns
-    (constant_name, offending_value) pairs; empty list = PASS."""
+    inside the allowlisted lens codes / top10 / PP(top10%) / a `{placeholder}`.
+    Returns (constant_name, offending_value) pairs; empty list = PASS."""
     violations = []
     for name, value in globals().items():
         if name.startswith("_") or not name.isupper():
@@ -117,7 +215,8 @@ def scan_for_digit_violations() -> list[tuple[str, str]]:
         for v in candidates:
             if not isinstance(v, str):
                 continue
-            if re.search(r"\d", _ALLOWLIST_RE.sub("", v)):
+            cleaned = _PLACEHOLDER_RE.sub("", _ALLOWLIST_RE.sub("", v))
+            if re.search(r"\d", cleaned):
                 violations.append((name, v))
     return violations
 
