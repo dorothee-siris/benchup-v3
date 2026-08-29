@@ -1084,6 +1084,409 @@ classified publications at all).**
 
 ---
 
+## 2 ter. View specs — the Compare and Collaborate views (Phase 2B, stream V)
+
+**Produced by:** stream V, 2026-08-29, in wave 1 — before `pages/2_⚖️_Compare.py`
+and `pages/3_🤝_Collaborate.py` exist, against the `BUILD_PLAN_2B.md` §4 column
+contracts (as amended by the wind tunnel's E16). Same row format as §2 and
+§2 bis: form / encoding / interaction / empty state / export, and one NAMED
+rejected alternative each. Builders: `lib/charts_compare.py` (pure plotly, no
+Streamlit, no hex literal, no digit in any string — the same three scans
+`lib/charts.py` passes).
+
+**The one rule every row below obeys (2B-1).** In Compare and Collaborate the
+INSTITUTION is the identity: the categorical axis names the field, subfield,
+panel, goal, quadrant or grey state, and the COLOUR names the institution
+(`palette.INSTITUTION_COLORS`, §1.1). No OA-domain, ERC, SDG or document-type
+hue appears in any figure of these two pages. That is not a preference — the six
+institution hues and the four OA hues FAIL the validator as one ten-slot set
+(`palette_validation.txt` run 10), and the coexistence rule is what carries
+them.
+
+**Slot assignment is stable by `inst_key`, never by click order** (A8). Adding a
+comparator does not repaint the ones already on screen unless the newcomer's key
+falls between two of them, and removing one never repaints the rest. The k ≤ 5
+Studio identity budget is exceeded here by design, ONCE, and this stability is
+the justification (`palette.py`, FAMILY 5).
+
+**Two things are the caller's, not the builder's, on every row below:** the
+caption (which must state the denominator, the basis, the tree and the snapshot)
+and the legend placement. `charts_compare.institution_legend_html` is the ONE
+legend of a Compare view; every figure ships `showlegend=False`. **The legend is
+mandatory, not decorative** — the palette carries a deutan ΔE 7.6 pair and two
+sub-3:1 contrasts (run 9), and the legend + the axis labels + the per-mark hover
+ARE the secondary encoding that makes those legal.
+
+**Reading order note the captions must carry** (measured need, from the render
+proof): in a lane-split mirror the institutions read TOP TO BOTTOM of each row in
+the same order the legend reads LEFT TO RIGHT. Without that line the reader has
+to infer the mapping from colour alone, which is precisely what the CVD floor
+forbids relying on.
+
+### 3.1 Institution strip (the Compare header)
+
+- **Form.** Not a chart: a `st.columns` strip of {k} identical cards, one per
+  compared institution, in SLOT order. Each card carries a colour swatch (the
+  institution's own `institution_color`), the display name, the type, the
+  country and the size on the current basis. Directly under it, the standard
+  "Filtered by…" strip (§1.4) whenever any control is off-default.
+- **Encoding.** The swatch is the ONLY place the colour↔institution binding is
+  stated in full, so it is repeated in the chip legend above every figure. Size
+  is a number, not a bar: {k} bars of "total output" would be a chart nobody
+  asked for and would compete with the panels below (§1.6, "is it even a chart").
+- **Interaction.** A remove control per card and one "add" search box, both
+  writing the basket; the cap is `state.BASKET_MAX` and the copy line says so
+  from that constant, never from a typed numeral.
+- **Empty state.** Fewer than two institutions → the panels are not drawn at
+  all and the page shows the add affordance plus the Find link. One institution
+  is a PROFILE, and the app already has one.
+- **Export.** The strip's own fields are the first sheet of the xlsx workbook
+  (2B-13) and the header block of every CSV.
+
+> **Rejected alternative:** a single table with one row per institution instead
+> of cards. Rejected because the swatch is doing identity work here, and a
+> swatch inside a dataframe cell cannot be styled without the `ProgressColumn`
+> hack that R1 already removed from the ranked tables (L22); cards also degrade
+> to a stack at 390 px, where a six-column table would scroll sideways — which
+> §1.8 forbids outright.
+
+### 3.2 Fields mirror (dot rows)
+
+- **Form.** `charts_compare.fig_mirror_dots(family="oa")` — two aligned panels of
+  ONE figure sharing the y axis: one row per field, {k} coloured dots on the
+  share axis left, the mass-paired specialisation dots right against the dashed
+  neutral reference and the unit grid. **This is A/B #5's winner, measured**
+  (§6). It replaces the grouped bars the plan first proposed, which the wind
+  tunnel measured at 2.6 px per bar for 26 fields × 6 institutions (A4).
+- **Encoding.** Dot = institution. `DOT_PX` diameter with the 2 px SURFACE ring
+  the dataviz mark specs require of overlapping marks. Share on the current
+  basis; no floor at field grain (§2.15 — the G6 floor is a subfield concept).
+  When any row of the frame would put two marks closer than half a dot, EVERY
+  row splits into {k} lanes, one per institution, in slot order — all-or-nothing,
+  so a lane means the same thing in every row and a reader can scan one
+  institution down the panel. An undodged frame is exactly as tall as the
+  profile panel it mirrors. Alternate rows carry a `NEUTRAL` zebra band whenever
+  lanes are on, which is what keeps {k} lanes reading as one row.
+- **Volumes are in the HOVER, not in a gutter.** A/B #4's left gutter is a
+  profile form and does not survive {k} institutions: one gutter column cannot
+  hold six numbers per row. The hover names the institution in words, gives the
+  share, the volume on the current counting basis and the SI; the xlsx and CSV
+  carry the same numbers for the reader who wants a column.
+- **Interaction.** Sort toggle **volume** (share summed across the compared set,
+  descending) | **taxonomy** (domain → field id). Colour follows the entity, so
+  the toggle never repaints anything. Tree and basis toggles are the page's, not
+  the panel's.
+- **Empty state.** A field an institution has no row for gets NO dot for that
+  institution — never a dot at zero. A `si_status` of `none`, a NaN SI, or a
+  zero volume gets no specialisation mark and `palette.NA_MARK` in the hover; a
+  `thin` cell gets a HOLLOW dot (SURFACE fill, institution-coloured outline), so
+  a below-the-floor cell is disclosed rather than erased. If NOTHING in the
+  frame is eligible for an SI mark, the figure collapses to the share panel
+  alone rather than showing an empty half.
+- **Export.** CSV of the panel frame, all columns, full precision; one xlsx
+  sheet per view (2B-13).
+
+> **Rejected alternative:** small multiples — one mini profile panel per
+> institution, 26 field bars each. Measured and rejected in A/B #5 (§6): it is
+> compact (900 px against 2,020 px) but it costs 900 px of eye travel to compare
+> one field across the set where the dot row costs 74 px, it gives each
+> institution a 299 px plot where the dot row gives 496 px, its wrapped category
+> labels collided at the shipped pitch, and it has no room for the mass-paired
+> SI panel at all — which would break 2B-2 outright.
+
+### 3.3 Subfields mirror (dot rows, top-N shared)
+
+- **Form.** `fig_mirror_dots(family="oa")` on a subfield frame. Identical
+  grammar to §3.2 — same read, same form.
+- **Encoding.** The N rows are the subfields with the largest share **summed
+  across the compared institutions** (A3). This is a ruling, not a default: the
+  INTERSECTION of the per-institution top-6 lists is one subfield at k = 6 and
+  two at k = 4, measured on real sets, so an intersection rule would render a
+  one-row panel and call it a comparison. The caption must state the selection
+  rule, because "top subfields" reads as "each institution's top" unless it is
+  told otherwise. Subfield SI carries the G6 floor, so `si_status` does real work
+  here: solid ≥ 30, hollow 10–30, absent below (L34).
+- **Interaction.** Same sort toggle; N is a module constant surfaced in the
+  caption as a `{placeholder}`.
+- **Empty state.** As §3.2. A subfield that only one institution holds still
+  earns its row if its summed share ranks — the other {k}−1 marks are simply
+  absent, which IS the finding.
+- **Export.** As §3.2.
+
+> **Rejected alternative:** show every subfield the set touches (252 rows).
+> Rejected on the same arithmetic that killed the grouped bars: 252 rows at the
+> lane-split pitch is over 15,000 px, and a panel nobody can reach the bottom of
+> is not a panel. The full frame stays available through the export.
+
+### 3.4 ERC mirror (dot rows)
+
+- **Form.** `fig_mirror_dots(family="erc", sort="taxonomy")`.
+- **Encoding.** One row per ERC evaluation panel, in the fixed PE → LS → SH
+  domain order. **The ERC domain does NOT colour anything here** — that is the
+  coexistence rule biting: in the profile the three ERC hues are the identity,
+  in Compare the institution is, and the panel's domain lives in the row label
+  and in the taxonomy sort instead. Share denominator is ERC-classified mass;
+  the caption states each institution's classified share (2B-6), which is the
+  only honest way to read a thin institution's panel.
+- **Interaction.** Sort toggle as §3.2; taxonomy is the default here because the
+  PE/LS/SH grouping is the reason the panel exists.
+- **Empty state.** A panel with zero mass for an institution gets no dot for it.
+  The weak-panel caveat is caption text (§2.20), never a mark.
+- **Export.** As §3.2.
+
+> **Rejected alternative:** keep the ERC domain hues and encode the institution
+> by marker SHAPE (circle / square / triangle …). Rejected because shape is a
+> far weaker channel than hue at 12 px, because six shapes exceed what anyone
+> can hold, and because it would put two identity families in one figure — the
+> exact thing run 10 measured as unsafe.
+
+### 3.5 SDG mirror (dot rows, numbered labels)
+
+- **Form.** `fig_mirror_dots(family="sdg", sort="taxonomy")`.
+- **Encoding.** One row per goal in fixed goal order, labelled with
+  `sdg_label_numbered` (L36) so the goal NUMBER is on the axis — which matters
+  more here than anywhere: the UN palette contains two near-identical ambers
+  (run 7) and the app's rule is that no chart may rely on telling SDG colours
+  apart. In Compare that rule is free, because the SDG hues are not on screen at
+  all; the numbered label is doing the work it was already doing. ESI sits in the
+  specialisation slot with its own axis title. Shares do NOT sum to one
+  (multi-label) and the caption says so; goal 17 is absent from the classifier
+  and the caption states that from `palette.SDG_UNCOVERED`.
+- **Interaction / empty state / export.** As §3.2, with `si_status` from SDG
+  mass.
+
+> **Rejected alternative:** order the goals by summed share instead of by goal
+> number. Rejected because the SDG axis is a *known list* the reader navigates
+> by number — re-ordering it makes goal 7 appear in a different place in every
+> comparison, and the volume sort is already available on the toggle for the
+> reader who wants it.
+
+### 3.6 Frontier — quadrant mix and the topic plane
+
+- **Form (mix).** `fig_quadrant_mix` — **five** dot rows, not four: the four
+  quadrants plus "not frontier-scored". A2 measured that the four quadrant
+  shares sum to a median of 0.967 and a minimum of 0.128, and that quadrants +
+  excluded + unscored = 1 for all 7,557 institutions; a four-part figure would
+  silently drop 3 % to 87 % of an institution's mass. The fifth row is computed
+  as the residual to one, so it cannot disagree with the four.
+- **Form (plane).** `fig_frontier_small_multiples` — one Expansion × Acceleration
+  panel per institution, all panels on the SAME axes and the SAME bubble scale.
+  **A/B #6's winner, measured** (§6). `fig_frontier_overlay` (all institutions in
+  one plane) is kept as an explicitly secondary mode behind the same control that
+  swaps the top-200-by-volume and top-quartile point sets (2B-3), with its
+  occlusion figure in its caption.
+- **Encoding.** Mix: dot = institution, row = quadrant, share of the
+  institution's own mass. Plane: bubble = topic, area = mass on the current
+  basis on a scale shared by every panel (so a small institution's panel is not
+  silently magnified), colour = institution, quadrant lines at the origin on both
+  axes, a top-quartile topic outlined in `INK` — a SHAPE flag, never a new hue.
+- **Interaction.** A segmented control for the point set (top by volume /
+  top-quartile) and one for the form (panels / one plane). Hover names the
+  institution, the topic, both scores and the mass.
+- **Empty state.** A quadrant an institution does not ship is drawn at zero with
+  `palette.NA_MARK` in its hover — one real institution ships three quadrants,
+  and an absent row would read as "not measured" rather than "none". Unscored
+  topics are dropped from the plane and COUNTED in the caption.
+- **Export.** The mix frame and the plotted topic rows, both as CSV, plus their
+  own xlsx sheets.
+
+> **Rejected alternative (mix):** one stacked 100 % bar per institution, the four
+> quadrants plus not-scored as segments. It is the more obvious picture and it is
+> refused for one reason: the segments would need a second identity family
+> (quadrant hues) inside a Compare chart, and 2B-1 makes the institution the only
+> identity. The coverage strip (§3.9) is the single exemption, and only because
+> its segments are grey STATES rather than identities.
+
+> **Rejected alternative (plane):** the overlay as the default. Measured in
+> A/B #6: 90.7 % of marks have their centre covered by a mark of a DIFFERENT
+> institution at k = 6, 78.0 % at k = 3, 62.6 % at k = 2, and 85.7 % even in the
+> sparser top-quartile mode — against 0.0 % faceted. A figure that carries
+> identity by colour cannot bury nine marks in ten behind another colour.
+
+### 3.7 Impact — index level and per subfield
+
+- **Form (index).** `fig_impact_intervals` — one dot-interval row per
+  institution: the PP(top10%) point estimate with its rendered bootstrap
+  interval.
+- **Form (subfields).** `fig_impact_subfields` — dot-interval rows over the
+  UNION of the subfields any compared institution clears, one lane per
+  institution, unconditionally.
+- **Encoding.** The interval is the panel's point, not decoration: a PP gap
+  smaller than the overlap of two intervals is not a finding, and dots alone
+  would invite exactly that read. Per-subfield lanes are always on because an
+  interval occupies a stretch of axis rather than a point — a collision test on
+  the point estimates alone would not see two intervals lying on top of each
+  other.
+- **Interaction.** Sort **volume** (estimate descending) | **taxonomy** (stable
+  slot order / subfield id). A floor toggle for the per-subfield panel: floor 30
+  (fewer cells, tighter intervals) ↔ floor 10 ("more cells, wider intervals"),
+  both shipped in `impact_cells` (A1). The bonus year is excluded and the
+  caption says so.
+- **Empty state.** A missing cell is the NORMAL case, not an error: only 3,342
+  of 7,557 institutions have any floor-30 cell, the median is 2, and 40 of 40
+  random four-tuples intersect to zero (A1). It is drawn as NO MARK — never a
+  dot at zero, which would read as "no top-decile output" when the truth is "too
+  few publications to estimate". The caption states how many of the {k}
+  institutions each row actually carries.
+- **Export.** The union frame with its `in_all_ids` flag, `n/a` where a cell is
+  missing (never 0), plus the denominator columns L11 requires beside every rate.
+
+> **Rejected alternative:** render only the subfields ALL compared institutions
+> clear, as the plan first said (2B-4). Refuted on data, not on taste: for IFPEN
+> plus three L1 peers that intersection is empty, and so is every one of 40
+> random four-tuples. A panel that is blank on the gate case is not a panel.
+
+### 3.8 Trends — subfield × year small multiples
+
+- **Form.** `fig_trends_small_multiples` — a grid of small panels, one per
+  subfield, one line per institution inside each. Small multiples is right here
+  and a dot row is not: the question is "who is growing in this subfield", a
+  change-over-time read, and change over time is a line.
+- **Encoding.** The N panels are the top-N subfields by share summed across the
+  compared set (A3 again, same reason as §3.3). **Every panel shares one y
+  scale** — `shared_yaxes` alone links a row of panels, not the grid, so the
+  builder matches every axis explicitly; a grid whose second row has its own
+  scale is the exact lie small multiples exist to avoid. Because of that shared
+  scale the caller passes an institution-NORMALISED measure whenever the compared
+  sizes differ by an order of magnitude (a raw count would pin the small
+  institutions to the floor), and the caption names which measure it passed.
+- **The partial final year is drawn, not hidden.** Its segment is DOTTED and its
+  point HOLLOW, so it is visibly not the same kind of observation; the year
+  itself is a caller-supplied string, since this module never names a year.
+- **Interaction.** Basis toggle (the page's); hover names the institution, the
+  panel, the year and the value.
+- **Empty state.** An institution with no mass in a panel's subfield has no line
+  in that panel — never a line at zero.
+- **Export.** The long frame (institution × year × subfield), one xlsx sheet.
+
+> **Rejected alternative:** one panel per INSTITUTION with a line per subfield.
+> Rejected because it answers a different question (the institution's internal
+> mix over time, which the profile already answers) and because it puts {N}
+> subfield lines in one panel with no identity family free to colour them —
+> institution is taken.
+
+### 3.9 Coverage strip
+
+- **Form.** `fig_coverage_strip` — one stacked, exhaustive 100 % bar per
+  institution. **This is the only stacked bar in the app**, and the exemption is
+  earned by arithmetic, not by preference: the six `mass_*` columns sum to
+  `total_frac` EXACTLY for all 7,557 institutions (A9), so the segments really
+  are the parts of one whole. Everywhere else in Compare the categories are not a
+  partition and a stack would assert a total that does not exist.
+- **Encoding.** SIX segments, not five (A9 corrects rev 0, which dropped
+  `mass_unusable`): classified-eligible, title-only, language-uncertain,
+  untranslated, unusable, retracted. The classified-eligible segment takes the
+  institution's OWN colour; the five grey states take the ordinal ramp
+  `palette.GREY_STATE_COLORS`, light → dark by distance from usable text. That
+  split is what keeps the coexistence rule intact — the only identity in the
+  figure is still the institution — and it gives the strip the
+  highlight-plus-mute reading the Studio colour formula asks for. Segments are
+  separated by the 2 px SURFACE gap the dataviz spacers require, never by a
+  stroke.
+- **Interaction.** Hover per segment: institution, state in words, share of
+  `total_frac`.
+- **Empty state.** A state with zero mass renders as a zero-width segment and
+  keeps its hover — the absence is a fact about the institution, and the six
+  always sum to one.
+- **Export.** The six shares plus their absolute masses and the denominator.
+
+> **Rejected alternative:** six dot rows (one per state, a dot per institution),
+> which is the grammar every other row of this section uses. Rejected precisely
+> because it would hide the property that makes this view worth having: the
+> reader's question is "how much of this institution's output could the
+> classifiers actually read", which is a part-to-whole read, and dots on six
+> separate rows never add up to a whole on screen.
+
+### 3.10 Collaborate — header and shared topics
+
+- **Form.** A two-card header (the pair, in slot order, with their swatches) and
+  one table of the topics both hold, sorted by `min_share` descending.
+- **Encoding.** Columns: topic, subfield (on the SELECTED tree), A's share, B's
+  share, the minimum of the two, the topic's keywords as human-readable
+  evidence, and the frontier flag. The minimum is the column the sort is on
+  because Σ min(share) over shared topics IS the engine's L3 score for the pair —
+  the table and the lens agree by construction, and the test pins the identity on
+  both bases.
+- **`top25pct_frontier` renders as THREE states** — frontier · not frontier ·
+  **unscored** — never null coerced to false (E18): 810 of 4,516 topics carry no
+  score, and 37 % of the gap rows on a real pair are unscored.
+- **Interaction.** A search box over topic names; an off-by-default filter to
+  frontier-flagged topics only; keywords truncated in the cell with the full
+  string in the export.
+- **Empty state.** No shared topic at all → a stated sentence plus the two
+  profile links, never an empty table.
+- **Export.** CSV + xlsx sheet, keywords un-truncated.
+
+> **Rejected alternative:** a Venn or a set diagram of the two topic sets.
+> Rejected because the interesting quantity is not set membership but SHARE
+> agreement — two institutions can share 2,376 topics and still be nothing alike
+> — and an area-proportional Venn cannot encode a second measure at all.
+
+### 3.11 Gaps tables (A → B and B → A)
+
+- **Form.** Two tables, directional and side by side at wide widths, stacked
+  below the small breakpoint.
+- **Encoding.** A's gaps = the topics B holds inside A's own top-10 subfields
+  that A does not hold, with B's share and the frontier flag; B's gaps
+  symmetric. The direction is stated in the table's own title, not left to the
+  column order — a directional table read the wrong way round is a wrong answer,
+  not a confusing one.
+- **Interaction.** Sort by B's share (default) or by subfield; the frontier
+  filter is shared with §3.10.
+- **Empty state.** No gap rows → a stated sentence naming the pair and the
+  subfield scope; the honest reading is "nothing B does inside A's strengths
+  that A does not already do", which is a finding.
+- **Export.** Both directions, one sheet each.
+
+> **Rejected alternative:** one merged table with a direction column. Rejected
+> because the two tables answer two different questions and a merged one invites
+> a total that means nothing; the R2 campaign also showed this content is read
+> as a partnering shortlist, and a shortlist is read one direction at a time.
+
+### 3.12 Breadth-overlap diagnostic
+
+- **Form.** A single labelled number with its two counts beside it — a stat
+  tile, not a chart (§1.6 / the dataviz form heuristic: one value is never a
+  one-bar bar chart).
+- **Encoding.** The unweighted Jaccard over topics with nonzero share, shown with
+  the intersection and union counts that produced it, and a one-line statement
+  that it answers a DIFFERENT question from the shared-topics table: breadth
+  overlap, not weight agreement. Two institutions can score high here and share
+  almost no mass.
+- **Interaction.** None. It is a number.
+- **Empty state.** Undefined only if both topic sets are empty, which the corpus
+  filters make impossible; the tile still renders `palette.NA_MARK` rather than
+  zero if it ever happens.
+- **Export.** In the Methods sheet of the pair's workbook, with its counts.
+
+> **Rejected alternative:** a share-weighted overlap coefficient instead of the
+> unweighted Jaccard. Rejected because the weighted version is what the
+> shared-topics Σ min already is — shipping both as one number would give the
+> reader two names for one quantity and no diagnostic at all.
+
+### 3.13 Link-outs
+
+- **Form.** A row of external links under the Collaborate tables.
+- **Encoding.** The co-publication query on OpenAlex for the pair, built with the
+  comma-joined repeated filter `authorships.institutions.id:A,authorships.institutions.id:B`
+  plus the corpus filters. The `+` form is FORBIDDEN: it silently returns A's own
+  count with HTTP 200 (A7, verified on a real pair), and a test asserts the comma
+  form. Each institution's own OpenAlex page is linked from its header card.
+- **Interaction.** Links open in a new tab; the co-publication count is NOT shown
+  — no co-publication data exists in the artefacts, and a number the app cannot
+  reproduce offline does not belong on the page.
+- **Empty state.** Nothing to guard: a query with no results is a legitimate
+  answer on OpenAlex's own page.
+- **Export.** The URLs are written into the Methods sheet so a workbook stays
+  self-describing.
+
+> **Rejected alternative:** fetch the co-publication count live and print it in
+> the page. Rejected on the standalone principle (`CLAUDE.md`): the app must
+> re-run from its own artefacts, and a live figure would be a number in the
+> deliverable that no snapshot can reproduce.
+
+---
+
 ## 3. Cross-cutting A/Bs to run on real data (D1)
 
 Named here per this stream's brief item 5; **resolved by Stream D1** against
@@ -1222,3 +1625,118 @@ criteria, commands and screenshots: `design-system/ab/AB_VERDICT.md` (R1 section
 
 Both winners are implemented in `lib/charts.py` and exercised on the real frames
 by `tests/test_charts.py`.
+
+---
+
+## 6. A/B verdicts — Phase 2B (stream V, 2026-08-29)
+
+Two A/Bs were run on **real deployed data**, on the six institutions named in
+the stream V brief — Iscte `I110026055`, ETH Zurich `I35440088`, Sorbonne
+`I39804081`, University of Gdańsk `I40413290`, IMT Atlantique `I4210127572`,
+Université de Strasbourg `I68947357` — rendered through a throwaway Streamlit
+prototype (`design-system/ab/proto_2b.py`) and photographed headless by
+Playwright at 1280 px (`design-system/ab/run_ab_2b.py`). Frames come from the
+deployed parquet files through `design-system/ab/_common_2b.py`, which
+reproduces the `BUILD_PLAN_2B.md` §4 contracts by hand rather than importing
+stream K's modules.
+
+**Everything below is MEASURED off the live DOM, not eyeballed.** The runner
+reads every rendered mark's bounding box and computes: `min_mark_px` (the
+smallest mark), `max_overlap_frac` (the largest overlap between two marks OF ONE
+ROW, as a fraction of a mark's own diameter — rows are resolved from geometry,
+`floor((y_centre − plot_top) / (plot_height / n_rows))`, not guessed),
+`span_px` (how far the eye must travel to compare every institution on ONE
+category) and `cross_occluded_frac` (the share of marks whose centre is covered
+by a mark of a DIFFERENT institution). Screenshots: `ab5_a_1280.png`,
+`ab5_b_1280.png`, `ab6_a_1280.png`, `ab6_a2_1280.png`, `ab6_a3_1280.png`,
+`ab6_aq_1280.png`, `ab6_b_1280.png`.
+
+### A/B #5 — the Compare mirror form. WINNER: dot rows.
+
+Fields mirror, 26 fields × 6 institutions, 1280 px. The grouped-bar form the
+plan first proposed was already refuted before this A/B (wind tunnel #16 / A4:
+2.6 px per bar at the shipped pitch), so the contest is dot rows against small
+multiples.
+
+| measured at 1280 px | **A — dot rows (shipped)** | B — small multiples |
+|---|---|---|
+| `min_mark_px` (floor 8) | **12.0** ✔ | 10.8 (bar thickness) ✔ |
+| `max_overlap_frac` in one row (ceiling 0.5) | **0.000** ✔ | 0.000 (bars cannot overlap) |
+| `span_px` — eye travel to compare all six on ONE field | **74** | **900** (12.2×) |
+| share-axis plot width per institution | **496 px** | 299 px |
+| figure height | 2,020 px | 900 px |
+| mass-paired SI panel (2B-2) | **yes**, 12 traces = 6 × 2 panels | **no**, 6 traces, share only |
+| category labels | wrapped, no collision | **collide** at the 14.5 px panel pitch |
+| horizontal scroll | none | none |
+
+**Verdict.** The dot row wins on the criterion the panel exists for. Comparing
+one field across the compared set costs 74 px of eye travel in the dot row and
+900 px in the grid — the grid puts the six marks that answer the question in six
+different panels, which is the one thing a *mirror* must not do. It also gives
+each institution a 496 px share axis against 299 px, and it is the only form
+with room for the mass-paired specialisation panel that 2B-2 makes mandatory.
+Its cost is real and is accepted: 2,020 px against 900 px, i.e. the Fields
+mirror is a scrolling panel at k = 6. The A4 acceptance is met with margin —
+every mark 12.0 px against a floor of 8, and zero row-overlap against a ceiling
+of half a dot — and it is met **by construction, not by luck**: lanes are
+`LANE_PITCH_PX` apart inside a row band whose own height is sized from the lane
+count, so no frame can violate it.
+
+Two things the render changed in the shipped builder, both found by looking at
+the picture rather than at the numbers:
+* the first draft dodged marks GREEDILY, per row, which was more compact (1,204
+  px) but put institution 3 second from the top in one row and fourth in the
+  next. A vertical position that changes meaning row by row is worse than the
+  overlap it fixed, so the split became all-or-nothing with the lane index fixed
+  to the SLOT — and the panel grew to 2,020 px, which is the honest price of a
+  lane that means something;
+* `charts.row_height`'s two-line pitch is not enough for a stacked lane set:
+  `compare_row_height` adds the SHORTFALL between the profile pitch and the lane
+  stack's own need, per row. Multiplying the whole row budget instead produced a
+  2,852 px panel for the same picture.
+
+### A/B #6 — the frontier plane. WINNER: small multiples.
+
+Top-200-by-volume topics per institution, 1,145 rendered bubbles, 1280 px.
+
+| measured at 1280 px | A — overlay | **B — small multiples (shipped)** |
+|---|---|---|
+| `cross_occluded_frac`, k = 6 | **0.907** | **0.000** |
+| `cross_occluded_frac`, k = 3 | 0.780 | 0.000 |
+| `cross_occluded_frac`, k = 2 | 0.626 | 0.000 |
+| `cross_occluded_frac`, top-quartile mode, k = 6 | 0.857 | 0.000 |
+| `min_mark_px` | 9.4 ✔ | 7.5 ✘ in the prototype (the shipped builder raises its own bubble minimum to 8) |
+| plot area per institution | 1,039 × 425 shared by six | 329 × 255 each |
+| figure height | 520 px | 640 px |
+
+**Verdict.** The overlay loses, and it loses at every k tested and in both point
+modes. At k = 6, nine marks in ten have their centre covered by a mark of a
+DIFFERENT institution; the last institution drawn blankets the dense core and the
+five under it are gone. Opacity does not rescue it — `OVERLAY_OPACITY` was on for
+every measurement above. The dataviz series ladder predicted exactly this
+("all-pairs forms cap at three"), and the sparser top-quartile mode does not fix
+it either (0.857) because top-quartile topics cluster in the same corner of the
+plane by definition. Faceting takes the number to 0.000 by construction and keeps
+it there at any k, at a cost of 120 px of height and a 3.2× smaller plane per
+institution.
+
+`fig_frontier_overlay` is nonetheless KEPT, as an explicitly secondary mode
+(§3.6): the single plane answers one question the facets cannot — whose topics
+sit furthest out, over everybody — and a bubble stays identifiable on hover. Its
+caption carries the occlusion figure, so the reader is told what the picture is
+hiding. What is NOT acceptable is the overlay as the default, which is what the
+plan assumed.
+
+### Scope of these two verdicts
+
+A/B #5 governs the **mirror** family (§3.2–§3.5): a categorical axis, one value
+per institution per category. It says nothing about a part-to-whole read, which
+is why the coverage strip (§3.9) is a stacked bar and not dot rows. A/B #6
+governs a **topic-cloud** plane; it does not reopen §2.18's single-institution
+frontier scatter, which has one series and no occlusion problem.
+
+### Render proof
+
+`design-system/ab/2b_shipped_builders_1280.png` — every shipped builder on the
+six real institutions, one page, 1280 × 9,900 px, 11 figures, `scroll_ok: true`.
+Read and described in `V3/progress/2B_V.md`.

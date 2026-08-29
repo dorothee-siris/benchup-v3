@@ -242,3 +242,107 @@ def test_hex_scan_actually_covers_the_new_charts_module():
     assert charts in scanned
     assert charts not in ALLOWLIST, "charts.py must NOT be allowed a hex literal"
     assert not _hexes_in(charts.read_text(encoding="utf-8"))
+
+
+# ---------------------------------------------------------------------------
+# 2B / stream V -- FAMILY 5 (institution identity) and the ordinal grey ramp
+# ---------------------------------------------------------------------------
+def test_institution_family_is_six_distinct_validated_hexes():
+    palette = _palette()
+    fam = palette.INSTITUTION_COLORS
+    assert isinstance(fam, list) and len(fam) == 6
+    assert palette.INSTITUTION_SLOT_MAX == 6
+    for hexval in fam:
+        assert isinstance(hexval, str) and HEX6.match(hexval), hexval
+    upper = [h.upper() for h in fam]
+    assert len(set(upper)) == len(upper), f"duplicate institution hue: {upper}"
+
+
+def test_no_institution_slot_is_focal_or_comparison():
+    """2B-1 / wind-tunnel finding #15: `FOCAL` is the seed highlight and 2A's
+    binding rule keeps it out of every identity-coloured chart, so it cannot be
+    an institution slot -- least of all slot one. `COMPARISON` is the neutral
+    that `institution_color` returns for an unassignable slot; if it were also a
+    slot, "no identity" and "the n-th institution" would look identical."""
+    palette = _palette()
+    upper = [h.upper() for h in palette.INSTITUTION_COLORS]
+    assert upper[0] != palette.FOCAL.upper()
+    assert palette.FOCAL.upper() not in upper
+    assert palette.COMPARISON.upper() not in upper
+
+
+def test_institution_family_shares_no_hue_with_any_other_family():
+    """The coexistence rule keeps the families out of one FIGURE; this keeps
+    them out of one MEANING. An institution painted in an OA domain's green
+    would read as "Life Sciences" to anyone who scrolled up from Find."""
+    palette = _palette()
+    others = ([v.upper() for v in palette.OA_DOMAIN_COLORS.values()]
+              + [v.upper() for v in palette.ERC_DOMAIN_COLORS.values()]
+              + [v.upper() for v in palette.DOCTYPE_COLORS.values()]
+              + [v.upper() for v in palette.SDG_COLORS.values()]
+              + [v.upper() for v in palette.GREY_STATE_COLORS.values()])
+    clash = [h for h in (c.upper() for c in palette.INSTITUTION_COLORS) if h in others]
+    assert not clash, f"institution hue(s) already used by another family: {clash}"
+
+
+def test_institution_slots_are_assigned_by_ascending_inst_key():
+    palette = _palette()
+    keys = {"I_late": 900, "I_early": 7, "I_mid": 120}
+    slots = palette.institution_slots(keys)
+    assert slots == {"I_early": 0, "I_mid": 1, "I_late": 2}
+    # a plain sequence of keys is the other accepted shape
+    assert palette.institution_slots([900, 7, 120]) == {7: 0, 120: 1, 900: 2}
+    # duplicates collapse rather than consuming two slots
+    assert palette.institution_slots([7, 7, 120]) == {7: 0, 120: 1}
+    # a non-numeric key still sorts deterministically instead of raising
+    mixed = palette.institution_slots({"a": "zz", "b": 3})
+    assert set(mixed.values()) == {0, 1}
+
+
+def test_grey_state_ramp_is_ordinal_and_covers_the_six_accounting_states():
+    """A9: five grey states plus classified-eligible, exhaustive over
+    `total_frac`. The five greys are an ORDERED severity, so they are a
+    sequential ramp (validated by lightness monotonicity, run 12), and the sixth
+    segment takes the institution's own colour rather than a sixth grey."""
+    palette = _palette()
+    assert palette.CLASSIFIED_ELIGIBLE_STATE == "classified_eligible"
+    assert len(palette.GREY_STATE_ORDER) == 6
+    assert palette.GREY_STATE_ORDER[0] == palette.CLASSIFIED_ELIGIBLE_STATE
+    assert set(palette.GREY_STATE_ORDER) - {palette.CLASSIFIED_ELIGIBLE_STATE} \
+        == set(palette.GREY_STATE_COLORS)
+    assert len(palette.GREY_STATE_COLORS) == 5
+    hexes = [palette.GREY_STATE_COLORS[s] for s in palette.GREY_STATE_ORDER[1:]]
+    assert len(set(h.upper() for h in hexes)) == len(hexes)
+    for h in hexes:
+        assert HEX6.match(h), h
+    # monotone light -> dark, which is the ramp's whole claim (run 12)
+    lum = [int(h[1:3], 16) + int(h[3:5], 16) + int(h[5:7], 16) for h in hexes]
+    assert lum == sorted(lum, reverse=True), lum
+    assert palette.grey_state_color("title_only") == palette.GREY_STATE_COLORS["title_only"]
+    assert palette.grey_state_color("classified_eligible") == palette.COMPARISON
+    assert palette.grey_state_color("nonsense") == palette.COMPARISON
+
+
+def test_hex_scan_actually_covers_the_new_compare_charts_module():
+    """Non-vacuity twin of `test_hex_scan_actually_covers_the_new_charts_module`
+    for the 2B builders."""
+    module = APP_DIR / "lib" / "charts_compare.py"
+    assert module.exists(), "lib/charts_compare.py missing -- the hex scan would be vacuous"
+    scanned: list[Path] = []
+    for d in SCAN_DIRS:
+        if d.exists():
+            scanned.extend(sorted(d.rglob("*.py")))
+    assert module in scanned
+    assert module not in ALLOWLIST
+    assert not _hexes_in(module.read_text(encoding="utf-8"))
+
+
+def test_viz_spec_has_rejected_alternative_per_compare_view_row():
+    """The section 2 ter rows (Compare / Collaborate) carry the same obligation
+    as the section 2 Find rows: one named rejected alternative each."""
+    spec_path = APP_DIR / "docs" / "VIZ_SPEC.md"
+    text = spec_path.read_text(encoding="utf-8")
+    compare_rows = len(re.findall(r"^### 3\.\d+", text, flags=re.MULTILINE))
+    assert compare_rows >= 13, f"expected the 2B view rows in VIZ_SPEC, found {compare_rows}"
+    find_rows = len(re.findall(r"^### 2\.\d+", text, flags=re.MULTILINE))
+    assert text.count("Rejected alternative:") >= find_rows + compare_rows

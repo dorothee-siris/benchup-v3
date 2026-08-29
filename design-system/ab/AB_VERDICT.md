@@ -256,3 +256,101 @@ at the bar's end (`lib/charts.py::fig_breakdown_global`, Lorraine
 `ab3_a_1280.png` `ab3_b_1280.png` `ab4_a_1280.png` `ab4_b_1280.png`
 `ab3_a_390.png` `ab3_b_390.png` `ab4_a_390.png` `ab4_b_390.png`
 (all in `design-system/ab/`)
+
+---
+
+# A/B verdict -- Phase 2B, stream V (2026-08-29)
+
+Two A/Bs on the six real institutions named in the stream V brief -- Iscte
+`I110026055`, ETH Zurich `I35440088`, Sorbonne `I39804081`, University of Gdansk
+`I40413290`, IMT Atlantique `I4210127572`, Universite de Strasbourg `I68947357`.
+Frames from the deployed parquet via `_common_2b.py` (the BUILD_PLAN_2B.md
+section 4 contracts reproduced by hand -- stream K's modules are written in
+parallel and were not imported). Prototype `proto_2b.py`, runner `run_ab_2b.py`,
+one Streamlit server, Playwright at 1280 px, clean terminate.
+
+Everything below is read off the LIVE DOM. The runner measures every rendered
+mark's bounding box and computes `min_mark_px`, `max_overlap_frac` (largest
+overlap between two marks of ONE ROW, as a fraction of a mark's diameter; rows
+resolved as `floor((y_centre - plot_top) / (plot_height / n_rows))`), `span_px`
+(eye travel to compare every institution on ONE category) and
+`cross_occluded_frac` (share of marks whose centre is covered by a mark of a
+DIFFERENT institution).
+
+## `run_ab_2b.py` output (headless, all PASS)
+
+```
+ab5_a:  {"per_plot": [{"w": 496, "h": 1921, "marks": 304, "traces": 12}], "n_marks": 304,
+         "min_mark_px": 12, "max_overlap_frac": 0, "span_px": 74, "fig_h": 2020, "scroll_ok": true}
+ab5_b:  {"per_plot": [{"w": 299, "h": 376, "marks": 156, "traces": 6}], "n_marks": 156,
+         "min_mark_px": 10.8, "max_overlap_frac": 0, "span_px": 900, "fig_h": 900, "scroll_ok": true}
+ab6_a:  {"per_plot": [{"w": 1039, "h": 425, "marks": 1145, "traces": 6}],
+         "cross_occluded_frac": 0.907, "min_mark_px": 9.4, "fig_h": 520, "scroll_ok": true}
+ab6_a3: {"cross_occluded_frac": 0.78,  "n_marks": 577, "min_mark_px": 10.2}
+ab6_a2: {"cross_occluded_frac": 0.626, "n_marks": 382, "min_mark_px": 10.9}
+ab6_aq: {"cross_occluded_frac": 0.857, "n_marks": 357, "min_mark_px": 10.3}
+ab6_b:  {"per_plot": [{"w": 329, "h": 255, "marks": 1145, "traces": 6}],
+         "cross_occluded_frac": 0, "min_mark_px": 7.5, "fig_h": 660, "scroll_ok": true}
+2b_shipped_builders: 11 figures, 3,437 marks, doc_h 9900, scroll_ok true
+```
+
+## A/B #5 -- the Compare mirror form. WINNER: dot rows (variant A)
+
+Fields mirror, 26 fields x 6 institutions. The grouped-bar form was already
+refuted before this A/B (wind tunnel #16 / A4: 2.6 px per bar), so the contest is
+dot rows against small multiples.
+
+| measured at 1280 px | A -- dot rows (SHIPPED) | B -- small multiples |
+|---|---|---|
+| min mark px (floor 8) | **12.0** | 10.8 bar thickness |
+| max overlap in one row (ceiling 0.5) | **0.000** | 0.000 (bars cannot overlap) |
+| eye travel to compare six on ONE field | **74 px** | **900 px** (12.2x) |
+| share-axis width per institution | **496 px** | 299 px |
+| figure height | 2,020 px | 900 px |
+| mass-paired SI panel (2B-2) | **yes** (12 traces = 6 x 2 panels) | **no** (6 traces, share only) |
+| category labels | wrapped, no collision | COLLIDE at the 14.5 px panel pitch |
+
+The dot row wins on the criterion the panel exists for: the six marks that answer
+"who is bigger in this field" are 74 px apart, not in six different panels 900 px
+apart. It also carries the mass-paired SI panel that 2B-2 makes mandatory, which
+the grid has no room for. Its cost is accepted and stated: 2,020 px against 900,
+i.e. the Fields mirror scrolls at k = 6.
+
+Two changes the RENDER forced, both invisible in the numbers alone:
+* the first draft dodged marks greedily per row -- more compact (1,204 px) but
+  institution 3 was second from the top in one row and fourth in the next. The
+  split became all-or-nothing with the lane fixed to the SLOT, and the panel grew
+  to 2,020 px: the honest price of a lane position that means something.
+* `charts.row_height`'s two-line pitch does not cover a lane stack.
+  `compare_row_height` adds the SHORTFALL between the profile pitch and the lane
+  stack's need, per row; multiplying the whole budget gave 2,852 px for the same
+  picture.
+
+## A/B #6 -- the frontier plane. WINNER: small multiples (variant B)
+
+Top-200-by-volume topics per institution, 1,145 bubbles.
+
+| measured at 1280 px | A -- overlay | B -- small multiples (SHIPPED) |
+|---|---|---|
+| cross-institution occlusion, k = 6 | **0.907** | **0.000** |
+| ... k = 3 | 0.780 | 0.000 |
+| ... k = 2 | 0.626 | 0.000 |
+| ... top-quartile mode, k = 6 | 0.857 | 0.000 |
+| min mark px | 9.4 | 7.5 in the prototype; the shipped builder raises its own bubble minimum to 8 |
+| plane per institution | 1,039 x 425 shared by six | 329 x 255 each |
+| figure height | 520 px | 640 px |
+
+The overlay loses at every k and in both point modes: nine marks in ten have
+their centre covered by another institution's mark at k = 6, and the last
+institution drawn blankets the core. `OVERLAY_OPACITY` was on for every
+measurement, so opacity is not the missing fix. The sparser top-quartile mode
+does not rescue it either (0.857) -- top-quartile topics cluster in the same
+corner by definition. `fig_frontier_overlay` is KEPT as an explicitly secondary
+mode with the occlusion figure in its caption; what is refused is the overlay as
+the DEFAULT, which is what the plan assumed.
+
+## Screenshots
+
+`ab5_a_1280.png`, `ab5_b_1280.png`, `ab6_a_1280.png`, `ab6_a2_1280.png`,
+`ab6_a3_1280.png`, `ab6_aq_1280.png`, `ab6_b_1280.png`, and the shipped-builder
+render `2b_shipped_builders_1280.png` (11 figures, 1280 x 9900).

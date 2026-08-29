@@ -13,22 +13,36 @@ Design lineage: Studio RULES.md section 4 colour formula + COMPOSITION_AND_CONTR
 palette-section convention (DOMAIN_COLORS / NEUTRAL_GREY / NA_MARK naming and
 comment style) + BenchUp V2 `domain_color` inheritance pattern.
 
---- THE FOUR IDENTITY FAMILIES (BUILD_PLAN_2A.md L19, refinement R1) --------
+--- THE FIVE IDENTITY FAMILIES (BUILD_PLAN_2A.md L19 + 2B-1) ----------------
     OA_DOMAIN_COLORS   4 OpenAlex domains; fields, subfields and topics INHERIT
                        their domain's colour (the tree decides the ancestry, so
                        the colours follow the tree/basis toggles for free).
     ERC_DOMAIN_COLORS  3 ERC domains (PE / LS / SH) -- the ERC panel view.
     SDG_COLORS         the 17 official UN goal colours (16 used; 17 unused).
     DOCTYPE_COLORS     5 document types = the harvest's corpus types.
+    INSTITUTION_COLORS 6 institution identity slots -- COMPARE AND COLLABORATE
+                       ONLY (Phase 2B / 2B-1). The one family whose meaning is
+                       per-page rather than app-wide: a slot names "the second
+                       institution in this basket", never a fixed entity.
 
-COEXISTENCE RULE (binding; VIZ_SPEC.md section 1.1): **one identity family per
-chart**. A chart is coloured by OA domain, OR by ERC domain, OR by SDG, OR by
-document type -- never two families at once, and never a family plus FOCAL.
+Plus ONE ordered ramp, which is NOT an identity family:
+    GREY_STATE_COLORS  5 sequential neutral steps for the grey-accounting
+                       states of the coverage strip (an ORDINAL severity, so it
+                       takes a one-hue ramp, not categorical hues).
+
+COEXISTENCE RULE (binding; VIZ_SPEC.md section 1.1 and section 2 ter): **one
+identity family per chart**. A chart is coloured by OA domain, OR by ERC
+domain, OR by SDG, OR by document type, OR by institution -- never two families
+at once, and never a family plus FOCAL.
 `FOCAL` is the seed-institution highlight in the ranked/comparison views only;
 it NEVER appears in a domain-, SDG-, ERC- or doctype-coloured chart (the whole
 profile section describes ONE institution, so there is nothing to highlight
 against -- painting one bar FOCAL there would assert a comparison that the
-chart does not make). The yearly-breakdown pair swaps domain <-> document type
+chart does not make). In COMPARE and COLLABORATE the rule bites the other way
+round (2B-1): the institution IS the identity, so the categorical axis names
+the field / panel / goal / quadrant and the colour names the institution --
+never a domain-, ERC-, SDG- or doctype-coloured mark in the same figure. The
+yearly-breakdown pair swaps domain <-> document type
 through a segmented control: exactly one family is on screen at a time and the
 chip legend is rebuilt on every swap, which is what makes the two families'
 mutual validator distance a NON-requirement (see palette_validation.txt run 6).
@@ -71,6 +85,45 @@ mutual validator distance a NON-requirement (see palette_validation.txt run 6).
 #   reason to change one. Relief is structural instead (see SDG_COLORS).
 # Run 8 (2026-08-29, R1/R-D2): the chrome tokens INK_SECONDARY/BORDER/GRID ->
 #   expected FAIL, same class as run 2: chrome, never an identity.
+# Run 9 (2026-08-29, 2B/V): INSTITUTION_COLORS, the six in SHIPPED SLOT ORDER,
+#   `--pairs all` -> ALL CHECKS PASS (worst all-pairs normal-vision 15.6, worst
+#   all-pairs CVD 7.6 deutan). Two WARNs carried as binding relief, never as a
+#   reason to change a hex: (i) #CC79A7 <-> #009E73 deutan 7.6 sits in the 6-8
+#   floor band -> legal ONLY with secondary encoding, which every Compare view
+#   supplies three times over (the row label on the axis, the institution chip
+#   legend, the per-mark hover naming the institution); (ii) #56B4E9 2.31:1 and
+#   #E69F00 2.25:1 contrast vs SURFACE are below 3:1 -> "relief required
+#   (visible labels or table view)", satisfied by the same labels plus the CSV
+#   and xlsx exports of every panel.
+# Run 9b (2026-08-29, 2B/V): the k = 2, 3, 4, 5 PREFIXES -- the sets actually
+#   drawn when the basket is smaller than six. k=2 and k=3 -> ALL CHECKS PASS
+#   with NO warning at all (worst CVD 11.0, worst normal 25.8, every contrast
+#   >= 3:1); k=4 and k=5 -> ALL CHECKS PASS with the deutan 7.6 WARN only; the
+#   contrast WARN appears only at k >= 5. The slot ORDER below was chosen to
+#   make that true (see the ordering note in the family section).
+# Run 10 (2026-08-29, 2B/V): the six WITH the four OA domain hues (10 slots),
+#   `--pairs all` -> expected FAIL: #F85C32 <-> #D55E00 protan 3.5 and #0CA750
+#   <-> #009E73 normal 6.0. DISPOSITION: the COEXISTENCE RULE -- a Compare or
+#   Collaborate chart is coloured by institution and by nothing else, so the two
+#   families are never in one figure and never in one legend. Recorded rather
+#   than suppressed, because the Compare page does scroll past domain-coloured
+#   panels in Find, i.e. the two families share SEQUENTIAL memory.
+# Run 11 (2026-08-29, 2B/V): the six WITH the chrome pair FOCAL + COMPARISON
+#   (8 slots) -> FAIL, entirely on COMPARISON #8C9196 (chroma 0.009; #8C9196
+#   <-> #CC79A7 normal 12.2 / deutan 3.0), which is the run-2 exclusion class
+#   restated, not a new finding. FOCAL contributes NO failing pair: its nearest
+#   institution hue is #6A3D9A at normal 15.6 / CVD 6.9 (screening matrix,
+#   design-system/ab/screen_inst.mjs), above the normal-vision floor and inside
+#   the 6-8 CVD band -- legal here because FOCAL is never a MARK on a Compare
+#   page (it paints Streamlit chrome: buttons, links, ProgressColumn bars) and
+#   is never in the same figure as an institution dot.
+# Run 12 (2026-08-29, 2B/V): GREY_STATE_COLORS. The CATEGORICAL run FAILS by
+#   design (five neutrals: chroma floor, and adjacent normal-vision 7.8) --
+#   exactly what the validator's own scope line says to expect, "for a sequential
+#   ramp, lightness monotonicity". The ORDINAL validator (`validateOrdinal`, the
+#   same module) is the applicable one and returns OK on all four of its checks:
+#   lightness monotone light->dark, every adjacent dL >= 0.06, light-end contrast
+#   2.14:1 (floor 2:1), single hue (spread 4 degrees).
 
 # ---------------------------------------------------------------------------
 # Focal / comparison / neutral / ink
@@ -408,6 +461,167 @@ MUTED_OPACITY = 0.35
 OUTLINE_WIDTH = 2
 # Marker outline width for a top-quartile frontier topic (drawn in SURFACE, the
 # "2px surface ring on overlapping marks" spacer from the dataviz mark specs).
+
+
+# ---------------------------------------------------------------------------
+# FAMILY 5 -- INSTITUTION IDENTITY. **COMPARE AND COLLABORATE ONLY** (2B-1).
+# ---------------------------------------------------------------------------
+# What a slot means: "the n-th institution of the current basket", not a fixed
+# entity. Every other family in this file names a thing that keeps its colour
+# app-wide; this one names a POSITION, which is why the assignment rule below
+# (ascending `inst_key`) matters more here than anywhere else -- it is the only
+# thing that makes the colour stable between the Compare page, the Collaborate
+# page, a rerun, a deep link and an export.
+#
+# PROVENANCE: the Okabe-Ito colourblind-safe qualitative set, minus its blue
+# `#0072B2` -- which is FOCAL, and 2A's binding rule (module docstring) keeps
+# FOCAL out of every identity-coloured chart -- plus `#6A3D9A` violet in the
+# freed slot. `#D55E00`, `#009E73`, `#CC79A7` and `#6A3D9A` are the four hues
+# the R1 `TYPE_COLORS` set carried before its deletion (validator run 1), so
+# four of the six are colours this palette has already measured once.
+#
+# VALIDATOR: run 9 (the six, `--pairs all`) -> ALL CHECKS PASS. Run 9b (the
+# k = 2/3/4/5 prefixes) -> ALL CHECKS PASS, warning-free at k <= 3. Run 10 (the
+# six + the four OA hues) -> FAIL, carried by the coexistence rule. Run 11 (the
+# six + FOCAL + COMPARISON) -> FAIL on COMPARISON only, the run-2 class.
+#
+# SLOT ORDER IS A DESIGN DECISION, not an accident of the source list: the two
+# weakest pairs of the set are #009E73 <-> #CC79A7 (deutan 7.6) and #D55E00 <->
+# #E69F00 (normal 15.6), and the two hues below the 3:1 contrast line are
+# #56B4E9 and #E69F00. The order below pushes all four of those facts to the
+# END of the list, so a two- or three-institution comparison -- the common case,
+# and the ONLY case Collaborate has -- draws a warning-free palette, and the
+# relief-needing hues appear only once the basket is large enough that the
+# reader is already leaning on the legend and the labels.
+#
+# k = 6 EXCEEDS the Studio default. `LEGIBILITY_BUDGETS.md` caps identities at
+# k <= 5 by default and allows k = 8 only for APP-WIDE STABLE identities. This
+# family is the single logged exception, and the justification is exactly that
+# stability clause: `institution_slots` binds a slot to an institution by
+# ascending `inst_key` for the whole session, so within one comparison the six
+# identities behave like stable ones -- they do not shuffle when the reader
+# removes or reorders a basket entry (only a NEW institution whose key falls
+# between two existing ones re-letters the slots after it, which is the price of
+# stability-by-key over stability-by-click and is stated in the UI). The basket
+# cap is 6 (state.BASKET_MAX), so the family never cycles.
+
+INSTITUTION_COLORS = [
+    "#D55E00",   # slot 1 -- vermillion      (contrast 3.87)
+    "#009E73",   # slot 2 -- bluish green    (contrast 3.42)
+    "#6A3D9A",   # slot 3 -- violet          (contrast 7.64)
+    "#CC79A7",   # slot 4 -- reddish purple  (contrast 3.06; deutan 7.6 vs slot 2)
+    "#56B4E9",   # slot 5 -- sky blue        (contrast 2.31 -- labels/table relief)
+    "#E69F00",   # slot 6 -- orange          (contrast 2.25 -- labels/table relief)
+]
+
+INSTITUTION_SLOT_MAX = len(INSTITUTION_COLORS)
+# The hard ceiling. A seventh institution is NEVER a generated hue (dataviz
+# non-negotiable): the basket cap is this number, enforced in lib/state.py.
+
+
+def institution_color(slot) -> str:
+    """Colour for an institution SLOT (zero-based, as returned by
+    `institution_slots`). Out of range / unknown -> COMPARISON grey, the same
+    unknown-slot convention every other family helper uses. It never wraps
+    around: a cycled categorical palette is the one thing the dataviz
+    non-negotiables forbid outright."""
+    try:
+        key = int(slot)
+    except (TypeError, ValueError):
+        return COMPARISON
+    if 0 <= key < len(INSTITUTION_COLORS):
+        return INSTITUTION_COLORS[key]
+    return COMPARISON
+
+
+def institution_slots(inst_keys) -> dict:
+    """Assign colour slots to the compared institutions -- the ONE place this
+    happens, so a slot cannot drift between two views of the same basket.
+
+    RULE (2B-1 / wind-tunnel finding #15): slots go by **ASCENDING `inst_key`**,
+    never by click order and never by the order the caller happens to hold the
+    ids in. Click order would repaint the whole chart when the reader removes
+    the institution they added first -- "colour follows the entity, never its
+    rank" applied to selection order rather than to a sort.
+
+    Two accepted input shapes, because the caller has two natural ones:
+      * a SEQUENCE of `inst_key`s            -> ``{inst_key: slot}``
+      * a MAPPING ``{identifier: inst_key}`` -> ``{identifier: slot}``, which is
+        what a page holds (the frames are keyed by `institution_id` while the
+        stable ordering key is `inst_key`).
+    Duplicates collapse; anything past `INSTITUTION_SLOT_MAX` still gets a slot
+    number, and `institution_color` turns it into COMPARISON grey rather than
+    cycling -- an over-long basket degrades visibly instead of lying.
+    """
+    if hasattr(inst_keys, "items"):
+        pairs = list(inst_keys.items())
+    else:
+        pairs = [(k, k) for k in inst_keys]
+    seen: dict = {}
+    for ident, key in pairs:
+        if ident not in seen:
+            seen[ident] = key
+
+    def _order(item):
+        key = item[1]
+        try:
+            return (0, float(key), "")
+        except (TypeError, ValueError):
+            return (1, 0.0, str(key))
+
+    return {ident: i for i, (ident, _k) in enumerate(sorted(seen.items(), key=_order))}
+
+
+# ---------------------------------------------------------------------------
+# THE ORDINAL RAMP -- grey-accounting states (coverage strip, 2B-6 / A9)
+# ---------------------------------------------------------------------------
+# NOT an identity family: these five states are ORDERED by distance from usable
+# text, so they take a one-hue sequential ramp (dataviz: "Sequential = one hue,
+# light->dark"), and the sixth segment of the strip -- the classified-eligible
+# mass -- is painted in the compared institution's OWN identity colour. That
+# keeps the coexistence rule intact (the only identity in the figure is still
+# the institution) and gives the strip the highlight-plus-mute reading the
+# Studio colour formula asks for: one coloured segment that is the answer, a
+# muted ramp behind it that accounts for the rest.
+#
+# The five sum with `mass_classified_eligible` to `total_frac` EXACTLY for all
+# 7,557 institutions (wind-tunnel claim #14, A9) -- which is what makes the
+# stacked 100 % strip a true statement and the one stacked bar this app draws.
+#
+# VALIDATOR run 12: the categorical checks FAIL by design (five neutrals below
+# the chroma floor; adjacent normal-vision 7.8) -- the validator's own scope
+# line says a sequential ramp is checked for lightness monotonicity instead.
+# `validateOrdinal` returns OK on all four applicable checks: monotone
+# light->dark, every adjacent dL >= 0.06, light-end contrast 2.14:1 (floor 2:1),
+# single hue (spread 4 degrees). Contrasts vs SURFACE, lightest to darkest:
+# 2.14 / 2.84 / 3.89 / 5.39 / 7.77.
+
+GREY_STATE_COLORS = {
+    "title_only": "#ACB2B9",
+    "lang_uncertain": "#939AA2",
+    "untranslated_grey": "#7B828A",
+    "unusable": "#646B73",
+    "retracted_excluded": "#4D535B",
+}
+
+GREY_STATE_ORDER = ("classified_eligible", "title_only", "lang_uncertain",
+                    "untranslated_grey", "unusable", "retracted_excluded")
+# Fixed segment order of the coverage strip, left to right: the usable mass
+# first (the institution's own hue), then the ramp light -> dark. The order is
+# the ramp's meaning -- re-sorting it by size would turn an ordinal scale into a
+# categorical one and make the lightness gradient a lie.
+
+CLASSIFIED_ELIGIBLE_STATE = "classified_eligible"
+# The one segment of the strip that is NOT grey: it takes the institution's own
+# `institution_color`. Named here rather than typed into the chart module so the
+# "which segment is the highlight" decision lives with the colours.
+
+
+def grey_state_color(state) -> str:
+    """Colour for a grey-accounting state. The classified-eligible state has no
+    grey of its own (the caller paints it with `institution_color`); an unknown
+    state -> COMPARISON, the family convention."""
+    return GREY_STATE_COLORS.get(str(state).strip().lower(), COMPARISON)
 
 
 # ---------------------------------------------------------------------------
