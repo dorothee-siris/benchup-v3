@@ -207,12 +207,18 @@ def build_substrates(ctx: dict, tree: str = DEFAULT_TREE, basis: str = DEFAULT_B
     subs = {"tree": tree, "basis": basis, "basis_applies": dict(BASIS_APPLIES)}
 
     # L0 -- field grain (26 fields; gen_lists_v2 deviation note 1: not 19)
-    subs["l0"] = _grain_matrix(ctx["fields_df"] if is_default else derived_fld,
-                               tree, inst_ids, "field_id",
+    fields_df_scenario = ctx["fields_df"] if is_default else derived_fld
+    subs["l0"] = _grain_matrix(fields_df_scenario, tree, inst_ids, "field_id",
                                "share_frac" if is_default else share_col)
 
     # L1 / C1 -- subfield grain
     subs["l1"] = _grain_matrix(derived_sub, tree, inst_ids, "subfield_id", share_col)
+
+    # profile_data (R1 L17): the scenario's OWN fields/subfields frames, tree-
+    # filtered, kept for `si` and per-institution profile tables -- exactly
+    # the frame the L0/L1 lenses above just read (BUILD_PLAN_2A.md S9.3 R-B).
+    subs["fields_df"] = fields_df_scenario[fields_df_scenario["tree"].astype(str) == tree]
+    subs["subfields_df"] = derived_sub[derived_sub["tree"].astype(str) == tree]
 
     # L3 -- topic grain
     topic_vals = _topic_share_values(ctx, basis)

@@ -123,9 +123,29 @@ def parse_shape_top3(packed: object, field_name_by_id: dict) -> list:
              "share": round(share, 6)} for fid, share in pairs[:3]]
 
 
-def base_evidence(cid: str, ctx: dict) -> dict:
+def top3_fields_from_l0(subs: dict, idx: int, field_name_by_id: dict) -> list:
+    """R1 bug #5: top-3 fields FOLLOWING THE TREE -- top-3 by share on the
+    L0 substrate row (`subs["l0"]["share"][idx]` / `subs["l0"]["cats"]`) of
+    whichever (tree, basis) scenario `subs` was built with, same dict shape
+    as `parse_shape_top3` ({field_id, field_name, share} rounded 6). On the
+    DEFAULT scenario this is verified equal (ids + order) to
+    `parse_shape_top3(row['shape_field_bestfit'])` for all 37 golden seeds
+    (see progress/R1_B.md) -- both read the same bestfit/frac field shares,
+    just from a matrix instead of a packed string."""
+    row, cats = subs["l0"]["share"][idx], subs["l0"]["cats"]
+    order = np.argsort(-row, kind="stable")[:3]
+    return [{"field_id": int(cats[j]), "field_name": field_name_by_id.get(int(cats[j]), f"field {cats[j]}"),
+             "share": round(float(row[j]), 6)} for j in order if row[j] > 0]
+
+
+def base_evidence(cid: str, ctx: dict, subs: dict | None = None) -> dict:
     """gen_lists_recall.base_evidence + gen_lists_v2.base_evidence_v2's
-    `type_openalex` line, merged (v2 is what the golden rows carry)."""
+    `type_openalex` line, merged (v2 is what the golden rows carry).
+
+    R1 bug #5: when `subs` is given, `shape_top3_fields` follows subs's own
+    (tree, basis) via `top3_fields_from_l0` instead of the fixed bestfit
+    packed string; `subs=None` keeps the pre-R1 behaviour byte-for-byte (no
+    caller in the golden regression passes subs here)."""
     row = ctx["index_by_id"].loc[cid]
     ev = {
         "institution_id": cid,
@@ -134,8 +154,12 @@ def base_evidence(cid: str, ctx: dict) -> dict:
         "type": row["type"],
         "total_full_2020_2024": (None if pd.isna(row["total_full_2020_2024"])
                                  else float(row["total_full_2020_2024"])),
+        "total_frac_2020_2024": (None if pd.isna(row["total_frac_2020_2024"])
+                                 else float(row["total_frac_2020_2024"])),
         "hhi_subfield": (None if pd.isna(row["hhi_subfield"]) else float(row["hhi_subfield"])),
-        "shape_top3_fields": parse_shape_top3(row["shape_field_bestfit"], ctx["field_name_by_id"]),
+        "shape_top3_fields": (top3_fields_from_l0(subs, ctx["id_pos"][cid], ctx["field_name_by_id"])
+                              if subs is not None
+                              else parse_shape_top3(row["shape_field_bestfit"], ctx["field_name_by_id"])),
     }
     type_oa = row.get("type_openalex")
     ev["type_openalex"] = None if (pd.isna(type_oa) or type_oa == ev["type"]) else type_oa
@@ -152,14 +176,20 @@ def rank_under_l1_l3(cid: str, l1_scores, l1_rmap, l3_scores, l3_rmap, id_pos) -
     return out
 
 
-def build_rows(ranking: dict, ctx: dict, depth: int, rankings: dict | None = None) -> list[dict]:
+def build_rows(ranking: dict, ctx: dict, depth: int, rankings: dict | None = None,
+               subs: dict | None = None) -> list[dict]:
     """UI-facing rows for ONE lens (gen_lists_v2.build_rows_v2): tie-inclusive
     cut at `depth`, competition ranks, base evidence, this lens's score and --
-    when the L1/L3 rankings are supplied -- the cross-lens rank pair."""
+    when the L1/L3 rankings are supplied -- the cross-lens rank pair.
+
+    R1 bug #5: `subs`, when given, is forwarded to `base_evidence` so every
+    row's `shape_top3_fields` follows subs's own (tree, basis); `subs=None`
+    keeps the pre-R1 byte-for-byte behaviour (no golden-regression caller
+    passes it)."""
     ids, scores = cut_with_ties(ranking["sorted_ids"], ranking["sorted_scores"], depth)
     rows = []
     for rank, cid, sc in zip(competition_ranks(scores), ids, scores):
-        ev = base_evidence(cid, ctx)
+        ev = base_evidence(cid, ctx, subs)
         ev["rank"] = rank
         ev["lens"] = ranking["lens"]
         ev["lens_score"] = round(float(sc), 6)
@@ -405,18 +435,30 @@ def catchall_811_share(ctx: dict) -> dict:
 
 # ----------------------------------------------------------- seed card ------
 
-def seed_card(ctx: dict, seed_id: str, subs: dict, catchall: dict | None = None) -> dict:
+def seed_card(ctx: dict, seed_id: str, subs: dict | None = None, catchall: dict | None = None) -> dict:
     """gen_lists_recall.build_seed_card + the four fields gen_lists_v2's
     process_seed appends (total_frac, catch-all share, n eligible L2f
-    subfields, type_openalex)."""
+    subfields, type_openalex).
+
+    R1 bug #5: `shape_top3_fields` follows `subs`'s own (tree, basis) via
+    `top3_fields_from_l0` (both call sites -- the golden test and
+    views_find.py -- always pass subs; `subs=None` is a defensive fallback to
+    the pre-R1 fixed bestfit string, and `top5_subfields_default_scenario`
+    is then empty since it has no other source). `top5_subfields_default_scenario`
+    was ALREADY tree-aware before R1 (`subs["l1"]["share"]`), unchanged here."""
     idx = ctx["id_pos"][seed_id]
     row = ctx["index_by_id"].loc[seed_id]
-    l1_share_row, l1_cats = subs["l1"]["share"][idx], subs["l1"]["cats"]
-    order = np.argsort(-l1_share_row)[:5]
-    top5 = [{"subfield_id": int(l1_cats[j]),
-             "name": ctx["subfield_name_by_id"].get(int(l1_cats[j]), f"subfield {l1_cats[j]}"),
-             "share_frac": round(float(l1_share_row[j]), 6)}
-            for j in order if l1_share_row[j] > 0]
+    if subs is not None:
+        l1_share_row, l1_cats = subs["l1"]["share"][idx], subs["l1"]["cats"]
+        order = np.argsort(-l1_share_row)[:5]
+        top5 = [{"subfield_id": int(l1_cats[j]),
+                 "name": ctx["subfield_name_by_id"].get(int(l1_cats[j]), f"subfield {l1_cats[j]}"),
+                 "share_frac": round(float(l1_share_row[j]), 6)}
+                for j in order if l1_share_row[j] > 0]
+        top3 = top3_fields_from_l0(subs, idx, ctx["field_name_by_id"])
+    else:
+        top5 = []
+        top3 = parse_shape_top3(row["shape_field_bestfit"], ctx["field_name_by_id"])
     card = {
         "institution_id": seed_id, "display_name": row["display_name"],
         "country_code": row["country_code"], "type": row["type"],
@@ -425,7 +467,7 @@ def seed_card(ctx: dict, seed_id: str, subs: dict, catchall: dict | None = None)
         "hhi_subfield": (None if pd.isna(row["hhi_subfield"]) else float(row["hhi_subfield"])),
         "breadth_subfields": (None if pd.isna(row["breadth_subfields"])
                               else int(row["breadth_subfields"])),
-        "shape_top3_fields": parse_shape_top3(row["shape_field_bestfit"], ctx["field_name_by_id"]),
+        "shape_top3_fields": top3,
         "erc_classified_mass_frac": (None if pd.isna(row["erc_classified_mass_frac"])
                                      else float(row["erc_classified_mass_frac"])),
         "sdg_tagged_share": (None if pd.isna(row["sdg_tagged_share"])
@@ -441,7 +483,8 @@ def seed_card(ctx: dict, seed_id: str, subs: dict, catchall: dict | None = None)
     if catchall is None:
         catchall = catchall_811_share(ctx)
     card["catchall_811_share"] = float(catchall.get(seed_id, 0.0))
-    card["n_eligible_subfields_L2f"] = int(subs["l2f"]["eligible"][idx].sum())
+    card["n_eligible_subfields_L2f"] = (int(subs["l2f"]["eligible"][idx].sum())
+                                        if subs is not None else None)
     type_oa = row.get("type_openalex")
     card["type_openalex"] = None if (pd.isna(type_oa) or type_oa == row["type"]) else type_oa
     return card

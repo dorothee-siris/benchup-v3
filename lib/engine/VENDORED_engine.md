@@ -168,3 +168,68 @@ non-artefact files they open are those two. `field_name_by_id` comes from `topic
    (a float32 ulp).
 4. `np.allclose`'s asymmetric `rtol * |b|` is **not** used: the test computes
    `|a-b| / max(|a|,|b|)` so a derived zero cannot divide the tolerance away.
+
+---
+
+## 4. Refinement R1 (2026-08-29, Stream R-B) — deviations from §9's own text
+
+18. **Bug #5 fix.** `base_evidence`, `build_rows`, `seed_card` gain an optional
+    `subs=None` kwarg. When `subs` is given, `shape_top3_fields` is computed
+    from `subs["l0"]["share"][idx]` / `subs["l0"]["cats"]` (new helper
+    `lenses.top3_fields_from_l0`) instead of the fixed `shape_field_bestfit`
+    packed string — so top fields now follow the active (tree, basis)
+    scenario. **Verified 37/37 golden seeds**: on the DEFAULT scenario
+    (bestfit/frac, what every golden fixture pins), `top3_fields_from_l0`
+    reproduces `parse_shape_top3(shape_field_bestfit)` exactly (same field
+    ids, same order, shares within 1e-6) — see `progress/R1_B.md`. `subs=None`
+    keeps the exact pre-R1 byte-for-byte behaviour (no golden-regression
+    caller passes `subs` to `base_evidence`/`build_rows`). `seed_card`'s
+    `subs` parameter was ALREADY required pre-R1 (used for
+    `top5_subfields_default_scenario`); it now also has a default of `None`
+    for interface symmetry with the other two functions, but that path is a
+    defensive fallback only — both real call sites (the golden test,
+    `views_find.py`) always pass `subs`.
+19. **`build_substrates` now also returns `subs["fields_df"]` /
+    `subs["subfields_df"]`** — the SAME scenario frame (`derive_shapes`
+    output, or the shipped `fields.parquet` on the default scenario) the
+    L0/L1 lenses already read, filtered to the active `tree`. Purely additive
+    (a new dict key); no existing consumer reads or is affected by it.
+20. **`evidence.top_shared_cell`'s signature takes `ctx` first**
+    (`top_shared_cell(ctx, subs, lens, seed_idx, cand_idx)`), not the literal
+    4-arg `(subs, lens, seed_idx, cand_idx)` BUILD_PLAN_2A.md §9.3 R-B names.
+    Labelling a cell (field/subfield/topic/ERC-panel/SDG name) needs `ctx`'s
+    name maps and lazily-cached topic/resource lookups, which `subs` alone
+    does not carry, so `ctx` was added rather than silently dropping the
+    `label` key the plan's own return-shape names. `rows_evidence`'s
+    signature is unchanged (it already takes `ctx` per the plan's own S9.4
+    contract).
+21. **F1's evidence-contribution denominator mirrors C1's, by interpretation,
+    not literal instruction.** The plan's text names ONLY C1 as an exception
+    to "contribution = min_j / Sigma_j min_j" ("for C1 the denominator is the
+    seed's own top-20 mass, mirror the engine"). F1's own `rank_all` branch
+    has the identical numerator/denominator shape (`Sigma_j min_j` divided by
+    the seed's OWN frontier mass, not by `Sigma_j min_j` itself) — so
+    `evidence._seed_and_pop` applies the same "mirror the engine" treatment
+    to F1 (denom = seed's total frontier share), keeping `Sigma contribution
+    == that lens's real score` true for both ratio-form lenses. Every other
+    lens (L0, L1, L3, L4, L6, L2f, L5, L7) uses the plain `Sigma_j min_j`
+    denominator the plan's text describes directly. Not required by any
+    acceptance test (only L1 is checked against `rank_all`'s number), flagged
+    here as a documented judgment call rather than left asymmetric.
+22. **`profile_data.yearly_by_domain` undercounts `index.vol_full_by_year_this_run`
+    by a small, real, pre-existing margin — reported, not forced to equality.**
+    Measured on 5 seeds (`progress/R1_B.md`): the function's per-(year,domain)
+    sums, built entirely from `topics_all.parquet`'s own `vol_full_<year>` /
+    `vol_frac_<year>` columns, are verified to equal a DIRECT Sigma over
+    `topics_all` for the same institution (no bug in the domain join) — but
+    `topics_all`'s topic grain is itself consistently a FEW WORKS SHORT of
+    the index's `vol_full_by_year_this_run` bookkeeping total: 0–32 works per
+    (seed, year), 0–0.92% relative on the seeds measured, ALWAYS `got <=
+    want` (never over-counts). Likely a small number of works with no
+    topic-grain row (absent from `topics_all` entirely) still counted in the
+    run's raw by-year total. `tests/test_profile_data.py` asserts this with a
+    2% documented-gap tolerance and prints every measured deviation, rather
+    than asserting exact equality against a total the function's own source
+    table cannot fully reach. Flagged for Stream C / 2B gap-audit
+    reconciliation (same spirit as the `sdg.esi` constant-offset finding
+    above), not fixed here (no data change in this stream's scope).

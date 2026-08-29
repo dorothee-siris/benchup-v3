@@ -37,21 +37,10 @@ NOT_IN_TOPN = "--"  # A/B #2 winner's matrix cell language is unused here (k-cou
                      # table won); kept only as the "candidate outside a lens's
                      # visible rank" mark inside the rank_under text below.
 
-# `lib.links` is Stream R-B's module, written in the same wave as this one
-# (BUILD_PLAN_2A.md S9.3 R-F2 brief: "use try/except so both orders of
-# completion work"). Prefer it once it exists; fall back to the same literal
-# builder this file shipped before R1 otherwise.
-# NEEDS_CHANGE (progress/R1_F2.md): once R-B has landed for real, drop this
-# fallback and the try/except -- `_works_link` should just be
-# `from lib.links import works_url as _works_link`.
-try:
-    from lib.links import works_url as _works_link
-except ImportError:
-    def _works_link(institution_id: str) -> str:
-        """OpenAlex works deep link, window years from CFG (BUILD_PLAN_2A.md
-        L10 -- never a typed literal). Fallback only -- see the note above."""
-        return (f"https://openalex.org/works?filter=authorships.institutions.id:"
-                f"{institution_id},publication_year:{WINDOW_START}-{WINDOW_END}")
+# The OpenAlex works deep link carries the harvest's own filters (L23) and lives
+# in ONE place, lib/links.py (R-B). Manager edit 2026-08-29: the R-F2 import-time
+# fallback was dropped once lib/links.py landed (progress/R1_F2.md NEEDS_CHANGE).
+from lib.links import works_url as _works_link
 
 
 def _fmt_size(value) -> str:

@@ -53,3 +53,6 @@ l2f_floor:
   basis: paper_count   # proposal_r4.l2_si_floor.basis, candidate (f) -- SEMANTICS CHANGE: replaces the shipped fractional-mass floor
 
 erc_tau: 0.5  # config.yaml erc_tau, R2.23 -- global; per-panel exception considered and rejected
+
+corpus_types: [article, review, book, book-chapter, letter]  # harvest server-side filter, pipeline/01b_harvest_eu27_aug.py lines 10-14; L23
+openalex_filters: {has_doi: true}  # same harvest filter; L23
