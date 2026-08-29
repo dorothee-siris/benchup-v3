@@ -7,17 +7,22 @@ Find ships in Phase 2A (this build); Compare and Collaborate are Phase 2B.
 
 ## Run
 
+```powershell
+cd "C:\Users\theod\SIRIS\Internal Projects\BenchUp\V3\app"
+..\envs\env-app\Scripts\python.exe -m streamlit run Menu.py
 ```
-envs\env-app\Scripts\python.exe -m streamlit run Menu.py
-```
-(from this `app/` directory; the venv lives at `V3/envs/env-app`, one level up).
+
+Two things the command depends on:
+- The venv lives at `V3/envs/env-app`, **one level up** from `app/` — hence `..\envs\...`.
+- In PowerShell the path must be quoted. Unquoted, the space in `Internal Projects` splits
+  it into two arguments and `cd` fails with `PositionalParameterNotFound`.
 
 ## Test
 
 ```
-envs\env-app\Scripts\python.exe -m pytest tests -q
-envs\env-app\Scripts\python.exe ops\_probe_menu.py
-envs\env-app\Scripts\python.exe tests\ui\smoke.py --port 8611
+..\envs\env-app\Scripts\python.exe -m pytest tests -q
+..\envs\env-app\Scripts\python.exe ops\_probe_menu.py
+..\envs\env-app\Scripts\python.exe tests\ui\smoke.py --port 8611
 ```
 
 ## Layout
