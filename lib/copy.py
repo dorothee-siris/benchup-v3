@@ -884,6 +884,108 @@ COMPARE = {
     "XLSX_ROW_FLOORS": "Floors in force",
     "XLSX_ROW_SHEETS": "Sheets, and what each one counts",
     "XLSX_SOURCE_PAGE": "The Compare page, as it stood when this file was written.",
+
+    # ======================================================================
+    # Sprint 2 Phase 2B-R, stream CP (2B-R-4/5/6/7/8/9/12). ADDITIVE ONLY:
+    # every key below is new. The Phase 2B keys above stay in place -- the
+    # rebuilt page still reads most of them (the captions, the impact floor,
+    # the empty states, the workbook chrome), and a deleted key is a crash in
+    # another stream's file rather than a cleanup.
+    # ======================================================================
+
+    # 2B-R-4: the comparison's own cap, separate from the basket's.
+    "CAP_TRUNCATED": ("The basket holds more institutions than a comparison can show at once. The "
+                      "first {cap} are compared here, leaving {n} out; remove one below to swap "
+                      "another in."),
+
+    # 2B-R-12: the chip the shared-frontier colour carries in every legend.
+    "LEGEND_SHARED": "held by more than one",
+
+    # 2B-R-7 / VIZ_SPEC 4.1: the overview cards replace the institution strip.
+    "OVERVIEW_HEADER": "Key figures, side by side",
+    "OVERVIEW_HELP": ("One card per institution, in the order every chart below draws them. The "
+                      "swatch is the colour that institution keeps on this whole page."),
+    "OVERVIEW_WINDOW": ("Publications, international co-publications and company co-publications "
+                        "are counted over the {y0} to {y1} window, full counting. The other three "
+                        "figures name their own denominator in their tooltip."),
+
+    # 2B-R-5 / 2B-R-8: the one metric selector, and what it hides.
+    "METRIC_LABEL": "Compare by",
+    "METRIC_HELP": ("One measure at a time, so the bars in a row can be read against each other "
+                    "without a second axis. The rows never re-sort under a control: the order is "
+                    "the ranking the caption names."),
+    "METRIC_SHARE": "Share",
+    "METRIC_VOL_TOP10": "Publications in the world top decile",
+    "METRIC_PP": "PP(top10%)",
+    "METRIC_SDG_SHARE": "SDG-tagged share",
+    "METRIC_DYNAMICS": "Change in mean annual volume",
+    "METRIC_SI": "Specialisation",
+    "METRIC_HIDDEN_HEADER": "Measures not offered here, and why",
+    "METRIC_HIDDEN_LINE": "{metric}: {reason}",
+
+    # 2B-R-5: the subject section (fields, with a drill into one field).
+    "VIEW_SUBJECT": "Subject profile",
+    "DRILL_LABEL": "Level of detail",
+    "DRILL_ALL": "All fields",
+    "CAPTION_SUBJECT": ("Read on the {basis} basis and the {tree} taxonomy. Each bar is one "
+                        "institution and the value is written at its outer end, so a row can be "
+                        "read without hovering."),
+    "CAPTION_DRILL": "Showing the subfields of {field}.",
+    "CAPTION_RANKED": ("Rows are ranked by the value the compared set holds between them, not by "
+                       "any one institution's own ranking; colours never move with the order."),
+    "EMPTY_METRIC": ("No institution carries a value for this measure at this level of detail "
+                     "under the current settings."),
+
+    # 2B-R-8: what the coloured glyph beside a row label means, and the one
+    # rule it obeys.
+    "CAPTION_ACCENT_ERC": ("The mark beside each panel name is the official colour of its ERC "
+                           "domain. Colour on a bar is always the institution; a taxonomy's own "
+                           "colour appears on labels only."),
+    "CAPTION_ACCENT_SDG": ("The mark beside each goal is the official colour of that goal, and the "
+                           "goal number stays in the label: two of the goal colours are hard to "
+                           "tell apart, so the number is the encoding and the colour is "
+                           "recognition on top of it."),
+
+    # 2B-R-9: the two frontier charts that replace the panels and the overlay.
+    "VIEW_FRONTIER_MAP": "The frontier, pooled",
+    "FRONTIER_TOPN_LABEL": "Topics plotted",
+    "FRONTIER_TOPN_HELP": ("The largest topics by the publications the compared set puts into "
+                           "them. Raising it adds smaller topics and crowds the plane; the same "
+                           "setting cuts the list below."),
+    "CAPTION_FRONTIER_MAP": ("One bubble per topic, over the topics in the global top quartile of "
+                             "emergence that these institutions publish in. Bubble area is the "
+                             "publications the compared set holds in the topic on the {basis} "
+                             "basis; colour names the institution that holds it alone."),
+    "CAPTION_FRONTIER_SHARED_COUNT": ("{n_shared} of the {n_shown} topics plotted are held by more "
+                                      "than one of the compared institutions: at the head of the "
+                                      "volume ranking the colour split says very little, and what "
+                                      "the plane shows is position and size."),
+    "CAPTION_FRONTIER_AXES": ("The bold black lines are the two zero axes: right of the vertical "
+                              "one attention to the topic is expanding, above the horizontal one "
+                              "that expansion is itself speeding up."),
+    "VIEW_SHARED_FRONTIER": "Who holds the shared frontier",
+    "CAPTION_SHARED_FRONTIER": ("The topics more than one of them holds, ranked by the publications "
+                                "they hold between them on the {basis} basis, with each "
+                                "institution's own volume drawn. At two institutions the bars "
+                                "diverge from a common zero, so the imbalance is the shape of the "
+                                "row; the axis carries absolute counts on both sides."),
+    "CAPTION_SHARED_TOTAL": "{n} topics are held by more than one of the compared institutions.",
+    "EMPTY_SHARED_FRONTIER": ("No frontier topic in this cut is held by more than one of the "
+                              "compared institutions, which is itself a finding: their frontier "
+                              "portfolios do not meet."),
+
+    # 2B-R re-cut of the workbook: no snapshot row, the data date instead, both
+    # dynamics windows, the cap, the slider and the interval coverage.
+    "XLSX_ROW_DATA": "Data from",
+    "XLSX_ROW_DYNAMICS": "Dynamics windows",
+    "XLSX_ROW_CAP": "Institutions compared at once, at most",
+    "XLSX_ROW_TOPN": "Frontier topics plotted",
+    "XLSX_ROW_CI": "Interval coverage",
+    "XLSX_SHEET_OVERVIEW": "Overview",
+    "XLSX_SHEET_SUBJECT_FIELD": "Fields",
+    "XLSX_SHEET_SUBJECT_SUBFIELD": "Subfields",
+    "XLSX_CAPTION_METRIC": ("{metric}, on the {basis} basis and the {tree} taxonomy. Every row "
+                            "carries its own denominator in the last column."),
 }
 
 # ----------------------------------------------------- Collaborate page ----
