@@ -2071,18 +2071,18 @@
       "external_hits_by_depth": {
         "10": [],
         "20": [
-          "I76903346",
-          "I99464096"
+          "I99464096",
+          "I76903346"
         ],
         "30": [
-          "I76903346",
-          "I99464096"
+          "I99464096",
+          "I76903346"
         ],
         "50": [
-          "I55143463",
+          "I99464096",
           "I76903346",
           "I861853513",
-          "I99464096"
+          "I55143463"
         ]
       }
     },
@@ -4093,30 +4093,30 @@
       ],
       "external_hits_by_depth": {
         "10": [
-          "I55143463",
           "I861853513",
-          "I99464096"
+          "I99464096",
+          "I55143463"
         ],
         "20": [
-          "I138689650",
-          "I55143463",
-          "I76903346",
           "I861853513",
-          "I99464096"
+          "I99464096",
+          "I55143463",
+          "I138689650",
+          "I76903346"
         ],
         "30": [
-          "I138689650",
-          "I55143463",
-          "I76903346",
           "I861853513",
-          "I99464096"
+          "I99464096",
+          "I55143463",
+          "I138689650",
+          "I76903346"
         ],
         "50": [
-          "I138689650",
-          "I55143463",
-          "I76903346",
           "I861853513",
-          "I99464096"
+          "I99464096",
+          "I55143463",
+          "I138689650",
+          "I76903346"
         ]
       }
     },
@@ -6127,30 +6127,30 @@
       ],
       "external_hits_by_depth": {
         "10": [
+          "I861853513",
           "I138689650",
           "I55143463",
-          "I861853513",
           "I99464096"
         ],
         "20": [
+          "I861853513",
           "I138689650",
           "I55143463",
-          "I861853513",
           "I99464096"
         ],
         "30": [
+          "I861853513",
           "I138689650",
           "I55143463",
-          "I861853513",
           "I99464096"
         ],
         "50": [
-          "I138689650",
-          "I21250087",
-          "I55143463",
-          "I76903346",
           "I861853513",
-          "I99464096"
+          "I138689650",
+          "I55143463",
+          "I99464096",
+          "I76903346",
+          "I21250087"
         ]
       }
     },
@@ -6242,7 +6242,7 @@
           "institution_id": "I4210155236",
           "display_name": "National Research Council",
           "country_code": "IT",
-          "type": "nonprofit",
+          "type": "government",
           "total_full_2020_2024": 24197.0,
           "hhi_subfield": 120.38628466915357,
           "shape_top3_fields": [
@@ -6262,7 +6262,7 @@
               "share": 0.104881
             }
           ],
-          "type_openalex": null,
+          "type_openalex": "nonprofit",
           "rank": 3,
           "lens": "F1",
           "lens_score": 0.613275,
@@ -8161,22 +8161,22 @@
       ],
       "external_hits_by_depth": {
         "10": [
-          "I138689650",
-          "I861853513"
+          "I861853513",
+          "I138689650"
         ],
         "20": [
-          "I138689650",
-          "I861853513"
+          "I861853513",
+          "I138689650"
         ],
         "30": [
-          "I138689650",
-          "I861853513"
+          "I861853513",
+          "I138689650"
         ],
         "50": [
-          "I138689650",
-          "I76903346",
           "I861853513",
-          "I99464096"
+          "I138689650",
+          "I99464096",
+          "I76903346"
         ]
       },
       "seed_frontier_share": 0.286662
@@ -8469,7 +8469,7 @@
           "institution_id": "I4210101348",
           "display_name": "Centre Inria de l'Universit\u00e9 Grenoble Alpes",
           "country_code": "FR",
-          "type": "facility",
+          "type": "government",
           "total_full_2020_2024": 790.0,
           "hhi_subfield": 321.51357198847097,
           "shape_top3_fields": [
@@ -8489,7 +8489,7 @@
               "share": 0.097459
             }
           ],
-          "type_openalex": null,
+          "type_openalex": "facility",
           "rank": 8,
           "lens": "L2f",
           "lens_score": 0.328042,
@@ -9146,46 +9146,6 @@
           "external_tier": null
         },
         {
-          "institution_id": "I4210125590",
-          "display_name": "Institute for Systems Engineering and Computers",
-          "country_code": "PT",
-          "type": "nonprofit",
-          "total_full_2020_2024": 1057.0,
-          "hhi_subfield": 284.7602837190868,
-          "shape_top3_fields": [
-            {
-              "field_id": 17,
-              "field_name": "Computer Science",
-              "share": 0.208598
-            },
-            {
-              "field_id": 22,
-              "field_name": "Engineering",
-              "share": 0.196289
-            },
-            {
-              "field_id": 21,
-              "field_name": "Energy",
-              "share": 0.12156
-            }
-          ],
-          "type_openalex": null,
-          "rank": 25,
-          "lens": "L2f",
-          "lens_score": 0.310608,
-          "rank_under_other_lenses": {
-            "L1": {
-              "rank": null,
-              "score": 0.426093
-            },
-            "L3": {
-              "rank": null,
-              "score": 0.177499
-            }
-          },
-          "external_tier": null
-        },
-        {
           "institution_id": "I2800274787",
           "display_name": "Fraunhofer Institute for Telecommunications, Heinrich Hertz Institute",
           "country_code": "DE",
@@ -9210,7 +9170,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 26,
+          "rank": 25,
           "lens": "L2f",
           "lens_score": 0.301569,
           "rank_under_other_lenses": {
@@ -9250,7 +9210,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 27,
+          "rank": 26,
           "lens": "L2f",
           "lens_score": 0.301072,
           "rank_under_other_lenses": {
@@ -9290,7 +9250,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 28,
+          "rank": 27,
           "lens": "L2f",
           "lens_score": 0.295257,
           "rank_under_other_lenses": {
@@ -9330,7 +9290,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 29,
+          "rank": 28,
           "lens": "L2f",
           "lens_score": 0.289431,
           "rank_under_other_lenses": {
@@ -9370,7 +9330,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 30,
+          "rank": 29,
           "lens": "L2f",
           "lens_score": 0.288185,
           "rank_under_other_lenses": {
@@ -9410,7 +9370,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 31,
+          "rank": 30,
           "lens": "L2f",
           "lens_score": 0.283913,
           "rank_under_other_lenses": {
@@ -9450,7 +9410,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 32,
+          "rank": 31,
           "lens": "L2f",
           "lens_score": 0.278625,
           "rank_under_other_lenses": {
@@ -9490,7 +9450,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 33,
+          "rank": 32,
           "lens": "L2f",
           "lens_score": 0.278271,
           "rank_under_other_lenses": {
@@ -9530,7 +9490,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 34,
+          "rank": 33,
           "lens": "L2f",
           "lens_score": 0.274303,
           "rank_under_other_lenses": {
@@ -9570,7 +9530,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 35,
+          "rank": 34,
           "lens": "L2f",
           "lens_score": 0.273821,
           "rank_under_other_lenses": {
@@ -9610,7 +9570,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 36,
+          "rank": 35,
           "lens": "L2f",
           "lens_score": 0.272466,
           "rank_under_other_lenses": {
@@ -9650,7 +9610,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 37,
+          "rank": 36,
           "lens": "L2f",
           "lens_score": 0.272124,
           "rank_under_other_lenses": {
@@ -9690,7 +9650,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 38,
+          "rank": 37,
           "lens": "L2f",
           "lens_score": 0.271971,
           "rank_under_other_lenses": {
@@ -9730,7 +9690,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 39,
+          "rank": 38,
           "lens": "L2f",
           "lens_score": 0.262555,
           "rank_under_other_lenses": {
@@ -9770,7 +9730,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 40,
+          "rank": 39,
           "lens": "L2f",
           "lens_score": 0.262536,
           "rank_under_other_lenses": {
@@ -9810,7 +9770,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 41,
+          "rank": 40,
           "lens": "L2f",
           "lens_score": 0.255875,
           "rank_under_other_lenses": {
@@ -9850,7 +9810,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 42,
+          "rank": 41,
           "lens": "L2f",
           "lens_score": 0.255228,
           "rank_under_other_lenses": {
@@ -9890,7 +9850,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 43,
+          "rank": 42,
           "lens": "L2f",
           "lens_score": 0.249453,
           "rank_under_other_lenses": {
@@ -9930,7 +9890,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 44,
+          "rank": 43,
           "lens": "L2f",
           "lens_score": 0.247475,
           "rank_under_other_lenses": {
@@ -9970,7 +9930,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 45,
+          "rank": 44,
           "lens": "L2f",
           "lens_score": 0.240775,
           "rank_under_other_lenses": {
@@ -10010,7 +9970,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 46,
+          "rank": 45,
           "lens": "L2f",
           "lens_score": 0.2392,
           "rank_under_other_lenses": {
@@ -10050,7 +10010,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 47,
+          "rank": 46,
           "lens": "L2f",
           "lens_score": 0.237569,
           "rank_under_other_lenses": {
@@ -10090,7 +10050,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 48,
+          "rank": 47,
           "lens": "L2f",
           "lens_score": 0.235383,
           "rank_under_other_lenses": {
@@ -10130,7 +10090,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 49,
+          "rank": 48,
           "lens": "L2f",
           "lens_score": 0.235125,
           "rank_under_other_lenses": {
@@ -10170,7 +10130,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 50,
+          "rank": 49,
           "lens": "L2f",
           "lens_score": 0.234341,
           "rank_under_other_lenses": {
@@ -10184,6 +10144,46 @@
             }
           },
           "external_tier": null
+        },
+        {
+          "institution_id": "I4210155607",
+          "display_name": "Laboratoire d'Informatique en Images et Syst\u00e8mes d'Information",
+          "country_code": "FR",
+          "type": "facility",
+          "total_full_2020_2024": 641.0,
+          "hhi_subfield": 483.67451389734146,
+          "shape_top3_fields": [
+            {
+              "field_id": 17,
+              "field_name": "Computer Science",
+              "share": 0.397063
+            },
+            {
+              "field_id": 33,
+              "field_name": "Social Sciences",
+              "share": 0.195
+            },
+            {
+              "field_id": 26,
+              "field_name": "Mathematics",
+              "share": 0.094732
+            }
+          ],
+          "type_openalex": null,
+          "rank": 50,
+          "lens": "L2f",
+          "lens_score": 0.233338,
+          "rank_under_other_lenses": {
+            "L1": {
+              "rank": null,
+              "score": 0.350874
+            },
+            "L3": {
+              "rank": null,
+              "score": 0.09875
+            }
+          },
+          "external_tier": null
         }
       ],
       "external_hits_by_depth": {
@@ -10193,8 +10193,8 @@
           "I861853513"
         ],
         "50": [
-          "I55143463",
-          "I861853513"
+          "I861853513",
+          "I55143463"
         ]
       },
       "n_eligible_cells": 207
@@ -12206,24 +12206,24 @@
       ],
       "external_hits_by_depth": {
         "10": [
-          "I861853513",
-          "I99464096"
+          "I99464096",
+          "I861853513"
         ],
         "20": [
-          "I76903346",
+          "I99464096",
           "I861853513",
-          "I99464096"
+          "I76903346"
         ],
         "30": [
-          "I76903346",
+          "I99464096",
           "I861853513",
-          "I99464096"
+          "I76903346"
         ],
         "50": [
-          "I55143463",
-          "I76903346",
+          "I99464096",
           "I861853513",
-          "I99464096"
+          "I76903346",
+          "I55143463"
         ]
       }
     },
@@ -16257,17 +16257,17 @@
           "I861853513"
         ],
         "30": [
+          "I861853513",
           "I138689650",
           "I76903346",
-          "I861853513",
           "I99464096"
         ],
         "50": [
-          "I138689650",
-          "I55143463",
-          "I76903346",
           "I861853513",
-          "I99464096"
+          "I138689650",
+          "I76903346",
+          "I99464096",
+          "I55143463"
         ]
       }
     },
@@ -17119,7 +17119,7 @@
           "institution_id": "I205703379",
           "display_name": "Institut Mines-T\u00e9l\u00e9com",
           "country_code": "FR",
-          "type": "facility",
+          "type": "education",
           "total_full_2020_2024": 1130.0,
           "hhi_subfield": 233.07096195508672,
           "shape_top3_fields": [
@@ -17139,7 +17139,7 @@
               "share": 0.096877
             }
           ],
-          "type_openalex": null,
+          "type_openalex": "facility",
           "rank": 22,
           "lens": "L7",
           "lens_score": 0.678091,
@@ -20297,13 +20297,13 @@
         ],
         "30": [
           "I55143463",
-          "I861853513",
-          "I99464096"
+          "I99464096",
+          "I861853513"
         ],
         "50": [
           "I55143463",
-          "I861853513",
-          "I99464096"
+          "I99464096",
+          "I861853513"
         ]
       },
       "seed_top20_subfields": [
@@ -21880,7 +21880,7 @@
           "institution_id": "I4210155236",
           "display_name": "National Research Council",
           "country_code": "IT",
-          "type": "nonprofit",
+          "type": "government",
           "total_full_2020_2024": 24197.0,
           "hhi_subfield": 120.38628466915357,
           "shape_top3_fields": [
@@ -21900,7 +21900,7 @@
               "share": 0.104881
             }
           ],
-          "type_openalex": null,
+          "type_openalex": "nonprofit",
           "rank": 29,
           "lens": "concordance",
           "k": 1,
@@ -22420,7 +22420,7 @@
           "institution_id": "I4210101348",
           "display_name": "Centre Inria de l'Universit\u00e9 Grenoble Alpes",
           "country_code": "FR",
-          "type": "facility",
+          "type": "government",
           "total_full_2020_2024": 790.0,
           "hhi_subfield": 321.51357198847097,
           "shape_top3_fields": [
@@ -22440,7 +22440,7 @@
               "share": 0.097459
             }
           ],
-          "type_openalex": null,
+          "type_openalex": "facility",
           "rank": 42,
           "lens": "concordance",
           "k": 1,

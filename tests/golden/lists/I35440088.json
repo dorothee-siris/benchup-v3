@@ -1831,7 +1831,7 @@
           "institution_id": "I4210155236",
           "display_name": "National Research Council",
           "country_code": "IT",
-          "type": "nonprofit",
+          "type": "government",
           "total_full_2020_2024": 24197.0,
           "hhi_subfield": 120.38628466915357,
           "shape_top3_fields": [
@@ -1851,7 +1851,7 @@
               "share": 0.104881
             }
           ],
-          "type_openalex": null,
+          "type_openalex": "nonprofit",
           "rank": 45,
           "lens": "L0",
           "lens_score": 0.739134,
@@ -2070,25 +2070,25 @@
       ],
       "external_hits_by_depth": {
         "10": [
-          "I5124864",
-          "I62916508"
+          "I62916508",
+          "I5124864"
         ],
         "20": [
-          "I5124864",
-          "I62916508"
+          "I62916508",
+          "I5124864"
         ],
         "30": [
-          "I5124864",
           "I62916508",
+          "I5124864",
           "I86987016"
         ],
         "50": [
-          "I5124864",
           "I62916508",
-          "I66862912",
+          "I5124864",
           "I86987016",
+          "I98358874",
           "I887968799",
-          "I98358874"
+          "I66862912"
         ]
       }
     },
@@ -2940,7 +2940,7 @@
           "institution_id": "I4210155236",
           "display_name": "National Research Council",
           "country_code": "IT",
-          "type": "nonprofit",
+          "type": "government",
           "total_full_2020_2024": 24197.0,
           "hhi_subfield": 120.38628466915357,
           "shape_top3_fields": [
@@ -2960,7 +2960,7 @@
               "share": 0.104881
             }
           ],
-          "type_openalex": null,
+          "type_openalex": "nonprofit",
           "rank": 22,
           "lens": "L1",
           "lens_score": 0.649143,
@@ -4104,27 +4104,27 @@
           "I86987016"
         ],
         "20": [
-          "I47508984",
-          "I5124864",
-          "I62916508",
-          "I86987016"
-        ],
-        "30": [
-          "I47508984",
           "I5124864",
           "I62916508",
           "I86987016",
+          "I47508984"
+        ],
+        "30": [
+          "I5124864",
+          "I62916508",
+          "I86987016",
+          "I47508984",
           "I887968799",
           "I98358874"
         ],
         "50": [
-          "I47508984",
           "I5124864",
           "I62916508",
-          "I66862912",
           "I86987016",
+          "I47508984",
           "I887968799",
-          "I98358874"
+          "I98358874",
+          "I66862912"
         ]
       }
     },
@@ -4816,7 +4816,7 @@
           "institution_id": "I4210155236",
           "display_name": "National Research Council",
           "country_code": "IT",
-          "type": "nonprofit",
+          "type": "government",
           "total_full_2020_2024": 24197.0,
           "hhi_subfield": 120.38628466915357,
           "shape_top3_fields": [
@@ -4836,7 +4836,7 @@
               "share": 0.104881
             }
           ],
-          "type_openalex": null,
+          "type_openalex": "nonprofit",
           "rank": 18,
           "lens": "L3",
           "lens_score": 0.441925,
@@ -6135,39 +6135,39 @@
       ],
       "external_hits_by_depth": {
         "10": [
-          "I47508984",
           "I5124864",
           "I62916508",
-          "I86987016",
-          "I98358874"
+          "I47508984",
+          "I98358874",
+          "I86987016"
         ],
         "20": [
-          "I47508984",
           "I5124864",
           "I62916508",
+          "I47508984",
+          "I98358874",
           "I86987016",
           "I887968799",
-          "I93860229",
-          "I98358874"
+          "I93860229"
         ],
         "30": [
-          "I47508984",
           "I5124864",
           "I62916508",
+          "I47508984",
+          "I98358874",
           "I86987016",
           "I887968799",
-          "I93860229",
-          "I98358874"
+          "I93860229"
         ],
         "50": [
-          "I47508984",
           "I5124864",
           "I62916508",
-          "I66862912",
+          "I47508984",
+          "I98358874",
           "I86987016",
           "I887968799",
           "I93860229",
-          "I98358874",
+          "I66862912",
           "I99464096"
         ]
       }
@@ -7260,7 +7260,7 @@
           "institution_id": "I4210155236",
           "display_name": "National Research Council",
           "country_code": "IT",
-          "type": "nonprofit",
+          "type": "government",
           "total_full_2020_2024": 24197.0,
           "hhi_subfield": 120.38628466915357,
           "shape_top3_fields": [
@@ -7280,7 +7280,7 @@
               "share": 0.104881
             }
           ],
-          "type_openalex": null,
+          "type_openalex": "nonprofit",
           "rank": 28,
           "lens": "F1",
           "lens_score": 0.501043,
@@ -8179,41 +8179,41 @@
       ],
       "external_hits_by_depth": {
         "10": [
-          "I5124864",
           "I62916508",
-          "I86987016",
+          "I98358874",
+          "I5124864",
           "I93860229",
-          "I98358874"
+          "I86987016"
         ],
         "20": [
-          "I47508984",
-          "I5124864",
           "I62916508",
-          "I66862912",
+          "I98358874",
+          "I5124864",
+          "I93860229",
           "I86987016",
           "I887968799",
-          "I93860229",
-          "I98358874"
+          "I47508984",
+          "I66862912"
         ],
         "30": [
-          "I47508984",
-          "I5124864",
           "I62916508",
-          "I66862912",
+          "I98358874",
+          "I5124864",
+          "I93860229",
           "I86987016",
           "I887968799",
-          "I93860229",
-          "I98358874"
+          "I47508984",
+          "I66862912"
         ],
         "50": [
-          "I47508984",
-          "I5124864",
           "I62916508",
-          "I66862912",
+          "I98358874",
+          "I5124864",
+          "I93860229",
           "I86987016",
           "I887968799",
-          "I93860229",
-          "I98358874"
+          "I47508984",
+          "I66862912"
         ]
       },
       "seed_frontier_share": 0.35878
@@ -8586,7 +8586,7 @@
           "institution_id": "I110594554",
           "display_name": "Ikerbasque",
           "country_code": "ES",
-          "type": "other",
+          "type": "nonprofit",
           "total_full_2020_2024": 7112.0,
           "hhi_subfield": 222.78684689952797,
           "shape_top3_fields": [
@@ -8606,7 +8606,7 @@
               "share": 0.107041
             }
           ],
-          "type_openalex": null,
+          "type_openalex": "other",
           "rank": 10,
           "lens": "L2f",
           "lens_score": 0.329193,
@@ -10106,7 +10106,7 @@
           "institution_id": "I4210107720",
           "display_name": "CentraleSup\u00e9lec",
           "country_code": "FR",
-          "type": "facility",
+          "type": "education",
           "total_full_2020_2024": 3772.0,
           "hhi_subfield": 214.7323143839265,
           "shape_top3_fields": [
@@ -10126,7 +10126,7 @@
               "share": 0.087056
             }
           ],
-          "type_openalex": null,
+          "type_openalex": "facility",
           "rank": 48,
           "lens": "L2f",
           "lens_score": 0.250513,
@@ -10229,25 +10229,25 @@
           "I62916508"
         ],
         "20": [
-          "I47508984",
           "I5124864",
-          "I62916508"
+          "I62916508",
+          "I47508984"
         ],
         "30": [
-          "I47508984",
           "I5124864",
           "I62916508",
-          "I887968799",
-          "I93860229"
+          "I47508984",
+          "I93860229",
+          "I887968799"
         ],
         "50": [
-          "I47508984",
           "I5124864",
           "I62916508",
-          "I86987016",
-          "I887968799",
+          "I47508984",
           "I93860229",
-          "I98358874"
+          "I887968799",
+          "I98358874",
+          "I86987016"
         ]
       },
       "n_eligible_cells": 179
@@ -11820,7 +11820,7 @@
           "institution_id": "I4210155236",
           "display_name": "National Research Council",
           "country_code": "IT",
-          "type": "nonprofit",
+          "type": "government",
           "total_full_2020_2024": 24197.0,
           "hhi_subfield": 120.38628466915357,
           "shape_top3_fields": [
@@ -11840,7 +11840,7 @@
               "share": 0.104881
             }
           ],
-          "type_openalex": null,
+          "type_openalex": "nonprofit",
           "rank": 40,
           "lens": "L4",
           "lens_score": 0.752427,
@@ -12265,21 +12265,21 @@
         "20": [
           "I5124864",
           "I62916508",
-          "I66862912",
-          "I86987016"
+          "I86987016",
+          "I66862912"
         ],
         "30": [
           "I5124864",
           "I62916508",
-          "I66862912",
           "I86987016",
+          "I66862912",
           "I887968799"
         ],
         "50": [
           "I5124864",
           "I62916508",
-          "I66862912",
           "I86987016",
+          "I66862912",
           "I887968799"
         ]
       }
@@ -14291,26 +14291,26 @@
       ],
       "external_hits_by_depth": {
         "10": [
-          "I47508984",
-          "I5124864"
+          "I5124864",
+          "I47508984"
         ],
         "20": [
-          "I47508984",
           "I5124864",
+          "I47508984",
           "I62916508"
         ],
         "30": [
-          "I47508984",
           "I5124864",
+          "I47508984",
           "I62916508",
           "I86987016"
         ],
         "50": [
-          "I47508984",
           "I5124864",
+          "I47508984",
           "I62916508",
-          "I66862912",
           "I86987016",
+          "I66862912",
           "I887968799"
         ]
       }
@@ -14923,7 +14923,7 @@
           "institution_id": "I110594554",
           "display_name": "Ikerbasque",
           "country_code": "ES",
-          "type": "other",
+          "type": "nonprofit",
           "total_full_2020_2024": 7112.0,
           "hhi_subfield": 222.78684689952797,
           "shape_top3_fields": [
@@ -14943,7 +14943,7 @@
               "share": 0.107041
             }
           ],
-          "type_openalex": null,
+          "type_openalex": "other",
           "rank": 16,
           "lens": "L6",
           "lens_score": 0.871269,
@@ -15560,46 +15560,6 @@
           "external_tier": null
         },
         {
-          "institution_id": "I4210125590",
-          "display_name": "Institute for Systems Engineering and Computers",
-          "country_code": "PT",
-          "type": "nonprofit",
-          "total_full_2020_2024": 1057.0,
-          "hhi_subfield": 284.7602837190868,
-          "shape_top3_fields": [
-            {
-              "field_id": 17,
-              "field_name": "Computer Science",
-              "share": 0.208598
-            },
-            {
-              "field_id": 22,
-              "field_name": "Engineering",
-              "share": 0.196289
-            },
-            {
-              "field_id": 21,
-              "field_name": "Energy",
-              "share": 0.12156
-            }
-          ],
-          "type_openalex": null,
-          "rank": 32,
-          "lens": "L6",
-          "lens_score": 0.860818,
-          "rank_under_other_lenses": {
-            "L1": {
-              "rank": null,
-              "score": 0.467055
-            },
-            "L3": {
-              "rank": null,
-              "score": 0.202724
-            }
-          },
-          "external_tier": null
-        },
-        {
           "institution_id": "I54009628",
           "display_name": "University of Bayreuth",
           "country_code": "DE",
@@ -15624,7 +15584,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 33,
+          "rank": 32,
           "lens": "L6",
           "lens_score": 0.860285,
           "rank_under_other_lenses": {
@@ -15664,7 +15624,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 34,
+          "rank": 33,
           "lens": "L6",
           "lens_score": 0.860273,
           "rank_under_other_lenses": {
@@ -15704,7 +15664,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 35,
+          "rank": 34,
           "lens": "L6",
           "lens_score": 0.858652,
           "rank_under_other_lenses": {
@@ -15744,7 +15704,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 36,
+          "rank": 35,
           "lens": "L6",
           "lens_score": 0.858337,
           "rank_under_other_lenses": {
@@ -15784,7 +15744,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 37,
+          "rank": 36,
           "lens": "L6",
           "lens_score": 0.858127,
           "rank_under_other_lenses": {
@@ -15824,7 +15784,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 38,
+          "rank": 37,
           "lens": "L6",
           "lens_score": 0.857725,
           "rank_under_other_lenses": {
@@ -15864,7 +15824,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 39,
+          "rank": 38,
           "lens": "L6",
           "lens_score": 0.856015,
           "rank_under_other_lenses": {
@@ -15904,7 +15864,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 40,
+          "rank": 39,
           "lens": "L6",
           "lens_score": 0.855318,
           "rank_under_other_lenses": {
@@ -15944,7 +15904,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 41,
+          "rank": 40,
           "lens": "L6",
           "lens_score": 0.85367,
           "rank_under_other_lenses": {
@@ -15984,7 +15944,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 42,
+          "rank": 41,
           "lens": "L6",
           "lens_score": 0.853208,
           "rank_under_other_lenses": {
@@ -16024,7 +15984,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 43,
+          "rank": 42,
           "lens": "L6",
           "lens_score": 0.853199,
           "rank_under_other_lenses": {
@@ -16064,7 +16024,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 44,
+          "rank": 43,
           "lens": "L6",
           "lens_score": 0.850132,
           "rank_under_other_lenses": {
@@ -16104,7 +16064,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 45,
+          "rank": 44,
           "lens": "L6",
           "lens_score": 0.849983,
           "rank_under_other_lenses": {
@@ -16144,7 +16104,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 46,
+          "rank": 45,
           "lens": "L6",
           "lens_score": 0.8495,
           "rank_under_other_lenses": {
@@ -16184,7 +16144,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 47,
+          "rank": 46,
           "lens": "L6",
           "lens_score": 0.849016,
           "rank_under_other_lenses": {
@@ -16224,7 +16184,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 48,
+          "rank": 47,
           "lens": "L6",
           "lens_score": 0.848168,
           "rank_under_other_lenses": {
@@ -16264,7 +16224,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 49,
+          "rank": 48,
           "lens": "L6",
           "lens_score": 0.847528,
           "rank_under_other_lenses": {
@@ -16304,7 +16264,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 50,
+          "rank": 49,
           "lens": "L6",
           "lens_score": 0.846936,
           "rank_under_other_lenses": {
@@ -16315,6 +16275,46 @@
             "L3": {
               "rank": null,
               "score": 0.127948
+            }
+          },
+          "external_tier": null
+        },
+        {
+          "institution_id": "I190752583",
+          "display_name": "ParisTech",
+          "country_code": "FR",
+          "type": "education",
+          "total_full_2020_2024": 2068.0,
+          "hhi_subfield": 167.33582783849675,
+          "shape_top3_fields": [
+            {
+              "field_id": 22,
+              "field_name": "Engineering",
+              "share": 0.23369
+            },
+            {
+              "field_id": 27,
+              "field_name": "Medicine",
+              "share": 0.140931
+            },
+            {
+              "field_id": 25,
+              "field_name": "Materials Science",
+              "share": 0.123994
+            }
+          ],
+          "type_openalex": null,
+          "rank": 50,
+          "lens": "L6",
+          "lens_score": 0.846364,
+          "rank_under_other_lenses": {
+            "L1": {
+              "rank": null,
+              "score": 0.543092
+            },
+            "L3": {
+              "rank": null,
+              "score": 0.270787
             }
           },
           "external_tier": null
@@ -18642,7 +18642,7 @@
           "institution_id": "I110594554",
           "display_name": "Ikerbasque",
           "country_code": "ES",
-          "type": "other",
+          "type": "nonprofit",
           "total_full_2020_2024": 7112.0,
           "hhi_subfield": 222.78684689952797,
           "shape_top3_fields": [
@@ -18662,7 +18662,7 @@
               "share": 0.107041
             }
           ],
-          "type_openalex": null,
+          "type_openalex": "other",
           "rank": 8,
           "lens": "C1",
           "lens_score": 0.660134,
@@ -18922,7 +18922,7 @@
           "institution_id": "I4210155236",
           "display_name": "National Research Council",
           "country_code": "IT",
-          "type": "nonprofit",
+          "type": "government",
           "total_full_2020_2024": 24197.0,
           "hhi_subfield": 120.38628466915357,
           "shape_top3_fields": [
@@ -18942,7 +18942,7 @@
               "share": 0.104881
             }
           ],
-          "type_openalex": null,
+          "type_openalex": "nonprofit",
           "rank": 15,
           "lens": "C1",
           "lens_score": 0.628301,
@@ -19842,7 +19842,7 @@
           "institution_id": "I4210107720",
           "display_name": "CentraleSup\u00e9lec",
           "country_code": "FR",
-          "type": "facility",
+          "type": "education",
           "total_full_2020_2024": 3772.0,
           "hhi_subfield": 214.7323143839265,
           "shape_top3_fields": [
@@ -19862,7 +19862,7 @@
               "share": 0.087056
             }
           ],
-          "type_openalex": null,
+          "type_openalex": "facility",
           "rank": 38,
           "lens": "C1",
           "lens_score": 0.590724,
@@ -20372,8 +20372,8 @@
         "50": [
           "I5124864",
           "I66862912",
-          "I86987016",
-          "I98358874"
+          "I98358874",
+          "I86987016"
         ]
       },
       "seed_top20_subfields": [
@@ -21821,7 +21821,7 @@
           "institution_id": "I110594554",
           "display_name": "Ikerbasque",
           "country_code": "ES",
-          "type": "other",
+          "type": "nonprofit",
           "total_full_2020_2024": 7112.0,
           "hhi_subfield": 222.78684689952797,
           "shape_top3_fields": [
@@ -21841,7 +21841,7 @@
               "share": 0.107041
             }
           ],
-          "type_openalex": null,
+          "type_openalex": "other",
           "rank": 28,
           "lens": "concordance",
           "k": 2,

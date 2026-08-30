@@ -2073,16 +2073,16 @@
           "I70900168"
         ],
         "20": [
-          "I169108374",
-          "I70900168"
+          "I70900168",
+          "I169108374"
         ],
         "30": [
-          "I169108374",
-          "I70900168"
+          "I70900168",
+          "I169108374"
         ],
         "50": [
-          "I169108374",
-          "I70900168"
+          "I70900168",
+          "I169108374"
         ]
       }
     },
@@ -4093,23 +4093,23 @@
       ],
       "external_hits_by_depth": {
         "10": [
-          "I198244214",
-          "I70900168"
+          "I70900168",
+          "I198244214"
         ],
         "20": [
-          "I169108374",
+          "I70900168",
           "I198244214",
-          "I70900168"
+          "I169108374"
         ],
         "30": [
-          "I169108374",
+          "I70900168",
           "I198244214",
-          "I70900168"
+          "I169108374"
         ],
         "50": [
-          "I169108374",
+          "I70900168",
           "I198244214",
-          "I70900168"
+          "I169108374"
         ]
       }
     },
@@ -6120,20 +6120,20 @@
       ],
       "external_hits_by_depth": {
         "10": [
-          "I198244214",
-          "I70900168"
+          "I70900168",
+          "I198244214"
         ],
         "20": [
-          "I198244214",
-          "I70900168"
+          "I70900168",
+          "I198244214"
         ],
         "30": [
-          "I198244214",
-          "I70900168"
+          "I70900168",
+          "I198244214"
         ],
         "50": [
-          "I198244214",
-          "I70900168"
+          "I70900168",
+          "I198244214"
         ]
       }
     },
@@ -6225,7 +6225,7 @@
           "institution_id": "I173888879",
           "display_name": "SINTEF",
           "country_code": "NO",
-          "type": "facility",
+          "type": "nonprofit",
           "total_full_2020_2024": 4633.0,
           "hhi_subfield": 197.95891982395563,
           "shape_top3_fields": [
@@ -6245,7 +6245,7 @@
               "share": 0.102904
             }
           ],
-          "type_openalex": null,
+          "type_openalex": "facility",
           "rank": 3,
           "lens": "F1",
           "lens_score": 0.489188,
@@ -6985,7 +6985,7 @@
           "institution_id": "I87653560",
           "display_name": "VTT Technical Research Centre of Finland",
           "country_code": "FI",
-          "type": "nonprofit",
+          "type": "government",
           "total_full_2020_2024": 2948.0,
           "hhi_subfield": 187.4995009610094,
           "shape_top3_fields": [
@@ -7005,7 +7005,7 @@
               "share": 0.112178
             }
           ],
-          "type_openalex": null,
+          "type_openalex": "nonprofit",
           "rank": 22,
           "lens": "F1",
           "lens_score": 0.400281,
@@ -7745,7 +7745,7 @@
           "institution_id": "I148297040",
           "display_name": "Netherlands Organisation for Applied Scientific Research",
           "country_code": "NL",
-          "type": "nonprofit",
+          "type": "government",
           "total_full_2020_2024": 2012.0,
           "hhi_subfield": 142.0512231997603,
           "shape_top3_fields": [
@@ -7765,7 +7765,7 @@
               "share": 0.081437
             }
           ],
-          "type_openalex": null,
+          "type_openalex": "nonprofit",
           "rank": 41,
           "lens": "F1",
           "lens_score": 0.366989,
@@ -8062,46 +8062,6 @@
           "external_tier": null
         },
         {
-          "institution_id": "I4210092262",
-          "display_name": "Ministry of Education",
-          "country_code": "RO",
-          "type": "funder",
-          "total_full_2020_2024": 2219.0,
-          "hhi_subfield": 251.1456969122543,
-          "shape_top3_fields": [
-            {
-              "field_id": 23,
-              "field_name": "Environmental Science",
-              "share": 0.173745
-            },
-            {
-              "field_id": 25,
-              "field_name": "Materials Science",
-              "share": 0.122757
-            },
-            {
-              "field_id": 16,
-              "field_name": "Chemistry",
-              "share": 0.119053
-            }
-          ],
-          "type_openalex": null,
-          "rank": 49,
-          "lens": "F1",
-          "lens_score": 0.357735,
-          "rank_under_other_lenses": {
-            "L1": {
-              "rank": null,
-              "score": 0.395614
-            },
-            "L3": {
-              "rank": null,
-              "score": 0.19235
-            }
-          },
-          "external_tier": null
-        },
-        {
           "institution_id": "I71824836",
           "display_name": "Swiss Federal Laboratories for Materials Science and Technology",
           "country_code": "CH",
@@ -8126,7 +8086,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 50,
+          "rank": 49,
           "lens": "F1",
           "lens_score": 0.356863,
           "rank_under_other_lenses": {
@@ -8137,6 +8097,46 @@
             "L3": {
               "rank": null,
               "score": 0.153968
+            }
+          },
+          "external_tier": null
+        },
+        {
+          "institution_id": "I4210127672",
+          "display_name": "Engineering (Italy)",
+          "country_code": "IT",
+          "type": "company",
+          "total_full_2020_2024": 1074.0,
+          "hhi_subfield": 183.6328225677894,
+          "shape_top3_fields": [
+            {
+              "field_id": 22,
+              "field_name": "Engineering",
+              "share": 0.251678
+            },
+            {
+              "field_id": 17,
+              "field_name": "Computer Science",
+              "share": 0.125314
+            },
+            {
+              "field_id": 25,
+              "field_name": "Materials Science",
+              "share": 0.106682
+            }
+          ],
+          "type_openalex": null,
+          "rank": 50,
+          "lens": "F1",
+          "lens_score": 0.355781,
+          "rank_under_other_lenses": {
+            "L1": {
+              "rank": null,
+              "score": 0.456177
+            },
+            "L3": {
+              "rank": null,
+              "score": 0.178278
             }
           },
           "external_tier": null
@@ -8558,7 +8558,7 @@
           "institution_id": "I173888879",
           "display_name": "SINTEF",
           "country_code": "NO",
-          "type": "facility",
+          "type": "nonprofit",
           "total_full_2020_2024": 4633.0,
           "hhi_subfield": 197.95891982395563,
           "shape_top3_fields": [
@@ -8578,7 +8578,7 @@
               "share": 0.102904
             }
           ],
-          "type_openalex": null,
+          "type_openalex": "facility",
           "rank": 11,
           "lens": "L2f",
           "lens_score": 0.306828,
@@ -9558,7 +9558,7 @@
           "institution_id": "I265217849",
           "display_name": "IFP \u00c9nergies nouvelles",
           "country_code": "FR",
-          "type": "facility",
+          "type": "government",
           "total_full_2020_2024": 1055.0,
           "hhi_subfield": 507.47245699868466,
           "shape_top3_fields": [
@@ -9578,7 +9578,7 @@
               "share": 0.124865
             }
           ],
-          "type_openalex": null,
+          "type_openalex": "facility",
           "rank": 36,
           "lens": "L2f",
           "lens_score": 0.250442,
@@ -10166,8 +10166,8 @@
           "I70900168"
         ],
         "50": [
-          "I198244214",
-          "I70900168"
+          "I70900168",
+          "I198244214"
         ]
       },
       "n_eligible_cells": 45
@@ -12182,18 +12182,18 @@
           "I70900168"
         ],
         "20": [
-          "I169108374",
-          "I70900168"
+          "I70900168",
+          "I169108374"
         ],
         "30": [
+          "I70900168",
           "I169108374",
-          "I175051016",
-          "I70900168"
+          "I175051016"
         ],
         "50": [
+          "I70900168",
           "I169108374",
-          "I175051016",
-          "I70900168"
+          "I175051016"
         ]
       }
     },
@@ -14386,7 +14386,7 @@
           "institution_id": "I110594554",
           "display_name": "Ikerbasque",
           "country_code": "ES",
-          "type": "other",
+          "type": "nonprofit",
           "total_full_2020_2024": 7112.0,
           "hhi_subfield": 222.78684689952797,
           "shape_top3_fields": [
@@ -14406,7 +14406,7 @@
               "share": 0.107041
             }
           ],
-          "type_openalex": null,
+          "type_openalex": "other",
           "rank": 5,
           "lens": "L6",
           "lens_score": 0.884902,
@@ -14546,7 +14546,7 @@
           "institution_id": "I173888879",
           "display_name": "SINTEF",
           "country_code": "NO",
-          "type": "facility",
+          "type": "nonprofit",
           "total_full_2020_2024": 4633.0,
           "hhi_subfield": 197.95891982395563,
           "shape_top3_fields": [
@@ -14566,7 +14566,7 @@
               "share": 0.102904
             }
           ],
-          "type_openalex": null,
+          "type_openalex": "facility",
           "rank": 9,
           "lens": "L6",
           "lens_score": 0.875819,
@@ -14578,46 +14578,6 @@
             "L3": {
               "rank": null,
               "score": 0.258868
-            }
-          },
-          "external_tier": null
-        },
-        {
-          "institution_id": "I4210125590",
-          "display_name": "Institute for Systems Engineering and Computers",
-          "country_code": "PT",
-          "type": "nonprofit",
-          "total_full_2020_2024": 1057.0,
-          "hhi_subfield": 284.7602837190868,
-          "shape_top3_fields": [
-            {
-              "field_id": 17,
-              "field_name": "Computer Science",
-              "share": 0.208598
-            },
-            {
-              "field_id": 22,
-              "field_name": "Engineering",
-              "share": 0.196289
-            },
-            {
-              "field_id": 21,
-              "field_name": "Energy",
-              "share": 0.12156
-            }
-          ],
-          "type_openalex": null,
-          "rank": 10,
-          "lens": "L6",
-          "lens_score": 0.872019,
-          "rank_under_other_lenses": {
-            "L1": {
-              "rank": null,
-              "score": 0.385828
-            },
-            "L3": {
-              "rank": null,
-              "score": 0.140764
             }
           },
           "external_tier": null
@@ -14647,7 +14607,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 11,
+          "rank": 10,
           "lens": "L6",
           "lens_score": 0.870184,
           "rank_under_other_lenses": {
@@ -14687,7 +14647,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 12,
+          "rank": 11,
           "lens": "L6",
           "lens_score": 0.869403,
           "rank_under_other_lenses": {
@@ -14727,7 +14687,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 13,
+          "rank": 12,
           "lens": "L6",
           "lens_score": 0.866834,
           "rank_under_other_lenses": {
@@ -14767,7 +14727,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 14,
+          "rank": 13,
           "lens": "L6",
           "lens_score": 0.865812,
           "rank_under_other_lenses": {
@@ -14807,7 +14767,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 15,
+          "rank": 14,
           "lens": "L6",
           "lens_score": 0.865136,
           "rank_under_other_lenses": {
@@ -14847,7 +14807,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 16,
+          "rank": 15,
           "lens": "L6",
           "lens_score": 0.863748,
           "rank_under_other_lenses": {
@@ -14887,7 +14847,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 17,
+          "rank": 16,
           "lens": "L6",
           "lens_score": 0.860856,
           "rank_under_other_lenses": {
@@ -14927,7 +14887,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 18,
+          "rank": 17,
           "lens": "L6",
           "lens_score": 0.860092,
           "rank_under_other_lenses": {
@@ -14967,7 +14927,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 19,
+          "rank": 18,
           "lens": "L6",
           "lens_score": 0.859694,
           "rank_under_other_lenses": {
@@ -15007,7 +14967,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 20,
+          "rank": 19,
           "lens": "L6",
           "lens_score": 0.859419,
           "rank_under_other_lenses": {
@@ -15047,7 +15007,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 21,
+          "rank": 20,
           "lens": "L6",
           "lens_score": 0.858489,
           "rank_under_other_lenses": {
@@ -15087,7 +15047,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 22,
+          "rank": 21,
           "lens": "L6",
           "lens_score": 0.856782,
           "rank_under_other_lenses": {
@@ -15127,7 +15087,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 23,
+          "rank": 22,
           "lens": "L6",
           "lens_score": 0.856747,
           "rank_under_other_lenses": {
@@ -15167,7 +15127,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 24,
+          "rank": 23,
           "lens": "L6",
           "lens_score": 0.856305,
           "rank_under_other_lenses": {
@@ -15207,7 +15167,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 25,
+          "rank": 24,
           "lens": "L6",
           "lens_score": 0.856174,
           "rank_under_other_lenses": {
@@ -15247,7 +15207,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 26,
+          "rank": 25,
           "lens": "L6",
           "lens_score": 0.8552,
           "rank_under_other_lenses": {
@@ -15287,7 +15247,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 27,
+          "rank": 26,
           "lens": "L6",
           "lens_score": 0.854709,
           "rank_under_other_lenses": {
@@ -15327,7 +15287,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 28,
+          "rank": 27,
           "lens": "L6",
           "lens_score": 0.852391,
           "rank_under_other_lenses": {
@@ -15367,7 +15327,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 29,
+          "rank": 28,
           "lens": "L6",
           "lens_score": 0.850654,
           "rank_under_other_lenses": {
@@ -15407,7 +15367,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 30,
+          "rank": 29,
           "lens": "L6",
           "lens_score": 0.849663,
           "rank_under_other_lenses": {
@@ -15447,7 +15407,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 31,
+          "rank": 30,
           "lens": "L6",
           "lens_score": 0.848515,
           "rank_under_other_lenses": {
@@ -15487,7 +15447,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 32,
+          "rank": 31,
           "lens": "L6",
           "lens_score": 0.848007,
           "rank_under_other_lenses": {
@@ -15527,7 +15487,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 33,
+          "rank": 32,
           "lens": "L6",
           "lens_score": 0.847709,
           "rank_under_other_lenses": {
@@ -15567,7 +15527,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 34,
+          "rank": 33,
           "lens": "L6",
           "lens_score": 0.84686,
           "rank_under_other_lenses": {
@@ -15607,7 +15567,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 35,
+          "rank": 34,
           "lens": "L6",
           "lens_score": 0.846164,
           "rank_under_other_lenses": {
@@ -15647,7 +15607,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 36,
+          "rank": 35,
           "lens": "L6",
           "lens_score": 0.845509,
           "rank_under_other_lenses": {
@@ -15687,7 +15647,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 37,
+          "rank": 36,
           "lens": "L6",
           "lens_score": 0.844716,
           "rank_under_other_lenses": {
@@ -15727,7 +15687,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 38,
+          "rank": 37,
           "lens": "L6",
           "lens_score": 0.844696,
           "rank_under_other_lenses": {
@@ -15767,7 +15727,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 39,
+          "rank": 38,
           "lens": "L6",
           "lens_score": 0.844661,
           "rank_under_other_lenses": {
@@ -15807,7 +15767,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 40,
+          "rank": 39,
           "lens": "L6",
           "lens_score": 0.844503,
           "rank_under_other_lenses": {
@@ -15847,7 +15807,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 41,
+          "rank": 40,
           "lens": "L6",
           "lens_score": 0.844219,
           "rank_under_other_lenses": {
@@ -15887,7 +15847,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 42,
+          "rank": 41,
           "lens": "L6",
           "lens_score": 0.843701,
           "rank_under_other_lenses": {
@@ -15927,7 +15887,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 43,
+          "rank": 42,
           "lens": "L6",
           "lens_score": 0.842974,
           "rank_under_other_lenses": {
@@ -15967,7 +15927,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 44,
+          "rank": 43,
           "lens": "L6",
           "lens_score": 0.842679,
           "rank_under_other_lenses": {
@@ -16007,7 +15967,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 45,
+          "rank": 44,
           "lens": "L6",
           "lens_score": 0.842176,
           "rank_under_other_lenses": {
@@ -16047,7 +16007,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 46,
+          "rank": 45,
           "lens": "L6",
           "lens_score": 0.841196,
           "rank_under_other_lenses": {
@@ -16087,7 +16047,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 47,
+          "rank": 46,
           "lens": "L6",
           "lens_score": 0.841163,
           "rank_under_other_lenses": {
@@ -16127,7 +16087,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 48,
+          "rank": 47,
           "lens": "L6",
           "lens_score": 0.840408,
           "rank_under_other_lenses": {
@@ -16167,7 +16127,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 49,
+          "rank": 48,
           "lens": "L6",
           "lens_score": 0.840353,
           "rank_under_other_lenses": {
@@ -16207,7 +16167,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 50,
+          "rank": 49,
           "lens": "L6",
           "lens_score": 0.839847,
           "rank_under_other_lenses": {
@@ -16218,6 +16178,46 @@
             "L3": {
               "rank": null,
               "score": 0.127649
+            }
+          },
+          "external_tier": null
+        },
+        {
+          "institution_id": "I7923278",
+          "display_name": "Shell (Netherlands)",
+          "country_code": "NL",
+          "type": "company",
+          "total_full_2020_2024": 1135.0,
+          "hhi_subfield": 367.04382706800556,
+          "shape_top3_fields": [
+            {
+              "field_id": 21,
+              "field_name": "Energy",
+              "share": 0.236698
+            },
+            {
+              "field_id": 19,
+              "field_name": "Earth and Planetary Sciences",
+              "share": 0.194278
+            },
+            {
+              "field_id": 22,
+              "field_name": "Engineering",
+              "share": 0.089083
+            }
+          ],
+          "type_openalex": null,
+          "rank": 50,
+          "lens": "L6",
+          "lens_score": 0.839165,
+          "rank_under_other_lenses": {
+            "L1": {
+              "rank": null,
+              "score": 0.484684
+            },
+            "L3": {
+              "rank": null,
+              "score": 0.192919
             }
           },
           "external_tier": null
@@ -16406,7 +16406,7 @@
           "institution_id": "I173888879",
           "display_name": "SINTEF",
           "country_code": "NO",
-          "type": "facility",
+          "type": "nonprofit",
           "total_full_2020_2024": 4633.0,
           "hhi_subfield": 197.95891982395563,
           "shape_top3_fields": [
@@ -16426,7 +16426,7 @@
               "share": 0.102904
             }
           ],
-          "type_openalex": null,
+          "type_openalex": "facility",
           "rank": 5,
           "lens": "L7",
           "lens_score": 0.838804,
@@ -17123,46 +17123,6 @@
           "external_tier": null
         },
         {
-          "institution_id": "I4210125590",
-          "display_name": "Institute for Systems Engineering and Computers",
-          "country_code": "PT",
-          "type": "nonprofit",
-          "total_full_2020_2024": 1057.0,
-          "hhi_subfield": 284.7602837190868,
-          "shape_top3_fields": [
-            {
-              "field_id": 17,
-              "field_name": "Computer Science",
-              "share": 0.208598
-            },
-            {
-              "field_id": 22,
-              "field_name": "Engineering",
-              "share": 0.196289
-            },
-            {
-              "field_id": 21,
-              "field_name": "Energy",
-              "share": 0.12156
-            }
-          ],
-          "type_openalex": null,
-          "rank": 23,
-          "lens": "L7",
-          "lens_score": 0.725088,
-          "rank_under_other_lenses": {
-            "L1": {
-              "rank": null,
-              "score": 0.385828
-            },
-            "L3": {
-              "rank": null,
-              "score": 0.140764
-            }
-          },
-          "external_tier": null
-        },
-        {
           "institution_id": "I4210125238",
           "display_name": "Gdynia Maritime University",
           "country_code": "PL",
@@ -17187,7 +17147,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 24,
+          "rank": 23,
           "lens": "L7",
           "lens_score": 0.723509,
           "rank_under_other_lenses": {
@@ -17227,7 +17187,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 25,
+          "rank": 24,
           "lens": "L7",
           "lens_score": 0.720892,
           "rank_under_other_lenses": {
@@ -17267,7 +17227,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 26,
+          "rank": 25,
           "lens": "L7",
           "lens_score": 0.716762,
           "rank_under_other_lenses": {
@@ -17307,7 +17267,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 27,
+          "rank": 26,
           "lens": "L7",
           "lens_score": 0.716028,
           "rank_under_other_lenses": {
@@ -17347,7 +17307,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 28,
+          "rank": 27,
           "lens": "L7",
           "lens_score": 0.713665,
           "rank_under_other_lenses": {
@@ -17387,7 +17347,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 29,
+          "rank": 28,
           "lens": "L7",
           "lens_score": 0.71252,
           "rank_under_other_lenses": {
@@ -17427,7 +17387,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 30,
+          "rank": 29,
           "lens": "L7",
           "lens_score": 0.705505,
           "rank_under_other_lenses": {
@@ -17467,7 +17427,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 31,
+          "rank": 30,
           "lens": "L7",
           "lens_score": 0.705266,
           "rank_under_other_lenses": {
@@ -17478,46 +17438,6 @@
             "L3": {
               "rank": null,
               "score": 0.121257
-            }
-          },
-          "external_tier": null
-        },
-        {
-          "institution_id": "I4210164678",
-          "display_name": "Shell (United Kingdom)",
-          "country_code": "GB",
-          "type": "company",
-          "total_full_2020_2024": 221.0,
-          "hhi_subfield": 524.0658957407284,
-          "shape_top3_fields": [
-            {
-              "field_id": 19,
-              "field_name": "Earth and Planetary Sciences",
-              "share": 0.237285
-            },
-            {
-              "field_id": 21,
-              "field_name": "Energy",
-              "share": 0.179235
-            },
-            {
-              "field_id": 22,
-              "field_name": "Engineering",
-              "share": 0.125264
-            }
-          ],
-          "type_openalex": null,
-          "rank": 32,
-          "lens": "L7",
-          "lens_score": 0.696367,
-          "rank_under_other_lenses": {
-            "L1": {
-              "rank": null,
-              "score": 0.316503
-            },
-            "L3": {
-              "rank": null,
-              "score": 0.101728
             }
           },
           "external_tier": null
@@ -17547,7 +17467,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 33,
+          "rank": 31,
           "lens": "L7",
           "lens_score": 0.693573,
           "rank_under_other_lenses": {
@@ -17587,7 +17507,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 34,
+          "rank": 32,
           "lens": "L7",
           "lens_score": 0.692575,
           "rank_under_other_lenses": {
@@ -17627,7 +17547,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 35,
+          "rank": 33,
           "lens": "L7",
           "lens_score": 0.691875,
           "rank_under_other_lenses": {
@@ -17667,7 +17587,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 36,
+          "rank": 34,
           "lens": "L7",
           "lens_score": 0.691083,
           "rank_under_other_lenses": {
@@ -17707,7 +17627,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 37,
+          "rank": 35,
           "lens": "L7",
           "lens_score": 0.689795,
           "rank_under_other_lenses": {
@@ -17747,7 +17667,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 38,
+          "rank": 36,
           "lens": "L7",
           "lens_score": 0.687761,
           "rank_under_other_lenses": {
@@ -17766,7 +17686,7 @@
           "institution_id": "I265217849",
           "display_name": "IFP \u00c9nergies nouvelles",
           "country_code": "FR",
-          "type": "facility",
+          "type": "government",
           "total_full_2020_2024": 1055.0,
           "hhi_subfield": 507.47245699868466,
           "shape_top3_fields": [
@@ -17786,8 +17706,8 @@
               "share": 0.124865
             }
           ],
-          "type_openalex": null,
-          "rank": 39,
+          "type_openalex": "facility",
+          "rank": 37,
           "lens": "L7",
           "lens_score": 0.681171,
           "rank_under_other_lenses": {
@@ -17827,7 +17747,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 40,
+          "rank": 38,
           "lens": "L7",
           "lens_score": 0.68048,
           "rank_under_other_lenses": {
@@ -17867,7 +17787,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 41,
+          "rank": 39,
           "lens": "L7",
           "lens_score": 0.678786,
           "rank_under_other_lenses": {
@@ -17907,7 +17827,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 42,
+          "rank": 40,
           "lens": "L7",
           "lens_score": 0.676806,
           "rank_under_other_lenses": {
@@ -17947,7 +17867,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 43,
+          "rank": 41,
           "lens": "L7",
           "lens_score": 0.676571,
           "rank_under_other_lenses": {
@@ -17987,7 +17907,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 44,
+          "rank": 42,
           "lens": "L7",
           "lens_score": 0.671503,
           "rank_under_other_lenses": {
@@ -18027,7 +17947,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 44,
+          "rank": 42,
           "lens": "L7",
           "lens_score": 0.671503,
           "rank_under_other_lenses": {
@@ -18067,7 +17987,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 46,
+          "rank": 44,
           "lens": "L7",
           "lens_score": 0.670417,
           "rank_under_other_lenses": {
@@ -18107,7 +18027,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 47,
+          "rank": 45,
           "lens": "L7",
           "lens_score": 0.668311,
           "rank_under_other_lenses": {
@@ -18147,7 +18067,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 48,
+          "rank": 46,
           "lens": "L7",
           "lens_score": 0.668232,
           "rank_under_other_lenses": {
@@ -18187,7 +18107,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 49,
+          "rank": 47,
           "lens": "L7",
           "lens_score": 0.667506,
           "rank_under_other_lenses": {
@@ -18227,7 +18147,7 @@
             }
           ],
           "type_openalex": null,
-          "rank": 50,
+          "rank": 48,
           "lens": "L7",
           "lens_score": 0.666654,
           "rank_under_other_lenses": {
@@ -18238,6 +18158,86 @@
             "L3": {
               "rank": null,
               "score": 0.043568
+            }
+          },
+          "external_tier": null
+        },
+        {
+          "institution_id": "I4210130123",
+          "display_name": "European Theoretical Spectroscopy Facility",
+          "country_code": "BE",
+          "type": "facility",
+          "total_full_2020_2024": 274.0,
+          "hhi_subfield": 1051.2527909431185,
+          "shape_top3_fields": [
+            {
+              "field_id": 25,
+              "field_name": "Materials Science",
+              "share": 0.343057
+            },
+            {
+              "field_id": 31,
+              "field_name": "Physics and Astronomy",
+              "share": 0.303991
+            },
+            {
+              "field_id": 16,
+              "field_name": "Chemistry",
+              "share": 0.165816
+            }
+          ],
+          "type_openalex": null,
+          "rank": 49,
+          "lens": "L7",
+          "lens_score": 0.665113,
+          "rank_under_other_lenses": {
+            "L1": {
+              "rank": null,
+              "score": 0.148665
+            },
+            "L3": {
+              "rank": null,
+              "score": 0.024155
+            }
+          },
+          "external_tier": null
+        },
+        {
+          "institution_id": "I4387930256",
+          "display_name": "SINTEF Industry",
+          "country_code": "NO",
+          "type": "facility",
+          "total_full_2020_2024": 979.0,
+          "hhi_subfield": 591.6127979201141,
+          "shape_top3_fields": [
+            {
+              "field_id": 25,
+              "field_name": "Materials Science",
+              "share": 0.268046
+            },
+            {
+              "field_id": 21,
+              "field_name": "Energy",
+              "share": 0.159863
+            },
+            {
+              "field_id": 15,
+              "field_name": "Chemical Engineering",
+              "share": 0.15885
+            }
+          ],
+          "type_openalex": null,
+          "rank": 50,
+          "lens": "L7",
+          "lens_score": 0.656462,
+          "rank_under_other_lenses": {
+            "L1": {
+              "rank": null,
+              "score": 0.299088
+            },
+            "L3": {
+              "rank": null,
+              "score": 0.137301
             }
           },
           "external_tier": null
@@ -20268,8 +20268,8 @@
           "I70900168"
         ],
         "50": [
-          "I198244214",
-          "I70900168"
+          "I70900168",
+          "I198244214"
         ]
       },
       "seed_top20_subfields": [
@@ -20431,8 +20431,8 @@
       "I63548447",
       "I190632392",
       "I203847022",
-      "I4210125590",
       "I72446674",
+      "I9617848",
       "I97188460"
     ],
     "N20": {
@@ -20731,7 +20731,7 @@
           "institution_id": "I173888879",
           "display_name": "SINTEF",
           "country_code": "NO",
-          "type": "facility",
+          "type": "nonprofit",
           "total_full_2020_2024": 4633.0,
           "hhi_subfield": 197.95891982395563,
           "shape_top3_fields": [
@@ -20751,7 +20751,7 @@
               "share": 0.102904
             }
           ],
-          "type_openalex": null,
+          "type_openalex": "facility",
           "rank": 7,
           "lens": "concordance",
           "k": 3,
@@ -21772,11 +21772,11 @@
             }
           ],
           "type_openalex": null,
-          "rank": 29,
+          "rank": 28,
           "lens": "concordance",
           "k": 2,
           "n": 7,
-          "mean_rank_of_hit_lenses": 11.5,
+          "mean_rank_of_hit_lenses": 11.0,
           "hit_lenses": [
             "F1",
             "L6"
@@ -21932,52 +21932,6 @@
           "external_tier": null
         },
         {
-          "institution_id": "I142910587",
-          "display_name": "University of Salento",
-          "country_code": "IT",
-          "type": "education",
-          "total_full_2020_2024": 6390.0,
-          "hhi_subfield": 100.83125120899932,
-          "shape_top3_fields": [
-            {
-              "field_id": 22,
-              "field_name": "Engineering",
-              "share": 0.107926
-            },
-            {
-              "field_id": 33,
-              "field_name": "Social Sciences",
-              "share": 0.098176
-            },
-            {
-              "field_id": 12,
-              "field_name": "Arts and Humanities",
-              "share": 0.083688
-            }
-          ],
-          "type_openalex": null,
-          "rank": 33,
-          "lens": "concordance",
-          "k": 2,
-          "n": 7,
-          "mean_rank_of_hit_lenses": 15.0,
-          "hit_lenses": [
-            "L1",
-            "L4"
-          ],
-          "rank_under_other_lenses": {
-            "L1": {
-              "rank": 19,
-              "score": 0.578808
-            },
-            "L3": {
-              "rank": null,
-              "score": 0.235558
-            }
-          },
-          "external_tier": null
-        },
-        {
           "institution_id": "I9617848",
           "display_name": "Universitat Polit\u00e8cnica de Catalunya",
           "country_code": "ES",
@@ -22006,7 +21960,7 @@
           "lens": "concordance",
           "k": 2,
           "n": 7,
-          "mean_rank_of_hit_lenses": 15.0,
+          "mean_rank_of_hit_lenses": 14.5,
           "hit_lenses": [
             "F1",
             "L6"
@@ -22019,6 +21973,52 @@
             "L3": {
               "rank": null,
               "score": 0.2395
+            }
+          },
+          "external_tier": null
+        },
+        {
+          "institution_id": "I142910587",
+          "display_name": "University of Salento",
+          "country_code": "IT",
+          "type": "education",
+          "total_full_2020_2024": 6390.0,
+          "hhi_subfield": 100.83125120899932,
+          "shape_top3_fields": [
+            {
+              "field_id": 22,
+              "field_name": "Engineering",
+              "share": 0.107926
+            },
+            {
+              "field_id": 33,
+              "field_name": "Social Sciences",
+              "share": 0.098176
+            },
+            {
+              "field_id": 12,
+              "field_name": "Arts and Humanities",
+              "share": 0.083688
+            }
+          ],
+          "type_openalex": null,
+          "rank": 34,
+          "lens": "concordance",
+          "k": 2,
+          "n": 7,
+          "mean_rank_of_hit_lenses": 15.0,
+          "hit_lenses": [
+            "L1",
+            "L4"
+          ],
+          "rank_under_other_lenses": {
+            "L1": {
+              "rank": 19,
+              "score": 0.578808
+            },
+            "L3": {
+              "rank": null,
+              "score": 0.235558
             }
           },
           "external_tier": null
@@ -22052,7 +22052,7 @@
           "lens": "concordance",
           "k": 2,
           "n": 7,
-          "mean_rank_of_hit_lenses": 17.5,
+          "mean_rank_of_hit_lenses": 17.0,
           "hit_lenses": [
             "F1",
             "L6"
@@ -22253,7 +22253,7 @@
           "institution_id": "I110594554",
           "display_name": "Ikerbasque",
           "country_code": "ES",
-          "type": "other",
+          "type": "nonprofit",
           "total_full_2020_2024": 7112.0,
           "hhi_subfield": 222.78684689952797,
           "shape_top3_fields": [
@@ -22273,7 +22273,7 @@
               "share": 0.107041
             }
           ],
-          "type_openalex": null,
+          "type_openalex": "other",
           "rank": 40,
           "lens": "concordance",
           "k": 1,
@@ -22610,51 +22610,6 @@
           "external_tier": null
         },
         {
-          "institution_id": "I4210125590",
-          "display_name": "Institute for Systems Engineering and Computers",
-          "country_code": "PT",
-          "type": "nonprofit",
-          "total_full_2020_2024": 1057.0,
-          "hhi_subfield": 284.7602837190868,
-          "shape_top3_fields": [
-            {
-              "field_id": 17,
-              "field_name": "Computer Science",
-              "share": 0.208598
-            },
-            {
-              "field_id": 22,
-              "field_name": "Engineering",
-              "share": 0.196289
-            },
-            {
-              "field_id": 21,
-              "field_name": "Energy",
-              "share": 0.12156
-            }
-          ],
-          "type_openalex": null,
-          "rank": 46,
-          "lens": "concordance",
-          "k": 1,
-          "n": 7,
-          "mean_rank_of_hit_lenses": 10.0,
-          "hit_lenses": [
-            "L6"
-          ],
-          "rank_under_other_lenses": {
-            "L1": {
-              "rank": null,
-              "score": 0.385828
-            },
-            "L3": {
-              "rank": null,
-              "score": 0.140764
-            }
-          },
-          "external_tier": null
-        },
-        {
           "institution_id": "I72446674",
           "display_name": "Neste Oil (Finland)",
           "country_code": "FI",
@@ -22743,6 +22698,96 @@
             }
           },
           "external_tier": null
+        },
+        {
+          "institution_id": "I177477856",
+          "display_name": "Politecnico di Torino",
+          "country_code": "IT",
+          "type": "education",
+          "total_full_2020_2024": 14633.0,
+          "hhi_subfield": 163.43986573492353,
+          "shape_top3_fields": [
+            {
+              "field_id": 22,
+              "field_name": "Engineering",
+              "share": 0.306937
+            },
+            {
+              "field_id": 17,
+              "field_name": "Computer Science",
+              "share": 0.111284
+            },
+            {
+              "field_id": 21,
+              "field_name": "Energy",
+              "share": 0.077143
+            }
+          ],
+          "type_openalex": null,
+          "rank": 50,
+          "lens": "concordance",
+          "k": 1,
+          "n": 7,
+          "mean_rank_of_hit_lenses": 11.0,
+          "hit_lenses": [
+            "F1"
+          ],
+          "rank_under_other_lenses": {
+            "L1": {
+              "rank": null,
+              "score": 0.481822
+            },
+            "L3": {
+              "rank": null,
+              "score": 0.228556
+            }
+          },
+          "external_tier": null
+        },
+        {
+          "institution_id": "I86987016",
+          "display_name": "KTH Royal Institute of Technology",
+          "country_code": "SE",
+          "type": "education",
+          "total_full_2020_2024": 17140.0,
+          "hhi_subfield": 135.2230543550491,
+          "shape_top3_fields": [
+            {
+              "field_id": 22,
+              "field_name": "Engineering",
+              "share": 0.203985
+            },
+            {
+              "field_id": 25,
+              "field_name": "Materials Science",
+              "share": 0.114807
+            },
+            {
+              "field_id": 17,
+              "field_name": "Computer Science",
+              "share": 0.103589
+            }
+          ],
+          "type_openalex": null,
+          "rank": 50,
+          "lens": "concordance",
+          "k": 1,
+          "n": 7,
+          "mean_rank_of_hit_lenses": 11.0,
+          "hit_lenses": [
+            "L6"
+          ],
+          "rank_under_other_lenses": {
+            "L1": {
+              "rank": null,
+              "score": 0.476077
+            },
+            "L3": {
+              "rank": null,
+              "score": 0.224308
+            }
+          },
+          "external_tier": null
         }
       ]
     },
@@ -22780,11 +22825,11 @@
       "I103084370",
       "I1330665745",
       "I174458059",
-      "I142910587",
       "I9617848",
+      "I142910587",
+      "I86987016",
       "I151295451",
       "I32021983",
-      "I86987016",
       "I204778367",
       "I16337185",
       "I6289922",
@@ -22794,9 +22839,9 @@
       "I4647051",
       "I70348806",
       "I161929037",
-      "I2800745255",
+      "I111112146",
       "I98358874",
-      "I9360294"
+      "I2800745255"
     ]
   },
   "aspirational": {

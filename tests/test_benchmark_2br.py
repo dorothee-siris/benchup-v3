@@ -15,11 +15,14 @@ Five claims, one section each:
      exists, empty otherwise -- is read at ONE chokepoint (`lenses.rank_all`'s
      shared `_emit`) that every lens, `concordance()` and `aspirational()`
      inherit from. Proven on REAL data (three real seeds, the real Romanian
-     Ministry id) with the flag injected directly onto `ctx`, since the
-     `pool_excluded` column has not been deployed to `app/data/` yet this
-     wave (pipeline stream P4 writes it to `V3/data/artefacts_eu/`; PC
-     deploys it later) -- this is the engine-level proof the wiring itself is
-     correct, independent of that deploy timing.
+     Ministry id). The wiring test (`test_load_context_reads_pool_excluded_
+     column_when_present`) still injects the flag onto a fake index, engine-
+     level, independent of any deploy. The two acceptance tests below were
+     originally written to inject the flag onto `ctx` because PC had not yet
+     deployed `pool_excluded` to `app/data/index.parquet`; PC's deploy has
+     since landed it (3 ids: the Romanian Ministry + the Shell UK / INESC
+     duplicate rows, `data/overrides/*` R2-E), so stream G (2BR) re-cut both
+     to assert against the REAL deployed column instead of a synthetic one.
 
   3. ASPIRATIONAL MODE B (2B-R-3). `aspirational_frontier` reorders the SAME
      L1 pool by F1 score (never drops or adds a candidate), ties keep the
@@ -125,20 +128,30 @@ def test_load_context_reads_pool_excluded_column_when_present(tmp_path, monkeypa
     assert fake_ctx["pool_excluded_positions"] == frozenset({fake_ctx["id_pos"][flagged_id]})
 
 
-def test_pool_excluded_positions_empty_when_column_absent(ctx):
-    # app/data/index.parquet has not shipped `pool_excluded` yet this wave --
-    # a no-op is the correct, byte-for-byte-compatible default.
-    assert ctx["pool_excluded_positions"] == frozenset()
+POOL_EXCLUDED_IDS = {ROMANIAN_MINISTRY, "I4210164678", "I4210125590"}   # PC deploy (2BR_PC.md): Romanian
+                                                                        # Ministry + the Shell/INESC duplicates
+
+
+def test_pool_excluded_positions_reflects_the_deployed_column(ctx):
+    """2BR_G re-check (this wave): PC's deploy has landed `pool_excluded` on
+    `app/data/index.parquet` (it had not, when FC wrote this file -- see the
+    superseded docstring above and progress/2BR_FC.md's own "0 affected this
+    wave, G re-checks after PC's deploy" note). Exactly the 3 flagged ids
+    (P4's ledger: Romanian Ministry + the Shell UK / INESC duplicate rows)."""
+    want = frozenset(ctx["id_pos"][i] for i in POOL_EXCLUDED_IDS)
+    assert ctx["pool_excluded_positions"] == want
 
 
 def test_romanian_ministry_excluded_from_every_lens_list_for_three_probe_seeds(ctx, subs):
-    """A6 acceptance, verbatim: I4210092262 appears in NO lens list (nor the
-    concordance, nor V0 aspirational) for three probe seeds where it
-    previously could surface -- proven by injecting the real flag onto a
-    real ctx (the column itself lands on `app/data/` at deploy, PC stream)."""
+    """A6 acceptance, verbatim, re-run against the NOW-DEPLOYED real data
+    (superseding FC's synthetic-injection version, which ran before PC's
+    deploy): I4210092262 appears in NO lens list (nor the concordance, nor V0
+    aspirational) for three probe seeds where it previously could surface.
+    `before` simulates the pre-deploy engine (pool_excluded_positions
+    cleared) to prove these seeds are a real fixture -- i.e. the id WOULD
+    surface without the exclusion; `after` is the REAL, deployed ctx, no
+    injection needed any more."""
     target = ROMANIAN_MINISTRY
-    assert target in ctx["id_pos"], "fixture assumption: the id must exist in this snapshot"
-    pos = ctx["id_pos"][target]
 
     def _hits(ctx_):
         hits = []
@@ -155,13 +168,13 @@ def test_romanian_ministry_excluded_from_every_lens_list_for_three_probe_seeds(c
                 hits.append((seed, "aspirational"))
         return hits
 
-    before = _hits(ctx)
+    ctx_before = dict(ctx)
+    ctx_before["pool_excluded_positions"] = frozenset()
+    before = _hits(ctx_before)
     assert before, ("fixture assumption failed: the Romanian Ministry id never surfaced for these "
                     "three seeds even without the exclusion -- pick different probe seeds")
 
-    ctx_excluded = dict(ctx)
-    ctx_excluded["pool_excluded_positions"] = frozenset({pos})
-    after = _hits(ctx_excluded)
+    after = _hits(ctx)
     assert after == [], f"still surfaces after exclusion: {after}"
 
 
