@@ -10,21 +10,33 @@ COMPOSITION ONLY, same rule as lib/views_find.py: every frame comes from
 into a rendered string (BUILD_PLAN_2A.md L10, enforced by
 tests/test_narrative.py once Stream G widens its scope to lib/views_*.py).
 
-TABLE-DRIVEN BY DESIGN: this page imports NO chart module. `lib/charts_compare.py`
-belongs to stream V and is still in flight while this file is written; the only
-thing borrowed from the palette is the optional pair of identity swatches, and
-that borrow is guarded (`_swatches`) so the page renders unchanged if
-`INSTITUTION_COLORS` / `institution_slots` are absent at runtime.
+PAGE SHAPE (2B-R-10, phase 2B-R): FOUR sections over the pair A <-> B, built on
+the NEW pair artefacts (`collab_pairs.parquet`, `collab_pair_topics.parquet`)
+through `lib/collab_data.py`'s `pulse` / `joint_profile` / `untapped`:
 
-PAGE ORDER
-  sidebar: counting & taxonomy (the SAME widget keys `tree` / `basis` the Find
-  page uses, so the scenario carries across pages) + a READ-ONLY basket with a
-  link back to Find (the add/remove affordances stay on Find, which owns them)
-  main: title + lead + verdict + snapshot caption -> the pair picker (A, B, a
-  swap button, the shareable deep link) -> the header strip (both institutions,
-  their OpenAlex publications, and the co-publication link) -> what both already
-  work on -> what each does not publish in (two directional tables) -> breadth
-  overlap.
+  1. the relationship pulse -- joint publications per year (`charts_compare.
+     fig_pulse`, partial year starred), each side's joint share of its OWN
+     output with both denominators named, and the two ranks in their two
+     directions (`rank_in_a` = where B sits among A's partners);
+  2. what the two publish on together -- the joint corpus by field, subfield
+     and topic, its SDG share, its frontier topics and its top ERC panel, or,
+     for a pair under the topic floor, the honest notice and nothing invented;
+  3. where the two overlap without publishing together -- the untapped-topic
+     table with its formula written out, the sibling topics beside it, and the
+     2B tables (topic overlap, the two directional gap lists, breadth) kept
+     underneath, because they answer the same reader's question;
+  4. the link-outs -- both institutions' publications and the pair's
+     co-publications, live on OpenAlex.
+
+The pair picker, the swap button, the `?pair=` deep link and the hand-off from
+Compare are UNCHANGED from 2B. ONE chart module is imported now (stream VS's
+`fig_pulse` + `legend_strip`, which did not exist when this file was first
+written); everything else is still tables, and the palette borrow for identity
+swatches stays guarded (`_swatches`).
+
+SIDEBAR: counting & taxonomy (the SAME widget keys `tree` / `basis` the Find
+page uses, so the scenario carries across pages) + a READ-ONLY basket with a
+link back to Find (the add/remove affordances stay on Find, which owns them).
 
 PERFORMANCE (2B-14: warm rerun < 1.5 s; A10)
   `views_find._bundle` / `views_find._subs` are reused BY IMPORT, not copied, so
@@ -39,13 +51,25 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
-from lib import collab_data, copy, countries, links, selection, state
+from lib import charts_compare as X
+from lib import collab_data, copy, countries, links, profile_data, selection, state
 from lib import palette as P
 from lib.app_config import CFG
-from lib.data_cache import manifest
+from lib.compare_data import DYNAMICS_W1, DYNAMICS_W2
 from lib.palette import NA_MARK
 from lib.search import search
-from lib.views_find import SEP, _bundle, _hit_label, _sidebar_scenario, _subs
+from lib.views_find import BONUS_STAR, SEP, _bundle, _hit_label, _sidebar_scenario, _subs
+
+# The en dash between the two ends of a window label ("2020-2025" rendered with
+# a real dash). The YEARS themselves are never typed here: they come from
+# `collab_data.PULSE_YEARS`, `lib.compare_data`'s dynamics windows and CFG.
+DASH = "\N{EN DASH}"
+
+# A pulse difference smaller than this reads as "the same annual rate" rather
+# than as a direction: the two windows are 3 and 2 years long, so a few papers
+# of noise on a small pair would otherwise be rendered as a trend. Stated on the
+# page through `COLLAB["PULSE_TREND_NOTE"]`, never typed into a caption.
+TREND_BAND = 0.10
 
 # The breadth floor (manager fix on K's `breadth_jaccard`, Wind Tunnel 2B E5): a
 # topic counts towards an institution's footprint once it carries at least this
@@ -110,6 +134,27 @@ def _breadth(a: str, b: str, tree: str, basis: str) -> dict:
                                        min_full=BREADTH_MIN_FULL)
 
 
+# --- 2B-R-10: the three pair frames. `pulse` needs no substrate (it reads one
+# row of `collab_pairs` plus the index), so it is keyed on the pair alone and
+# survives a tree/basis flip; the other two are tree/basis-aware.
+
+@st.cache_data(show_spinner=False, max_entries=48)
+def _pulse_frame(a: str, b: str) -> dict | None:
+    return collab_data.pulse(_bundle()["ctx"], a, b)
+
+
+@st.cache_data(show_spinner=False, max_entries=24)
+def _joint_frame(a: str, b: str, tree: str, basis: str) -> dict | None:
+    """`None` means BELOW THE TOPIC FLOOR (or never co-published) -- the page
+    renders the honest notice rather than an empty table (2B-R-10)."""
+    return collab_data.joint_profile(_bundle()["ctx"], _subs(tree, basis), a, b)
+
+
+@st.cache_data(show_spinner=False, max_entries=24)
+def _untapped_frame(a: str, b: str, tree: str, basis: str) -> dict:
+    return collab_data.untapped(_bundle()["ctx"], _subs(tree, basis), a, b)
+
+
 # --------------------------------------------------------- formatting -------
 
 def _pct(value) -> str:
@@ -146,6 +191,70 @@ def _name(ctx: dict, iid: str) -> str:
     return str(ctx["index_by_id"].loc[iid, "display_name"])
 
 
+def _window(years) -> str:
+    """"first{dash}last" for a window handed in as a (start, end) pair or as a
+    list of years. The years come from `collab_data.PULSE_YEARS` and
+    `lib.compare_data`'s dynamics constants, so no window is ever typed here."""
+    ys = list(years)
+    return f"{ys[0]}{DASH}{ys[-1]}"
+
+
+def _window_mean(yearly: pd.DataFrame, window) -> float:
+    """Mean annual joint volume over an inclusive (start, end) year window,
+    read off the pulse frame the chart itself draws."""
+    by_year = dict(zip(yearly["year"], yearly["copubs"]))
+    years = range(window[0], window[1] + 1)
+    return float(sum(float(by_year.get(y, 0.0)) for y in years) / len(list(years)))
+
+
+def _trend_line(yearly: pd.DataFrame) -> str:
+    """The one plain-language pulse sentence (2B-R-10). It is a DATA question,
+    answered by comparing the two dynamics windows the rest of the tool already
+    uses (`compare_data.DYNAMICS_W1`/`W2`, 2020-2022 against 2023-2024, partial
+    year excluded), and phrased in neutral vocabulary: a direction and a size,
+    never a judgement about the relationship."""
+    w1 = _window_mean(yearly, DYNAMICS_W1)
+    w2 = _window_mean(yearly, DYNAMICS_W2)
+    words = {"w1": _window(DYNAMICS_W1), "w2": _window(DYNAMICS_W2)}
+    if not w1 > 0:
+        return copy.COLLAB["PULSE_TREND_NA"].format(**words)
+    change = (w2 - w1) / w1
+    if abs(change) < TREND_BAND:
+        key = "PULSE_TREND_FLAT"
+    else:
+        key = "PULSE_TREND_UP" if change > 0 else "PULSE_TREND_DOWN"
+    return copy.COLLAB[key].format(pct=_pct(abs(change)), **words)
+
+
+def _slots(ctx: dict, ids: list[str]) -> dict:
+    """`{institution_id: slot}` by ascending `inst_key` (A8), the same
+    assignment `_swatches` and the Compare page use, so the legend chip and the
+    identity dot of an institution are the same colour on both pages."""
+    return P.institution_slots({iid: ctx["index_by_id"].loc[iid, "inst_key"] for iid in ids})
+
+
+def _frontier_flags(ctx: dict) -> dict:
+    """topic_id -> `top25pct_frontier`, a LOOKUP on the dimension table the
+    engine context already holds (`shared_topics` joins the same column for its
+    own frontier glyph). Nothing is computed: `collab_pair_topics` simply does
+    not carry the flag, and the joint-topic table needs it."""
+    dim = ctx["topics_dim_df"]
+    return dict(zip(dim["topic_id"], dim["top25pct_frontier"]))
+
+
+def _erc_panel_label(ctx: dict, panel_code) -> str:
+    """The ERC panel's readable name for the code `collab_pair_topics` carries
+    (`erc_top_panel`, e.g. the physical-sciences engineering panel), read off
+    the same `resources/erc_panels.csv` the profile's own ERC table joins."""
+    if panel_code is None or (not isinstance(panel_code, str) and pd.isna(panel_code)):
+        return NA_MARK
+    panels = profile_data._erc_panels(ctx)
+    hit = panels[panels["panel_code"].astype(str) == str(panel_code)]
+    if hit.empty:
+        return str(panel_code)
+    return f"{panel_code} {SEP} {hit.iloc[0]['panel_label']}"
+
+
 # ------------------------------------------------------------- sidebar ------
 
 def _sidebar_basket(bundle: dict) -> None:
@@ -177,18 +286,15 @@ def _sidebar_basket(bundle: dict) -> None:
 
 def _header(bundle: dict) -> None:
     """Title and lead from `copy.NAV` (2B-10's editorial labels), the standing
-    verdict line, and the same snapshot stamp the Find page prints, read from
-    the deployed manifest (BUILD_PLAN_2A.md L11)."""
+    verdict line, and the index-size caption. The snapshot STRING is gone
+    app-wide (2B-R-12, stream FA): `FIND["SNAPSHOT_CAPTION"]` now carries the
+    institution count alone, and the date lives on the menu page."""
     st.title(copy.NAV["COLLAB_LABEL"])
     st.subheader(copy.NAV["COLLAB_LEAD"])
-    st.caption(copy.COLLAB["PAGE_INTRO"])
+    st.caption(copy.COLLAB["PAGE_INTRO_PAIR"])
     st.markdown(f"**{copy.VERDICT_LINE}**")
-    mf = manifest()
-    stamp = (mf.get("generated_at") or mf.get("source_manifest_generated_at")
-             or mf.get("deployed_at") or NA_MARK)
     st.caption(copy.FIND["SNAPSHOT_CAPTION"].format(
-        snapshot=mf.get("snapshot") or CFG["snapshot"], generated_at=stamp,
-        n_institutions=f"{len(bundle['index_df']):,}", sep=SEP))
+        n_institutions=f"{len(bundle['index_df']):,}"))
 
 
 def _extras() -> list[str]:
@@ -340,21 +446,29 @@ def _identity(col, ctx: dict, iid: str, colour: str | None) -> None:
 
 
 def _header_strip(bundle: dict, a: str, b: str) -> None:
-    """Both institutions side by side, then the ONE co-publication link (A7:
-    the comma-joined repeated `authorships.institutions.id` filter, which
-    OpenAlex ANDs; the `+` form is forbidden and `lib/links.py` never builds
-    it). No co-publication DATA is shipped -- the link is the whole answer."""
+    """Both institutions side by side: who they are, where they are, how big
+    they are. The three OpenAlex link-outs used to sit here; 2B-R-10 gives them
+    their own closing section (`_render_links`), because a reader reaches for
+    them after the four readings, not before."""
     ctx = bundle["ctx"]
     with st.container(key="collab_header", border=True):
         colours = _swatches(ctx, [a, b])
         cols = st.columns(2)
         _identity(cols[0], ctx, a, colours.get(a))
         _identity(cols[1], ctx, b, colours.get(b))
-        # The link-outs sit UNDER their own heading, all three together: the
-        # two per-institution works links and the co-publication one answer the
-        # same question ("where do I read these publications?"), so a heading
-        # printed after two of them would name only the third.
-        st.markdown(f"**{copy.COLLAB['LINKS_HEADER']}**")
+
+
+def _render_links(bundle: dict, a: str, b: str) -> None:
+    """Section four (2B-R-10): the two per-institution works links and the ONE
+    co-publication link (A7: the comma-joined repeated
+    `authorships.institutions.id` filter, which OpenAlex ANDs; the `+` form is
+    forbidden and `lib/links.py` never builds it). This section renders for
+    every pair, below-floor ones included -- it is the whole answer when the
+    topic detail cannot be shown."""
+    ctx = bundle["ctx"]
+    st.subheader(copy.COLLAB["LINKS_HEADER"])
+    st.caption(copy.COLLAB["LINKS_INTRO"])
+    with st.container(key="collab_links"):
         link_cols = st.columns(3)
         for col, iid in zip(link_cols, (a, b)):
             col.link_button(copy.COLLAB["LINK_PUBS"].format(name=_name(ctx, iid)),
@@ -487,13 +601,225 @@ def _render_breadth(a: str, b: str, scenario: dict) -> None:
     st.caption(copy.COLLAB["BREADTH_FLOOR"].format(min_pubs=BREADTH_MIN_FULL))
 
 
+# ------------------------------------------- 1. the relationship pulse ------
+
+def _render_pulse(bundle: dict, a: str, b: str) -> dict | None:
+    """Section one (2B-R-10): the pair's joint publications per year, each
+    side's joint share of its OWN output with both denominators named, the two
+    ranks in their two directions, and one plain-language line about the
+    movement. Returns the pulse frame so the sections below can reuse the joint
+    total rather than read the same row twice."""
+    ctx = bundle["ctx"]
+    st.subheader(copy.COLLAB["PULSE_HEADER"])
+    row = _pulse_frame(a, b)
+    if row is None:
+        st.info(copy.COLLAB["EMPTY_PULSE"].format(a=_name(ctx, a), b=_name(ctx, b)))
+        return None
+
+    names = {a: _name(ctx, a), b: _name(ctx, b)}
+    # The pulse bar belongs to NEITHER institution (a co-publication is the
+    # pair's), so the strip carries both identity chips AND the shared chip the
+    # bars are actually drawn in -- 2B-R-12's legend-above-every-chart rule.
+    with st.container(key="collab_legend"):
+        st.markdown(X.legend_strip([a, b], slots=_slots(ctx, [a, b]), names=names,
+                                   shared=True, shared_label=copy.COLLAB["LEGEND_JOINT"]),
+                    unsafe_allow_html=True)
+    st.plotly_chart(X.fig_pulse(row["yearly"], value_col="copubs",
+                                bonus_year=str(CFG["bonus_year"]),
+                                axis_title=copy.COLLAB["PULSE_AXIS"]),
+                    width="stretch", key="fig_pulse")
+    st.caption(copy.COLLAB["PULSE_CHART_CAPTION"].format(bonus_year=CFG["bonus_year"],
+                                                         star=BONUS_STAR))
+
+    cols = st.columns(3)
+    cols[0].metric(copy.COLLAB["PULSE_TOTAL_LABEL"], _count(row["copubs_total"]))
+    cols[1].metric(copy.COLLAB["PULSE_SHARE_LABEL"].format(name=names[a]), _pct(row["share_of_a"]))
+    cols[2].metric(copy.COLLAB["PULSE_SHARE_LABEL"].format(name=names[b]), _pct(row["share_of_b"]))
+    st.caption(copy.COLLAB["PULSE_SHARE_DENOM"].format(
+        window=_window(collab_data.PULSE_YEARS), name_a=names[a], name_b=names[b],
+        vol_a=_count(row["denominator_a"]), vol_b=_count(row["denominator_b"])))
+    # DIRECTION: `rank_in_a` is where B sits among A's OWN partners (verified
+    # against the shipped table: CNRS is Strasbourg's first partner, Strasbourg
+    # is CNRS's sixteenth), so it is rendered as B's rank, never as A's.
+    st.markdown(copy.COLLAB["PULSE_RANK_LINE"].format(
+        name_a=names[a], name_b=names[b],
+        rank_of_b=_count(row["rank_in_a"]), rank_of_a=_count(row["rank_in_b"])))
+    st.markdown(_trend_line(row["yearly"]))
+    st.caption(copy.COLLAB["PULSE_TREND_NOTE"].format(
+        w1=_window(DYNAMICS_W1), w2=_window(DYNAMICS_W2), band=_pct(TREND_BAND),
+        bonus_year=CFG["bonus_year"], star=BONUS_STAR))
+    return row
+
+
+# ----------------------------------------------- 2. the joint corpus --------
+
+JOINT_VALUE_ORDER = ["vol_total", "vol_w1", "vol_w2", "vol_2025", "sdg_tagged_n"]
+VOL_FORMAT = "%.1f"     # fractional volumes in the untapped table (see PCT_FORMAT's note)
+
+
+def _joint_value_config() -> dict:
+    """The five value columns every joint-corpus table shares, with the two
+    dynamics windows and the partial year named IN the header rather than in a
+    caption a reader has to hold in mind while scanning."""
+    return {
+        "vol_total": st.column_config.NumberColumn(copy.COLLAB["JOINT_COL_VOL"]),
+        "vol_w1": st.column_config.NumberColumn(
+            copy.COLLAB["JOINT_COL_W1"].format(w1=_window(DYNAMICS_W1))),
+        "vol_w2": st.column_config.NumberColumn(
+            copy.COLLAB["JOINT_COL_W2"].format(w2=_window(DYNAMICS_W2))),
+        "vol_2025": st.column_config.NumberColumn(
+            copy.COLLAB["JOINT_COL_BONUS"].format(bonus_year=CFG["bonus_year"], star=BONUS_STAR)),
+        "sdg_tagged_n": st.column_config.NumberColumn(copy.COLLAB["JOINT_COL_SDG"]),
+    }
+
+
+def _render_joint(bundle: dict, a: str, b: str, scenario: dict, pulse_row: dict | None) -> None:
+    """Section two (2B-R-10): what the pair's shared publications are about.
+
+    BELOW THE FLOOR the section renders the honest notice and nothing else --
+    no empty table, no zero. The joint total is already on screen above and the
+    link-outs are still below, which is exactly what the notice promises."""
+    ctx = bundle["ctx"]
+    st.subheader(copy.COLLAB["JOINT_HEADER"])
+    prof = _joint_frame(a, b, scenario["tree"], scenario["basis"])
+    if prof is None:
+        n_copubs = pulse_row["copubs_total"] if pulse_row else 0
+        st.info(copy.COLLAB["TOPIC_BELOW_FLOOR_NOTICE"].format(
+            n_copubs=_count(n_copubs), floor=collab_data.PAIR_TOPICS_FLOOR))
+        return
+
+    meta = prof["meta"]
+    st.caption(copy.COLLAB["JOINT_INTRO"].format(cap=meta["top_n_cap"], floor=meta["floor"]))
+    value_config = _joint_value_config()
+
+    st.markdown(f"**{copy.COLLAB['JOINT_FIELDS_HEADER']}**")
+    st.dataframe(prof["fields"], hide_index=True, width="stretch", key="tbl_joint_fields",
+                 column_order=["field_name", *JOINT_VALUE_ORDER],
+                 column_config={"field_name": st.column_config.TextColumn(
+                     copy.COLLAB["JOINT_COL_FIELD"], width="medium"), **value_config})
+    st.caption(copy.COLLAB["JOINT_WINDOW_NOTE"].format(
+        w1=_window(DYNAMICS_W1), w2=_window(DYNAMICS_W2)))
+
+    with st.expander(copy.COLLAB["JOINT_SUBFIELDS_HEADER"]):
+        st.dataframe(prof["subfields"], hide_index=True, width="stretch", key="tbl_joint_subfields",
+                     column_order=["subfield_name", "field_name", *JOINT_VALUE_ORDER],
+                     column_config={
+                         "subfield_name": st.column_config.TextColumn(
+                             copy.COLLAB["JOINT_COL_SUBFIELD"], width="medium"),
+                         "field_name": st.column_config.TextColumn(copy.COLLAB["JOINT_COL_FIELD"]),
+                         **value_config})
+
+    topics = prof["topics"].copy()
+    flags = topics["topic_id"].map(_frontier_flags(ctx))
+    topics["frontier"] = flags.map(_frontier_glyph)
+    st.markdown(f"**{copy.COLLAB['JOINT_TOPICS_HEADER']}**")
+    st.dataframe(topics, hide_index=True, width="stretch", key="tbl_joint_topics",
+                 column_order=["topic_name", "subfield_name", *JOINT_VALUE_ORDER, "frontier"],
+                 column_config={
+                     "topic_name": st.column_config.TextColumn(copy.COLLAB["JOINT_COL_TOPIC"],
+                                                               width="medium"),
+                     "subfield_name": st.column_config.TextColumn(copy.COLLAB["JOINT_COL_SUBFIELD"]),
+                     "frontier": st.column_config.TextColumn(copy.COLLAB["JOINT_COL_FRONTIER"],
+                                                             help=copy.COLLAB["GAPS_FRONTIER_HELP"]),
+                     **value_config})
+
+    shown = float(pd.to_numeric(topics["vol_total"], errors="coerce").sum())
+    tagged = int(prof["sdg_tagged_total"])
+    st.markdown(copy.COLLAB["JOINT_SDG_LINE"].format(
+        n_tagged=_count(tagged), n_shown=_count(shown),
+        share=_pct(tagged / shown if shown > 0 else None)))
+    st.markdown(copy.COLLAB["JOINT_FRONTIER_LINE"].format(
+        n_frontier=_count(int(flags.eq(True).sum()))))
+
+    # ERC: the panel share is read of the LABELLED works only (2BR A9); the
+    # caption names what fraction of the joint corpus carries a label at all,
+    # so the two denominators are never confused for one another.
+    erc = prof["erc"]
+    labelled, panel_n = erc["labelled_n"], erc["panel_n"]
+    if labelled > 0:
+        st.markdown(copy.COLLAB["JOINT_ERC_LINE"].format(
+            panel=_erc_panel_label(ctx, erc["panel_idx"]), n_panel=_count(panel_n),
+            n_labelled=_count(labelled), share=_pct(panel_n / labelled)))
+        total = pulse_row["copubs_total"] if pulse_row else 0
+        st.caption(copy.COLLAB["JOINT_ERC_CAPTION"].format(
+            pct=_pct(labelled / total if total else None)))
+    else:
+        st.caption(copy.COLLAB["EMPTY_JOINT_ERC"])
+
+
+# ------------------------------------------- 3. untapped potential ----------
+
+def _render_untapped(bundle: dict, a: str, b: str, scenario: dict) -> None:
+    """Section three (2B-R-10): topics both institutions hold where the joint
+    output is below what the pair's OWN overall collaboration rate would
+    predict, the adjacent topics beside them, and the 2B tables (the two
+    directional gap lists, the weighted topic overlap, the breadth line) kept
+    underneath because they answer the same reader's question."""
+    ctx = bundle["ctx"]
+    name_a, name_b = _name(ctx, a), _name(ctx, b)
+    st.subheader(copy.COLLAB["UNTAPPED_HEADER"])
+    res = _untapped_frame(a, b, scenario["tree"], scenario["basis"])
+    topics = res["topics"]
+    if topics.empty:
+        st.info(copy.COLLAB["EMPTY_UNTAPPED"])
+    else:
+        st.dataframe(
+            topics, hide_index=True, width="stretch", key="tbl_untapped",
+            column_order=["topic_name", "subfield_name", "vol_a", "vol_b",
+                          "joint_observed", "joint_expected", "gap"],
+            column_config={
+                "topic_name": st.column_config.TextColumn(copy.COLLAB["UNTAPPED_COL_TOPIC"],
+                                                          width="medium"),
+                "subfield_name": st.column_config.TextColumn(copy.COLLAB["UNTAPPED_COL_SUBFIELD"]),
+                "vol_a": st.column_config.NumberColumn(
+                    copy.COLLAB["UNTAPPED_COL_VOL_SIDE"].format(name=name_a), format=VOL_FORMAT),
+                "vol_b": st.column_config.NumberColumn(
+                    copy.COLLAB["UNTAPPED_COL_VOL_SIDE"].format(name=name_b), format=VOL_FORMAT),
+                "joint_observed": st.column_config.NumberColumn(
+                    copy.COLLAB["UNTAPPED_COL_OBSERVED"], format=VOL_FORMAT),
+                "joint_expected": st.column_config.NumberColumn(
+                    copy.COLLAB["UNTAPPED_COL_EXPECTED"], format=VOL_FORMAT),
+                "gap": st.column_config.NumberColumn(copy.COLLAB["UNTAPPED_COL_GAP"],
+                                                     format=VOL_FORMAT)})
+        st.caption(copy.COLLAB["UNTAPPED_CAPTION"].format(k=_pct(res["k"])))
+        st.caption(copy.COLLAB["UNTAPPED_RATE_NOTE"].format(
+            window=_window(collab_data.PULSE_YEARS)))
+        _download(topics, label=copy.COLLAB["DOWNLOAD_UNTAPPED"],
+                  name=f"benchup_collab_untapped_{a}_{b}_{scenario['tree']}_{scenario['basis']}.csv",
+                  key="dl_untapped")
+
+    siblings = res["siblings"]
+    if not siblings.empty:
+        with st.expander(copy.COLLAB["SIBLINGS_HEADER"]):
+            st.caption(copy.COLLAB["SIBLINGS_CAPTION"].format(n=_count(len(siblings))))
+            st.dataframe(
+                siblings, hide_index=True, width="stretch", key="tbl_siblings",
+                column_order=["topic_name", "subfield_name", "vol_a", "vol_b"],
+                column_config={
+                    "topic_name": st.column_config.TextColumn(copy.COLLAB["SIBLINGS_COL_TOPIC"],
+                                                              width="medium"),
+                    "subfield_name": st.column_config.TextColumn(
+                        copy.COLLAB["SIBLINGS_COL_SUBFIELD"]),
+                    "vol_a": st.column_config.NumberColumn(
+                        copy.COLLAB["UNTAPPED_COL_VOL_SIDE"].format(name=name_a), format=VOL_FORMAT),
+                    "vol_b": st.column_config.NumberColumn(
+                        copy.COLLAB["UNTAPPED_COL_VOL_SIDE"].format(name=name_b), format=VOL_FORMAT)})
+
+    _render_gaps(bundle, a, b, scenario, key="gaps_a")
+    _render_gaps(bundle, b, a, scenario, key="gaps_b")
+    with st.expander(copy.COLLAB["SHARED_EXPANDER"]):
+        _render_shared(bundle, a, b, scenario)
+    _render_breadth(a, b, scenario)
+
+
 # -------------------------------------------------------------- render ------
 
 def render() -> None:
     """The whole Collaborate page. Computation order: sidebar scenario (so the
     tree/basis a reader carried from Find is read before anything is built) ->
-    header -> pair picker -> substrates (behind A10's spinner) -> the three
-    tables -> breadth."""
+    header -> pair picker -> substrates (behind A10's spinner) -> the four
+    sections of 2B-R-10, in the order a reader meets the partnership: how much,
+    about what, what is missing, where to read it."""
     bundle = _bundle()
     scenario = _sidebar_scenario()
     _sidebar_basket(bundle)
@@ -508,7 +834,7 @@ def render() -> None:
     with st.spinner(copy.COMPARE["SPINNER_SCENARIO"]):
         _subs(scenario["tree"], scenario["basis"])
     _header_strip(bundle, a, b)
-    _render_shared(bundle, a, b, scenario)
-    _render_gaps(bundle, a, b, scenario, key="gaps_a")
-    _render_gaps(bundle, b, a, scenario, key="gaps_b")
-    _render_breadth(a, b, scenario)
+    pulse_row = _render_pulse(bundle, a, b)
+    _render_joint(bundle, a, b, scenario, pulse_row)
+    _render_untapped(bundle, a, b, scenario)
+    _render_links(bundle, a, b)

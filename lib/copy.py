@@ -976,6 +976,121 @@ COLLAB = {
         "This pair shares {n_copubs} publications, under the floor of {floor} the topic-by-topic "
         "breakdown needs to stay readable. The total and a link to every shared publication on "
         "OpenAlex are shown below; the breakdown by topic, SDG and ERC panel is not."),
+
+    # ======================================================================
+    # 2B-R-10 / stream LP: the four-section Collaborate page. ADDITIVE only --
+    # every key above stays where it is, because the shared-topics table, the
+    # two gap tables and the breadth line are all still rendered, now inside
+    # the third section. Every placeholder is filled by lib/views_collab.py
+    # from the pair's own frames, CFG or a module constant: no number and no
+    # window is typed into a string here.
+    # ======================================================================
+    "PAGE_INTRO_PAIR": (
+        "Two institutions read as a partnership: how much they publish together and how that has "
+        "moved, what the joint corpus is about, where the two portfolios meet without the joint "
+        "publications having followed, and where to read every one of them."),
+
+    # ---- section one: the relationship pulse ------------------------------
+    "PULSE_HEADER": "The relationship, year by year",
+    "PULSE_AXIS": "Joint publications",
+    "LEGEND_JOINT": "signed by both",
+    "PULSE_CHART_CAPTION": (
+        "Publications signed by both institutions, counted in full, one bar per year. "
+        "{bonus_year}{star} is a partial year: the snapshot was taken inside it, so its bar is drawn "
+        "hollow and is not read against the full years beside it."),
+    "PULSE_TOTAL_LABEL": "Joint publications",
+    "PULSE_SHARE_LABEL": "Share of {name}",
+    "PULSE_SHARE_DENOM": (
+        "Each share divides the joint total by that institution's own full-counted output over the "
+        "same window, {window}: {name_a} published {vol_a} over it and {name_b} {vol_b}. A large "
+        "institution and a small one therefore read very differently on the same partnership."),
+    "PULSE_RANK_LINE": (
+        "**{name_b}** ranks number **{rank_of_b}** among {name_a}'s partners by joint volume; "
+        "**{name_a}** ranks number **{rank_of_a}** among {name_b}'s. The two ranks answer different "
+        "questions and are kept side by side rather than averaged."),
+    "PULSE_TREND_UP": "Joint output ran {pct} higher per year in {w2} than in {w1}.",
+    "PULSE_TREND_FLAT": "Joint output ran at much the same annual rate in {w2} as in {w1}.",
+    "PULSE_TREND_DOWN": "Joint output ran {pct} lower per year in {w2} than in {w1}.",
+    "PULSE_TREND_NA": "There is no joint output in {w1} to read the later years against.",
+    "PULSE_TREND_NOTE": (
+        "Mean annual joint publications over {w1} against {w2}, the same two windows the comparison "
+        "page reads dynamics on. The partial year {bonus_year}{star} is excluded from both, and a "
+        "difference smaller than {band} is reported as the same annual rate rather than as a "
+        "direction."),
+    "EMPTY_PULSE": (
+        "{a} and {b} have signed no publication together in this snapshot. The sections below still "
+        "read the two portfolios against each other."),
+
+    # ---- section two: the joint corpus ------------------------------------
+    "JOINT_HEADER": "What the two publish on together",
+    "JOINT_INTRO": (
+        "The joint corpus, read through the topic each shared work is primarily about, so a paper is "
+        "never counted into more than one row. Only the pair's {cap} most-published shared topics are "
+        "shipped, and only for pairs with at least {floor} shared works: the field and subfield "
+        "rollups below sum those topics alone and are lower bounds on the whole joint corpus."),
+    "JOINT_FIELDS_HEADER": "Fields of the joint corpus",
+    "JOINT_SUBFIELDS_HEADER": "The same corpus by subfield",
+    "JOINT_TOPICS_HEADER": "The most-published shared topics",
+    "JOINT_COL_FIELD": "Field",
+    "JOINT_COL_SUBFIELD": "Subfield",
+    "JOINT_COL_TOPIC": "Topic",
+    "JOINT_COL_VOL": "Joint publications",
+    "JOINT_COL_W1": "{w1}",
+    "JOINT_COL_W2": "{w2}",
+    "JOINT_COL_BONUS": "{bonus_year}{star}",
+    "JOINT_COL_SDG": "Tagged to a goal",
+    "JOINT_COL_FRONTIER": "Frontier",
+    "JOINT_WINDOW_NOTE": (
+        "The two window columns are {w1} and {w2}, the windows dynamics is read on everywhere else in "
+        "the tool; the starred column is the partial year and is not comparable with either."),
+    "JOINT_SDG_LINE": (
+        "{n_tagged} of the {n_shown} joint publications on the topics shown, {share}, carry at least "
+        "one sustainable development goal."),
+    "JOINT_FRONTIER_LINE": (
+        "{n_frontier} of the shared topics shown sit in the global top quartile of emergence, "
+        "flagged in the table above."),
+    "JOINT_ERC_LINE": (
+        "**{panel}** is the panel most of the pair's labelled joint work lands on: {n_panel} of "
+        "{n_labelled} labelled joint publications, {share}."),
+    "JOINT_ERC_CAPTION": (
+        "Panel shares are read of the {pct} of joint publications that carry an ERC label at all, "
+        "never of the joint total, and the panel is the one most often the highest-scoring for a "
+        "work rather than a funded grant."),
+    "EMPTY_JOINT_ERC": "No joint publication of this pair carries an ERC label.",
+
+    # ---- section three: untapped potential --------------------------------
+    "UNTAPPED_HEADER": "Where the two overlap without publishing together",
+    "UNTAPPED_CAPTION": (
+        "For every topic both institutions publish in, the expected joint volume is the pair's own "
+        "overall joint rate, {k}, applied to the smaller of the two institutions' volumes on that "
+        "topic; the gap is that expectation minus what the pair actually published there. Only "
+        "topics with a gap left over are listed, largest first."),
+    "UNTAPPED_RATE_NOTE": (
+        "The joint rate is the pair's joint total divided by the smaller institution's own output "
+        "over {window}, so it reads as: if the two collaborated on this topic at the rate they "
+        "collaborate overall, this is what would be there."),
+    "UNTAPPED_COL_TOPIC": "Topic",
+    "UNTAPPED_COL_SUBFIELD": "Subfield",
+    "UNTAPPED_COL_VOL_SIDE": "Held by {name}",
+    "UNTAPPED_COL_OBSERVED": "Published together",
+    "UNTAPPED_COL_EXPECTED": "Expected together",
+    "UNTAPPED_COL_GAP": "Gap",
+    "EMPTY_UNTAPPED": (
+        "Every topic the two share already carries as much joint output as the pair's overall rate "
+        "would predict."),
+    "SIBLINGS_HEADER": "Adjacent topics in the same subfields",
+    "SIBLINGS_CAPTION": (
+        "Other topics inside the subfields listed above, held by one institution or the other but "
+        "shared by neither: the nearest ground the partnership has not yet covered. {n} of them."),
+    "SIBLINGS_COL_TOPIC": "Topic",
+    "SIBLINGS_COL_SUBFIELD": "Subfield",
+    "SHARED_EXPANDER": "The full topic overlap, weighted by publications",
+    "DOWNLOAD_UNTAPPED": "Download the untapped topics (CSV)",
+
+    # ---- section four: the link-outs --------------------------------------
+    "LINKS_INTRO": (
+        "Every figure on this page is computed offline from the snapshot. These three links open the "
+        "same filters live on OpenAlex, where the publications themselves can be read."),
 }
 
 # --------------------------------------------------------- Methods page ----
