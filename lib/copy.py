@@ -965,6 +965,17 @@ COLLAB = {
     "DOWNLOAD_SHARED": "Download the shared topics (CSV)",
     "DOWNLOAD_GAPS": "Download this gap list (CSV)",
     "DEEPLINK_LABEL": "Link to this pair",
+
+    # 2B-R-10/MU: the below-floor honest notice, additive here for stream LP's
+    # own wave (BUILD_PLAN_2BR.md S3 LP row: "below-floor pair renders "
+    # topline + honest notice") to reuse rather than hand-type; methods.copub
+    # states the SAME floor rule in general terms, this is the per-pair
+    # render. {floor} and {n_copubs} are filled by the caller from the pair's
+    # own row, never typed in here.
+    "TOPIC_BELOW_FLOOR_NOTICE": (
+        "This pair shares {n_copubs} publications, under the floor of {floor} the topic-by-topic "
+        "breakdown needs to stay readable. The total and a link to every shared publication on "
+        "OpenAlex are shown below; the breakdown by topic, SDG and ERC panel is not."),
 }
 
 # --------------------------------------------------------- Methods page ----
@@ -987,6 +998,36 @@ def _lens_paragraphs() -> str:
     order = ["L0", "L1", "L3", "F1", "L2f", "L4", "L5", "L6", "C1", "L7"]
     return "\n\n".join(f"{LENS_NAMES[k]}. {LENS_INTRO[k]} {LENS_CAVEAT[k]}" for k in order)
 
+
+def _lens_concordance_table() -> str:
+    """2B-R-11a/2B-R-MU: one line per lens, the DISPLAY code a reader sees on
+    a tab, the lens's name, and the internal identifier the evidence column,
+    the CSV export and the rest of this note still use. Built from
+    `LENS_DISPLAY_CODE`/`LENS_DISPLAY_NAMES` (stream FC's own concordance key,
+    `progress/2BR_FC.md`) rather than a second hand-typed list, so the two
+    numberings cannot drift apart. Order follows tab order (defaults L0..L7,
+    then the two optional tabs C1->L8, L7->L9). A markdown TABLE (`|---|`)
+    would read fine but types a literal "--" into a copy.py string constant,
+    which the VOICE rule bans outright; a bold-code list reads just as
+    clearly in a rendered `st.markdown` expander and keeps the scan clean."""
+    order = ["L0", "L1", "L3", "F1", "L2f", "L4", "L5", "L6", "C1", "L7"]
+    lines = []
+    for internal in order:
+        name = LENS_DISPLAY_NAMES[internal].split(" · ", 1)[1]
+        lines.append(f"**{LENS_DISPLAY_CODE[internal]}** ({internal}): {name}")
+    return "\n\n".join(lines)
+
+
+# 2B-R-12 / stream MU: the impact-interval coverage sentence, hoisted to
+# module level so the Compare page can reuse the SAME wording next wave
+# rather than a second hand-typed caption (BUILD_PLAN_2BR.md S3 CP row,
+# "impact intervals with stated coverage"). `ci_coverage` and `n_bootstrap`
+# are plain facts (config.yaml methods_facts / source_manifest.json), never
+# typed in here; `tests/test_pages_methods.py` pins the coverage number
+# against the pipeline function it is actually read off.
+IMPACT_CI_CAPTION = (
+    "A {ci_coverage}% bootstrap interval, from {n_bootstrap} resamples of the cell's own "
+    "fractional citation mass, is shown beside every impact figure and never in place of it.")
 
 METHODS = {
     "publications": {
@@ -1016,6 +1057,57 @@ METHODS = {
             "truncated by the OpenAlex list endpoint are re-fetched one at a time, so that large "
             "collaborations keep their full author list and their fractional weights stay right."),
     },
+    "copub": {
+        "title": "How co-publication is counted",
+        "body": (
+            "A co-publication between two institutions is a work naming both of them directly, "
+            "counted in full: a single heavily co-authored paper still adds one to the pair's "
+            "total, the same way it adds one to each institution's own output under full "
+            "counting. Every pair of indexed institutions with at least one shared work is "
+            "counted, over the same combined set of harvested records every other figure in the "
+            "tool draws on. Each institution's rank among the other's collaborators, and the "
+            "other's rank among its own, are two different numbers, kept side by side rather "
+            "than averaged into one.\n\n"
+            "Below a pair's topic-level detail sits a floor: a breakdown by topic only means "
+            "something once a pair has enough shared output to support it. Pairs with at least "
+            "{collab_topic_floor} shared works get up to {collab_topic_cap} of their "
+            "most-published shared topics, ranked by joint volume and read off the work's own "
+            "primary topic rather than every topic it touches, so a single paper is never "
+            "counted into more than one row. A pair below that floor still shows its total and a "
+            "link to every shared publication; the topic-level breakdown is left out rather than "
+            "served too thin to read."),
+    },
+    "intl_company": {
+        "title": "International and company co-publication shares",
+        "body": (
+            "Two shares sit next to the size figures on every profile and comparison. The "
+            "international share is the part of an institution's output naming at least one "
+            "other direct co-authoring institution based in a different country. The company "
+            "share is the part naming at least one direct co-authoring institution, this one "
+            "included, typed as a company. Both are full counting shares of the institution's own "
+            "eligible works between {y0} and {y1}, the same window and the same denominator the "
+            "size figures use.\n\n"
+            "Country and type for an institution the index does not already carry come from a "
+            "direct pull against OpenAlex, covering {intl_company_n_ids} identifiers and "
+            "resolving {intl_company_pct_resolved} of them. An identifier OpenAlex itself cannot "
+            "resolve is recorded as unknown rather than guessed foreign or domestic, company or "
+            "not, and is counted as unknown rather than folded into either share as if it were "
+            "zero."),
+    },
+    "dynamics": {
+        "title": "Reading a change over time",
+        "body": (
+            "Dynamics compares two multi-year averages rather than one year against another: the "
+            "mean annual figure over {dynamics_window_1}, against the mean annual figure over "
+            "{dynamics_window_2}, shown as a percentage change from the first to the second. "
+            "Averaging across each window absorbs the noise a single year would carry, and still "
+            "leaves two periods short enough to read as before and after.\n\n"
+            "{bonus_year} sits outside both windows and plays no part in the comparison, for the "
+            "same reason it is left out of every impact figure: a year this recent has not "
+            "settled into a stable count yet. Where the earlier window is empty for an "
+            "institution, no percentage is shown, because a change measured against zero has no "
+            "reading."),
+    },
     "taxonomy": {
         "title": "The subject taxonomy and its three versions",
         "body": (
@@ -1043,6 +1135,19 @@ METHODS = {
             "overview, the evidence column and the downloads. {n_lenses} lenses are shown by "
             "default and two more are one click away.\n\n" + _lens_paragraphs()),
     },
+    "lens_codes": {
+        "title": "Reading the lens codes",
+        "body": (
+            "Every lens above is shown under a short code on its own tab, chosen to read left to "
+            "right in the order the tabs appear rather than the order the lenses were built in. "
+            "The table below gives each code, the lens it stands for, and the internal identifier "
+            "still used in the evidence column, the CSV export and the rest of this note.\n\n"
+            + _lens_concordance_table() +
+            "\n\nThe ★ Aspirational tab, last in the row, sits outside this table: it carries no "
+            "code of its own, because it is not a similarity lens and does not ask which "
+            "institutions resemble this one. Its own question and its two modes are set out in "
+            "the aspirational view section below."),
+    },
     "concordance": {
         "title": "Concordance",
         "body": (
@@ -1066,10 +1171,15 @@ METHODS = {
             "of rows for a narrow small one; both are readable results rather than failures.\n\n"
             "{n_definitions} definitions of the word were generated for {n_seeds} institutions and "
             "graded by two independent judges reading the lists without knowing what was expected of "
-            "them. The definition shipped here scored highest, with the cleanest lists. A second "
-            "mode, ranking the same pool by shared presence in emerging topics, scored as well and "
-            "returned a full list for the institutions where this one empties: it is a candidate for "
-            "a later release, and it is not what the tool does today."),
+            "them. The definition shipped here scored highest, with the cleanest lists, and is shown "
+            "first whenever it has anything to show. When it is empty, the view falls back "
+            "automatically to the second-best definition, the same candidate pool ordered instead by "
+            "shared presence in the topics the world is currently expanding into, and says so on the "
+            "page rather than leaving the tab blank.\n\n"
+            "The tab sits apart from the similarity lenses above it, marked with its own star: it "
+            "does not ask which institutions resemble this one, it asks which of the subfield lens's "
+            "own candidates this institution could plausibly grow into, a different question "
+            "answered from thinner evidence."),
     },
     "specialisation": {
         "title": "Specialisation, and the floors it is displayed at",
@@ -1098,10 +1208,9 @@ METHODS = {
             "The denominator is the institution's own fractional mass of articles and reviews "
             "between {y0} and {y1}. {bonus_year} is harvested and reported for volumes, and left "
             "out of every impact figure, because a recent year has not had time to accumulate the "
-            "citations the threshold is built on. Every figure carries an interval from "
-            "{n_bootstrap} resamples and is rendered with it, never as a point estimate alone: for "
-            "a small institution that interval is wide enough to change the reading, and two "
-            "institutions whose intervals overlap are not separated by the data.\n\n"
+            "citations the threshold is built on. " + IMPACT_CI_CAPTION + " For a small "
+            "institution that interval is wide enough to change the reading, and two institutions "
+            "whose intervals overlap are not separated by the data.\n\n"
             "Per-subfield cells need a minimum mass before an interval means anything. A cell below "
             "the floor in force is shown as unavailable rather than as a low value, and lowering "
             "the floor brings more cells in at the cost of wider intervals on all of them."),
@@ -1147,7 +1256,12 @@ METHODS = {
             "goals, and different classifiers disagree substantially on the same corpus: the "
             "figures here support a comparison made inside the tool, and they should not be set "
             "against another provider's SDG numbers. Publications with no abstract are not run "
-            "through the classifier at all, which the coverage view makes visible per institution."),
+            "through the classifier at all, which the coverage view makes visible per institution.\n\n"
+            "SDG mass and the size figures use different windows: the six-year snapshot from {y0} "
+            "to {bonus_year} for SDG, the {y0} to {y1} window everywhere else in the tool that "
+            "counts volumes. Adding up the SDG figures over the shorter window recovers only part "
+            "of the six-year total, not all of it, so the two are never meant to be summed "
+            "together."),
     },
     "grey": {
         "title": "Grey accounting: what happened to every publication",
@@ -1169,9 +1283,9 @@ METHODS = {
             "OpenAlex assigns each institution a type, and some assignments do not match what the "
             "institution is: a public research organisation filed as a facility, a business school "
             "filed as a company. {n_overrides} corrections have been reviewed one by one against "
-            "the institution's own record and applied. {n_gated} further cases were examined and "
-            "left as they are, because the institution genuinely sits between two categories, a "
-            "hospital and a university department among them.\n\n"
+            "the institution's own record and applied; {n_gated} cases sit unresolved at the "
+            "moment this page was built, held back where a single source could not settle the "
+            "call rather than corrected on a guess.\n\n"
             "A correction changes the label and what the type filter does, never a rank and never "
             "whether an institution is in the index; the original type is kept and shown on the "
             "badge. The list is one an operator is expected to keep extending, and its coverage of "
@@ -1253,6 +1367,13 @@ METHODS_SOURCES = {
     "floor_recent": "index population rule, per-recent-year floor (docs/data_contract.yaml, index grain)",
     "snapshot": "MANIFEST.json snapshot, falling back to CFG snapshot",
     "n_unfound": "count of external peers reached by no lens, indicator spec section eight, recall ceiling",
+    "collab_topic_floor": "measured live: smallest copubs_total among pairs shipped in collab_pair_topics.parquet",
+    "collab_topic_cap": "measured live: largest number of topic rows shipped for any one pair in collab_pair_topics.parquet",
+    "intl_company_n_ids": "config.yaml methods_facts.intl_company_n_ids (the institution-metadata pipeline pull, outside the app repo)",
+    "intl_company_pct_resolved": "config.yaml methods_facts.intl_company_pct_resolved, formatted as a percent",
+    "dynamics_window_1": "docs/data_contract.yaml window_conventions block, the earlier dynamics window, verbatim",
+    "dynamics_window_2": "docs/data_contract.yaml window_conventions block, the later dynamics window, verbatim",
+    "ci_coverage": "config.yaml methods_facts.impact_ci_coverage_pct (the pipeline bootstrap alpha, outside the app repo)",
 }
 
 # ------------------------------------------------ Methods page chrome (2B, manager) --

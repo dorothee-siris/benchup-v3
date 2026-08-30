@@ -142,3 +142,119 @@ def test_menu_find_card_is_live():
     links = at.get("page_link")
     assert len(links) >= 1, "the Find card should be a live st.page_link"
     assert any("Find" in (lk.label or "") for lk in links), [lk.label for lk in links]
+
+
+# ---------------------------------------------------------- 2BR / stream MU --
+
+def test_lens_concordance_covers_all_ten_lenses_both_ways():
+    """copy._lens_concordance_table() must name every display code AND every
+    internal id exactly once each, built from FC's own LENS_DISPLAY_CODE/
+    LENS_DISPLAY_NAMES rather than a second hand-typed list that could drift."""
+    table = copy._lens_concordance_table()
+    for internal, display in copy.LENS_DISPLAY_CODE.items():
+        assert f"**{display}**" in table, (internal, display, table)
+        assert f"({internal})" in table, (internal, table)
+
+
+def test_collab_topic_floor_and_cap_are_measured_off_the_shipped_tables():
+    """2BR P2/WT A2: collab_pair_topics.parquet ships floor>=3 co-publications
+    + top-20 topics per pair. These are MEASURED here off the actual shipped
+    parquet files (lib.views_methods._collab_pair_topic_facts), not a config
+    literal, so a future artefact refresh that recalibrates the floor/cap
+    fails this test loudly rather than drifting silently from the copy."""
+    from lib.palette import NA_MARK
+    from lib.views_methods import _collab_pair_topic_facts
+
+    facts = _collab_pair_topic_facts()
+    assert facts["collab_topic_floor"] != NA_MARK, "collab_pairs/collab_pair_topics not found under app/data"
+    assert facts["collab_topic_floor"] == 3, facts
+    assert facts["collab_topic_cap"] == 20, facts
+
+
+def test_dynamics_windows_come_from_the_contract_verbatim():
+    """2B-R-6/A7: the two Dynamics windows the Methods page states must be the
+    EXACT strings PC's own window_conventions block in data_contract.yaml
+    carries, never retyped, so the two can never silently diverge."""
+    import yaml
+
+    from lib.views_methods import CONTRACT_PATH, _window_conventions
+
+    contract = yaml.safe_load(CONTRACT_PATH.read_text(encoding="utf-8"))
+    wc = contract["window_conventions"]
+    got = _window_conventions()
+    assert got["dynamics_window_1"] == wc["dynamics_window_1"]
+    assert got["dynamics_window_2"] == wc["dynamics_window_2"]
+
+
+def test_n_gated_is_zero_every_previously_gated_case_is_now_applied():
+    """2BR MU: docs/data_contract.yaml's own type_overrides.n_ids grain note
+    states "0 gated rows remain from any round". Both GATE .md files (R1's
+    4 ids, R2's 7) are historical records only, predating the rulings that
+    resolved them (contract `stale_reference_note`) -- verified live here by
+    checking type_overrides.csv itself carries all 11 of those ids, rather
+    than trusting either stale file's own "none applied" line."""
+    import pandas as pd
+
+    from lib.app_config import CFG
+
+    df = pd.read_csv(APP_DIR / "data" / "overrides" / "type_overrides.csv")
+    ids = set(df["institution_id"])
+    r1_gate_ids = {"I4210119716", "I4210138806", "I205703379", "I4210153845"}  # NLDA, MAL, IMT, FUNIBER
+    r2_gate_ids = {"I4210155236", "I148297040", "I87653560",                   # CNR, TNO, VTT
+                   "I4210127591", "I2801533059", "I4210129183", "I4210115305"}  # DZHK, DZNE, DZL, DZIF
+    missing = (r1_gate_ids | r2_gate_ids) - ids
+    assert not missing, f"previously-gated id(s) not found in type_overrides.csv: {missing}"
+    assert CFG["methods_facts"]["n_gated"] == 0, CFG["methods_facts"]["n_gated"]
+
+
+def test_impact_ci_coverage_matches_the_pipeline_bootstrap_alpha():
+    """2B-R-12: the impact-interval coverage stated in copy.IMPACT_CI_CAPTION
+    (and reused by config.yaml methods_facts.impact_ci_coverage_pct) must
+    match the ACTUAL pipeline constant it is read off --
+    pipeline/agg/impact.py's poisson_bootstrap_ci_vectorized default alpha,
+    which pipeline/ (outside the app/ repo) never overrides at any call site.
+    This is the closest a test inside app/ can get to re-deriving
+    METHODS_FAISCEAU.md's own bootstrap-CI point from the real implementation
+    rather than trusting a typed-in number."""
+    import re as _re
+
+    from lib.app_config import CFG
+
+    pipeline_dir = APP_DIR.parent / "pipeline"
+    impact_py = (pipeline_dir / "agg" / "impact.py").read_text(encoding="utf-8")
+    m = _re.search(
+        r"def poisson_bootstrap_ci_vectorized\(.*?alpha:\s*float\s*=\s*([\d.]+)",
+        impact_py, _re.S,
+    )
+    assert m, "could not find poisson_bootstrap_ci_vectorized's alpha default in pipeline/agg/impact.py"
+    alpha = float(m.group(1))
+    derived_coverage = round(100 * (1 - alpha))
+
+    configured = CFG.get("methods_facts", {}).get("impact_ci_coverage_pct")
+    assert configured == derived_coverage, (configured, derived_coverage)
+
+    # No known caller overrides alpha -- a future override would silently
+    # change the true coverage without this test noticing the number itself,
+    # so also check the call sites directly for an explicit alpha= override.
+    for rel in ("16_crosses.py", "09b_aggregate_eu.py", "agg/eu_enriched.py", "agg/impact_cells.py"):
+        text = (pipeline_dir / rel).read_text(encoding="utf-8")
+        assert "alpha=" not in text.replace(" ", ""), (
+            f"{rel} passes an explicit alpha=, coverage may no longer be {derived_coverage}%")
+
+    assert "bootstrap" in copy.IMPACT_CI_CAPTION.lower()
+    rendered = copy.IMPACT_CI_CAPTION.format(ci_coverage=configured, n_bootstrap=1000)
+    assert f"{configured}%" in rendered, rendered
+
+
+def test_below_floor_collaborate_notice_is_additive_and_digit_free():
+    """The below-floor honest notice LP reuses next wave (BUILD_PLAN_2BR.md S3
+    LP row) must exist now, carry both instance placeholders, and obey the
+    same digit-ban RULE as everything else in copy.py (checked generically by
+    test_narrative.py's own scan; pinned again here narrowly so this key
+    specifically cannot regress unnoticed before LP's wave reads it)."""
+    notice = copy.COLLAB["TOPIC_BELOW_FLOOR_NOTICE"]
+    assert "{n_copubs}" in notice and "{floor}" in notice
+    import re as _re
+
+    cleaned = _re.sub(r"\{[^{}]*\}", "", notice)
+    assert not _re.search(r"\d", cleaned), notice

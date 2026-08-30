@@ -58,12 +58,16 @@ corpus_types: [article, review, book, book-chapter, letter]  # harvest server-si
 openalex_filters: {has_doi: true}  # same harvest filter; L23
 
 basket_cap: 6  # BUILD_PLAN_2B.md decision 2B-8/2B-1 -- Compare is 2-6 institutions; additive key, Stream S (config.yaml otherwise unowned in 2B)
+compare_cap: 3  # BUILD_PLAN_2BR.md decision 2B-R-4/A13 -- Compare itself is capped at 3, hard; basket_cap (6) stays the shortlist cap, unchanged
 
 # Facts the Methods page states whose SOURCE lives outside this repo (manager, 2B, 2026-08-29):
 # each value is copied here with its provenance so the page never types a number (L10) and
 # never renders n/a for a known fact. Update when the source changes.
 methods_facts:
-  n_gated: 7                        # rows in V3/data/overrides/type_overrides_GATE_R2.md (GATE_2A_MEMO rev 3 §2 item 1)
+  n_gated: 0                        # CORRECTED 2026-08-30 (2BR, stream MU, self-corrected after a first pass wrongly read WT A5 as "4 still unresolved"): docs/data_contract.yaml's own type_overrides.n_ids grain note is explicit, "0 gated rows remain from any round". 2B-R-3 applied all 7 rows of type_overrides_GATE_R2.md (CNR, TNO, VTT, DZHK, DZNE, DZL, DZIF); the 4 rows of the OLDER type_overrides_GATE.md (NLDA, MAL, FUNIBER, IMT) were ALREADY resolved at gate rev 6 (2026-08-28, predating 2B-R), verified live in type_overrides.csv (decided_by "user ruling via manager, gate rev 6") -- WT A5's "the R1 gate's four still-gated ids STAY gated" means their gate-rev-6 resolution stands unchanged this round, not that they remain unapplied. Both GATE .md files are historical records only (contract stale_reference_note); type_overrides.csv is the one source of truth
   aspirational_seeds: 8             # V3/evals/aspirational_R2/results.json seed count
   aspirational_definitions: 6       # V3/evals/aspirational_R2/REPORT.md §1 (V0, A-size, A-impact+size, A-frontier, A-complement, A-combined)
   external_peers_unfound: 26        # INDICATOR_SPEC_v2.md §8 recall ceiling (N's source table, progress/2B_N.md §2)
+  intl_company_n_ids: 74899         # 2BR P1 (V3/pipeline/14_fetch_inst_meta.py): distinct authorship ids pulled from OpenAlex (missing from index/master), manager read-back of the run, BUILD_PLAN_2BR.md §7 P1 row; the interim output (data/interim/inst_meta_all.parquet) is not shipped to app/, so this count has no CFG/manifest home of its own
+  intl_company_pct_resolved: 99.81  # same P1 run: share of the pulled ids OpenAlex resolved to a country_code/type (coverage 99.83% of authorship instances, per-id resolution 99.81%, BUILD_PLAN_2BR.md §7 P1 row); the 1-2% unresolved are "resolved-unknown", counted, never treated as zero (WT A4)
+  impact_ci_coverage_pct: 95        # V3/pipeline/agg/impact.py::poisson_bootstrap_ci_vectorized, default alpha=0.05, NEVER overridden at any call site (grepped 2026-08-30 across 16_crosses.py, 09b_aggregate_eu.py, agg/eu_enriched.py -- all pass only n_reps/seed) -> two-sided percentile interval width 100*(1-alpha). pipeline/ sits outside the app/ repo (standalone principle), so this is a manager-verified fact, not live-computed; tests/test_pages_methods.py re-derives it from impact.py directly as a drift guard

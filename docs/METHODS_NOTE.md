@@ -45,6 +45,54 @@ OpenAlex list endpoints truncate `authorships` at 100 entries without saying so,
 returning exactly 100 authorships is re-fetched singly (about 9,325 EU27 works, the
 mega-collaborations); `DESIGN.md` §2.2, R1.1.
 
+## How co-publication is counted
+
+A co-publication is a work naming both institutions directly, counted in full: a single
+heavily co-authored paper still adds one to the pair's total (`app/docs/data_contract.yaml`,
+`collab_pairs.parquet`). Every pair of indexed institutions sharing at least one work is
+counted, over the exact corpus union the rest of the tool uses, `openalex_eu27_aug` UNION
+`openalex_supplement` per year, eu27_aug canonical on id overlap
+(`pipeline/agg/enriched_corpus.py::load_year_corpus`; `progress/2BR_P2.md`). Ranks are computed
+in both directions before any floor is applied: `rank_in_a` and `rank_in_b` are two different
+dense ranks over the same pair (`app/docs/data_contract.yaml`, `collab_pairs.parquet`).
+
+`collab_pairs.parquet` itself carries no floor: all 3,581,332 a<b pairs with at least one shared
+work ship (WT A1). The topic-level breakdown in `collab_pair_topics.parquet` needs a floor to
+stay meaningful: pairs with at least 3 co-published works get up to the top 20 shared topics by
+joint volume, read off each work's primary topic only, never every topic it touches, so one
+paper is never counted into more than one row (WT A2; `progress/2BR_P2.md`, the primary-topic
+fix that took the invariant from 97.8% violations to zero). 1,582,463 pairs clear the floor on
+the shipped snapshot; a pair below it keeps its total and a link to every shared publication, and
+loses the topic, SDG and ERC breakdown (`copy.COLLAB["TOPIC_BELOW_FLOOR_NOTICE"]`).
+
+## International and company co-publication shares
+
+The international share is the part of an institution's eligible works, 2020 to 2024 (the core
+window), naming at least one other direct co-authoring institution based in a different country.
+The company share is the part naming at least one direct co-authoring institution, the institution
+itself included, typed `company`. Both are full counting, denominator = the institution's own
+`total_full_2020_2024` (`app/docs/data_contract.yaml`, `index.intl_share`/`index.company_share`,
+verified equal to that column exactly on 6 of 6 spot-checked institutions including three
+GB/CH/NO/IS journey seeds).
+
+Type, for an institution not already carried by the index or the enriched master, comes from a
+direct OpenAlex pull: 74,899 identifiers, resolving 99.81% of them (coverage 99.83% of the
+authorship instances that needed one); the source is `index.type` (post gate-rev-6 corrections)
+for indexed institutions and OpenAlex's own raw type for the rest, pulled after the type
+corrections were applied so the two never disagree on an indexed id (`BUILD_PLAN_2BR.md` §0 A4/A5,
+§7 P1 row). The 1 to 2% of identifiers OpenAlex itself could not resolve are recorded as
+resolved-unknown and counted as such, never folded into either share as if they were zero (WT A4).
+
+## Reading a change over time
+
+Dynamics compares two multi-year averages rather than one year against another: the mean annual
+figure over 2020-2022 against the mean annual figure over 2023-2024, shown as a percentage change
+from the first to the second, 2025 excluded from both windows (`app/docs/data_contract.yaml`,
+`window_conventions.dynamics_window_1`/`dynamics_window_2`; 2B-R-6). Averaging across each window
+absorbs the noise a single year carries and still leaves two periods short enough to read as
+before and after. Where the earlier window is empty for an institution, no percentage is shown,
+because a change measured against zero has no reading.
+
 ## The subject taxonomy and its three versions
 
 Three trees ship: the original OpenAlex taxonomy, a conservative repair (955 corrections, about one
@@ -78,6 +126,29 @@ and noise grows with depth at very different rates per lens, from 19.4% non-educ
 L1's ranks 31 to 50 up to 51.0% for L7 (`INDICATOR_SPEC_v2.md` §1). The depth control stays one
 global setting, and that difference is disclosed rather than encoded (§9 ruling 10).
 
+## Reading the lens codes
+
+Refinement 2B-R renumbers the tab a reader sees, left to right in tab order, without touching the
+internal identifier the evidence column, the CSV export and the rest of this note still use
+(2B-R-11a; `copy.LENS_DISPLAY_CODE`/`copy.LENS_DISPLAY_NAMES`, `progress/2BR_FC.md`).
+
+| Tab code | Name | Internal id |
+|---|---|---|
+| L0 | Field overlap | L0 |
+| L1 | Subfield overlap | L1 |
+| L2 | Topic overlap | L3 |
+| L3 | Frontier-topic overlap | F1 |
+| L4 | Shared specialisations | L2f |
+| L5 | ERC panel overlap | L4 |
+| L6 | ERC specialisation overlap | L5 |
+| L7 | SDG profile overlap | L6 |
+| L8 | Core-shape overlap (optional) | C1 |
+| L9 | SDG specialisation, experimental (optional) | L7 |
+
+The ★ Aspirational tab, last in the row, carries no code of its own and sits outside this table:
+it is not a similarity lens, and does not ask which institutions resemble this one. Its own
+question and its two modes are in "The aspirational view" below.
+
 ## Concordance
 
 Concordance counts how many lenses place a candidate inside their own top-30
@@ -103,9 +174,16 @@ A-combined; A-frontier 2.50, A-size and A-impact+size 2.38, A-complement 1.50
 
 V0's two weak spots are structural: it empties for a seed at the top of its pool (ETH Zurich,
 Sorbonne on size) and thins to four rows for a narrow small seed (Burgos)
-(`evals/aspirational_R2/REPORT.md` §3.1). A-frontier is the judges' best variant whenever V0
-empties and for the RTO seed, and is carried as a candidate mode rather than shipped
-(`BUILD_PLAN_2B.md` 2B-12).
+(`evals/aspirational_R2/REPORT.md` §3.1).
+
+2B-R-3 ships the fix: mode B. When V0 is empty for a seed, the view falls back automatically to
+A-frontier, the same subfield-lens candidate pool reordered by shared presence in the topics the
+world is currently expanding into (ties keeping V0's own order), labelled "ordered by frontier
+alignment" rather than left blank (`BUILD_PLAN_2BR.md` §1 2B-R-3; `progress/2BR_FC.md`, wired as
+`engine.aspirational_frontier`, verified on the ETH Zurich seed). The tab itself is marked apart
+from the similarity lenses with its own star and no lens code (see "Reading the lens codes"
+above): it does not ask which institutions resemble this one, it asks which of the subfield
+lens's own candidates this institution could plausibly grow into.
 
 ## Specialisation, and the floors it is displayed at
 
@@ -134,10 +212,15 @@ The denominator is the institution's own fractional mass of articles and reviews
 denominators ship explicitly as `pp_denominator_frac` and `n_works_full`
 (`app/docs/data_contract.yaml`, `impact_cells`). 2025 is excluded (`app/config.yaml` `bonus_year`).
 
-Intervals come from 1,000 bootstrap resamples (`app/data/source_manifest.json` `bootstrap_reps`)
-and are always rendered with the point estimate; `pp_ci_low <= pp_top10_frac <= pp_ci_high` holds
-for all 7,557 index rows and all 328,978 impact cells (verified 2026-08-29,
-`app/docs/data_contract.yaml`).
+Intervals are a 95% bootstrap interval from 1,000 resamples (`app/data/source_manifest.json`
+`bootstrap_reps`; `app/config.yaml` `methods_facts.impact_ci_coverage_pct`, read off
+`pipeline/agg/impact.py::poisson_bootstrap_ci_vectorized`'s own default two-sided alpha of 0.05,
+never overridden at any call site) and are always rendered with the point estimate;
+`pp_ci_low <= pp_top10_frac <= pp_ci_high` holds for all 7,557 index rows and all 328,978 impact
+cells (verified 2026-08-29, `app/docs/data_contract.yaml`). This paragraph's own coverage
+sentence is the copy key `copy.IMPACT_CI_CAPTION`, kept as one template so the Compare page can
+show the same wording beside every interval from its own build wave onward, rather than a second
+hand-typed caption (2B-R-12).
 
 Per-subfield cells ship at two mass floors, 30 (default) and 10 (`app/config.yaml` `g6_floor`,
 `g6_impact_floor_alt`; `impact_cells.floor`). The floor 30 intersection across several institutions
@@ -197,6 +280,14 @@ SDGs, and different classifiers disagree substantially. Comparison with another 
 numbers is never invited (`DESIGN.md` §5, hard rule). SDG classification requires an abstract;
 title-only works go to grey (`DESIGN.md` §2.3, D12).
 
+SDG mass is measured on a different window from every volume figure elsewhere in the tool: the
+six-year snapshot, 2020 to 2025, including the bonus year, rather than the 2020 to 2024 core
+window (`app/docs/data_contract.yaml`, `window_conventions.sdg_mass_window`). Summing
+`sdg_year.parquet` down to 2020-2024 only recovers a median 84.96% of `sdg.parquet`'s own mass on
+the same cells, not all of it (verified 2026-08-30, `app/docs/data_contract.yaml`,
+`sdg_year.parquet`); the two windows are named on both sides of every SDG share and are never
+meant to be summed together.
+
 ## Grey accounting: what happened to every publication
 
 Six exclusive states, whose `mass_*` columns sum to `total_frac` exactly for all 7,557 institutions:
@@ -212,17 +303,26 @@ ruling at gate 2A (`BUILD_PLAN_2A.md` L25). SDG-untagged mass is reported as unk
 
 ## Corrected institution types
 
-34 type corrections ship (`app/data/MANIFEST.json` `type_overrides.n_rows`;
-`data/overrides/type_overrides.csv`): 16 from the gate rev 6 review (`INDICATOR_SPEC_v2.md` §5,
-ruling M5.8/H13, plus the four rows adjudicated on 2026-08-29) and 18 from the R2 scan (IFPEN,
-Ifremer, six Inria centres, ONERA, INERIS, CSTB, IRSN, Météo-France, Santé publique France to
-`government`; Ikerbasque, DLR e.V., SINTEF to `nonprofit`; IT Carlow to `education`), listed in
-`evals/type_scan_R2/TYPE_SCAN.md` and `GATE_2A_MEMO.md` §2 item 1.
+41 type corrections ship (`app/data/overrides/type_overrides.csv`, read live), and none is left
+unresolved. 16 come from the gate rev 6 review, including the Netherlands Defence Academy, the
+General Jonas Žemaitis Military Academy of Lithuania, Fundación Universitaria Iberoamericana and
+Institut Mines-Télécom, four cases a single source could not settle on first pass and which gate
+rev 6 itself resolved on 2026-08-28 (`INDICATOR_SPEC_v2.md` §5, ruling M5.8/H13). 18 more come
+from the R2 scan (IFPEN, Ifremer, six Inria centres, ONERA, INERIS, CSTB, IRSN, Météo-France,
+Santé publique France to `government`; Ikerbasque, DLR e.V., SINTEF to `nonprofit`; IT Carlow to
+`education`), listed in `evals/type_scan_R2/TYPE_SCAN.md` and `GATE_2A_MEMO.md` §2 item 1. The
+remaining 7 were applied this round by user ruling (2B-R-3, brainstorm Q3, 2026-08-30): CNR Italy,
+TNO and VTT to `government`, DZHK, DZNE, DZL and DZIF to `nonprofit`
+(`data/overrides/type_overrides.csv`, rows dated 2026-08-30).
 
-7 cases were adjudicated to a gate rather than applied (CNR Italy, TNO, VTT, DZHK, DZNE, DZL,
-DZIF): `data/overrides/type_overrides_GATE_R2.md`. 391 university hospitals matching the HEI name
-pattern were left as `healthcare` as a category rather than reviewed one by one
-(`evals/type_scan_R2/TYPE_SCAN.md`, method section).
+Two files describe cases that were once gated and record them as such today: `data/overrides/
+type_overrides_GATE.md` still reads "none applied" for the four gate-rev-6 cases above, and
+`data/overrides/type_overrides_GATE_R2.md` still reads "none applied" for the seven applied this
+round. Both lines predate the ruling that resolved them and are stale; `type_overrides.csv` and
+this note are the one source of truth for which institution carries a patched type
+(`app/docs/data_contract.yaml`, `type_overrides.stale_reference_note`). 391 university hospitals
+matching the HEI name pattern were left as `healthcare` as a category rather than reviewed one by
+one (`evals/type_scan_R2/TYPE_SCAN.md`, method section).
 
 An override changes the label and the type post-filter, never a rank and never inclusion;
 `type_openalex` is kept for audit and shown on the badge (`INDICATOR_SPEC_v2.md` §5). The regex
