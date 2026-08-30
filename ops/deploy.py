@@ -1,14 +1,21 @@
 """ops/deploy.py -- validates the source tables against docs/data_contract.yaml, then copies
 the contract's declared files into data/ (byte copies -- no re-serialization, so repeated runs
-are byte-identical) and writes data/MANIFEST.json. Exits non-zero on ANY contract violation;
-prints every table's verdict either way. Pattern adapted from the Lorraine Phase-2 Explorer's
-pipeline/60_deploy.py (see app/docs/VENDORED.md).
+are byte-identical) and writes data/MANIFEST.json. Exits non-zero on ANY contract violation --
+missing file, dtype/column mismatch, duplicate key, or a file >= SIZE_LIMIT_MB (95 MB, the
+GitHub 100 MB/file hard limit minus headroom, 2B-R-14) -- and prints a size-audit table (every
+declared file's size + the total) on every run, check-only or not. Prints every table's verdict
+either way. Pattern adapted from the Lorraine Phase-2 Explorer's pipeline/60_deploy.py (see
+app/docs/VENDORED.md).
 
-Source layout (config-driven over contract["files"], not hardcoded per table):
-  - the 8 *.parquet tables come from --source (default ../data/artefacts_eu, relative to app/)
-  - overrides/type_overrides.csv comes from V3/data/overrides/type_overrides.csv (the Annuaire-
-    pattern locked override list lives outside artefacts_eu, per BUILD_PLAN)
-  - overrides/umbrella_supplement.csv is authored in place at app/data/overrides/ (this stream) --
+Source layout is config-driven over contract["files"] (17 files as of contract v1.2, 2B-R:
+14 parquet tables + 3 override csv), not hardcoded per table:
+  - every parquet table (incl. the 2B-R additions sdg_fields/sdg_year/impact_fields/collab_pairs/
+    collab_pair_topics) comes from --source (default ../data/artefacts_eu, relative to app/) --
+    the generic fallback below, no per-table special-casing needed
+  - overrides/type_overrides.csv and overrides/pool_exclusions.csv (2B-R P4/R2-E) come from
+    V3/data/overrides/ (the Annuaire-pattern locked override lists live outside artefacts_eu,
+    per BUILD_PLAN)
+  - overrides/umbrella_supplement.csv is authored in place at app/data/overrides/ (2B stream) --
     its own location IS the deploy target, so deploy is a validate-in-place no-op copy for this
     one file.
 
@@ -31,6 +38,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from contract_check import check  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]  # app/
+SIZE_LIMIT_MB = 95  # 2B-R-14: GitHub's hard per-file limit is 100 MB; every declared file must
+                     # stay strictly under 95 MB (headroom), or deploy fails non-zero.
+SIZE_LIMIT_BYTES = SIZE_LIMIT_MB * 1024 * 1024
 
 
 def _sha256(path: Path) -> str:
@@ -46,6 +56,8 @@ def resolve_source(fname: str, source_dir: Path) -> Path:
     every other declared file (the 8 parquet tables) is source_dir/fname."""
     if fname == "overrides/type_overrides.csv":
         return ROOT.parent / "data" / "overrides" / "type_overrides.csv"
+    if fname == "overrides/pool_exclusions.csv":
+        return ROOT.parent / "data" / "overrides" / "pool_exclusions.csv"
     if fname == "overrides/umbrella_supplement.csv":
         return ROOT / "data" / "overrides" / "umbrella_supplement.csv"
     return source_dir / fname
@@ -73,6 +85,27 @@ def main() -> int:
 
     resolver = lambda fname: resolve_source(fname, source_dir)  # noqa: E731
     violations = check(source_dir, contract, resolve=resolver)
+
+    # size audit (2B-R-14) -- runs on every invocation, --check-only or not, since an oversized
+    # file must fail the check before anything is copied, not just at copy time.
+    size_rows: list[tuple[str, int]] = []
+    for fname in contract["files"]:
+        src = resolve_source(fname, source_dir)
+        size = src.stat().st_size if src.is_file() else 0
+        size_rows.append((fname, size))
+        if src.is_file() and size >= SIZE_LIMIT_BYTES:
+            violations.append(
+                f"{fname}: FILE SIZE {size:,} bytes ({size / (1024 * 1024):.2f} MB) "
+                f">= {SIZE_LIMIT_MB} MB hard limit"
+            )
+    total_bytes = sum(s for _, s in size_rows)
+    print(f"--- size audit ({SIZE_LIMIT_MB} MB/file limit, {len(size_rows)} declared files) ---")
+    for fname, size in size_rows:
+        mb = size / (1024 * 1024)
+        flag = "  !! OVER LIMIT" if size >= SIZE_LIMIT_BYTES else ""
+        print(f"  {fname:<40} {mb:>9.2f} MB{flag}")
+    print(f"  {'TOTAL':<40} {total_bytes / (1024 * 1024):>9.2f} MB")
+    print()
 
     # per-file verdict (same shape as contract_check's own CLI printout)
     by_file: dict[str, list[str]] = {fname: [] for fname in contract["files"]}
