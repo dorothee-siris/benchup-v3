@@ -97,9 +97,18 @@ def cut_rows_with_ties(items_sorted: list, key_of, n: int) -> list:
 
 # ------------------------------------------------------------- ranking ------
 
-def rank_map(scores: np.ndarray, self_idx: int, inst_ids: list) -> dict:
-    """Full 1-based rank of every OTHER institution -- gen_lists_recall verbatim."""
+def rank_map(scores: np.ndarray, self_idx: int, inst_ids: list,
+             excluded_positions: frozenset | None = None) -> dict:
+    """Full 1-based rank of every OTHER institution -- gen_lists_recall verbatim,
+    plus the A6/R2-E pool-exclusion chokepoint (2B-R): a position in
+    `excluded_positions` (`ctx["pool_excluded_positions"]`) is dropped from the
+    order BEFORE ranks are assigned, so a surviving institution's rank reads as
+    if the excluded one had never been in the population -- never off by the
+    excluded row's own place. `excluded_positions=None`/empty is a byte-for-byte
+    no-op (every pre-2B-R caller and golden fixture)."""
     order = L.top_k_excluding_self(scores, self_idx, len(inst_ids) - 1)
+    if excluded_positions:
+        order = [j for j in order if j not in excluded_positions]
     return {inst_ids[j]: rank + 1 for rank, j in enumerate(order)}
 
 
@@ -233,10 +242,22 @@ def build_c1_for_seed(idx: int, ctx: dict, l1_sub: dict):
 def rank_all(ctx: dict, subs: dict, seed_id: str, lenses=None) -> dict:
     """Full-population ranking per lens (self excluded, positive scores only,
     stable tie-break by population position). The per-lens branches, undefined
-    tests and reason strings are gen_lists_v2.process_seed's, verbatim."""
+    tests and reason strings are gen_lists_v2.process_seed's, verbatim.
+
+    A6/R2-E (2B-R): `ctx["pool_excluded_positions"]` (built once in
+    `load_context`, empty until the pipeline ships the `pool_excluded` column)
+    is read HERE, in the one shared `_emit` every lens branch below calls --
+    not per lens -- so a flagged institution (a funder surfacing as a
+    performer, or a duplicate row a canonical id already covers) can never
+    surface as a CANDIDATE in any lens's `sorted_ids`, in the concordance pool
+    `concordance()` builds from those `sorted_ids`, or in the aspirational pool
+    `aspirational()`/`aspirational_frontier()` cut from the L1 ranking's own
+    `sorted_ids` -- one filter, inherited downstream by construction, never a
+    second exclusion test written against any of those callers."""
     lenses = list(ALL_LENSES if lenses is None else lenses)
     idx = ctx["id_pos"][seed_id]
     inst_ids = ctx["inst_ids"]
+    excluded_positions = ctx.get("pool_excluded_positions") or frozenset()
     out = {}
 
     def _emit(name, scores, undef, reason, evidence=None):
@@ -247,10 +268,13 @@ def rank_all(ctx: dict, subs: dict, seed_id: str, lenses=None) -> dict:
                          "evidence": evidence or {}}
             return
         sorted_idx, sorted_scores = full_sorted_positive(scores, idx)
+        if excluded_positions:
+            keep = ~np.isin(sorted_idx, np.fromiter(excluded_positions, dtype=sorted_idx.dtype))
+            sorted_idx, sorted_scores = sorted_idx[keep], sorted_scores[keep]
         out[name] = {"lens": name, "seed_id": seed_id, "undefined": False, "reason": None,
                      "sorted_ids": [inst_ids[i] for i in sorted_idx],
                      "sorted_scores": sorted_scores, "sorted_idx": sorted_idx,
-                     "scores": scores, "rmap": rank_map(scores, idx, inst_ids),
+                     "scores": scores, "rmap": rank_map(scores, idx, inst_ids, excluded_positions),
                      "evidence": evidence or {}}
 
     if "L0" in lenses:
@@ -412,6 +436,52 @@ def aspirational(ctx: dict, l1_ranking: dict, pool: int = DEPTH) -> list[dict]:
         ev["pp_top10_frac"] = float(r["pp_top10_frac"])
         ev["pp_ci_low"] = float(r["pp_ci_low"])
         ev["pp_ci_high"] = float(r["pp_ci_high"])
+        rows.append(ev)
+    return rows
+
+
+def aspirational_frontier(ctx: dict, l1_ranking: dict, f1_ranking: dict | None,
+                          pool: int = DEPTH) -> list[dict]:
+    """A-frontier (2B-R-3 mode B), ported from `evals/aspirational_R2/REPORT.md`
+    S1: the SAME L1 top-`pool` (tie-inclusive) look-alike pool `aspirational()`
+    draws on, RE-RANKED by the F1 (frontier-topic overlap) score instead of
+    filtered by impact. Used as the aspirational view's fallback for a seed
+    whose V0 (`aspirational()`) returns no row -- ETH Zurich in the R2
+    campaign, a seed already near the impact ceiling of its own look-alike
+    pool -- never as a replacement for V0 where V0 has something to show
+    (REPORT.md S3.1: V0 holds up for ordinary universities).
+
+    Candidates absent from F1's positive-score ranking (F1 undefined, or the
+    candidate scored exactly zero) sort last, at an explicit zero rather than
+    being dropped -- the pool is the SAME pool, just reordered, so nobody who
+    qualified for L1 disappears here. `sorted()` is stable, so ties in the F1
+    score keep the pool's own L1-overlap order (`pool_ids` is already sorted by
+    it), matching the campaign generator's tie behaviour.
+
+    Because `pool_ids` is cut from `l1_ranking["sorted_ids"]`, which
+    `rank_all`'s shared `_emit` has already dropped every `pool_excluded`
+    position from, this pool inherits that exclusion for free (module
+    docstring): no separate filter is written here."""
+    index_by_id = ctx["index_by_id"]
+    pool_ids, _ = cut_with_ties(l1_ranking["sorted_ids"], l1_ranking["sorted_scores"], pool)
+
+    f1_by_id: dict = {}
+    if f1_ranking is not None and not f1_ranking["undefined"]:
+        f1_by_id = dict(zip(f1_ranking["sorted_ids"], (float(s) for s in f1_ranking["sorted_scores"])))
+
+    ordered = sorted(pool_ids, key=lambda cid: -f1_by_id.get(cid, 0.0))
+
+    rows = []
+    for rank, cid in enumerate(ordered, 1):
+        ev = base_evidence(cid, ctx)
+        ev["rank"] = rank
+        ev["lens"] = "aspirational_by_frontier"
+        ev["lens_score_L1_overlap"] = round(float(l1_ranking["scores"][ctx["id_pos"][cid]]), 6)
+        ev["lens_score_F1_overlap"] = round(f1_by_id.get(cid, 0.0), 6)
+        r = index_by_id.loc[cid]
+        ev["pp_top10_frac"] = None if pd.isna(r["pp_top10_frac"]) else float(r["pp_top10_frac"])
+        ev["pp_ci_low"] = None if pd.isna(r["pp_ci_low"]) else float(r["pp_ci_low"])
+        ev["pp_ci_high"] = None if pd.isna(r["pp_ci_high"]) else float(r["pp_ci_high"])
         rows.append(ev)
     return rows
 

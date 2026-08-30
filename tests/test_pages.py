@@ -124,9 +124,13 @@ def test_find_default_seed_renders_ten_tabs_no_c1_l7():
     labels = [t.label for t in at.tabs]
     assert len(at.tabs) >= 10, labels
     assert "Overview" in labels
-    assert "Aspirational" in labels
-    assert "C1" not in labels, "C1 must be OFF by default (BUILD_PLAN_2A.md L1)"
-    assert "L7" not in labels, "L7 must be OFF by default (BUILD_PLAN_2A.md L1)"
+    # 2B-R-11a/A11: the tab now carries the bare DISPLAY code, and the
+    # Aspirational tab carries its star.
+    assert copy.FIND["TAB_ASPIRATIONAL"] in labels, labels
+    assert copy.LENS_DISPLAY_CODE["C1"] not in labels, \
+        "C1 must be OFF by default (BUILD_PLAN_2A.md L1)"
+    assert copy.LENS_DISPLAY_CODE["L7"] not in labels, \
+        "L7 must be OFF by default (BUILD_PLAN_2A.md L1)"
 
 
 def test_find_c1_and_l7_toggles_add_two_tabs():
@@ -140,17 +144,18 @@ def test_find_c1_and_l7_toggles_add_two_tabs():
     assert not at.exception, [str(e) for e in at.exception]
     labels = [t.label for t in at.tabs]
     assert len(at.tabs) == 12, labels
-    # R2/L29: a tab is labelled with the lens's NAME; the code stays the
-    # identifier the Overview chips, the evidence column and the CSV use.
-    assert copy.LENS_NAMES["C1"] in labels and copy.LENS_NAMES["L7"] in labels, labels
+    # 2B-R-11a: a tab carries the bare DISPLAY code (C1 -> L8, L7 -> L9); the
+    # full name moved inside the tab body and the lens guide.
+    assert copy.LENS_DISPLAY_CODE["C1"] in labels and copy.LENS_DISPLAY_CODE["L7"] in labels, labels
 
 
 def test_undefined_lens_shows_template(undefined_l2f_seed):
     at = _find_app(seed_id=undefined_l2f_seed).run()
     assert not at.exception, [str(e) for e in at.exception]
     labels = [t.label for t in at.tabs]
-    assert copy.LENS_NAMES["L2f"] in labels, labels
-    tab = at.tabs[labels.index(copy.LENS_NAMES["L2f"])]
+    disp = copy.LENS_DISPLAY_CODE["L2f"]
+    assert disp in labels, labels
+    tab = at.tabs[labels.index(disp)]
     text = " ".join(x.value for x in (*tab.info, *tab.caption, *tab.markdown))
     fixed = _template_literal_segment(copy.UNDEFINED_LENS_TEMPLATE)
     assert fixed in text, text
@@ -178,7 +183,7 @@ def test_type_filter_empties_a_lens_list():
     at.run()
     assert not at.exception, [str(e) for e in at.exception]
     labels = [t.label for t in at.tabs]
-    tab = at.tabs[labels.index(copy.LENS_NAMES["L1"])]
+    tab = at.tabs[labels.index(copy.LENS_DISPLAY_CODE["L1"])]
     text = " ".join(x.value for x in tab.info)
     fixed = _template_literal_segment(copy.EMPTY_STATE_TEMPLATE)
     assert fixed in text, text
@@ -292,57 +297,85 @@ def test_find_sidebar_selectboxes_show_display_labels():
 
 
 def test_find_lens_tabs_carry_the_lens_names_and_the_guide_is_present():
-    """L29: every lens tab is labelled "L1 . Subfield overlap"-style, and the
-    "How to read the lenses" expander at the head of the Benchmark section
-    describes each SHOWN lens in one plain sentence."""
+    """2B-R-11a (A11): every lens TAB now carries only the bare DISPLAY code
+    (never the pre-2B-R full "L1 . Subfield overlap" name, and never the
+    OLD internal code where it differs from the display one -- e.g. the
+    internal "L3" topic lens must show as "L2", not "L3", on its tab); the
+    full name + one-line intro is the first thing INSIDE the tab body
+    instead (`_lens_intro`), and the "How to read the lenses" expander at the
+    head of the Benchmark section describes each SHOWN lens in one plain
+    sentence under its own new code."""
     at = _find_app(seed_id=STRASBOURG).run()
     assert not at.exception, [str(e) for e in at.exception]
     labels = [t.label for t in at.tabs]
     from lib.app_config import CFG
     shown = list(CFG["lenses"]["default"])
     for lens in shown:
-        assert copy.LENS_NAMES[lens] in labels, (lens, labels)
-        assert lens not in labels, (lens, labels)   # never the bare code
+        disp = copy.LENS_DISPLAY_CODE[lens]
+        assert disp in labels, (lens, disp, labels)
+        assert copy.LENS_NAMES[lens] not in labels, (lens, labels)   # never the old full name
+        tab = at.tabs[labels.index(disp)]
+        body_text = " ".join(x.value for x in tab.markdown)
+        assert copy.LENS_DISPLAY_NAMES[lens] in body_text, (lens, body_text)
+    # expander title carries the same `:red[...]` markdown-lite wrapper
+    # `_lens_guide` applies (A11's red title, the one colour a widget label
+    # can take on this pinned Streamlit build -- see that function's own
+    # docstring) around the plain header text.
     expander_labels = [e.label for e in at.expander]
-    assert copy.FIND["LENS_INTRO_HEADER"] in expander_labels, expander_labels
-    guide = at.expander[expander_labels.index(copy.FIND["LENS_INTRO_HEADER"])]
+    red_header = f":red[{copy.FIND['LENS_INTRO_HEADER']}]"
+    assert red_header in expander_labels, expander_labels
+    guide = at.expander[expander_labels.index(red_header)]
     text = " ".join(x.value for x in (*guide.markdown, *guide.caption))
     assert copy.FIND["LENS_INTRO_LEAD"] in text
     for lens in shown:
         assert copy.LENS_INTRO[lens] in text, lens
+        assert copy.LENS_DISPLAY_NAMES[lens] in text, lens
 
 
 def test_frontier_mode_swap_changes_the_plotted_point_count():
-    """L33: the segmented control swaps which frame `charts.fig_frontier`
-    receives. AppTest cannot read a Plotly trace, so the page's own caption
-    (which states the count SHOWN, from the data) is the proxy -- and the two
-    counts are recomputed from the engine frame here so the assertion is not
-    circular."""
-    from lib import profile_data
+    """2B-R-13 (FB handoff) rewrite of the L33 claim: the segmented control
+    still swaps which frame `fig_frontier`/`frontier_coverage` receive, but
+    catch-all topics are no longer pre-excluded (`is_excluded` dropped from
+    the "top" mode's mask) and ONE top-N slider (default
+    `views_find.FRONTIER_TOP_N`) now governs BOTH modes via
+    `charts.frontier_coverage`'s own mass-based cut -- so the two counts
+    compared here are `frontier_coverage(...)["n_shown"]` on the "top" base
+    (every placeable topic) vs the "emerging" base (placeable AND
+    top25pct_frontier), at the SAME default top_n, recomputed from the
+    engine frame so the assertion is not circular against the page itself."""
+    from lib import charts, profile_data
     from lib.engine import build_substrates, load_context
 
     ctx = load_context(APP_DIR / "data")
     subs = build_substrates(ctx, "bestfit", "frac")
     df = profile_data.topics_table(ctx, subs, STRASBOURG)
-    placeable = (df["frontier_score_latest"].notna() & df["expansion_latest"].notna()
-                 & df["acceleration_latest"].notna())
-    scored = placeable & ~df["is_excluded"].fillna(False)
-    n_top = int((scored & (df["rank_volume"] <= views_find.FRONTIER_TOP_N)).sum())
-    n_emerging = int((scored & df["top25pct_frontier"].fillna(False)).sum())
-    assert n_top != n_emerging, (n_top, n_emerging)
-    assert n_top <= views_find.FRONTIER_TOP_N, n_top
+    vol_col = views_find._vol_col("frac")
+    cov_top = charts.frontier_coverage(df, size_col=vol_col, top_n=views_find.FRONTIER_TOP_N)
+    cov_emerging = charts.frontier_coverage(df[df["top25pct_frontier"].fillna(False)],
+                                            size_col=vol_col, top_n=views_find.FRONTIER_TOP_N)
+    # Both modes are capped at the same default top_n, so `n_shown` alone can
+    # coincide (both saturate the cap) -- `n_placeable` (the universe BEFORE
+    # the cap: all of the seed's topics for "top", the top-quartile subset
+    # for "emerging") is what actually differs between the two modes here.
+    assert cov_top["n_placeable"] != cov_emerging["n_placeable"], (cov_top, cov_emerging)
+    assert cov_top["n_shown"] <= views_find.FRONTIER_TOP_N, cov_top
 
-    mode_top = copy.FIND["FRONTIER_MODE_TOP"].format(n=views_find.FRONTIER_TOP_N)
+    mode_top = copy.FIND["FRONTIER_MODE_TOP"]
     at = _find_app(seed_id=STRASBOURG).run()
     assert not at.exception, [str(e) for e in at.exception]
     controls = {c.key: c.value for c in at.segmented_control}
     assert controls.get("frontier_mode") == mode_top, controls
-    assert f"{n_top:,}" in " ".join(c.value for c in at.caption)
+    slider_key = f"frontier_topn_{mode_top}"
+    sliders = {s.key: s.value for s in at.slider}
+    assert sliders.get(slider_key) == views_find.FRONTIER_TOP_N, sliders
+    n_top_not_placeable = len(df) - cov_top["n_placeable"]
+    assert f"{n_top_not_placeable:,}" in " ".join(c.value for c in at.caption)
 
     at.session_state["frontier_mode"] = copy.FIND["FRONTIER_MODE_EMERGING"]
     at.run()
     assert not at.exception, [str(e) for e in at.exception]
-    assert f"{n_emerging:,}" in " ".join(c.value for c in at.caption)
+    n_emerging_not_placeable = int(df["top25pct_frontier"].fillna(False).sum()) - cov_emerging["n_placeable"]
+    assert f"{n_emerging_not_placeable:,}" in " ".join(c.value for c in at.caption)
 
 
 def test_top_subfields_panel_has_no_sort_control_and_cuts_at_thirty():
@@ -353,7 +386,10 @@ def test_top_subfields_panel_has_no_sort_control_and_cuts_at_thirty():
     assert not at.exception, [str(e) for e in at.exception]
     radio_keys = {r.key for r in at.radio}
     assert "sort_subfields" not in radio_keys, radio_keys
-    assert {"sort_fields", "sort_topics", "sort_erc"} <= radio_keys, radio_keys
+    # 2B-R-13 (FB handoff): the topics panel loses its sort control too --
+    # `fig_topics` is always volume-ordered now, so the toggle was dead UI.
+    assert "sort_topics" not in radio_keys, radio_keys
+    assert {"sort_fields", "sort_erc"} <= radio_keys, radio_keys
     assert views_find.SUBFIELDS_TOP_N == 30
     expected = copy.FIND["PANEL_SUBFIELDS"].format(n=views_find.SUBFIELDS_TOP_N)
     assert expected in [e.label for e in at.expander], [e.label for e in at.expander]

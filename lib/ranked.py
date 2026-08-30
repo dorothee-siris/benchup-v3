@@ -24,6 +24,8 @@ render functions own the Streamlit widget calls only.
 """
 from __future__ import annotations
 
+from urllib.parse import quote
+
 import pandas as pd
 import streamlit as st
 
@@ -37,10 +39,31 @@ NOT_IN_TOPN = "--"  # A/B #2 winner's matrix cell language is unused here (k-cou
                      # table won); kept only as the "candidate outside a lens's
                      # visible rank" mark inside the rank_under text below.
 
+# A10 (2B-R-11): "fragment" is the primary mode -- the institution NAME column
+# becomes the OpenAlex-works LinkColumn via the `#<name>` fragment trick, and
+# the old separate "OpenAlex works" link column is dropped. Flip to "fallback"
+# (never in normal operation; only if a live Playwright render check ever
+# shows the fragment trick failing on this Streamlit build) to keep the two
+# columns side by side instead, with the harmonised label the plan names.
+NAME_LINK_MODE = "fragment"
+WORKS_LINK_FALLBACK_LABEL = "See works ↗"
+
 # The OpenAlex works deep link carries the harvest's own filters (L23) and lives
 # in ONE place, lib/links.py (R-B). Manager edit 2026-08-29: the R-F2 import-time
 # fallback was dropped once lib/links.py landed (progress/R1_F2.md NEEDS_CHANGE).
 from lib.links import works_url as _works_link
+
+
+def works_link_named(iid: str, display_name: str) -> str:
+    """A10 (2B-R-11): the works URL plus a `#<urlencoded display name>`
+    fragment -- inert for OpenAlex (a fragment never reaches the server, so
+    the corpus counted is unchanged), read back by `LinkColumn`'s per-cell
+    `display_text=r"#(.*)$"` regex so the INSTITUTION NAME itself becomes the
+    clickable link (Wind Tunnel A10 refuted per-row `display_text`, which
+    Streamlit's `column_config.LinkColumn` does not support -- one fixed
+    string/regex for the whole column, applied against each row's OWN URL
+    value, is the supported mechanism)."""
+    return f"{_works_link(iid)}#{quote(display_name, safe='')}"
 
 
 def _fmt_size(value) -> str:
@@ -51,15 +74,21 @@ def _fmt_size(value) -> str:
 
 
 def _rank_under_text(row: dict) -> str:
-    """'L1 #4 - L3 #7' style secondary reference; '>50' beyond RANK_VISIBLE_MAX
-    (engine already caps at RANK_VISIBLE_MAX and returns None past it)."""
+    """'L1 #4 - L2 #7' style secondary reference; '>50' beyond RANK_VISIBLE_MAX
+    (engine already caps at RANK_VISIBLE_MAX and returns None past it).
+
+    2B-R-11a: `ref` is keyed by the INTERNAL lens id ("L1"/"L3" -- the engine's
+    `rank_under_l1_l3` is unchanged), but the label printed is the DISPLAY
+    code (`copy.LENS_DISPLAY_CODE`): "L1" stays "L1", "L3" (topic overlap)
+    prints as "L2" now that the eight defaults are renumbered in tab order."""
     ref = row.get("rank_under_other_lenses")
     if not ref:
         return NA_MARK
     parts = []
     for ln in ("L1", "L3"):
         r = ref.get(ln, {}).get("rank")
-        parts.append(f"{ln} #{r}" if r is not None else f"{ln} >{RANK_VISIBLE_MAX}")
+        disp = copy.LENS_DISPLAY_CODE.get(ln, ln)
+        parts.append(f"{disp} #{r}" if r is not None else f"{disp} >{RANK_VISIBLE_MAX}")
     return " · ".join(parts)
 
 
@@ -70,15 +99,22 @@ def format_rows(rows: list[dict], *, lens: str, depth: int) -> pd.DataFrame:
     R1/L22: no `badges` kwarg any more; two size columns (`size_full`,
     `size_frac`); `evidence` is whatever lens-specific text the caller set on
     `row["evidence_text"]` (R-B's `evidence.rows_evidence`, wired in by E2),
-    NA_MARK when absent or empty -- never a generic "top field" line."""
+    NA_MARK when absent or empty -- never a generic "top field" line.
+
+    2B-R-11 (A10): `institution` now carries the URL (`works_link_named`),
+    rendered as the OpenAlex-works LinkColumn -- the institution NAME is the
+    clickable text, and the old separate "OpenAlex works" column is gone
+    (`render_ranked_table`). `institution_name` is kept alongside, plain text,
+    for anything reading the name without going through the link (the tail
+    search's own display, a future non-link consumer)."""
     out = []
     for row in rows:
         iid = row["institution_id"]
         code = str(row["country_code"])
         out.append({
             "rank": row["rank"],
-            "institution": row["display_name"],
-            "institution_link": _works_link(iid),
+            "institution": works_link_named(iid, str(row["display_name"])),
+            "institution_name": row["display_name"],
             "country": countries.name(code),
             "country_code": code,
             "type": str(row["type"]),
@@ -107,12 +143,34 @@ def render_ranked_table(df: pd.DataFrame, *, key: str, score_form: str = "progre
     institution, hidden id/country_code, NO badge column (R1/L22). Returns
     the selected `institution_id`s (multi-row select) so the caller can offer
     "Add selected to basket" -- composition (calling `state.add`) stays with
-    Stream E."""
+    Stream E.
+
+    2B-R-11 (A10): the institution NAME is now the clickable OpenAlex-works
+    link. Wind Tunnel A10 refuted a per-row `display_text` (`LinkColumn`
+    takes one fixed string/regex for the WHOLE column, a Streamlit API limit,
+    not a per-row substitution) -- the fix `format_rows` already applied is a
+    `#<urlencoded name>` fragment on the URL itself (inert for OpenAlex) plus
+    `display_text=r"#(.*)$"`, which Streamlit applies PER CELL against each
+    row's OWN url value (the same mechanism the column_config docs' own
+    `streamlit.app` subdomain example demonstrates). `NAME_LINK_MODE` is the
+    kill switch this stream's own Playwright render check gates: "fragment"
+    (the normal path) makes `institution` itself the LinkColumn; "fallback"
+    keeps the institution name a plain TextColumn and re-adds a SEPARATE,
+    harmonised-label works-link column, pushed last."""
     assert score_form == "progress", "A/B #1 winner is ProgressColumn (docs/VIZ_SPEC.md S4)"
-    # LinkColumn's `display_text` is one fixed string/regex for the WHOLE column
-    # (Streamlit API), not a per-row substitution -- so the institution NAME
-    # stays a plain TextColumn and the deep link is its own "OpenAlex works"
-    # LinkColumn next to it, both visible in the same row.
+    if NAME_LINK_MODE == "fragment":
+        order = ["rank", "institution", "country", "type",
+                 "size_full", "size_frac", "score", "evidence", "rank_under"]
+        institution_cfg = st.column_config.LinkColumn(
+            copy.FIND["COL_INSTITUTION"], display_text=r"#(.*)$")
+    else:
+        # fallback (A10, if the render check ever needs it): institution name
+        # stays plain text, the works link is its own column, pushed last,
+        # under the harmonised label the plan names.
+        order = ["rank", "institution_name", "country", "type", "size_full", "size_frac",
+                 "score", "evidence", "rank_under", "institution"]
+        institution_cfg = st.column_config.LinkColumn(
+            WORKS_LINK_FALLBACK_LABEL, display_text=WORKS_LINK_FALLBACK_LABEL)
     event = st.dataframe(
         df,
         hide_index=True,
@@ -120,13 +178,11 @@ def render_ranked_table(df: pd.DataFrame, *, key: str, score_form: str = "progre
         on_select="rerun",
         selection_mode="multi-row",
         key=key,
-        column_order=["rank", "institution", "institution_link", "country", "type",
-                      "size_full", "size_frac", "score", "evidence", "rank_under"],
+        column_order=order,
         column_config={
             "rank": st.column_config.NumberColumn("Rank"),
-            "institution": st.column_config.TextColumn("Institution"),
-            "institution_link": st.column_config.LinkColumn(
-                "OpenAlex works", display_text="Works ->"),
+            "institution": institution_cfg,
+            "institution_name": st.column_config.TextColumn(copy.FIND["COL_INSTITUTION"]),
             "institution_id": None,
             "country": st.column_config.TextColumn("Country"),
             "country_code": None,
@@ -146,20 +202,25 @@ def render_ranked_table(df: pd.DataFrame, *, key: str, score_form: str = "progre
 def format_concordance(rows: list[dict], *, lenses: list[str], N: int) -> pd.DataFrame:
     """Pure transform: engine `concordance(...)` rows -> the A/B #2 winner's
     k-of-n + hit-lens-chip table (VIZ_SPEC.md S2.3, S4). R1/L22: two size
-    columns, country by name (code hidden)."""
+    columns, country by name (code hidden).
+
+    2B-R-11: `institution` carries the name-link URL like `format_rows`
+    (A10); `hit_lenses` is translated through `copy.LENS_DISPLAY_CODE` -- the
+    engine's own `hit_lenses` list is INTERNAL ids ("L1", "L3", ...), and the
+    chips a reader sees must be the same renumbered codes the tabs carry."""
     out = []
     for row in rows:
         code = str(row["country_code"])
         out.append({
-            "institution": row["display_name"],
-            "institution_link": _works_link(row["institution_id"]),
+            "institution": works_link_named(row["institution_id"], str(row["display_name"])),
+            "institution_name": row["display_name"],
             "country": countries.name(code),
             "country_code": code,
             "type": str(row["type"]),
             "k": row["k"],
             "n": row["n"],
             "k_of_n": f"{row['k']} of {row['n']}",
-            "hit_lenses": ", ".join(row["hit_lenses"]),
+            "hit_lenses": ", ".join(copy.LENS_DISPLAY_CODE.get(h, h) for h in row["hit_lenses"]),
             "size_full": _fmt_size(row.get("total_full_2020_2024")),
             "size_frac": _fmt_size(row.get("total_frac_2020_2024")),
             "institution_id": row["institution_id"],
@@ -180,7 +241,20 @@ def concordance_caption(n_defined: int, N: int, n_rows: int) -> str:
 
 def render_concordance_table(df: pd.DataFrame, *, key: str):
     """`st.dataframe` per the A/B #2 winner: k-of-n + hit-lens chip text.
-    Returns selected `institution_id`s, same contract as `render_ranked_table`."""
+    Returns selected `institution_id`s, same contract as `render_ranked_table`.
+
+    2B-R-11 (A10): same institution-name-as-link mechanism as
+    `render_ranked_table`, gated by the SAME `NAME_LINK_MODE`."""
+    if NAME_LINK_MODE == "fragment":
+        order = ["institution", "country", "type", "k_of_n", "hit_lenses",
+                 "size_full", "size_frac"]
+        institution_cfg = st.column_config.LinkColumn(
+            copy.FIND["COL_INSTITUTION"], display_text=r"#(.*)$")
+    else:
+        order = ["institution_name", "country", "type", "k_of_n", "hit_lenses",
+                 "size_full", "size_frac", "institution"]
+        institution_cfg = st.column_config.LinkColumn(
+            WORKS_LINK_FALLBACK_LABEL, display_text=WORKS_LINK_FALLBACK_LABEL)
     event = st.dataframe(
         df,
         hide_index=True,
@@ -188,12 +262,10 @@ def render_concordance_table(df: pd.DataFrame, *, key: str):
         on_select="rerun",
         selection_mode="multi-row",
         key=key,
-        column_order=["institution", "institution_link", "country", "type", "k_of_n",
-                      "hit_lenses", "size_full", "size_frac"],
+        column_order=order,
         column_config={
-            "institution": st.column_config.TextColumn("Institution"),
-            "institution_link": st.column_config.LinkColumn(
-                "OpenAlex works", display_text="Works ->"),
+            "institution": institution_cfg,
+            "institution_name": st.column_config.TextColumn(copy.FIND["COL_INSTITUTION"]),
             "institution_id": None,
             "k": None,
             "n": None,

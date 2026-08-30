@@ -266,13 +266,19 @@ def all_scoped_strings() -> list[tuple[str, str]]:
 # ------------------------------------------------------------------ tests --
 
 def test_allowlist_has_required_tokens_and_stays_small():
+    # 2B-R-11a (stream FC): L2/L8/L9 are the DISPLAY codes 2B-R-11a needs once
+    # the eight default lenses are renumbered L0..L7 in tab order (L2 is the
+    # topic lens's new code, distinct from the pre-existing L2f) plus the two
+    # optional tabs (C1 -> L8, L7 -> L9) -- the cap moved 15->18 for exactly
+    # these three, same category as the other tokens (a stable lens
+    # identifier, not a data value).
     tokens = load_allowlist()
-    required = {"L0", "L1", "L2f", "L3", "L4", "L5", "L6", "L7", "F1", "C1",
+    required = {"L0", "L1", "L2", "L2f", "L3", "L4", "L5", "L6", "L7", "L8", "L9", "F1", "C1",
                 "top10", "PP(top10%)"}
     missing = required - set(tokens)
     assert not missing, f"digit_allowlist.txt is missing required token(s): {sorted(missing)}"
-    assert len(tokens) <= 15, (
-        f"digit_allowlist.txt has {len(tokens)} non-comment lines (cap 15) -- "
+    assert len(tokens) <= 18, (
+        f"digit_allowlist.txt has {len(tokens)} non-comment lines (cap 18) -- "
         "a growing allowlist is the historical failure mode (BUILD_PLAN_2A.md Stream G)")
 
 

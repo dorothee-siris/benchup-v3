@@ -15,9 +15,9 @@ from .lens_lib import (
 )
 from .lenses import (
     ALL_LENSES, CONCORDANCE_N, DEFAULT_LENSES, DEPTH, GOLDEN_CONCORDANCE_LENSES,
-    RANK_VISIBLE_MAX, aspirational, base_evidence, build_rows, catchall_811_share,
-    competition_ranks, concordance, cut_with_ties, family_overlap_scores, is_degenerate,
-    rank_all, rank_map, seed_card, top3_fields_from_l0,
+    RANK_VISIBLE_MAX, aspirational, aspirational_frontier, base_evidence, build_rows,
+    catchall_811_share, competition_ranks, concordance, cut_with_ties, family_overlap_scores,
+    is_degenerate, rank_all, rank_map, seed_card, top3_fields_from_l0,
 )
 from .substrates import (
     BASIS_APPLIES, DEFAULT_BASIS, DEFAULT_TREE, build_substrates, load_context,
@@ -28,7 +28,7 @@ from .trees_agg import G6_FLOOR, TREES
 __all__ = [
     "ALL_LENSES", "BASIS_APPLIES", "CONCORDANCE_N", "DEFAULT_BASIS", "DEFAULT_LENSES",
     "DEFAULT_TREE", "DEPTH", "G6_FLOOR", "GOLDEN_CONCORDANCE_LENSES", "RANK_VISIBLE_MAX",
-    "SDG_LABELS", "TREES", "aspirational", "base_evidence", "build_dense_matrix",
+    "SDG_LABELS", "TREES", "aspirational", "aspirational_frontier", "base_evidence", "build_dense_matrix",
     "build_rows", "build_substrates", "catchall_811_share", "competition_ranks",
     "concordance", "cut_with_ties", "derive_shapes", "excess_profile_matrix",
     "family_overlap_scores", "histogram_intersection_row", "is_degenerate", "l2_vectors",

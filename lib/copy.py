@@ -5,8 +5,11 @@ R2-C, refinement R2 / L29).
 
 RULE (BUILD_PLAN_2A.md Stream F build step 5 / L10 "no static string asserts
 a value"): no digit character appears anywhere in a string constant below
-except inside a lens code (L0, L1, L2f, L3, L4, L5, L6, L7, F1, C1) or the
-literal "top10" / "PP(top10%)". Every other number a caption needs (a count,
+except inside a lens code (L0, L1, L2, L2f, L3, L4, L5, L6, L7, L8, L9, F1,
+C1 -- L2/L8/L9 are the 2B-R-11a DISPLAY codes the renumbered defaults and the
+two optional lenses need, added to the allowlist alongside the pre-existing
+ten) or the literal "top10" / "PP(top10%)". Every other number a caption needs
+(a count,
 a threshold, a share, a median) is a `{named}` format placeholder the CALLER
 fills from CFG or the live data -- never typed here. `scan_for_digit_violations`
 at the bottom is the self-check; `tests/test_badges.py` runs it.
@@ -555,7 +558,82 @@ FIND = {
 
     # 2B-R-12: what replaces the snapshot stamp on Find and on the menu.
     "DATA_CAPTION": "{n_institutions} institutions {sep} data from {date}",
+
+    # ======================================================================
+    # Sprint 2 Phase 2B-R, stream FC (2B-R-3 / 2B-R-11 / 2B-R-13 handoff).
+    # ADDITIVE ONLY, save the three narrow in-place edits the deliverable
+    # itself requires and that no other stream reads (noted at each one):
+    # TAB_ASPIRATIONAL gains its star, FRONTIER_MODE_TOP drops the {n} the
+    # slider below replaces, CAPTION_FRONTIER's wording follows suit (catch-
+    # all topics are no longer pre-excluded from the cut it describes).
+    # ======================================================================
+
+    # 2B-R-3 mode B: the aspirational tab's own framing line, ahead of
+    # ASP_INTRO, and the one-line notice a V0-empty seed's fallback carries.
+    "ASP_FRAME_INTRO": ("A different exercise from the lenses above: identifying institutions worth "
+                        "aspiring to, not institutions that merely resemble this one."),
+    "ASP_FRONTIER_FALLBACK": ("No candidate in this institution's look-alike pool clears its impact "
+                              "interval, so the list below is ordered by frontier alignment instead: "
+                              "shared presence in the topics the world is currently expanding into."),
+    "COL_F1": "Frontier alignment",
+
+    # 2B-R-13 handoff (FB): the frontier panel's new top-N slider and the
+    # coverage caption templated from `charts.frontier_coverage`'s numbers.
+    "FRONTIER_TOPN_LABEL": "Maximum topics plotted",
+    "CAPTION_FRONTIER_COVERAGE": (
+        "Catch-all topics are counted in this cut like any other topic: {n_catchall} of the topics "
+        "shown are catch-all, flagged {glyph}. This cut leaves out {pct_not_shown} of the placeable "
+        "mass; the smallest topic shown holds {min_mass} publications on the current counting basis."),
+
+    # 2B-R-11a: DISPLAY lens codes, renumbered L0..L7 in TAB ORDER (the eight
+    # defaults) plus L8 (C1) and L9 (L7, the experimental/noise lens) for the
+    # two optional tabs -- the codes a reader actually sees on a tab, in the
+    # guide, in the concordance chips and in the cross-lens "rank under"
+    # reference. Internal engine ids (`lib.engine.ALL_LENSES` and everything
+    # keyed on them: CSV exports, `evidence_text`, `rank_under_other_lenses`,
+    # ctx dict keys) are UNCHANGED -- LENS_DISPLAY_CODE is the ONE table that
+    # translates one into the other, keyed by the internal id it is looked up
+    # with. `docs/METHODS_NOTE.md`'s own concordance table (stream MU, next
+    # wave) reads this same dict rather than a second copy of the mapping.
+    #
+    # LENS_DISPLAY_NAMES is LENS_NAMES' sentence, with the NEW code substituted
+    # for the old one -- the full name + one-line intro a tab body now opens
+    # on (A11: the tab itself carries only the bare code). The OLD LENS_NAMES/
+    # LENS_INTRO/LENS_CAVEAT dicts above are untouched: the Methods page still
+    # reads them as they stand until stream MU's own wave retires the old
+    # numbering there too (BUILD_PLAN_2BR.md S3 FC row).
+    "LENS_DISPLAY_CODE": {
+        "L0": "L0", "L1": "L1", "L3": "L2", "F1": "L3", "L2f": "L4",
+        "L4": "L5", "L5": "L6", "L6": "L7", "C1": "L8", "L7": "L9",
+    },
+    "LENS_DISPLAY_NAMES": {
+        "L0": "L0 · Field overlap",
+        "L1": "L1 · Subfield overlap",
+        "L3": "L2 · Topic overlap",
+        "F1": "L3 · Frontier-topic overlap",
+        "L2f": "L4 · Shared specialisations",
+        "L4": "L5 · ERC panel overlap",
+        "L5": "L6 · ERC specialisation overlap",
+        "L6": "L7 · SDG profile overlap",
+        "C1": "L8 · Core-shape overlap",
+        "L7": "L9 · SDG specialisation (experimental)",
+    },
 }
+
+# 2B-R-11a: the two dicts above, hoisted to module level so `lib/ranked.py`
+# (which has no reason to import the whole FIND dict) and any other caller can
+# read `copy.LENS_DISPLAY_CODE` directly, exactly like the pre-existing
+# `copy.LENS_NAMES` at module level above.
+LENS_DISPLAY_CODE = FIND["LENS_DISPLAY_CODE"]
+LENS_DISPLAY_NAMES = FIND["LENS_DISPLAY_NAMES"]
+
+# In-place edits the 2B-R-13/2B-R-3/A11 wiring requires (narrow, noted above):
+FIND["TAB_ASPIRATIONAL"] = "★ " + FIND["TAB_ASPIRATIONAL"]           # "★ Aspirational"
+FIND["FRONTIER_MODE_TOP"] = "Top topics by volume"                        # the slider now states n
+FIND["CAPTION_FRONTIER"] = (
+    "{n_shown} topics are placed here; {n_excluded} carry no frontier score and cannot be placed. "
+    "Frontier scores measure attention dynamics rather than novelty or quality: a low score can mark "
+    "a foundational area.")
 
 # ==========================================================================
 # Sprint 2 Phase 2B, Stream N: the narrative wrapper (NAV), the Compare page
@@ -1188,8 +1266,15 @@ METHODS_UI = {
 # ----------------------------------------------------- digit-ban self-check -
 
 _ALLOWLIST_RE = re.compile(
-    r"\bL0\b|\bL1\b|\bL2f\b|\bL3\b|\bL4\b|\bL5\b|\bL6\b|\bL7\b|\bF1\b|\bC1\b|top10|PP\(top10%\)"
+    r"\bL0\b|\bL1\b|\bL2f\b|\bL2\b|\bL3\b|\bL4\b|\bL5\b|\bL6\b|\bL7\b|\bL8\b|\bL9\b|\bF1\b|\bC1\b|"
+    r"top10|PP\(top10%\)"
 )
+# 2B-R-11a adds L2/L8/L9 -- L2 is the renumbered topic lens's own DISPLAY
+# code (L2f, a DIFFERENT lens, must stay in the alternation and BEFORE L2 so
+# the longer token matches first), L8/L9 are the two optional lenses' codes --
+# to the allowlist above; `tests/test_narrative.py::has_digit_violation`
+# carries its own copy of this same stripping behaviour and is updated
+# alongside it.
 # A `{named}` format placeholder is never rendered literally -- the RULE at
 # the top of this file exempts it explicitly -- so a digit inside the
 # placeholder's own name (e.g. the FIND section's "{y0}"/"{y1}") is not a

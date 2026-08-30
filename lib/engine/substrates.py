@@ -74,6 +74,24 @@ def load_context(data_dir) -> dict:
 
     inst_ids = index_df["institution_id"].tolist()
     id_pos = {iid: i for i, iid in enumerate(inst_ids)}
+
+    # 2B-R-3/A6 (R2-E): institutions flagged `pool_excluded` (a funder
+    # surfacing as a performer, or a duplicate-institution row a canonical id
+    # already covers) are never removed from the population -- their own data,
+    # SI denominators and baselines stay exactly as they are (A6 forbids
+    # re-aggregation) -- but they must never come back as a CANDIDATE in a
+    # lens ranking, the concordance or the aspirational views. Rather than a
+    # per-lens filter, every lens (`lenses.rank_all`'s shared `_emit`) and
+    # `rank_map` read this ONE position set. `pool_excluded` lands on
+    # index.parquet later this phase (pipeline stream P4 writes it to the
+    # pipeline's own artefact; PC deploys it to `app/data/`) -- until then the
+    # column is simply absent and every position set is empty, a no-op.
+    if "pool_excluded" in index_df.columns:
+        pool_excluded_positions = frozenset(
+            np.flatnonzero(index_df["pool_excluded"].fillna(False).to_numpy(dtype=bool)).tolist())
+    else:
+        pool_excluded_positions = frozenset()
+
     inst_keys = index_df["inst_key"].to_numpy(dtype=np.int64)
     key_pos = np.full(int(inst_keys.max()) + 1, -1, dtype=np.int32)
     key_pos[inst_keys] = np.arange(len(inst_ids), dtype=np.int32)
@@ -109,6 +127,7 @@ def load_context(data_dir) -> dict:
         "topics_dim_path": data_dir / "topics_dim.parquet",
         "index_df": index_df, "index_by_id": index_df.set_index("institution_id"),
         "inst_ids": inst_ids, "id_pos": id_pos, "n": len(inst_ids), "key_pos": key_pos,
+        "pool_excluded_positions": pool_excluded_positions,
         "erc_df": erc_df, "sdg_df": sdg_df, "fields_df": fields_df, "subfields_df": subfields_df,
         "topics_dim_df": topics_dim_df,
         "topic_ids": topic_ids, "topic_pos": topic_pos,

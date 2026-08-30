@@ -22,7 +22,9 @@ PAGE ORDER (L16/L17, re-laid by R2/L30, re-laid again by Phase 2B-R decision
   a height-matched global + yearly breakdown pair whose bonus year is starred
   on the axis), then six collapsed chart panels -> BENCHMARK section, headed by
   the controls row (depth, C1, L7, a post-filters expander) and the "How to
-  read the lenses" guide -> the lens tabs, labelled by `copy.LENS_NAMES`. The
+  read the lenses" guide -> the lens tabs, labelled by the bare
+  `copy.LENS_DISPLAY_CODE` (2B-R-11a: L0..L9, renumbered in tab order; the
+  full `copy.LENS_DISPLAY_NAMES` sentence moved inside each tab body). The
   SIDEBAR holds only what is app-wide: counting & taxonomy (tree, basis) and
   the Basket (L16 -- gate-2A feedback #1: a control that governs one section
   belongs at the head of that section, not a page away in the sidebar).
@@ -72,16 +74,18 @@ from lib.app_config import CFG
 from lib.badges import badges_for, catchall_tooltip, umbrella_flags, umbrella_medians
 from lib.data_cache import DATA_DIR, doctype_by_year, index, manifest, topics_dim
 from lib.engine import (
-    ALL_LENSES, CONCORDANCE_N, aspirational, build_rows, build_substrates, catchall_811_share,
-    concordance, cut_with_ties, family_overlap_scores, load_context, rank_all, seed_card,
+    ALL_LENSES, CONCORDANCE_N, aspirational, aspirational_frontier, build_rows, build_substrates,
+    catchall_811_share, concordance, cut_with_ties, family_overlap_scores, load_context, rank_all,
+    seed_card,
 )
 from lib.engine.evidence import rows_evidence
 from lib.exports import data_date_label, ranking_csv, ranking_filename
 from lib.filters import active_controls_strip, apply_filters, explain_empty
 from lib.palette import NA_MARK
 from lib.ranked import (
-    concordance_caption, depth_caption, format_concordance, format_rows,
-    render_concordance_table, render_ranked_table,
+    NAME_LINK_MODE, WORKS_LINK_FALLBACK_LABEL, concordance_caption, depth_caption,
+    format_concordance, format_rows, render_concordance_table, render_ranked_table,
+    works_link_named,
 )
 from lib.search import build_search_index, normalize, search
 from lib.wordcloud_png import render_wordcloud_png
@@ -93,14 +97,22 @@ from lib.wordcloud_png import render_wordcloud_png
 CORE_TOP_N = 20
 
 # The displayed cut of the "top N" profile panels and of the frontier panel's
-# volume mode. Module constants, never a digit inside a caption: the captions
-# take them as `{n}` placeholders. SUBFIELDS_TOP_N is 30 under R2/L34 (the panel
-# also lost its sort toggle: "top 30" is itself a volume-ordered concept, and a
-# taxonomy re-sort of a volume-defined cut reads as an arbitrary 30 rows in ID
-# order); FRONTIER_TOP_N is L33's two-hundred-topic volume mode.
+# default top-N. Module constants, never a digit inside a caption: the
+# captions take them as `{n}` placeholders. SUBFIELDS_TOP_N is 30 under
+# R2/L34 (the panel also lost its sort toggle: "top 30" is itself a
+# volume-ordered concept, and a taxonomy re-sort of a volume-defined cut reads
+# as an arbitrary 30 rows in ID order). TOPICS_TOP_N is 30 under 2B-R-13 (FB
+# handoff, was 20; the topics panel lost its sort toggle for the same reason
+# as subfields -- `charts.fig_topics`'s `sort` kwarg is accepted but ignored).
+# FRONTIER_TOP_N is the frontier panel's own top-N slider default (2B-R-13:
+# was a fixed two-hundred-topic volume-mode cut; now ONE slider drives BOTH
+# modes, `_panel_frontier` below).
 SUBFIELDS_TOP_N = 30
-TOPICS_TOP_N = 20
+TOPICS_TOP_N = 30
 FRONTIER_TOP_N = 200
+FRONTIER_TOPN_MIN = 20
+FRONTIER_TOPN_MAX = 200
+FRONTIER_TOPN_STEP = 20
 
 SEP = "·"   # middle dot -- the separator copy.STRIP_JOIN already uses
 DASH = "–"  # en dash -- interval rendering
@@ -799,14 +811,17 @@ def _panel_subfields(iid: str, ctl: dict, card: dict) -> None:
 def _panel_topics(iid: str, ctl: dict, card: dict) -> None:
     """VIZ_SPEC S2.17: the top topics by share. A catch-all (out-of-scope, 811)
     topic is FLAGGED and COUNTED, never dropped -- its presence is exactly what
-    a reader needs in order to discount every other number in the section."""
+    a reader needs in order to discount every other number in the section.
+
+    2B-R-13 (FB handoff): no sort control -- `charts.fig_topics` is always
+    volume-ordered now (the toggle would be dead UI, same reasoning as the
+    subfields panel losing its own toggle under R2/L34)."""
     df = _topics_frame(iid, ctl["tree"], ctl["basis"])
     if df.empty:
         st.caption(copy.FIND["PANEL_EMPTY"])
         return
-    sort = _sort_control("topics")
     top = df.nlargest(TOPICS_TOP_N, "share")
-    st.plotly_chart(charts.fig_topics(top, sort=sort, volume_col=_vol_col(ctl["basis"])),
+    st.plotly_chart(charts.fig_topics(top, volume_col=_vol_col(ctl["basis"])),
                     width="stretch", key="fig_topics")
     st.caption(copy.FIND["CAPTION_TOP_N_SHARE"].format(n=f"{len(top):,}"))
     # R2/L30: the seed's catch-all SHARE moved off the retired coverage line
@@ -819,24 +834,40 @@ def _panel_topics(iid: str, ctl: dict, card: dict) -> None:
 
 def _frontier_modes() -> tuple[str, str]:
     """The two L33 mode labels, built once so the control, the default and the
-    comparison below all read the same strings."""
-    return (copy.FIND["FRONTIER_MODE_TOP"].format(n=FRONTIER_TOP_N),
-            copy.FIND["FRONTIER_MODE_EMERGING"])
+    comparison below all read the same strings.
+
+    2B-R-13 (FB handoff): the volume mode's label no longer bakes in a fixed
+    N -- the panel's own top-N slider (below) states it instead, and the same
+    slider now governs BOTH modes."""
+    return (copy.FIND["FRONTIER_MODE_TOP"], copy.FIND["FRONTIER_MODE_EMERGING"])
 
 
 def _panel_frontier(iid: str, ctl: dict, card: dict) -> None:
-    """VIZ_SPEC S2.18 / R2 L33: Expansion x Acceleration, bubble area = volume
-    on the current basis, colour = domain, an INK outline on a top-quartile
-    topic. TWO modes behind one segmented control, each handing `fig_frontier` a
-    pre-filtered frame (the builder never learns which mode produced its input):
-    the seed's biggest FRONTIER_TOP_N topics by volume, or every topic in the
-    global top quartile of emergence -- NOT a subset of the first, since a topic
-    can be small and highly emergent or large and static.
+    """VIZ_SPEC S2.18 / R2 L33, rewired by the FB 2B-R-13 handoff
+    (`progress/2BR_FB.md`): Expansion x Acceleration, bubble area = volume on
+    the current basis, colour = domain, an INK outline on a top-quartile
+    topic. TWO modes behind one segmented control -- the seed's topics by
+    volume, or every topic in the global top quartile of emergence (NOT a
+    subset of the first: a topic can be small and highly emergent, or large
+    and static) -- ONE top-N slider shared by both, handed to
+    `charts.fig_frontier` as `top_n` so the chart does the mass-based cut
+    itself (`charts._frontier_topn`) instead of a hand-rolled rank mask.
 
-    Topics that cannot be PLACED (unscored on either axis) or that are
-    out-of-scope are dropped and COUNTED in the caption, mode-independently:
-    that count is a fact about the seed's topic set, not about the cut on
-    screen, while the count SHOWN is the mode's own."""
+    Catch-all topics are no longer pre-excluded before this cut (FB handoff:
+    "catch-all must enter the top_n count") -- `fig_frontier` already mutes
+    and hover-flags them exactly like `fig_topics` does, so they are shown and
+    counted like any other topic, never invisibly dropped ahead of the
+    selection the caption describes. Placeability (both axes scored) is left
+    for `fig_frontier`/`charts.frontier_coverage` to determine THEMSELVES,
+    internally, off whichever base this function hands them -- `df` itself for
+    the volume mode (so `n_excluded` states how many of the SEED's topics
+    carry no frontier score at all), the top-quartile subset for the emerging
+    mode (so `n_excluded` states how many of THOSE carry none) -- rather than
+    this function pre-filtering to placeable rows itself, which would make
+    every base 100% placeable by construction and the caption vacuous.
+    `charts.frontier_coverage` runs the IDENTICAL selection on the SAME frame
+    handed to `fig_frontier`, so the chart and the caption's numbers can never
+    drift apart."""
     df = _topics_frame(iid, ctl["tree"], ctl["basis"])
     if df.empty:
         st.caption(copy.FIND["PANEL_EMPTY"])
@@ -845,22 +876,25 @@ def _panel_frontier(iid: str, ctl: dict, card: dict) -> None:
     st.segmented_control(copy.FIND["FRONTIER_MODE_LABEL"], [mode_top, mode_emerging],
                          default=mode_top, required=True, key="frontier_mode", **state.PERSIST)
     pick = st.session_state.get("frontier_mode") or mode_top
+    base = df[df["top25pct_frontier"].fillna(False)] if pick == mode_emerging else df
 
-    placeable = (df["frontier_score_latest"].notna() & df["expansion_latest"].notna()
-                 & df["acceleration_latest"].notna())
-    scored = placeable & ~df["is_excluded"].fillna(False)
-    if pick == mode_emerging:
-        keep = scored & df["top25pct_frontier"].fillna(False)
-    else:
-        keep = scored & (df["rank_volume"] <= FRONTIER_TOP_N)
-    subset = df[keep]
-    if subset.empty:
+    top_n = st.slider(copy.FIND["FRONTIER_TOPN_LABEL"], FRONTIER_TOPN_MIN, FRONTIER_TOPN_MAX,
+                      FRONTIER_TOP_N, step=FRONTIER_TOPN_STEP, key=f"frontier_topn_{pick}",
+                      **state.PERSIST)
+    vol_col = _vol_col(ctl["basis"])
+    cov = charts.frontier_coverage(base, size_col=vol_col, top_n=top_n)
+    if cov["n_shown"] == 0:
         st.caption(copy.FIND["FRONTIER_EMPTY"])
     else:
-        st.plotly_chart(charts.fig_frontier(subset, size_col=_vol_col(ctl["basis"])),
+        st.plotly_chart(charts.fig_frontier(base, size_col=vol_col, top_n=top_n),
                         width="stretch", key="fig_frontier")
+    n_not_placeable = int(len(base) - cov["n_placeable"])
     st.caption(copy.FIND["CAPTION_FRONTIER"].format(
-        n_shown=f"{len(subset):,}", n_excluded=f"{int((~scored).sum()):,}"))
+        n_shown=f"{cov['n_shown']:,}", n_excluded=f"{n_not_placeable:,}"))
+    min_mass = NA_MARK if cov["min_mass_shown"] is None else f"{cov['min_mass_shown']:,.0f}"
+    st.caption(copy.FIND["CAPTION_FRONTIER_COVERAGE"].format(
+        n_catchall=f"{cov['n_catchall_shown']:,}", glyph=charts.EXCLUDED_GLYPH,
+        pct_not_shown=_pct(cov["pct_mass_not_shown"]), min_mass=min_mass))
 
 
 def _panel_sdg(iid: str, ctl: dict, card: dict) -> None:
@@ -1114,7 +1148,13 @@ def _lens_intro(lens: str, ranking: dict, subs: dict, basis: str, bundle: dict,
     above the table and never tooltip-only (VIZ_SPEC S2.4). R2/L30 adds the
     L2f-eligible cell count here, on the L2f tab and nowhere else: it is a
     precondition for THAT lens's ranking, so a reader meets it on the tab whose
-    list it explains rather than in the profile's retired coverage line."""
+    list it explains rather than in the profile's retired coverage line.
+
+    A11 (2B-R-11a): the tab itself now carries only the bare display code, so
+    the FULL lens name is the first line rendered INSIDE the tab -- this
+    function's own opening line, `copy.LENS_DISPLAY_NAMES[lens]` (the renumbered
+    code + the same name `copy.LENS_NAMES` always carried)."""
+    st.markdown(f"**{copy.LENS_DISPLAY_NAMES[lens]}**")
     vals = _gloss_values(bundle)
     st.markdown(f"**{copy.LENS_GLOSS[lens].format(**vals)}**")
     st.caption(copy.LENS_CAVEAT[lens].format(**vals))
@@ -1224,7 +1264,7 @@ def _render_lens_tab(lens: str, ranking: dict, bundle: dict, subs: dict, filters
         # reader gets the lens's plain-language precondition instead. The
         # engine's version stays in its own log, unchanged.
         st.info(copy.UNDEFINED_LENS_TEMPLATE.format(
-            lens=copy.LENS_NAMES[lens], reason=copy.LENS_UNDEFINED_REASON[lens]))
+            lens=copy.LENS_DISPLAY_NAMES[lens], reason=copy.LENS_UNDEFINED_REASON[lens]))
         return
     ctx, depth = bundle["ctx"], ctx_bits["depth"]
     kept_ids, kept_scores = _filtered(ranking, bundle, filters, seed_row, ctx_bits["family"])
@@ -1268,50 +1308,68 @@ def _render_overview(bundle: dict, rankings: dict, lenses: list, filters: dict, 
 
 # ---------------------------------------------------------- aspirational ----
 
-def _aspirational_frame(rows: list[dict]) -> pd.DataFrame:
-    """VIZ_SPEC S2.5 + R1/L22: PP(top10%) as a percent AND its interval as its
-    own column (the point estimate is never shown alone, RULES S9.6), both size
-    bases, country by NAME, and NO badge column."""
+def _aspirational_frame(rows: list[dict], *, score_key: str = "lens_score_L1_overlap",
+                        score_label_key: str = "COL_L1") -> pd.DataFrame:
+    """VIZ_SPEC S2.5 + R1/L22, revised by 2B-R-11: the interval column is GONE
+    (the point estimate is what a reader compares row to row here; the full
+    interval already sits in the profile's own PP card, VIZ_SPEC S9.6's rule
+    lives there now), both size bases, country by NAME, no badge column, and
+    the institution NAME is the OpenAlex-works link (A10, same
+    `works_link_named` mechanism `lib/ranked.py`'s tables use).
+
+    `score_key`/`score_label_key` let this ONE frame serve both aspirational
+    modes: V0's L1-overlap score (default) or the A-frontier fallback's F1
+    score (2B-R-3 mode B, `_render_aspirational`)."""
     out = []
     for r in rows:
         iid = r["institution_id"]
         out.append({
-            "rank": r["rank"], "institution": r["display_name"],
-            "institution_link": links.works_url(iid),
+            "rank": r["rank"], "institution": works_link_named(iid, str(r["display_name"])),
+            "institution_name": r["display_name"],
             "country": countries.name(str(r["country_code"])), "type": str(r["type"]),
             "size_full": _count(r.get("total_full_2020_2024")),
             "size_frac": _count(r.get("total_frac_2020_2024")),
-            "pp": _pct(r["pp_top10_frac"]),
-            "ci": f"{_pct(r['pp_ci_low'])}{DASH}{_pct(r['pp_ci_high'])}",
-            "l1": r["lens_score_L1_overlap"], "institution_id": iid})
-    return pd.DataFrame(out)
+            "pp": _pct(r.get("pp_top10_frac")),
+            "score": r[score_key], "institution_id": iid})
+    df = pd.DataFrame(out)
+    df.attrs["score_label_key"] = score_label_key
+    return df
 
 
 def _render_aspirational_table(df: pd.DataFrame) -> list:
-    """Own column set (not the shared lens form): the interval column is
-    mandatory here whatever A/B #1 decided (VIZ_SPEC S2.5)."""
+    """Own column set (not the shared lens form). 2B-R-11: no "Interval"
+    column (either aspirational mode); the institution name is the works
+    link, gated by the SAME `NAME_LINK_MODE` `lib/ranked.py` uses so a single
+    fallback decision covers every table on this page."""
+    score_label = copy.FIND[df.attrs.get("score_label_key", "COL_L1")]
+    if NAME_LINK_MODE == "fragment":
+        order = ["rank", "institution", "country", "type", "size_full", "size_frac", "pp", "score"]
+        institution_cfg = st.column_config.LinkColumn(copy.FIND["COL_INSTITUTION"],
+                                                       display_text=r"#(.*)$")
+    else:
+        order = ["rank", "institution_name", "country", "type", "size_full", "size_frac",
+                 "pp", "score", "institution"]
+        institution_cfg = st.column_config.LinkColumn(WORKS_LINK_FALLBACK_LABEL,
+                                                       display_text=WORKS_LINK_FALLBACK_LABEL)
     event = st.dataframe(
         df, hide_index=True, width="stretch", on_select="rerun",
         selection_mode="multi-row", key="tbl_aspirational",
-        column_order=["rank", "institution", "institution_link", "country", "type",
-                      "size_full", "size_frac", "pp", "ci", "l1"],
+        column_order=order,
         column_config={
             "rank": st.column_config.NumberColumn(copy.FIND["COL_RANK"]),
-            "institution": st.column_config.TextColumn(copy.FIND["COL_INSTITUTION"]),
-            "institution_link": st.column_config.LinkColumn(copy.FIND["COL_WORKS"],
-                                                            display_text="->"),
+            "institution": institution_cfg,
+            "institution_name": st.column_config.TextColumn(copy.FIND["COL_INSTITUTION"]),
             "institution_id": None,
             "country": st.column_config.TextColumn(copy.FIND["COL_COUNTRY"]),
             "type": st.column_config.TextColumn(copy.FIND["COL_TYPE"]),
             "size_full": st.column_config.TextColumn(copy.FIND["COL_SIZE_FULL"]),
             "size_frac": st.column_config.TextColumn(copy.FIND["COL_SIZE_FRAC"]),
             "pp": st.column_config.TextColumn(copy.FIND["COL_PP"]),
-            "ci": st.column_config.TextColumn(copy.FIND["COL_CI"]),
             # format="percent" (not a printf "%.0f%%", which renders a 0-1
             # overlap score as "1%" -- see the defect note on lib/ranked.py in
             # progress/2A_E.md).
-            "l1": st.column_config.ProgressColumn(copy.FIND["COL_L1"], min_value=0,
-                                                  max_value=1, format="percent")})
+            "score": st.column_config.ProgressColumn(score_label, min_value=0,
+                                                      max_value=1, format="percent")})
     rows_sel = event.selection.rows if event and event.selection else []
     return [df.iloc[i]["institution_id"] for i in rows_sel]
 
@@ -1319,7 +1377,17 @@ def _render_aspirational_table(df: pd.DataFrame) -> list:
 def _render_aspirational(bundle: dict, rankings: dict, filters: dict, seed_row,
                          ctx_bits: dict) -> None:
     """VIZ_SPEC S2.5, kept in L1-overlap order unless the analyst asks for a PP
-    sort -- which is a control, never the default (BUILD_PLAN_2A.md L4)."""
+    sort -- which is a control, never the default (BUILD_PLAN_2A.md L4).
+
+    2B-R-3 mode B: when V0 (`aspirational()`) returns NO row for this seed --
+    a seed near the impact ceiling of its own look-alike pool, ETH Zurich in
+    the R2 campaign (`evals/aspirational_R2/REPORT.md` S2/S3.1) -- the same
+    L1 pool is shown instead, reordered by frontier alignment
+    (`engine.aspirational_frontier`, ported from that REPORT's A-frontier
+    definition), labelled explicitly so a reader never mistakes it for V0's
+    impact-qualified list. The PP sort toggle stays V0-only: the fallback is
+    already sorted by the ONE score it exists to show."""
+    st.caption(copy.FIND["ASP_FRAME_INTRO"])
     st.caption(copy.FIND["ASP_INTRO"])
     l1 = rankings.get("L1")
     if l1 is None or l1["undefined"] or pd.isna(seed_row["pp_top10_frac"]) \
@@ -1328,6 +1396,12 @@ def _render_aspirational(bundle: dict, rankings: dict, filters: dict, seed_row,
         return
     rows = aspirational(bundle["ctx"], l1)
     pool = len(cut_with_ties(l1["sorted_ids"], l1["sorted_scores"], CFG["depth"]["max"])[0])
+    fallback = False
+    if not rows:
+        fallback_rows = aspirational_frontier(bundle["ctx"], l1, rankings.get("F1"))
+        if fallback_rows:
+            fallback = True
+            rows = fallback_rows
     kept = apply_filters(rows, seed_row=seed_row, family_scores=None, **filters)
     if not kept:
         if rows:
@@ -1335,24 +1409,33 @@ def _render_aspirational(bundle: dict, rankings: dict, filters: dict, seed_row,
         else:
             st.info(copy.FIND["ASP_EMPTY"].format(seed=seed_row["display_name"]))
         return
-    if st.checkbox(copy.FIND["ASP_SORT_LABEL"], value=False, key="asp_sort", **state.PERSIST):
-        kept = sorted(kept, key=lambda r: -r["pp_top10_frac"])
-    selected = _render_aspirational_table(_aspirational_frame(kept))
+    if fallback:
+        st.caption(copy.FIND["ASP_FRONTIER_FALLBACK"])
+        frame = _aspirational_frame(kept, score_key="lens_score_F1_overlap",
+                                    score_label_key="COL_F1")
+    else:
+        if st.checkbox(copy.FIND["ASP_SORT_LABEL"], value=False, key="asp_sort", **state.PERSIST):
+            kept = sorted(kept, key=lambda r: -r["pp_top10_frac"])
+        frame = _aspirational_frame(kept)
+    selected = _render_aspirational_table(frame)
     st.caption(copy.FIND["ASP_CAPTION"].format(n_rows=f"{len(kept):,}", n_pool=f"{pool:,}"))
     _basket_button(selected, "add_aspirational")
-    _aspirational_export(kept, ctx_bits)
+    _aspirational_export(kept, ctx_bits, fallback=fallback)
 
 
-def _aspirational_export(rows: list[dict], ctx_bits: dict) -> None:
-    """Same export contract as a lens tab; the L1-overlap score is what this
-    view ranks on, so it is what the CSV's score column carries."""
-    lens = "aspirational_by_impact"
+def _aspirational_export(rows: list[dict], ctx_bits: dict, *, fallback: bool = False) -> None:
+    """Same export contract as a lens tab; the score this view actually ranks
+    on -- L1 overlap for V0, F1 (frontier) overlap for the 2B-R-3 mode B
+    fallback -- is what the CSV's score column carries, and the exported
+    `lens` name says which mode produced the file."""
+    lens = "aspirational_by_frontier" if fallback else "aspirational_by_impact"
+    score_field = "lens_score_F1_overlap" if fallback else "lens_score_L1_overlap"
 
     def _csv() -> bytes:
         payload = []
         for r in rows:
             r2 = dict(r)
-            r2["lens_score"] = r["lens_score_L1_overlap"]
+            r2["lens_score"] = r[score_field]
             payload.append(r2)
         return ranking_csv(payload, seed_id=ctx_bits["seed_id"], lens=lens, tree=ctx_bits["tree"],
                            basis=ctx_bits["basis"], snapshot=ctx_bits["snapshot"],
@@ -1379,13 +1462,28 @@ def _lenses_shown(ctl: dict) -> list:
 def _lens_guide(lenses: list) -> None:
     """R2/L29: "How to read the lenses", a collapsed expander at the head of the
     Benchmark section. One plain sentence per SHOWN lens (the guide never
-    describes a tab that is not on screen), each headed by the same label its
-    tab carries, so the code in the Overview chips, the evidence column and the
-    CSV can stay a bare identifier without being unexplained."""
-    with st.expander(copy.FIND["LENS_INTRO_HEADER"], expanded=False, key="lens_guide"):
+    describes a tab that is not on screen), each headed by the same DISPLAY
+    label its tab now carries (2B-R-11a: `copy.LENS_DISPLAY_NAMES`, not the
+    old `copy.LENS_NAMES`), so the code in the Overview chips, the evidence
+    column and the CSV can stay a bare identifier without being unexplained.
+
+    A11: the expander's own title renders in the house palette's alert/
+    attention hue via Streamlit's `:red[...]` markdown-lite directive -- the
+    ONE colour token a widget LABEL can carry on this pinned Streamlit build
+    (verified against the installed package's own
+    `.agents/skills/developing-with-streamlit/references/markdown.md`: eight
+    named colours plus `primary`, no arbitrary hex, no `unsafe_allow_html` on
+    `st.expander`). `lib/palette.py` is Stream VS's file this wave and ships
+    no reusable "alert" token for a widget label; adding one would be a new
+    hex under a different name, which the plan forbids as surely as a raw
+    literal would be -- flagged in `progress/2BR_FC.md` for VS/G to reconcile
+    against a true `palette.py` token when a future wave allows unsafe HTML
+    here (e.g. rendering the title via `st.markdown` above a keyless
+    container instead of the native expander label)."""
+    with st.expander(f":red[{copy.FIND['LENS_INTRO_HEADER']}]", expanded=False, key="lens_guide"):
         st.caption(copy.FIND["LENS_INTRO_LEAD"])
         for lens in lenses:
-            st.markdown(f"**{copy.LENS_NAMES[lens]}** {DASH} {copy.LENS_INTRO[lens]}")
+            st.markdown(f"**{copy.LENS_DISPLAY_NAMES[lens]}** {DASH} {copy.LENS_INTRO[lens]}")
 
 
 def _ctx_bits(ctl: dict, filters: dict, seed_id: str, rankings: dict, strip: str | None,
@@ -1440,9 +1538,11 @@ def render() -> None:
             st.markdown(strip)
     bits = _ctx_bits(ctl, filters, seed_id, rankings, strip,
                      _family_scores(bundle, subs, seed_id, filters), card)
-    # R2/L29: the tab carries the lens's NAME; the code stays the identifier the
-    # Overview chips, the evidence column and the CSV cross-reference.
-    tabs = st.tabs([copy.FIND["TAB_OVERVIEW"], *[copy.LENS_NAMES[ln] for ln in lenses],
+    # A11 (2B-R-11a): the tab now carries ONLY the bare DISPLAY code (so all
+    # twelve tabs -- Overview + L0..L9 + Aspirational, both optional lenses
+    # on -- fit at 1280 px with no silent scroll); the full name moved inside
+    # the tab body (`_lens_intro`'s own first line) and into the lens guide.
+    tabs = st.tabs([copy.FIND["TAB_OVERVIEW"], *[copy.LENS_DISPLAY_CODE[ln] for ln in lenses],
                     copy.FIND["TAB_ASPIRATIONAL"]])
     with tabs[0]:
         _render_overview(bundle, rankings, lenses, filters, seed_row)

@@ -57,12 +57,17 @@ def test_format_rows_row_count_and_ranks(l1_rows):
 
 
 def test_format_rows_link_has_seed_free_id_and_window_years(l1_rows):
+    # 2B-R-11 (A10): the institution NAME column now carries the works URL
+    # (a `#<urlencoded name>` fragment appended); the plain name is kept
+    # alongside as `institution_name`.
     df = format_rows(l1_rows, lens="L1", depth=DEPTH)
     assert SEED not in df["institution_id"].tolist(), "self must be excluded (rank_all excludes seed)"
-    for link, iid in zip(df["institution_link"], df["institution_id"]):
+    for link, iid, name in zip(df["institution"], df["institution_id"], df["institution_name"]):
         assert iid in link
         assert f"{WINDOW_START}-{WINDOW_END}" in link
         assert "authorships.institutions.id:" in link
+        assert link.split("#", 1)[1] != "", "the name fragment must not be empty"
+        assert isinstance(name, str) and name
 
 
 def test_format_rows_no_nan_score_and_str_type(l1_rows):
@@ -87,8 +92,11 @@ def test_format_rows_takes_no_badges_kwarg(l1_rows):
 
 def test_format_rows_has_two_size_columns(l1_rows):
     # L22: full AND fractional size, both thousands-formatted or NA_MARK.
+    # 2B-R-11 (A10): "institution_link" is gone -- "institution" itself now
+    # carries the works URL (name-as-link), with the plain name kept as
+    # "institution_name".
     df = format_rows(l1_rows, lens="L1", depth=DEPTH)
-    assert list(df.columns) == ["rank", "institution", "institution_link", "country",
+    assert list(df.columns) == ["rank", "institution", "institution_name", "country",
                                  "country_code", "type", "size_full", "size_frac", "score",
                                  "evidence", "rank_under", "institution_id"]
     for col in ("size_full", "size_frac"):
