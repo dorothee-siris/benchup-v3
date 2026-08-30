@@ -70,6 +70,60 @@ the A/B #3/#4 winning geometry -- neither reopens either A/B:
     saw (a specialisation dot floating at a fabricated value for a panel with
     no publications at all). When the column is absent, the pre-R2 rule
     applies unchanged: a defined `si` gets a filled dot, a NaN `si` gets none.
+
+Refinement 2B-R-13 (BUILD_PLAN_2BR.md, gate-2B-R) changes four more things,
+all scoped to the FIND panels this module builds for (`views_find.py`'s
+collapsed fields/subfields/topics/frontier/SDG/ERC panels), none of them
+touching the Compare-page geometry `lib/charts_compare.py` borrows this
+module's private helpers for:
+
+  * **No more wrapping -- widen the gutter instead.** L35 (above) replaced
+    truncation with a two-line wrap; 2B-R-13 REVERSES that for the Find
+    panels in turn: "full label on one row wins over bar length" is now the
+    stated priority, small bars being an acceptable cost. `fig_share_si` and
+    `fig_topics` gain a `wrap: bool = False` keyword (default OFF -- the new
+    behaviour needs no caller change) that reaches `_tick_display` through
+    its own new `wrap` keyword (default `True`, UNCHANGED for any call that
+    doesn't pass it). That default matters: `lib/charts_compare.py` calls
+    `_tick_display`, `wrap_label`, `row_height`'s `n_wrapped`, `WRAP_WIDTH`
+    and `WRAP_ROW_FACTOR` directly, for the Compare page's own geometry,
+    which 2B-R-13 does not touch -- so none of that machinery is retired,
+    only defaulted OFF for this module's own two Find builders. With
+    `wrap=False` a label is never split with `<br>`, `_gutter_margin_px`
+    measures the full single-line string (its "longest LINE" is now the
+    whole label), and `row_height`'s `n_wrapped` count is always zero, which
+    is also most of why this refinement compresses panel height: the old
+    "every row pays the two-line pitch the moment ONE row wraps" penalty
+    (`row_height`'s note above) never fires once wrapping itself never fires.
+  * **The SI unit grid is retired for an outer-end value label.** The old
+    per-integer vertical gridline set was a second thing to cross-reference
+    against the dashed neutral line; now each row's own SI marker carries its
+    OWN formatted value as text, anchored on the side AWAY from the neutral
+    reference (`SI_NEUTRAL`) -- left of the dot for a sub-neutral value,
+    right for an above-neutral one -- so the reading is local to the row, not
+    a lookup against an axis. The dashed neutral reference line itself is
+    NOT a "unit gridline" and is kept; only `showgrid` on the SI axis goes to
+    `False`.
+  * **The frontier quadrant lines are bold ink, not hairline grid.** Same
+    `FRONTIER_ORIGIN` split, drawn in `palette.INK` at `FRONTIER_ORIGIN_PX`
+    instead of `palette.GRID` at a hairline, so the quadrant read is
+    immediate rather than something the eye has to find.
+  * **`fig_frontier` takes an optional `top_n`.** The SAME keyword serves
+    BOTH of `views_find.py`'s modes (top-N-by-volume and the global
+    top-quartile set) -- the builder itself keeps only the `top_n`
+    highest-mass rows of whatever frame it receives (`_frontier_topn`,
+    ties broken by stable sort so a re-render of the same frame never
+    reorders), so the axes autorange to exactly what is drawn either way.
+    `None` (the default) reproduces the pre-2B-R-13 behaviour: every row the
+    caller already filtered is plotted, uncapped. `frontier_coverage` runs
+    the IDENTICAL selection to hand the caller the disclosure numbers a
+    caption needs (rows dropped, their mass share, the minimum mass that
+    made the cut, how many catch-all rows are among the shown set) as plain
+    numbers -- never a string, per this module's digit-ban above -- so chart
+    and caption can never drift apart. `fig_topics`'s sort-order toggle is
+    also retired here: the `sort` keyword stays (nothing calling it errors)
+    but the panel is now ALWAYS volume-ordered, since "top N" is itself a
+    volume-defined cut and a taxonomy re-sort of it reads as arbitrary order.
 """
 from __future__ import annotations
 
@@ -93,12 +147,19 @@ AXIS_DECIMALS = 0           # ...but the share AXIS ticks carry none: a tick is 
 SI_DECIMALS = 2             # SI / ESI to two decimals (they cluster near the neutral value)
 FRONTIER_DECIMALS = 2
 
-ROW_PX = 22                 # one category row's vertical budget
-BASE_PX = 60                # axes + margins
+ROW_PX = 18                 # one category row's vertical budget (2B-R-13:
+                            # compressed from 22 -- was 26 rows Compare
+                            # geometry adds `n_wrapped` on top of; the Find
+                            # panels below no longer wrap at all, so this
+                            # pitch alone decides their height)
+BASE_PX = 50                # axes + margins (2B-R-13: 60 -> 50, tightened
+                            # alongside ROW_PX so a 30-row panel clears the
+                            # one-screen budget with room to spare)
 MIN_HEIGHT = 300
 SCATTER_HEIGHT = 520
 
-BAR_GAP = 0.3
+BAR_GAP = 0.25              # 2B-R-13: 0.3 -> 0.25, tighter inter-row gap to
+                            # match the compressed pitch above
 
 # --- Fix X3 (Refinement R1, inspection finding I-4) ------------------------
 # The volume gutter used to be a SEPARATE `add_annotation` sitting in a
@@ -164,9 +225,16 @@ DEFAULT_GROUP_FILL = 0.9
 
 SI_NEUTRAL = 1.0            # SI/ESI reference: at the neutral value the institution's
                             # share equals the reference population's share
+SI_LABEL_PAD_FRAC = 0.18    # 2B-R-13: extra headroom (as a fraction of the SI
+                            # panel's own value span) reserved on BOTH ends of
+                            # the SI x-axis so the new outer-end value label
+                            # never clips against the plot border
 FRONTIER_ORIGIN = 0.0       # the quadrant split on BOTH frontier axes (verified on
                             # topics_dim: `quadrant` flips sign at zero on expansion
                             # and on acceleration)
+FRONTIER_ORIGIN_PX = 2      # 2B-R-13: bold-ink width for the quadrant split lines
+                            # (was a GRID hairline) -- visually dominant, the
+                            # quadrant read is immediate rather than found
 
 THIN_SPACE = "\N{NARROW NO-BREAK SPACE}"
 EXCLUDED_GLYPH = "\N{ASTERISK OPERATOR}"   # catch-all / out-of-scope topic marker
@@ -284,7 +352,7 @@ def wrap_label(text, width: int = WRAP_WIDTH) -> str:
     return "<br>".join(lines)
 
 
-def _tick_display(label: str, vol_text: str | None) -> tuple[str, str]:
+def _tick_display(label: str, vol_text: str | None, *, wrap: bool = True) -> tuple[str, str]:
     """One right-anchored tick string carrying BOTH the (possibly wrapped)
     label and its volume, so there is a single text element per row instead
     of two independently-laid-out ones (the X3 fix, unchanged mechanism).
@@ -294,8 +362,14 @@ def _tick_display(label: str, vol_text: str | None) -> tuple[str, str]:
     `<br>` and the volume in the secondary ink and gutter font size via
     plotly's limited tick pseudo-html (`<span style="...">`, verified to
     render as a coloured, resized `<tspan>` on the pinned plotly 5.24.1 --
-    see `progress/R1_X3.md`)."""
-    wrapped = wrap_label(label)
+    see `progress/R1_X3.md`).
+
+    `wrap` (2B-R-13, default `True` so `lib/charts_compare.py`'s direct calls
+    are UNCHANGED): `False` skips `wrap_label` entirely and keeps the label on
+    its one line, whatever its length -- the Find panels' new priority ("full
+    label on one row wins over bar length"), which pushes the cost onto
+    `_gutter_margin_px` reserving a wider margin instead."""
+    wrapped = wrap_label(label) if wrap else str(label)
     plain = wrapped.replace("<br>", "\n")
     if vol_text is None:
         return plain, wrapped
@@ -424,6 +498,7 @@ def fig_share_si(
     si_axis_title: str = AX_SI,
     si_hover_label: str = HOVER_SI,
     stacked: bool = False,
+    wrap: bool = False,
 ) -> go.Figure:
     """Two aligned panels of ONE figure, sharing the y (category) axis.
 
@@ -456,6 +531,12 @@ def fig_share_si(
     the family's own hierarchy (domain -> field -> subfield -> topic; ERC domain
     then panel; SDG number). Colours never move with the sort: they follow the
     entity (dataviz non-negotiable "colour follows the entity, never its rank").
+
+    `wrap` (2B-R-13, default `False`): the Find panels never wrap a label onto
+    a second line any more -- the left gutter widens to fit the full name on
+    ONE row instead (`_tick_display`'s own `wrap` keyword). Pass `wrap=True`
+    to get the pre-2B-R-13 two-line-wrap behaviour back; nothing in this app
+    does, today.
     """
     if share_col not in df.columns:
         raise ValueError(f"missing column {share_col!r}")
@@ -530,9 +611,9 @@ def fig_share_si(
     # row's label whether or not `gutter` is on, because a long category name
     # can overrun the plot on its own.
     if gutter and vol is not None:
-        pairs = [_tick_display(names[i], _fmt_vol(vol[i])) for i in range(n)]
+        pairs = [_tick_display(names[i], _fmt_vol(vol[i]), wrap=wrap) for i in range(n)]
     else:
-        pairs = [_tick_display(names[i], None) for i in range(n)]
+        pairs = [_tick_display(names[i], None, wrap=wrap) for i in range(n)]
     plain_display = [p for p, _ in pairs]
     styled_display = [s for _, s in pairs]
     n_wrapped = sum(1 for s in styled_display if "<br>" in s)
@@ -562,27 +643,36 @@ def fig_share_si(
         mk_fill = [P.SURFACE if hollow[i] else colors[i] for i in range(n) if ok[i]]
         mk_line_color = [colors[i] if hollow[i] else P.SURFACE for i in range(n) if ok[i]]
         mk_line_width = [P.OUTLINE_WIDTH if hollow[i] else LINE_PX for i in range(n) if ok[i]]
+        si_shown = si[ok]
+        # 2B-R-13: the marker carries its OWN value as text, anchored on the
+        # side AWAY from the neutral reference -- left of the dot below
+        # neutral, right above it -- so the read is local to the row instead
+        # of a lookup against the retired unit grid (below). One trace, so
+        # the label can never fall out of sync with its own dot.
+        si_text = [_fmt_si(v) for v in si_shown]
+        si_textpos = ["middle left" if v < SI_NEUTRAL else "middle right" for v in si_shown]
         fig.add_trace(go.Scatter(
-            x=si[ok], y=[nm for nm, k in zip(names, ok) if k], mode="markers",
+            x=si_shown, y=[nm for nm, k in zip(names, ok) if k], mode="markers+text",
             marker=dict(color=mk_fill, size=MARKER_PX,
                         line=dict(color=mk_line_color, width=mk_line_width)),
+            text=si_text, textposition=si_textpos,
+            textfont=dict(color=P.INK_SECONDARY, size=GUTTER_FONT_PX),
             customdata=[h for h, k in zip(bar_hover, ok) if k],
             hovertemplate="%{customdata}<extra></extra>", showlegend=False,
         ), row=si_row, col=si_col)
         fig.add_vline(x=SI_NEUTRAL, row=si_row, col=si_col,
                       line=dict(color=P.INK_SECONDARY, width=HAIRLINE_PX, dash="dash"))
-        # Unit grid (L34): a light vertical line at every integer 1, 2, 3 ...
-        # up to the axis max, tick-labelled at those same integers. Plotly
-        # draws its axis gridlines exactly at `tickvals` when `showgrid` stays
-        # at its default True, so setting the ticks IS drawing the grid --
-        # `gridcolor=P.GRID` is applied to every xaxis a few lines below. The
-        # neutral value keeps its own dashed emphasis line (above) on top of
-        # this grid, never replaced by it.
-        finite_si = si[np.isfinite(si)]
-        si_ceil = max(int(SI_NEUTRAL), int(np.ceil(float(finite_si.max()))) if finite_si.size else int(SI_NEUTRAL))
-        grid_ticks = [float(v) for v in range(1, si_ceil + 1)]
-        fig.update_xaxes(title_text=si_axis_title, tickmode="array", tickvals=grid_ticks,
-                         row=si_row, col=si_col)
+        # 2B-R-13: the per-integer unit grid is RETIRED in favour of the
+        # outer-end label above -- `showgrid=False` removes it. The dashed
+        # neutral-reference line just above is NOT a "unit gridline" and
+        # stays. The axis range is padded on BOTH ends (`SI_LABEL_PAD_FRAC`)
+        # so the new text never clips against the plot border, whichever side
+        # of the neutral value a row's marker falls on.
+        si_lo = min(0.0, SI_NEUTRAL, float(si_shown.min()) if si_shown.size else SI_NEUTRAL)
+        si_hi = max(SI_NEUTRAL, float(si_shown.max()) if si_shown.size else SI_NEUTRAL)
+        pad = max(si_hi - si_lo, HAIRLINE_PX) * SI_LABEL_PAD_FRAC
+        fig.update_xaxes(title_text=si_axis_title, showgrid=False,
+                         range=[si_lo - pad, si_hi + pad], row=si_row, col=si_col)
 
     fig.update_yaxes(autorange="reversed", showgrid=False, automargin=True)
     fig.update_xaxes(gridcolor=P.GRID, zerolinecolor=P.GRID, linecolor=P.BORDER)
@@ -603,13 +693,24 @@ def fig_topics(
     share_col: str = "share",
     label_col: str = "topic_name",
     volume_col: str | None = None,
+    wrap: bool = False,
 ) -> go.Figure:
     """Horizontal share bars for topics, coloured by the topic's DOMAIN (topics
     inherit; `palette.domain_color`). A row flagged `is_excluded` (the catch-all
     / out-of-scope topics) keeps its domain hue at `palette.MUTED_OPACITY`, is
     prefixed with `EXCLUDED_GLYPH` on the axis, and says why on hover -- it is
-    shown and counted, never silently dropped."""
-    d = _ordered(df, "oa", sort, share_col)
+    shown and counted, never silently dropped.
+
+    `sort` is RETIRED (2B-R-13): the keyword stays so no existing caller
+    breaks, but the panel is now ALWAYS volume-ordered whatever value is
+    passed, since "top N" is itself a volume-defined cut -- a taxonomy
+    re-sort of it would read as an arbitrary row order, not a second view.
+    `wrap` (default `False`, see `fig_share_si`): topic names are the longest
+    labels in the app, so this panel never wraps them -- the gutter widens
+    to fit the full name on one row instead."""
+    if sort not in SORTS:
+        raise ValueError(f"sort must be one of {SORTS}, got {sort!r}")
+    d = _ordered(df, "oa", "volume", share_col)  # 2B-R-13: fixed, `sort` ignored
     n = len(d)
     volume_col = volume_col or _first_col(d, _VOLUME_COLS)
     excluded = (d["is_excluded"].fillna(False).to_numpy(dtype=bool)
@@ -641,9 +742,9 @@ def fig_topics(
         customdata=hover, hovertemplate="%{customdata}<extra></extra>", showlegend=False,
     ))
     if gutter and vol is not None:
-        pairs = [_tick_display(names[i], _fmt_vol(vol[i])) for i in range(n)]
+        pairs = [_tick_display(names[i], _fmt_vol(vol[i]), wrap=wrap) for i in range(n)]
     else:
-        pairs = [_tick_display(names[i], None) for i in range(n)]
+        pairs = [_tick_display(names[i], None, wrap=wrap) for i in range(n)]
     plain_display = [p for p, _ in pairs]
     styled_display = [s for _, s in pairs]
     n_wrapped = sum(1 for s in styled_display if "<br>" in s)
@@ -666,6 +767,80 @@ def fig_topics(
 # ---------------------------------------------------------------------------
 # 3. Frontier positioning -- topics scatter, Expansion x Acceleration
 # ---------------------------------------------------------------------------
+def _frontier_topn(d: pd.DataFrame, top_n: int | None, size_col: str | None) -> pd.DataFrame:
+    """The ONE selection rule 2B-R-13's top-N slider drives, shared by
+    `fig_frontier` and `frontier_coverage` so the chart drawn and the
+    caption describing it can never disagree. Keeps the `top_n` highest-mass
+    rows of `d` (already the placeable subset); `None`, non-positive, or a
+    `top_n` at least as large as `len(d)` is a no-op -- every row stays, the
+    pre-2B-R-13 behaviour. Ties broken by a STABLE sort on the frame's own
+    row order, so a re-render of the identical frame never reshuffles which
+    rows land on the cut line."""
+    if top_n is None or top_n <= 0 or len(d) <= top_n:
+        return d
+    if size_col and size_col in d.columns:
+        key = pd.to_numeric(d[size_col], errors="coerce").fillna(0.0)
+    else:
+        key = pd.Series(np.arange(len(d), 0, -1), index=d.index, dtype=float)
+    order = key.sort_values(ascending=False, kind="mergesort").index[:top_n]
+    return d.loc[order].reset_index(drop=True)
+
+
+def frontier_coverage(
+    df: pd.DataFrame,
+    *,
+    x_col: str = "expansion_latest",
+    y_col: str = "acceleration_latest",
+    size_col: str | None = None,
+    top_n: int | None = None,
+    excluded_col: str = "is_excluded",
+) -> dict:
+    """The disclosure NUMBERS `fig_frontier`'s caller needs (2B-R-13), computed
+    from the SAME placeable-then-`top_n` selection `fig_frontier` itself draws
+    -- never a string (this module's digit-ban, see the module docstring): the
+    caller composes its own `{placeholder}` sentence in `copy.py` from these.
+
+      n_placeable       -- rows with BOTH axes scored, before any `top_n` cut
+      n_shown            -- rows actually plotted after the cut (mirrors
+                            `fig_frontier`'s own row count exactly)
+      n_catchall_shown   -- how many of the SHOWN rows are catch-all /
+                            out-of-scope (`excluded_col`) -- states that
+                            catch-all topics are INCLUDED in the `top_n`
+                            count, not hidden inside it
+      mass_shown / mass_placeable -- summed `size_col` mass, shown vs. every
+                            placeable row (equal when `top_n` is a no-op)
+      pct_mass_not_shown -- `1 - mass_shown / mass_placeable`, floored at
+                            zero and returned as `0.0` (never a division by
+                            zero) when nothing is placeable
+      min_mass_shown     -- the smallest `size_col` value among the shown
+                            rows -- the minimum mass that made the cut;
+                            `None` (n/a-safe) when nothing is shown
+    """
+    size_col = size_col or _first_col(df, _VOLUME_COLS)
+    placeable = df[np.isfinite(pd.to_numeric(df[x_col], errors="coerce"))
+                   & np.isfinite(pd.to_numeric(df[y_col], errors="coerce"))].reset_index(drop=True)
+    shown = _frontier_topn(placeable, top_n, size_col)
+    if size_col and size_col in placeable.columns:
+        mass_all = pd.to_numeric(placeable[size_col], errors="coerce").fillna(0.0)
+        mass_shown_s = pd.to_numeric(shown[size_col], errors="coerce").fillna(0.0)
+    else:
+        mass_all = pd.Series(1.0, index=placeable.index)
+        mass_shown_s = pd.Series(1.0, index=shown.index)
+    mass_total = float(mass_all.sum())
+    mass_shown = float(mass_shown_s.sum())
+    excluded_shown = (int(shown[excluded_col].fillna(False).sum())
+                      if excluded_col in shown.columns else 0)
+    return {
+        "n_placeable": int(len(placeable)),
+        "n_shown": int(len(shown)),
+        "n_catchall_shown": excluded_shown,
+        "mass_shown": mass_shown,
+        "mass_placeable": mass_total,
+        "pct_mass_not_shown": (0.0 if mass_total <= 0 else max(0.0, 1.0 - mass_shown / mass_total)),
+        "min_mass_shown": (float(mass_shown_s.min()) if len(shown) else None),
+    }
+
+
 def fig_frontier(
     df: pd.DataFrame,
     *,
@@ -673,21 +848,37 @@ def fig_frontier(
     y_col: str = "acceleration_latest",
     size_col: str | None = None,
     label_col: str = "topic_name",
+    top_n: int | None = None,
 ) -> go.Figure:
     """One bubble per SCORED topic: x = expansion, y = acceleration, area = the
     topic's mass on the current basis, colour = its domain. The two quadrant
     lines sit at the origin on both axes (verified against `topics_dim.quadrant`,
-    which flips sign exactly there). A top-quartile frontier topic
-    (`top25pct_frontier`) carries an INK outline -- a shape signal on top of its
-    family colour, never a new hue.
+    which flips sign exactly there), drawn BOLD in `palette.INK` (2B-R-13: was a
+    `palette.GRID` hairline) so the quadrant read is immediate. A top-quartile
+    frontier topic (`top25pct_frontier`) carries an INK outline -- a shape
+    signal on top of its family colour, never a new hue. A row flagged
+    `is_excluded` (catch-all / out-of-scope, present or not depending on
+    whether the caller kept those rows in) gets the same muted-opacity + hover
+    disclosure `fig_topics` uses, so it is shown and counted rather than being
+    invisible inside the `top_n` cut.
 
     Rows with no score (`x_col`/`y_col` NaN) are DROPPED here and must be
     counted in the caller's caption: the panel states what it could not place
-    rather than letting it vanish."""
+    rather than letting it vanish.
+
+    `top_n` (2B-R-13): keeps only the `top_n` highest-mass placeable rows
+    (`_frontier_topn`) -- the SAME keyword serves BOTH of the app's modes
+    (top-N-by-volume and the global top-quartile set), so one slider value
+    drives either. The axes always autorange to whatever ends up plotted, so
+    a smaller `top_n` is a tighter plot, never a fixed one. `None` (default)
+    reproduces the pre-2B-R-13 behaviour: everything the caller already
+    filtered is plotted, uncapped. `frontier_coverage` (above) computes the
+    caption figures from the IDENTICAL cut."""
     size_col = size_col or _first_col(df, _VOLUME_COLS)
     d = df.copy()
     d = d[np.isfinite(pd.to_numeric(d[x_col], errors="coerce"))
           & np.isfinite(pd.to_numeric(d[y_col], errors="coerce"))].reset_index(drop=True)
+    d = _frontier_topn(d, top_n, size_col)
     n = len(d)
     x = d[x_col].to_numpy(dtype=float)
     y = d[y_col].to_numpy(dtype=float)
@@ -698,6 +889,8 @@ def fig_frontier(
     sizes = BUBBLE_MIN_PX + (BUBBLE_MAX_PX - BUBBLE_MIN_PX) * np.sqrt(mass / mmax)
     top = (d["top25pct_frontier"].fillna(False).to_numpy(dtype=bool)
            if "top25pct_frontier" in d.columns else np.zeros(n, dtype=bool))
+    excluded = (d["is_excluded"].fillna(False).to_numpy(dtype=bool)
+                if "is_excluded" in d.columns else np.zeros(n, dtype=bool))
 
     hover = []
     for i in range(n):
@@ -706,17 +899,20 @@ def fig_frontier(
                  f"{HOVER_ACCELERATION}{THIN_SPACE}{_fmt_frontier(y[i])}"]
         if size_col:
             parts.append(f"{HOVER_MASS}{THIN_SPACE}{_fmt_vol(mass[i])}")
+        if excluded[i]:
+            parts.append(HOVER_EXCLUDED)
         hover.append("<br>".join(parts))
 
     fig = go.Figure(go.Scatter(
         x=x, y=y, mode="markers",
         marker=dict(color=colors, size=sizes, sizemode="diameter",
+                    opacity=[P.MUTED_OPACITY if e else 1.0 for e in excluded],
                     line=dict(color=[P.INK if t else P.SURFACE for t in top],
                               width=[P.OUTLINE_WIDTH if t else HAIRLINE_PX for t in top])),
         customdata=hover, hovertemplate="%{customdata}<extra></extra>", showlegend=False,
     ))
-    fig.add_vline(x=FRONTIER_ORIGIN, line=dict(color=P.GRID, width=HAIRLINE_PX))
-    fig.add_hline(y=FRONTIER_ORIGIN, line=dict(color=P.GRID, width=HAIRLINE_PX))
+    fig.add_vline(x=FRONTIER_ORIGIN, line=dict(color=P.INK, width=FRONTIER_ORIGIN_PX))
+    fig.add_hline(y=FRONTIER_ORIGIN, line=dict(color=P.INK, width=FRONTIER_ORIGIN_PX))
     fig.update_xaxes(title_text=AX_EXPANSION, gridcolor=P.GRID,
                      zerolinecolor=P.GRID, linecolor=P.BORDER)
     fig.update_yaxes(title_text=AX_ACCELERATION, gridcolor=P.GRID,

@@ -40,6 +40,24 @@ DATA = APP_DIR / "data"
 GDANSK = "I40413290"
 TREE = "bestfit"
 
+# 2B-R-13 measured-acceptance seed set: Strasbourg (the module's existing
+# fixture seed), IFPEN, Gdansk (existing SI-below-the-floor seed) plus five
+# more chosen for the LONGEST subfield/topic names actually in the shipped
+# data (found by ranking `topics_dim.parquet` and taking the institutions
+# whose OWN top-30 by volume contains the longest hits) -- the harder test
+# for "one row, no wrap, no truncation" than any hand-picked name would be.
+SEEDS_2BR = {
+    "strasbourg": "I68947357",
+    "ifpen": "I265217849",
+    "gdansk": GDANSK,
+    "nyenrode": "I870178186",       # longest SUBFIELD name (53 chars) is its #1 row
+    "mines_telecom": "I205703379",  # longest TOPIC name (83 chars) in its top-30
+    "ceramics_inst": "I4210108183", # same 83-char topic, different institution
+    "employment_agency": "I4210167358",  # 2nd-longest subfield, high volume
+    "henley_college": "I2801915933",     # 2nd-longest subfield
+}
+MAX_PANEL_HEIGHT_PX = 900   # 2B-R-13 acceptance: one desktop screen at 1280 px
+
 
 # ---------------------------------------------------------------------------
 # Real-data fixtures -- the section 9.4 column contracts, built from parquet
@@ -149,8 +167,11 @@ def test_fig_share_si_fields_two_panels_and_colour_source(fields_df):
     assert "xaxis2" in fig.layout
     assert fig.layout.xaxis2.title.text == C.AX_SI
     assert fig.layout.paper_bgcolor == P.SURFACE and fig.layout.plot_bgcolor == P.SURFACE
-    n_wrapped = sum(1 for nm in fields_df["field_name"] if "<br>" in C.wrap_label(nm))
-    assert fig.layout.height == C.row_height(len(fields_df), n_wrapped=n_wrapped)
+    # 2B-R-13: the Find panels never wrap (default `wrap=False`), so height is
+    # the plain per-row pitch whatever the longest label's length would have
+    # wrapped to under the retired rule.
+    assert fig.layout.height == C.row_height(len(fields_df), n_wrapped=0)
+    assert fig.layout.height <= MAX_PANEL_HEIGHT_PX
     # the volume gutter (fix X3): folded into the y ticktext, one string per
     # row, no separate annotation left to collide with it
     assert len(fig.layout.annotations) == 0
@@ -179,7 +200,7 @@ def test_fig_share_si_nan_si_draws_no_mark(subfields_df):
     n_defined = int(np.isfinite(subfields_df["si"].to_numpy(dtype=float)).sum())
     assert 0 < n_defined < len(subfields_df), "fixture must mix defined and n/a SI"
     fig = C.fig_share_si(subfields_df, family="oa", sort="volume")
-    dots = [t for t in fig.data if isinstance(t, go.Scatter) and t.mode == "markers"]
+    dots = [t for t in fig.data if isinstance(t, go.Scatter) and t.mode == "markers+text"]
     assert len(dots) == 1
     assert len(dots[0].x) == n_defined
     assert np.isfinite(np.asarray(dots[0].x, dtype=float)).all()
@@ -223,7 +244,7 @@ def test_fig_share_si_si_status_solid_thin_none_mark_counts_match_the_frame(subf
     d.loc[thin_and_undefined, "si"] = 1.5
 
     fig = C.fig_share_si(d, family="oa", sort="volume")
-    dots = [t for t in fig.data if isinstance(t, go.Scatter) and t.mode == "markers"][0]
+    dots = [t for t in fig.data if isinstance(t, go.Scatter) and t.mode == "markers+text"][0]
     stems = [t for t in fig.data if isinstance(t, go.Scatter) and t.mode == "lines"]
 
     n_solid = int((d["si_status"] == "solid").sum())
@@ -262,7 +283,7 @@ def test_fig_share_si_zero_volume_row_never_gets_a_mark_even_when_si_status_says
     d = pd.concat([d, zero_row], ignore_index=True)
 
     fig = C.fig_share_si(d, family="oa", sort="volume")
-    dots = [t for t in fig.data if isinstance(t, go.Scatter) and t.mode == "markers"][0]
+    dots = [t for t in fig.data if isinstance(t, go.Scatter) and t.mode == "markers+text"][0]
     assert "Zero-volume synthetic row" not in list(dots.y)
     assert len(dots.x) == len(d) - 1, "every OTHER solid row keeps its mark"
 
@@ -273,19 +294,32 @@ def test_fig_share_si_si_status_absent_falls_back_to_the_pre_r2_null_rule(subfie
     ordinary FILLED style (no hollow dots without an explicit `thin`)."""
     assert "si_status" not in subfields_df.columns
     fig = C.fig_share_si(subfields_df, family="oa", sort="volume")
-    dots = [t for t in fig.data if isinstance(t, go.Scatter) and t.mode == "markers"][0]
+    dots = [t for t in fig.data if isinstance(t, go.Scatter) and t.mode == "markers+text"][0]
     n_defined = int(np.isfinite(subfields_df["si"].to_numpy(dtype=float)).sum())
     assert len(dots.x) == n_defined
     assert P.SURFACE not in set(dots.marker.color), "no hollow marks without an explicit si_status"
 
 
-def test_fig_share_si_unit_grid_lines_on_every_integer_up_to_the_axis_max(fields_df):
+def test_fig_share_si_unit_grid_retired_for_outer_end_value_labels(fields_df):
+    """2B-R-13: the per-integer unit grid is GONE (`showgrid=False` on the SI
+    axis); each marker instead carries its OWN formatted SI value as text,
+    anchored on the side AWAY from the neutral reference so the read is local
+    to the row rather than a lookup against a gridline."""
     fig = C.fig_share_si(fields_df, family="oa")
-    ticks = [float(v) for v in fig.layout.xaxis2.tickvals]
-    finite_si = fields_df["si"].dropna().to_numpy(dtype=float)
-    expected_max = max(1, int(np.ceil(finite_si.max())))
-    assert ticks == [float(v) for v in range(1, expected_max + 1)]
-    assert fig.layout.xaxis2.gridcolor == P.GRID
+    assert fig.layout.xaxis2.showgrid is False
+    assert not fig.layout.xaxis2.tickvals, "the retired integer tick set must be gone"
+
+    dots = [t for t in fig.data if isinstance(t, go.Scatter) and t.mode == "markers+text"][0]
+    si_vals = np.asarray(dots.x, dtype=float)
+    expected_text = [C._fmt_si(v) for v in si_vals]
+    assert list(dots.text) == expected_text
+    expected_pos = ["middle left" if v < C.SI_NEUTRAL else "middle right" for v in si_vals]
+    assert list(dots.textposition) == expected_pos
+    # the axis range is padded past the extremes on BOTH sides so a label at
+    # either end never clips against the plot border
+    lo, hi = fig.layout.xaxis2.range
+    assert lo < min(C.SI_NEUTRAL, si_vals.min())
+    assert hi > max(C.SI_NEUTRAL, si_vals.max())
 
 
 def test_fig_topics_flags_excluded_rows(topics_df):
@@ -498,25 +532,39 @@ def test_wrap_label_merges_a_third_overflow_line_into_the_second():
         assert w in wrapped, "no word split by the merge either"
 
 
-def test_fig_share_si_folds_wrapped_volume_into_ticktext_full_label_survives_in_hover(fields_df):
-    """Uses the REAL long field name from the I-4 screenshot ("Biochemistry,
-    Genetics and Molecular Biology", 46 chars) straight out of the fixture
-    `fields_df` already builds from the deployed parquet -- no synthetic data."""
+def test_fig_share_si_default_never_wraps_widens_gutter_instead(fields_df):
+    """2B-R-13 REVERSES L35 in turn for the Find panels: "full label on one
+    row wins over bar length" -- small bars are an acceptable cost. Uses the
+    REAL long field name from the I-4 screenshot ("Biochemistry, Genetics and
+    Molecular Biology", 46 chars) straight out of the fixture `fields_df`
+    already builds from the deployed parquet -- no synthetic data."""
     fig = C.fig_share_si(fields_df, family="oa", sort="volume", gutter=True)
     long_name = next(n for n in fields_df["field_name"] if "<br>" in C.wrap_label(n))
     assert long_name == "Biochemistry, Genetics and Molecular Biology"
 
-    names = list(fig.data[0].y)  # identity axis: FULL names, unaffected by wrapping
+    names = list(fig.data[0].y)  # identity axis: FULL names, always untouched
     idx = names.index(long_name)
     assert long_name in fig.data[0].customdata[idx], "full label must survive in hover"
 
     tickvals = list(fig.layout.yaxis.tickvals)
     ticktext = list(fig.layout.yaxis.ticktext)
     shown = ticktext[tickvals.index(long_name)]
-    assert "<br>" in shown, "a label over the wrap width is drawn on two lines, never shortened"
+    assert "<br>" not in shown, "2B-R-13: no chart-builder default wraps a label onto a second line"
+    assert long_name in shown, "the full name is drawn on its ONE row, never shortened"
     assert P.INK_SECONDARY in shown, "the volume rides in the secondary ink, inside the tick text"
-    # every word of the long name is present SOMEWHERE in the drawn tick --
-    # wrapping moves words to a second line, it never drops one
+
+
+def test_fig_share_si_wrap_true_opt_in_still_wraps_for_charts_compare(fields_df):
+    """`wrap=True` is kept as an explicit opt-in (2B-R-13 default is `False`)
+    so `lib/charts_compare.py`'s own geometry -- which calls `_tick_display`,
+    `wrap_label` and `row_height`'s `n_wrapped` directly, unaffected by this
+    stream -- is never broken by the Find panels' default flipping."""
+    fig = C.fig_share_si(fields_df, family="oa", sort="volume", wrap=True)
+    long_name = next(n for n in fields_df["field_name"] if "<br>" in C.wrap_label(n))
+    tickvals = list(fig.layout.yaxis.tickvals)
+    ticktext = list(fig.layout.yaxis.ticktext)
+    shown = ticktext[tickvals.index(long_name)]
+    assert "<br>" in shown, "wrap=True reproduces the pre-2B-R-13 two-line behaviour"
     assert all(w in shown for w in long_name.replace(",", "").split())
 
 
@@ -543,18 +591,17 @@ def test_fig_share_si_automargin_and_reserved_margin_grow_for_long_labels(fields
     assert fig_long.layout.margin.l > C.GUTTER_MARGIN_MIN_PX
 
 
-def test_fig_share_si_row_height_grows_for_wrapped_rows(fields_df):
-    """L35: a wrapped (two-line) row needs ~1.7x a single-line row's vertical
-    budget (`WRAP_ROW_FACTOR`), so a frame containing a long label is TALLER
-    than the same frame with that row removed, beyond what one extra row would
-    explain on its own."""
+def test_fig_share_si_row_height_no_longer_pays_the_wrap_penalty(fields_df):
+    """2B-R-13: since the Find panels never wrap by default, a frame with one
+    extra (however long) row is exactly ONE row pitch taller than the same
+    frame without it -- never the old `WRAP_ROW_FACTOR` penalty every other
+    row used to pay the moment any one label wrapped."""
     long_name = next(n for n in fields_df["field_name"] if "<br>" in C.wrap_label(n))
     without = fields_df[fields_df["field_name"] != long_name].reset_index(drop=True)
     fig_with = C.fig_share_si(fields_df, family="oa")
     fig_without = C.fig_share_si(without, family="oa")
-    one_plain_row = C.ROW_PX
     grown_by = fig_with.layout.height - fig_without.layout.height
-    assert grown_by > one_plain_row, "a wrapped row costs MORE than one ordinary row of height"
+    assert grown_by == C.ROW_PX, "exactly one plain row's pitch -- no wrap penalty applies"
 
 
 def test_row_height_n_wrapped_matches_the_documented_factor():
@@ -583,14 +630,17 @@ def test_gutter_margin_px_measures_the_longest_line_not_the_whole_string():
     assert m_one > m_two, "the longer SINGLE line must reserve more than the two SHORT lines"
 
 
-def test_fig_topics_wraps_the_longest_labels_in_the_app(topics_df):
+def test_fig_topics_never_wraps_the_longest_labels_in_the_app(topics_df):
+    """2B-R-13: topic names are the app's longest labels, so this panel is the
+    hardest test of "full label on one row, gutter widens instead of
+    wrapping"."""
     long_names = [str(n) for n in topics_df["topic_name"] if "<br>" in C.wrap_label(str(n))]
     assert long_names, "fixture must include a real long topic name (topics are the app's longest labels)"
     fig = C.fig_topics(topics_df, sort="volume")
     assert fig.layout.yaxis.automargin is True
     tickvals = list(fig.layout.yaxis.tickvals)
     ticktext = list(fig.layout.yaxis.ticktext)
-    assert any("<br>" in t for t in ticktext), "at least one real long topic name must wrap"
+    assert not any("<br>" in t for t in ticktext), "no topic label may wrap under the 2B-R-13 default"
 
     long_hit = long_names[0]
     # the row's identity (`y=`) is the full, untouched name (glyph-prefixed if
@@ -600,8 +650,10 @@ def test_fig_topics_wraps_the_longest_labels_in_the_app(topics_df):
     row_idx = list(fig.data[0].y).index(row_name)
     assert long_hit in fig.data[0].customdata[row_idx], "full label survives in hover"
     shown = ticktext[tickvals.index(row_name)]
-    assert "<br>" in shown, "the wrapped label draws on two lines"
-    assert all(w in shown for w in long_hit.replace(",", "").split()), "wrapping never drops a word"
+    assert long_hit in shown, "the full, un-truncated name is drawn on its ONE row"
+    # a wide-enough gutter is reserved to hold it (belt-and-braces alongside
+    # test_fig_share_si_automargin_and_reserved_margin_grow_for_long_labels)
+    assert fig.layout.margin.l > C.GUTTER_MARGIN_MIN_PX
 
 
 def test_fig_erc_reuses_the_same_folded_gutter_mechanism(erc_df):
@@ -613,6 +665,174 @@ def test_fig_erc_reuses_the_same_folded_gutter_mechanism(erc_df):
     assert fig.layout.yaxis.automargin is True
     assert len(fig.layout.yaxis.ticktext) == len(erc_df)
     assert all(P.INK_SECONDARY in t for t in fig.layout.yaxis.ticktext)
+    # ERC/SDG delegate to fig_share_si without passing `wrap`, so they inherit
+    # the new 2B-R-13 default -- no chart drawn by this module wraps a label
+    # any more unless a future caller explicitly opts back in.
+    assert not any("<br>" in t for t in fig.layout.yaxis.ticktext)
+
+
+# ---------------------------------------------------------------------------
+# 2B-R-13: fig_topics' retired sort toggle -- the keyword survives (nothing
+# calling it breaks) but the panel is now ALWAYS volume-ordered.
+# ---------------------------------------------------------------------------
+def test_fig_topics_sort_toggle_retired_always_volume_ordered(topics_df):
+    by_default = C.fig_topics(topics_df)
+    by_volume = C.fig_topics(topics_df, sort="volume")
+    by_taxonomy = C.fig_topics(topics_df, sort="taxonomy")
+    assert list(by_default.data[0].y) == list(by_volume.data[0].y) == list(by_taxonomy.data[0].y), (
+        "the sort keyword must no longer change the row order -- volume order always wins"
+    )
+    with pytest.raises(ValueError):
+        C.fig_topics(topics_df, sort="alphabetical")
+
+
+# ---------------------------------------------------------------------------
+# 2B-R-13: the frontier panel's top_n slider, bold quadrant axes, and the
+# companion `frontier_coverage` disclosure numbers.
+# ---------------------------------------------------------------------------
+def test_fig_frontier_bold_ink_quadrant_axes(topics_df):
+    fig = C.fig_frontier(topics_df)
+    shapes = list(fig.layout.shapes)
+    assert len(shapes) == 2
+    assert all(s.line.color == P.INK for s in shapes), "quadrant split is bold INK, not the GRID hairline"
+    assert all(s.line.width == C.FRONTIER_ORIGIN_PX for s in shapes)
+    assert all(w > C.HAIRLINE_PX for w in (s.line.width for s in shapes))
+
+
+def test_fig_frontier_top_n_caps_the_plotted_set_and_autoscales(topics_df):
+    placeable = topics_df[np.isfinite(topics_df["expansion_latest"])
+                          & np.isfinite(topics_df["acceleration_latest"])]
+    assert len(placeable) > 1, "fixture must have more than one placeable row to prove a cut happened"
+    top_n = max(1, len(placeable) // 2)
+    fig_full = C.fig_frontier(topics_df)
+    fig_capped = C.fig_frontier(topics_df, top_n=top_n)
+    pts_full = [t for t in fig_full.data if isinstance(t, go.Scatter)][0]
+    pts_capped = [t for t in fig_capped.data if isinstance(t, go.Scatter)][0]
+    assert len(pts_capped.x) == top_n
+    assert len(pts_capped.x) < len(pts_full.x)
+    # a re-render of the identical frame with the identical top_n never reshuffles
+    fig_capped_again = C.fig_frontier(topics_df, top_n=top_n)
+    assert list(fig_capped_again.data[0].x) == list(pts_capped.x)
+    # top_n at or past the placeable count is a no-op (pre-2B-R-13 behaviour)
+    fig_noop = C.fig_frontier(topics_df, top_n=len(placeable) + 1)
+    assert len(fig_noop.data[0].x) == len(pts_full.x)
+
+
+def test_fig_frontier_catchall_rows_muted_and_flagged_on_hover(topics_df):
+    """The real catch-all row in this fixture carries no frontier score (it is
+    dropped by the placeability filter before `is_excluded` ever matters), so
+    the muting/flagging behaviour is proven on a synthetic PLACEABLE catch-all
+    row grafted onto the real frame -- everything else stays real data."""
+    d = topics_df.copy()
+    placeable = d[np.isfinite(d["expansion_latest"]) & np.isfinite(d["acceleration_latest"])].reset_index(drop=True)
+    assert len(placeable) > 0
+    synthetic = placeable.iloc[[0]].copy()
+    synthetic["is_excluded"] = True
+    synthetic["topic_name"] = "Synthetic catch-all topic"
+    d = pd.concat([placeable.assign(is_excluded=False), synthetic], ignore_index=True)
+    fig = C.fig_frontier(d)
+    pts = [t for t in fig.data if isinstance(t, go.Scatter)][0]
+    excl = d["is_excluded"].fillna(False).to_numpy()
+    assert list(pts.marker.opacity) == [P.MUTED_OPACITY if e else 1.0 for e in excl]
+    assert any(C.HOVER_EXCLUDED in h for e, h in zip(excl, pts.customdata) if e)
+
+
+def test_frontier_coverage_matches_fig_frontier_selection_exactly(topics_df):
+    top_n = 5
+    stats = C.frontier_coverage(topics_df, size_col="vol_full", top_n=top_n)
+    fig = C.fig_frontier(topics_df, size_col="vol_full", top_n=top_n)
+    pts = [t for t in fig.data if isinstance(t, go.Scatter)][0]
+    assert stats["n_shown"] == len(pts.x) == top_n
+    placeable = topics_df[np.isfinite(topics_df["expansion_latest"])
+                          & np.isfinite(topics_df["acceleration_latest"])]
+    assert stats["n_placeable"] == len(placeable)
+    assert 0.0 <= stats["pct_mass_not_shown"] <= 1.0
+    assert stats["min_mass_shown"] is not None
+    assert stats["mass_shown"] <= stats["mass_placeable"]
+    assert isinstance(stats["n_catchall_shown"], int)
+    # n/a-safe: an empty frame never divides by zero and never raises
+    empty = topics_df.iloc[0:0]
+    empty_stats = C.frontier_coverage(empty, size_col="vol_full", top_n=top_n)
+    assert empty_stats == {
+        "n_placeable": 0, "n_shown": 0, "n_catchall_shown": 0,
+        "mass_shown": 0.0, "mass_placeable": 0.0,
+        "pct_mass_not_shown": 0.0, "min_mass_shown": None,
+    }
+
+
+# ---------------------------------------------------------------------------
+# 2B-R-13 measured acceptance: every changed panel, 8 real seeds (Strasbourg,
+# IFPEN, Gdansk plus five chosen for the longest subfield/topic names shipped
+# in the data), zero wrapped or truncated labels, height within the one-screen
+# budget. Printed so the worker's report can paste the measurement verbatim.
+# ---------------------------------------------------------------------------
+def _seed_fields(iid: str, dim: pd.DataFrame) -> pd.DataFrame:
+    fmap = dim.drop_duplicates("field_id")[["field_id", "field_name", "domain_id", "domain_name"]]
+    f = pd.read_parquet(DATA / "fields.parquet")
+    f = f[(f["institution_id"] == iid) & (f["tree"].astype(str) == TREE)]
+    out = f.merge(fmap, on="field_id", how="left")
+    out["share"] = out["share_frac"]
+    return out[["field_id", "field_name", "domain_id", "domain_name",
+                "vol_full", "vol_frac", "share", "si"]].reset_index(drop=True)
+
+
+def _seed_subfields(iid: str, dim: pd.DataFrame) -> pd.DataFrame:
+    smap = dim.drop_duplicates("subfield_id")[
+        ["subfield_id", "subfield_name", "field_id", "field_name", "domain_id", "domain_name"]]
+    s = pd.read_parquet(DATA / "subfields.parquet")
+    s = s[(s["institution_id"] == iid) & (s["tree"].astype(str) == TREE)]
+    out = s.merge(smap, on="subfield_id", how="left", suffixes=("", "_dim"))
+    out["share"] = out["share_frac"]
+    vol = "vol_frac"
+    out = out.nlargest(30, vol)
+    return out[["subfield_id", "subfield_name", "field_id", "field_name",
+                "domain_id", "domain_name", "vol_full", "vol_frac",
+                "share", "si"]].reset_index(drop=True)
+
+
+def _seed_topics(iid: str, dim: pd.DataFrame) -> pd.DataFrame:
+    t = pd.read_parquet(DATA / "topics_all.parquet",
+                        columns=["institution_id", "topic_id", "share_frac", "vol_frac", "vol_full"])
+    t = t[t["institution_id"] == iid]
+    out = t.merge(dim, on="topic_id", how="left")
+    out["share"] = out["share_frac"]
+    return out.sort_values("share", ascending=False).head(30).reset_index(drop=True)
+
+
+def test_2br_measured_acceptance_eight_seeds_no_wrap_no_truncation_height_budget(dim, capsys):
+    rows = []
+    for label, iid in SEEDS_2BR.items():
+        fields = _seed_fields(iid, dim)
+        subfields = _seed_subfields(iid, dim)
+        topics = _seed_topics(iid, dim)
+        for panel_name, frame, builder in (
+            ("fields", fields, lambda d: C.fig_share_si(d, family="oa", label_col="field_name",
+                                                        volume_col="vol_full")),
+            ("subfields", subfields, lambda d: C.fig_share_si(d, family="oa", label_col="subfield_name",
+                                                              volume_col="vol_frac")),
+            ("topics", topics, lambda d: C.fig_topics(d, volume_col="vol_frac")),
+        ):
+            if frame.empty:
+                continue
+            fig = builder(frame)
+            ticktext = list(fig.layout.yaxis.ticktext)
+            label_col = "field_name" if panel_name == "fields" else (
+                "subfield_name" if panel_name == "subfields" else "topic_name")
+            for name in frame[label_col].astype(str):
+                # no wrap: the full name (bare, before the gutter's volume
+                # suffix) is present, verbatim, inside its own drawn tick
+                hit = next((t for t in ticktext if name in t), None)
+                assert hit is not None, f"{label}/{panel_name}: {name!r} not found in ticktext at all"
+                assert "<br>" not in hit, f"{label}/{panel_name}: {name!r} wrapped"
+            rows.append((label, panel_name, len(frame), fig.layout.height))
+            assert fig.layout.height <= MAX_PANEL_HEIGHT_PX, (
+                f"{label}/{panel_name}: height {fig.layout.height} exceeds the one-screen budget"
+            )
+    assert len(rows) >= len(SEEDS_2BR) * 2, "most seeds must yield at least fields+topics"
+    with capsys.disabled():
+        print("\n2B-R-13 measured acceptance (seed / panel / n_rows / height_px):")
+        for r in rows:
+            print(f"  {r[0]:<20} {r[1]:<10} n={r[2]:<3} height={r[3]}")
 
 
 # ---------------------------------------------------------------------------
