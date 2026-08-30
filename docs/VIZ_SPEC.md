@@ -1487,6 +1487,321 @@ forbids relying on.
 
 ---
 
+## 2 quater. View specs — the Phase 2B-R redesign (stream VS, 2026-08-30)
+
+**Produced by:** stream VS in wave 1 of Phase 2B-R, before `lib/views_compare.py`
+and `lib/views_collab.py` are rewritten, against the `BUILD_PLAN_2BR.md` §4
+interface contracts. Same row format as §2, §2 bis and §2 ter: form / encoding /
+interaction / empty state / export, and one NAMED rejected alternative each.
+Builders: `lib/charts_compare.py` (pure plotly, no Streamlit, no hex literal, no
+digit in any string).
+
+**What changed, and why it is not a change of taste.** 2B-R-4 caps Compare at
+**three** institutions. The 2B wind tunnel refused grouped bars on an arithmetic
+that was true at six — 26 fields × 6 institutions is 2.6 px per bar — and that
+arithmetic does not survive the new cap. A/B #7 (§7) re-ran the contest on the
+real trio and the grouped bar won, on the one criterion the dot row can never
+meet: **the number sits on the mark**. Every §2 quater row below therefore takes
+`fig_metric_bars` where its §2 ter ancestor took `fig_mirror_dots`.
+
+**The one rule (2B-1) survives, narrowed once.** Colour on a MARK is the
+institution and nothing else. 2B-R-8 lets a taxonomy's OFFICIAL colour — the
+three ERC domain hues, the sixteen UN goal hues — appear as a glyph in the ROW
+LABEL of the ERC and SDG views. The direction is one-way and routed through
+`palette.label_accent_color`: **taxonomy colour on labels, institution colour on
+marks, never the reverse**. Validator run 17 records the co-occurrence honestly
+(ERC PE `#1F4E9C` vs institution slot 3 `#6A3D9A`, protan ΔE 1.7) and it is
+DISPOSED of, not suppressed: the two are never two marks a reader must tell
+apart.
+
+**One new hue.** `palette.SHARED_FRONTIER` (`#C2185B`, validator runs 14–16) is
+not a fourth institution — it is the intersection. It paints the pooled frontier
+map's shared bubbles and the Collaborate pulse, whose subject is likewise the
+pair's JOINT corpus rather than either side.
+
+**Legend above EVERY chart** (2B-R-12). `charts_compare.legend_strip(ids, …)` is
+the one export a view calls; `shared=True` adds the shared chip. It is not
+decoration: the palette carries a deutan ΔE 7.6 pair and two sub-3:1 contrasts
+(run 9) plus two sequential-memory FAILs on the new hue (run 16), and the strip
+plus the axis labels plus the per-mark hover ARE the secondary encoding that
+makes those legal.
+
+**Two things stay the caller's on every row below:** the caption (denominator,
+basis, tree, both dynamics windows named verbatim per 2B-R-6, the CI coverage
+per 2B-R-12) and the legend placement.
+
+### 4.1 Compare overview — the KPI strip
+
+- **Form.** Not a chart. One `st.columns` card per compared institution, in SLOT
+  order, each carrying the swatch, the name, and the seven overview values of
+  `compare_data.overview` — publications (full and fractional), % SDG-tagged,
+  frontier top-quartile share, PP(top10%) with its interval, % international
+  co-publications and % with a company partner (2B-R-7).
+- **Encoding.** Numbers, not bars. Three institutions × seven measures is a
+  table's job; drawing it would produce seven mini-charts that compete with the
+  metric selector immediately below and answer nothing it does not. The swatch
+  is the only colour on the strip and it is the same `institution_color` the
+  charts use, which is what binds the strip to everything under it.
+- **Interaction.** A remove control per card and one add box, both writing the
+  basket; the cap line reads from `COMPARE_CAP`, never from a typed numeral. The
+  interval's exact coverage is stated beside it, from `METHODS_FAISCEAU.md`
+  (2B-R-12), pinned by a test.
+- **Empty state.** Fewer than two institutions → no panels at all, the add
+  affordance and the Find link instead: one institution is a PROFILE and the app
+  has one. An institution whose intl/company share is not yet in the artefacts
+  shows `palette.NA_MARK`, never zero.
+- **Export.** First sheet of the xlsx workbook and the header block of every CSV.
+
+> **Rejected alternative:** a seven-row dot-plot strip, one row per measure, all
+> three institutions on each. Rejected because the seven measures share no unit
+> or range — a share, a count, a percentage-point estimate and two coverage
+> percentages on one axis is the dual-axis mistake with five axes instead of two
+> — and because the 2B render already showed that a "size" bar beside identity
+> cards competes with the panels below (§3.1).
+
+### 4.2 Metric-selector grouped bars — fields
+
+- **Form.** `charts_compare.fig_metric_bars(frame, metric, ids, level="field")`.
+  Horizontal grouped bars, one row per field, ≤ 3 bars per row, the value written
+  at each bar's outer end. **A/B #7's measured winner** (§7); **A/B #9** fixes the
+  label position (§7).
+- **Encoding.** Bar = institution, colour = `institution_color` by ascending
+  `inst_key`. Bar thickness is `BAR_PX`, and that is arithmetic, not luck:
+  `metric_row_height` sizes the row band from the bar stack, so no row count can
+  make a bar thinner (measured 12.8 px at 26 fields × 3 at 1280 px). A 2 px
+  SURFACE gap separates adjacent bars; a hairline `BORDER` rule separates rows —
+  a filled zebra band would fight three touching bars for the same ink.
+- **Metrics.** Share · Volume of top-decile works · PP(top10%) · % SDG-tagged ·
+  Dynamics Δ · SI (2B-R-5). A metric×level pair the data cannot serve returns a
+  typed empty and the option is HIDDEN, never shown returning zero.
+- **Reference.** `si` defaults to the neutral value, drawn as one dashed rule.
+  Every other reference is DATA (`ref_value`): constant across rows → one rule;
+  varying by row → a short dash inside each row band, because an index PP is a
+  different number in every field and one line would assert a benchmark that does
+  not exist. `dynamics` is signed and gets the BOLD BLACK zero.
+- **Interaction.** One "Compare by" selector. No sort toggles (2B-R-5): the frame
+  arrives ranked and the builder never re-sorts, so colour cannot move with a
+  control. Hover names the institution, the taxon, the value, the reference and
+  the denominator.
+- **Empty state.** A missing cell gets NO bar and NO label; a GENUINE zero gets
+  no visible bar but keeps its value label at the origin, so "measured, and it is
+  zero" and "not measured" look different. Measured on the real trio: Veterinary
+  renders two `0.0 %` labels and one absence.
+- **Export.** CSV of the frame at full precision; one xlsx sheet per metric×level.
+
+> **Rejected alternative:** keep the §3.2 dot mirror and put the values in the
+> hover. Measured in A/B #7 and rejected: at k = 3 the bar is 12.8 px against the
+> dot's 12.0 px and the eye travel is 43 px against 39 px — i.e. the dot row buys
+> nothing back — while the bar carries 77 value labels against the dot row's
+> zero. A comparison the reader must hover to read is a different chart.
+
+### 4.3 Metric-selector grouped bars — subfield drill
+
+- **Form.** `fig_metric_bars(level="subfield")` on the subfields of ONE chosen
+  field. Identical grammar to §4.2 — same read, same form, same builder.
+- **Encoding.** As §4.2. The rows are the subfields of the selected field ranked
+  by the value SUMMED across the compared set (the A3 ruling, which the 2B
+  measurement stands behind: the INTERSECTION of per-institution top lists is one
+  subfield at k = 6 and is not a comparison). The caption states the selection
+  rule, because "top subfields" reads as "each institution's top" otherwise.
+  Subfield SI carries the G6 floor, so a below-floor cell is disclosed in the
+  hover rather than drawn.
+- **Interaction.** A field picker above the chart; the metric selector is the
+  page's and does not reset when the field changes.
+- **Empty state.** As §4.2. A subfield only one institution holds keeps its row
+  if its summed value ranks — the other bars are simply absent, which IS the
+  finding.
+- **Export.** As §4.2, with the chosen field named in the sheet.
+
+> **Rejected alternative:** drill by expanding a field row in place (an
+> accordion inside the chart). Rejected because a plotly categorical axis cannot
+> grow a row without re-laying every other row, so the panel would jump under
+> the reader's cursor, and because the drilled panel needs its own caption
+> (different denominator, different floor) which an in-place row has nowhere to
+> put.
+
+### 4.4 Metric-selector grouped bars — ERC panels
+
+- **Form.** `fig_metric_bars(level="erc")`, rows in the fixed PE → LS → SH order.
+- **Encoding.** As §4.2, plus the 2B-R-8 accent: each row label carries
+  `ACCENT_GLYPH` in its ERC domain's official hue, so the PE/LS/SH grouping is
+  visible without a second axis and without any mark changing colour. Metrics
+  Volume / Share / SI. Share denominator is ERC-classified mass and the caption
+  states each institution's classified share — the only honest way to read a thin
+  institution's panel.
+- **Interaction.** As §4.2. The domain grouping is the row ORDER, not a control.
+- **Empty state.** A panel with zero mass for an institution gets no bar for it;
+  the weak-panel caveat is caption text, never a mark.
+- **Export.** As §4.2, with `erc_domain` as a column.
+
+> **Rejected alternative:** paint the BARS in the ERC domain hues and encode the
+> institution by hatch or marker shape. Rejected on measurement, not taste:
+> validator run 17 puts ERC PE `#1F4E9C` at protan ΔE 1.7 from institution slot 3
+> `#6A3D9A`, so the two families cannot both be marks in one figure; and texture
+> at 13 px of bar thickness is not a channel that survives a screenshot.
+
+### 4.5 Metric-selector grouped bars — SDG goals
+
+- **Form.** `fig_metric_bars(level="sdg")`, rows in fixed goal order.
+- **Encoding.** As §4.4 with the UN goal colours as the label accent. The label
+  itself is the NUMBERED goal (`sdg_label_numbered`), which matters more here
+  than anywhere: the UN palette contains two near-identical ambers (run 7), so
+  the number, not the colour, is the encoding — the accent is brand recognition
+  on top of it. Metrics Volume tagged / % tagged / Dynamics. Shares do NOT sum to
+  one (multi-label) and the caption says so; goal 17 is absent from the classifier
+  and the caption states that from `palette.SDG_UNCOVERED`.
+- **Interaction / empty state / export.** As §4.4.
+
+> **Rejected alternative:** order the goals by summed value instead of by goal
+> number. Rejected because the SDG axis is a *known list* the reader navigates by
+> number — re-ordering puts goal 7 in a different place in every comparison — and
+> because the accent would then be the only thing locating a goal, which is
+> exactly the colour-alone read the amber pair forbids.
+
+### 4.6 Frontier map (pooled)
+
+- **Form.** `charts_compare.fig_frontier_map(points, top_n)` — ONE
+  Expansion × Acceleration plane, one bubble per TOPIC, over the compared
+  institutions' top-quartile frontier topics.
+- **Encoding.** Area = combined volume across the compared set, one scale for the
+  plane. Colour = the institution that EXCLUSIVELY holds the topic, or
+  `palette.SHARED_FRONTIER` when more than one does. **Bold black rules at the
+  origin on both axes** (2B-R-9): the quadrant split is the figure's frame of
+  reference, so it is the one line allowed to out-weigh the grid. A top-quartile
+  topic takes an INK outline — a shape flag, never a new hue. Autoscaled, with the
+  origin forced inside the range (a pooled top-N set can sit entirely in one
+  quadrant, and a quadrant plot whose lines are off-screen is not one).
+- **Why pooled beats the 2B overlay.** The overlay drew each institution's own
+  cloud, so the same topic appeared k times and 90.7 % of marks were occluded by
+  a DIFFERENT institution's (A/B #6). Pooling happens in the data, so
+  cross-institution occlusion is not reduced — it is impossible.
+- **Interaction.** A top-N slider (2B-R-9), and it does real work: measured
+  bubble occlusion on the real trio is 0.450 at N = 40 and N = 60, 0.588 at
+  N = 80, 0.708 at N = 120. **Default N = 60.** Hover names the topic, the owner
+  in words, both scores and the combined volume.
+- **Empty state.** Unscored topics are DROPPED and counted in the caption. The
+  caption must ALSO state how many plotted topics are shared, because the answer
+  is extreme and the picture does not say it: on the real trio **114 of the top
+  120 pooled topics are held by all three and only 1 by a single institution**
+  (118 of 120 shared for the Sorbonne–Strasbourg pair). At the head of the volume
+  ranking the colour split is therefore near-degenerate, and the map's work is
+  POSITION and SIZE; exclusivity is a tail phenomenon and the caption says so
+  from data, never from prose.
+- **Export.** The plotted topic rows with `owner` as TEXT — which is also what
+  keeps "shared" from being colour-alone.
+
+> **Rejected alternative:** one bubble per (institution, topic) with the shared
+> topics drawn k times, i.e. the §3.6 overlay retargeted. Rejected on A/B #6's
+> own numbers (0.907 cross-occlusion at k = 6, 0.780 at k = 3) and on a second
+> ground the pooling makes obvious: with 95 % of the head shared, an overlay
+> would draw the same topic three times in three colours and let the last one
+> drawn win — a picture whose colour is decided by trace order.
+
+### 4.7 Who holds the shared frontier — diverging bars
+
+- **Form.** `charts_compare.fig_diverging_shared(rows)`. Two institutions → a
+  DIVERGING pair, one bar left of a bold zero and one right. Three → grouped rows
+  on one side (a diverging bar has no second direction for a third series, and
+  stacking would turn three volumes into a total nobody asked for).
+- **Encoding.** Row = shared topic, ranked by combined volume. Bar length = that
+  institution's own joint volume, value written at the outer end. **The x ticks
+  carry ABSOLUTE values**: the sign is a direction, not a magnitude, and a
+  negative publication count would be a lie about the data.
+- **Why it is the second chart and not a colour on the first.** A/B #8: the real
+  Sorbonne–Strasbourg pair's most lopsided shared topic is *Cosmology and
+  Gravitation Theories*, 373 against 18 (20.7:1). The paired bars put that
+  imbalance on screen as 305 px of length difference (71 px minimum, 188 px
+  median across the 14 plotted rows); a colour gradient puts it at ΔE 14.9 from
+  the most balanced plotted topic — **below the validator's own 15 normal-vision
+  floor** — and at ΔE 2.3 from a 10:1 topic.
+- **Interaction.** Top-N on the same slider as §4.6. Hover names both sides'
+  volumes and the combined total.
+- **Empty state.** A topic one side does not hold is not a shared topic and is
+  not in the frame; a hole inside a plotted row (three-way case) is an absent bar,
+  never a zero-length one.
+- **Export.** One row per (topic, institution) with both volumes and the combined.
+
+> **Rejected alternative:** a single stacked 100 % bar per topic, the two sides
+> as segments. Rejected because it encodes the RATIO and discards the size — the
+> 373/18 row and a 20/1 row would be the same picture — and because the reader's
+> question here is "how much does each side actually put in", which is a length
+> from a common baseline, not a share of a bar.
+
+### 4.8 Collaborate — relationship pulse
+
+- **Form.** `charts_compare.fig_pulse(per_year)` — one bar per year of joint
+  publications for the pair, with the three pulse facts (each side's joint share
+  of its own output, and each side's rank in the other's collaborator list) as
+  caption values beside it, not as further charts.
+- **Encoding.** ONE series, in `palette.SHARED_FRONTIER`: a co-publication is the
+  PAIR's, so it wears the hue no institution owns. That is what makes this the
+  one figure on these pages with no institution identity in it at all, and what
+  makes a single-series chart legal with no legend of its own. The partial final
+  year is drawn HOLLOW (SURFACE fill, coloured outline) and its tick reads
+  `<year>*` (2B-R-12) — the same hollow-means-partial idiom
+  `fig_trends_small_multiples` uses for its last point. Values on the bars (six
+  bars is inside the ≤ 12 direct-label budget).
+- **Interaction.** Hover per year. No control: six years is the window.
+- **Empty state.** A year with no joint publications is a REAL zero and keeps its
+  place with a zero-height bar and its own label; a year absent from the frame is
+  absent from the chart. Below the pair floor F, the whole section renders the
+  topline plus the honest notice instead (2B-R-10) — the chart is not drawn from
+  a truncated frame.
+- **Export.** The per-year frame plus the three pulse facts.
+
+> **Rejected alternative:** a line chart of the same six points. Rejected because
+> a line asserts interpolation between yearly counts that are complete
+> observations, and because the partial-year disclosure needs a mark that can be
+> hollow — a hollow point on a line reads as "missing", where a hollow BAR reads
+> as "this bar is not full", which is the true statement.
+
+### 4.9 Collaborate — joint corpus
+
+- **Form.** `fig_metric_bars` again, over the pair's JOINT corpus: fields and
+  subfields of the co-publications, top topics, SDG share, the frontier topics
+  among them, ERC panels where the work-level labels join (A9: `erc_probs` covers
+  89.57 % of the corpus).
+- **Encoding.** Here the two bars are the two SIDES' contributions to the joint
+  corpus, so institution colour still names the mark. Every ERC figure carries
+  the named denominator "of the labelled 89.6 %" in its caption, from data.
+- **Interaction.** The same metric selector grammar as §4.2, restricted to the
+  metrics the pair tables can serve; unavailable options are hidden.
+- **Empty state.** Below the floor F the section is replaced by the topline and
+  the notice, with F's value read from config — never a chart drawn on a
+  truncated frame, never a silently thinner one.
+- **Export.** One xlsx sheet per sub-view, plus the joint-corpus CSV.
+
+> **Rejected alternative:** show the joint corpus as each side's SHARE of its own
+> output per field (a normalised profile). Rejected because the joint corpus is
+> already a selection of both — normalising it twice would make a field where
+> both sides are small look like the collaboration's centre.
+
+### 4.10 Untapped potential — table
+
+- **Form.** A table, not a chart (§1.6, "is it even a chart"): one row per topic
+  both institutions hold with joint output at or below the expected level, with
+  each side's own volume, the joint volume, the expected joint volume and the
+  sibling topics (same subfield via `topics_dim`).
+- **Encoding.** Numbers in columns. The row's *claim* is an arithmetic comparison
+  the reader has to be able to audit, and a bar that says "less than expected"
+  hides the two numbers that make the claim. Institution NAME is the clickable
+  OpenAlex link (2B-R-11, via the URL-fragment idiom of A10); no colour is used
+  at all, so no identity family is implicated.
+- **Interaction.** Sort by any column; the expectation formula is stated in
+  Methods and linked from the caption. Row count capped, with the cap in the
+  caption from the constant.
+- **Empty state.** No qualifying topic → an explicit "nothing below expectation"
+  line, never an empty table. Missing expectation → `palette.NA_MARK`.
+- **Export.** CSV and one xlsx sheet, full precision, including the topics the
+  cap dropped.
+
+> **Rejected alternative:** a scatter of joint volume against expected joint
+> volume with a y = x line, the gap read as vertical distance. Rejected because
+> the interesting rows all sit near the origin where the bubbles collide (the
+> same crowding §4.6 measures at 0.708), and because the reader's next action is
+> to read topic NAMES and follow a link — which a scatter can only give through
+> a hover, one at a time.
+
 ## 3. Cross-cutting A/Bs to run on real data (D1)
 
 Named here per this stream's brief item 5; **resolved by Stream D1** against
@@ -1740,3 +2055,153 @@ frontier scatter, which has one series and no occlusion problem.
 `design-system/ab/2b_shipped_builders_1280.png` — every shipped builder on the
 six real institutions, one page, 1280 × 9,900 px, 11 figures, `scroll_ok: true`.
 Read and described in `V3/progress/2B_V.md`.
+
+## 7. A/B verdicts — Phase 2B-R (stream VS, 2026-08-30)
+
+Three A/Bs, run on **real deployed data**, on the trio the stream VS brief names
+— University of Freiburg `I161046081` (slot 1, `inst_key` 876), Sorbonne
+Université `I39804081` (slot 2, 2 922), Université de Strasbourg `I68947357`
+(slot 3, 13 085) — rendered through a throwaway Streamlit prototype
+(`design-system/ab/2br_proto.py`) and photographed headless by Playwright at
+1280 px (`design-system/ab/2br_run.py`). Frames come from the deployed parquet
+files, reproducing the `BUILD_PLAN_2BR.md` §4 contracts by hand rather than
+importing stream CD's modules, which do not exist yet.
+
+**Everything below is MEASURED off the live DOM.** The runner reads every mark's
+and every label's bounding box and computes `min_mark_px` (a bar's mark size is
+its THICKNESS, a dot's its diameter), `span_px` (eye travel to compare all three
+institutions on ONE row), `n_value_labels` (labels drawn on marks),
+`label_gap_px` (label edge to its own mark), `label_collisions` (overlapping
+label boxes), `occluded_frac` (bubbles whose centre is covered by another
+bubble) and `bar_gap_px` (the length difference between the two bars of a
+diverging row). Screenshots: `2br_ab7_a_1280.png`, `2br_ab7_b_1280.png`,
+`2br_ab8_a_1280.png`, `2br_ab8_b_1280.png`, `2br_ab8_n40/n60/n80_1280.png`,
+`2br_ab9_a_1280.png`, `2br_ab9_b_1280.png`.
+
+### A/B #7 — the Compare metric form at N ≤ 3. WINNER: grouped bars.
+
+26 fields × 3 institutions, metric = share, 1280 px. The 2B verdict (§6, A/B #5)
+chose dot rows over grouped bars at **k = 6**, where the wind tunnel had measured
+2.6 px per bar. 2B-R-4 caps Compare at three, so the contest is re-run.
+
+| measured at 1280 px | **A — grouped bars (shipped)** | B — dot rows (the 2B form) |
+|---|---|---|
+| `min_mark_px` (floor 8) | **12.8** ✔ | 12.0 ✔ |
+| `span_px` — eye travel across one row | 43 | 39 |
+| `n_value_labels` on marks | **77** | **0** |
+| `label_collisions` | **0** | — (no labels) |
+| plot width for the compared measure | **799 px** | 496 px (the rest goes to the SI panel) |
+| figure height | 1,513 px | 1,158 px |
+| marks drawn | 77 (= 26 × 3 − 1 missing cell) | 154 (77 share + 77 SI) |
+| horizontal scroll | none | none |
+
+**Verdict.** At k = 3 the dot row's advantage is gone and its cost is not. The
+bar is 12.8 px against the dot's 12.0 and the eye travel is 43 px against 39 —
+a 4 px difference, i.e. the two forms are equivalent on every legibility number
+A/B #5 was decided on. What separates them is the **value label**: 77 numbers on
+the marks against zero. The dot row put volumes in the hover because six numbers
+could not fit in a row; three fit, and a comparison the reader can read without
+hovering is a different chart. The price is 355 px of height and the loss of the
+paired share + SI panel — which 2B-R-5 pays deliberately, because SI is now one
+of six options on the metric selector rather than a permanent second panel.
+
+The label budget was the one thing that could have refused this: Studio
+`LEGIBILITY_BUDGETS.md` puts "bars with direct value labels" at ≤ 12 and this
+figure draws 77. The budget is one of the file's own **unmeasured** working
+rules; the measurement here — 0 label collisions, a constant 3 px label-to-mark
+gap at 26 rows — is what overrides it, and the reason it survives is that the
+labels are distributed one per bar down a 1,513 px column rather than crowded
+along one axis. **Reported back to the Studio as a measured data point.**
+
+Two things the render changed, both found by looking at the picture:
+* `textposition="outside"` clips at the plot frame unless the x range carries
+  headroom — `AXIS_PAD_FRAC` is that headroom, and `cliponaxis=False` the belt;
+* a hairline row rule beats a zebra band here. The 2B mirror's zebra keeps a
+  lane stack reading as one row across whitespace; behind three touching bars it
+  fights the bars for the same ink.
+
+### A/B #8 — recovering an imbalance. WINNER: map + diverging bars.
+
+Sorbonne–Strasbourg shared frontier topics, 1280 px. The question is whether a
+reader can recover a 1-vs-20 split, and at what occlusion cost.
+
+The probe rows are real, not invented: the most lopsided shared topic is
+**Cosmology and Gravitation Theories, 373 (Sorbonne) against 18 (Strasbourg) =
+20.7:1**; the most balanced plotted topic is **Advancements in Battery Materials,
+137 against 54 = 2.5:1**.
+
+| measured at 1280 px | **A — map + diverging bars (shipped)** | B — one gradient chart |
+|---|---|---|
+| how the imbalance is encoded | bar LENGTH + the two counts on the marks | a hue on a diverging ramp |
+| 20.7:1 vs 2.5:1, as rendered | **305 px** of length difference | ΔE **14.9** (normal vision) — **below the 15 floor** |
+| 20:1 vs 10:1 | ~2 bar-lengths apart, both counts printed | ΔE **2.3** |
+| 20:1 vs 5:1 | ditto | ΔE **7.0** |
+| `bar_gap_px` across the 14 plotted rows | min 71.4 · median 187.5 · max 305.4 | — |
+| `occluded_frac` | 0.708 at N = 120 · **0.450 at N = 60** | **0.834** at its 362 shared topics |
+| bubbles | 120 | 362 |
+| `min_mark_px` | 19.4 | 13.7 |
+| exact values recoverable | **yes** (28 value labels) | no |
+
+**Verdict.** The gradient loses on its own numbers, and it loses where it is
+supposed to be strong. Its whole claim is that one chart can carry the imbalance;
+put through the same validator the palette is built with, the distance between
+the MOST and LEAST lopsided topics it plots is ΔE 14.9 — under the normal-vision
+floor the app applies to every categorical pair — and the distance between a 20:1
+and a 10:1 topic is 2.3, which is nothing. A reader cannot rank two topics by
+imbalance in it, let alone read 373 and 18. The paired bars encode the same fact
+as 71–305 px of length with both counts printed on the marks.
+
+The gradient also loses the occlusion argument it was meant to win: 0.834 of its
+bubbles have a covered centre against the map's 0.708 at the same style of plane,
+because a single chart has to plot every shared topic where the map has a top-N
+slider. **The slider was measured, not assumed**: 0.450 at N = 40 and N = 60,
+0.588 at N = 80, 0.708 at N = 120 — so the map ships with **N = 60 as the
+default**, where a bubble is 22.7 px and fewer than half have a covered centre.
+
+One finding the render forced into the spec and into CD/CP's captions: on this
+data the exclusive-vs-shared colour split is **near-degenerate at the head**. Of
+the 120 largest pooled topics, 114 are held by all three institutions, 5 by two
+and 1 by one (118 of 120 shared for the pair). The map's real work is POSITION
+and SIZE; exclusivity is a tail phenomenon. §4.6 therefore obliges the caption to
+state the shared count from data — a picture that is 95 % one colour must say so
+rather than let the reader infer that the colour is doing work.
+
+### A/B #9 — where the value label goes. WINNER: the bar's own outer end.
+
+The same 26 × 3 figure, metric = SI, 1280 px. A — each label at its own bar's
+outer end. B — all labels pooled into one column at a fixed x, in lane order.
+
+| measured at 1280 px | **A — outer end (shipped)** | B — pooled centre column |
+|---|---|---|
+| labels drawn | 77 | 77 |
+| `label_collisions` | **0** | **76** |
+| `label_gap_px` median | **3.0** | 271.7 |
+| `label_gap_px` max | **3.0** | 423.7 |
+| labels actually readable | 77 | **1 per row at best** |
+
+**Verdict.** Not close, and the picture is worse than the table. Pooling the
+three labels of a row at one x stacks them on top of each other: 76 of the 77
+label boxes overlap, and `2br_ab9_b_1280.png` shows the result — "2.94", "2.41"
+and "2.44" printed over one another into an unreadable glyph. The pooled column
+also puts a median of 272 px between a number and the mark it describes, so even
+where a label survives, pairing it back to a bar is a scan across the panel.
+A/B #4's aligned left gutter (§4 of this file) worked because it held ONE number
+per row; three per row is not a gutter, it is a collision.
+
+The constant 3 px gap in variant A is `textposition="outside"`'s own offset and
+it does not grow with the row count, which is why 26 rows collide zero times.
+
+**Scope.** This verdict governs a value label attached to a MARK — the §4.2–§4.5
+grouped bars and, by the same measurement, stream FB's 2B-R-13 SI panels, where
+"outer end" means the end of the bar away from the SI = 1 reference. It says
+nothing about the single-number left gutter of §2.15/§2.16, which A/B #4 decided
+and which this A/B does not reopen.
+
+### Render proof
+
+`design-system/ab/2br_shipped_builders_1280.png` — every new builder on the real
+trio, one page, 1280 × 6,200 px, 6 figures, 350 marks, 230 value labels,
+0 label collisions, `scroll_ok: true`. Read and described in
+`V3/progress/2BR_VS.md`. The pulse frame on that page is **synthetic and
+labelled as such** — `collab_pairs.parquet` lands with pipeline stream P2; what
+the render proves there is the builder's geometry, not any number.

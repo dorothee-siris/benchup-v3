@@ -543,3 +543,369 @@ def test_the_hex_scan_actually_covers_this_module():
             scanned.extend(sorted(d.rglob("*.py")))
     assert MODULE in scanned
     assert MODULE not in ALLOWLIST
+
+
+# ===========================================================================
+# PHASE 2B-R (stream VS) -- the redesigned Compare / Collaborate builders
+# ===========================================================================
+# Same discipline as the 2B block above: frames are built INLINE from the
+# BUILD_PLAN_2BR.md section 4 contracts, so the day `lib/compare_data.py` and
+# `lib/collab_data.py` land their output drops in unchanged -- and if it does
+# not, these fixtures are the statement of what the builders were promised.
+#
+# The cardinality changed and so did the fixtures: 2B-R-4 caps Compare at THREE
+# institutions, so every builder below is exercised at k = 2 AND k = 3, plus one
+# explicit refusal at k = 4.
+TAXA = [(11, "Agricultural and Biological Sciences", 1),
+        (12, "Arts and Humanities", 2),
+        (16, "Chemistry", 3),
+        (27, "Medicine", 4)]
+ERC_PANELS = [(0, "LS9", "Biotechnology and Biosystems Engineering", "LS"),
+              (5, "PE1", "Mathematics", "PE"),
+              (9, "SH2", "Institutions, Values, Environment and Space", "SH")]
+
+
+@pytest.fixture(params=[2, 3], ids=["k_two", "k_three"])
+def kc(request) -> int:
+    """The COMPARE cardinalities (2B-R-4), not the 2B basket ones."""
+    return request.param
+
+
+@pytest.fixture
+def cslots(kc) -> dict:
+    return slots_for(kc)
+
+
+@pytest.fixture
+def cids(kc) -> list:
+    return IDS[:kc]
+
+
+def metric_frame(ids, *, ref=None, level="field", hole=True) -> pd.DataFrame:
+    rows = []
+    for n, iid in enumerate(ids):
+        for m, (tid, label, dom) in enumerate(TAXA):
+            if hole and n == 0 and m == len(TAXA) - 1:
+                continue                       # the missing cell: n/a, never zero
+            rows.append(dict(institution_id=iid, taxon_id=tid, taxon_label=label,
+                             domain_id=dom,
+                             value=0.0 if (n == 1 and m == 0) else 0.05 + 0.03 * m + 0.004 * n,
+                             ref_value=(ref if not callable(ref) else ref(m)),
+                             denominator=1000 + 10 * m + n))
+    d = pd.DataFrame(rows)
+    if level == "erc":
+        d["taxon_id"] = d["taxon_id"].map({t[0]: p[0] for t, p in zip(TAXA, ERC_PANELS + [ERC_PANELS[0]])})
+        d["taxon_label"] = d["taxon_id"].map({p[0]: p[2] for p in ERC_PANELS})
+        d["erc_domain"] = d["taxon_id"].map({p[0]: p[3] for p in ERC_PANELS})
+        d = d.dropna(subset=["taxon_label"])
+    if level == "sdg":
+        d["sdg_number"] = (d["taxon_id"] % 7) + 1
+        d["taxon_id"] = d["sdg_number"]
+        d["taxon_label"] = ["SDG " + str(g) for g in d["sdg_number"]]
+    return d.reset_index(drop=True)
+
+
+def pooled_points(ids) -> pd.DataFrame:
+    rng = np.random.default_rng(11)
+    rows = []
+    owners = list(ids) + [X.SHARED_OWNER]
+    for t in range(24):
+        rows.append(dict(topic_id=9000 + t, name=f"Topic {t}",
+                         x=float(rng.normal(0.6, 0.9)), y=float(rng.normal(0.4, 0.7)),
+                         combined_vol=float(10 + 3 * t),
+                         owner=owners[t % len(owners)],
+                         top25pct_frontier=bool(t % 3 == 0)))
+    out = pd.DataFrame(rows)
+    out.loc[0, "x"] = np.nan             # an unscored topic must be dropped
+    return out
+
+
+def shared_long(ids) -> pd.DataFrame:
+    """The 20:1 imbalance A/B #8 is about, plus a balanced row and a hole."""
+    rows = []
+    for t in range(5):
+        for n, iid in enumerate(ids):
+            if t == 4 and n == 0:
+                continue
+            vol = (20.0 if n == 0 else 1.0) if t == 0 else float(6 + t + n)
+            rows.append(dict(institution_id=iid, topic_id=8000 + t,
+                             name=f"Shared topic {t}", vol=vol))
+    return pd.DataFrame(rows)
+
+
+PULSE_YEARS = ["2020", "2021", "2022", "2023", "2024", "2025"]
+
+
+def pulse_frame() -> pd.DataFrame:
+    return pd.DataFrame({"year": PULSE_YEARS,
+                         "co_pubs": [12.0, 15.0, 0.0, 19.0, 22.0, 9.0]})
+
+
+# --------------------------------------------------------- fig_metric_bars ---
+def test_metric_bars_render_for_every_metric(cids, cslots, kc):
+    for metric in X.METRICS:
+        fig = X.fig_metric_bars(metric_frame(cids), metric, cids, slots=cslots,
+                                names=NAMES, level="field")
+        assert len(fig.data) == kc, metric
+        assert fig.layout.barmode == "overlay"
+        assert fig.layout.paper_bgcolor == P.SURFACE
+        assert fig.layout.showlegend is False
+        assert len(fig.layout.yaxis.ticktext) == len(TAXA)
+
+
+def test_metric_bars_refuse_a_fourth_institution():
+    """2B-R-4 is a HARD cap and the builder refuses rather than truncating: a
+    figure that silently drew three of four would disagree with its own
+    caption, legend and export."""
+    ids4 = IDS[:4]
+    with pytest.raises(ValueError):
+        X.fig_metric_bars(metric_frame(ids4), "share", ids4, slots=slots_for(4),
+                          names=NAMES)
+    with pytest.raises(ValueError):
+        X.fig_metric_bars(metric_frame(IDS[:2]), "breadth", IDS[:2], slots=slots_for(2))
+    with pytest.raises(ValueError):
+        X.fig_metric_bars(metric_frame(IDS[:2]), "share", IDS[:2], slots=slots_for(2),
+                          level="topic")
+
+
+def test_every_drawn_bar_carries_its_value_label(cids, cslots):
+    """The one thing the k = 6 dot mirror could not do, and the reason A/B #7
+    reopened the form question: the number is ON the mark."""
+    d = metric_frame(cids)
+    fig = X.fig_metric_bars(d, "share", cids, slots=cslots, names=NAMES)
+    drawn = sum(len(tr.x) for tr in fig.data)
+    labelled = sum(len(tr.text) for tr in fig.data)
+    assert drawn == labelled == len(d)
+    assert all(tr.textposition == "outside" for tr in fig.data)
+    assert all(t for tr in fig.data for t in tr.text), "no label may be empty"
+
+
+def test_metric_bars_missing_cell_is_absent_and_a_real_zero_is_labelled(cids, cslots):
+    """n/a never zero (BUILD_PLAN_2A L11) at chart grain -- and its converse:
+    a measured zero must still be visible as a number."""
+    d = metric_frame(cids)
+    fig = X.fig_metric_bars(d, "share", cids, slots=cslots, names=NAMES)
+    assert sum(len(tr.x) for tr in fig.data) == len(d) == len(TAXA) * len(cids) - 1
+    zeros = [(x, t) for tr in fig.data for x, t in zip(tr.x, tr.text) if x == 0]
+    assert len(zeros) == 1 and zeros[0][1], "a genuine zero keeps its value label"
+
+
+def test_metric_bars_colour_is_the_institution_and_only_the_institution(cids, cslots):
+    fig = X.fig_metric_bars(metric_frame(cids), "share", cids, slots=cslots, names=NAMES)
+    wanted = {P.institution_color(s) for s in cslots.values()}
+    assert {tr.marker.color for tr in fig.data} == wanted
+    assert all(tr.marker.line.color == P.SURFACE for tr in fig.data)
+
+
+def test_metric_bars_never_thinner_than_the_target(cids, cslots, kc):
+    """`BAR_PX` is an arithmetic property of `metric_row_height`, not a hope
+    about the row count -- the 2B wind tunnel's 2.6 px bars were the same
+    picture drawn into a band sized for dots."""
+    for n_rows in (4, 26, 60):
+        h = X.metric_row_height(n_rows, kc)
+        plot = h - C.BASE_PX - C.BASE_PX // 2
+        one_bar = (plot / n_rows) * X.BAR_GROUP_SPAN * X.BAR_GROUP_FILL / kc
+        assert one_bar >= X.MIN_MARK_PX, (n_rows, kc, one_bar)
+    assert X.BAR_PX >= X.MIN_MARK_PX
+
+
+# ------------------------------------------------------- the label accents ---
+def test_erc_and_sdg_labels_carry_the_official_taxonomy_accent(cids, cslots):
+    """2B-R-8: taxonomy colour on the ROW LABEL, institution colour on the
+    MARK, and never the reverse."""
+    for level, expected in (("erc", set(P.ERC_DOMAIN_COLORS.values())),
+                            ("sdg", set(P.SDG_COLORS.values()))):
+        fig = X.fig_metric_bars(metric_frame(cids, level=level), "share", cids,
+                                slots=cslots, names=NAMES, level=level)
+        ticks = "".join(fig.layout.yaxis.ticktext)
+        assert X.ACCENT_GLYPH in ticks
+        assert any(c in ticks for c in expected), level
+        # the one-way rule: no institution hue ever reaches a label
+        for s in cslots.values():
+            assert P.institution_color(s) not in ticks
+
+
+def test_field_and_subfield_labels_take_no_accent(cids, cslots):
+    """A family with no OFFICIAL colour borrows none -- an accent is worth its
+    ink only where the reader already knows the palette from outside the app."""
+    for level in ("field", "subfield"):
+        fig = X.fig_metric_bars(metric_frame(cids), "share", cids, slots=cslots,
+                                names=NAMES, level=level)
+        assert X.ACCENT_GLYPH not in "".join(fig.layout.yaxis.ticktext)
+
+
+def test_label_accent_resolver_is_the_one_entry_point():
+    assert P.label_accent_color("erc", "PE") == P.ERC_DOMAIN_COLORS["PE"]
+    assert P.label_accent_color("sdg", 7) == P.SDG_COLORS[7]
+    for family in ("oa", "doctype", "institution", None):
+        assert P.label_accent_color(family, 1) == P.COMPARISON
+    assert set(P.LABEL_ACCENT_FAMILIES) == {"erc", "sdg"}
+
+
+# ---------------------------------------------------------- the reference ---
+def test_constant_reference_is_one_rule_and_a_varying_one_is_per_row(cids, cslots):
+    flat = X.fig_metric_bars(metric_frame(cids, ref=0.06), "share", cids,
+                             slots=cslots, names=NAMES)
+    rules = [s for s in flat.layout.shapes
+             if s.type == "line" and getattr(s.line, "dash", None) == "dash"]
+    varying = X.fig_metric_bars(metric_frame(cids, ref=lambda m: 0.02 + 0.01 * m),
+                                "share", cids, slots=cslots, names=NAMES)
+    dashes = [s for s in varying.layout.shapes
+              if s.type == "line" and getattr(s.line, "dash", None) == "dash"]
+    assert len(rules) == 1, "a constant reference is ONE rule across the panel"
+    assert len(dashes) == len(TAXA), "a varying reference is one dash per row"
+    # ...and the per-row dashes really do sit at different x values
+    assert len({round(float(s.x0), 6) for s in dashes}) == len(TAXA)
+
+
+def test_si_defaults_to_the_neutral_reference_and_volume_invents_none(cids, cslots):
+    si = X.fig_metric_bars(metric_frame(cids), "si", cids, slots=cslots, names=NAMES)
+    assert any(s.type == "line" and s.x0 == C.SI_NEUTRAL for s in si.layout.shapes)
+    bare = metric_frame(cids).drop(columns=["ref_value"])
+    vol = X.fig_metric_bars(bare, "vol_top10", cids, slots=cslots, names=NAMES)
+    assert not [s for s in vol.layout.shapes if getattr(s.line, "dash", None) == "dash"]
+
+
+def test_a_signed_metric_gets_the_bold_zero_and_a_two_sided_range(cids, cslots):
+    d = metric_frame(cids)
+    d.loc[d.index % 2 == 0, "value"] = -d["value"]
+    fig = X.fig_metric_bars(d, "dynamics", cids, slots=cslots, names=NAMES)
+    assert fig.layout.xaxis.range[0] < 0
+    bold = [s for s in fig.layout.shapes
+            if s.line.color == P.INK and s.line.width == X.BOLD_AXIS_PX]
+    assert len(bold) == 1
+
+
+# --------------------------------------------------------- the pooled map ---
+def test_frontier_map_draws_each_topic_once(cids, cslots):
+    d = pooled_points(cids)
+    fig = X.fig_frontier_map(d, slots=cslots, names=NAMES)
+    assert sum(len(tr.x) for tr in fig.data) == len(d) - 1   # the unscored one
+    colors = {tr.marker.color for tr in fig.data}
+    assert P.SHARED_FRONTIER in colors
+    assert colors - {P.SHARED_FRONTIER} <= {P.institution_color(s) for s in cslots.values()}
+
+
+def test_frontier_map_has_bold_black_origin_rules_that_stay_in_range(cids, cslots):
+    fig = X.fig_frontier_map(pooled_points(cids), slots=cslots, names=NAMES)
+    bold = [s for s in fig.layout.shapes
+            if s.line.color == P.INK and s.line.width == X.BOLD_AXIS_PX]
+    assert len(bold) == 2
+    for axis in (fig.layout.xaxis, fig.layout.yaxis):
+        assert axis.range[0] <= C.FRONTIER_ORIGIN <= axis.range[1]
+
+
+def test_frontier_map_top_n_keeps_the_largest_and_the_shared_cloud_is_on_top(cids, cslots):
+    fig = X.fig_frontier_map(pooled_points(cids), 10, slots=cslots, names=NAMES)
+    assert sum(len(tr.x) for tr in fig.data) == 10
+    assert fig.data[-1].marker.color == P.SHARED_FRONTIER
+    for tr in fig.data:
+        assert float(np.min(tr.marker.size)) >= X.MIN_MARK_PX
+        assert set(tr.marker.line.color) <= {P.INK, P.SURFACE}
+
+
+# ------------------------------------------------- the shared-frontier bars ---
+def test_diverging_at_two_institutions_puts_one_side_left_of_zero(cslots):
+    ids2 = IDS[:2]
+    slots2 = slots_for(2)
+    fig = X.fig_diverging_shared(shared_long(ids2), ids2, slots=slots2, names=NAMES)
+    assert len(fig.data) == 2
+    assert min(fig.data[0].x) < 0 and min(fig.data[1].x) >= 0
+    # the ticks carry ABSOLUTE values: a negative count would be a lie
+    assert all(not str(t).startswith("-") for t in fig.layout.xaxis.ticktext)
+    bold = [s for s in fig.layout.shapes
+            if s.line.color == P.INK and s.line.width == X.BOLD_AXIS_PX]
+    assert len(bold) == 1
+
+
+def test_grouped_at_three_institutions_and_refused_at_four():
+    ids3, ids4 = IDS[:3], IDS[:4]
+    fig = X.fig_diverging_shared(shared_long(ids3), ids3, slots=slots_for(3), names=NAMES)
+    assert len(fig.data) == 3
+    assert all(x >= 0 for tr in fig.data for x in tr.x)
+    with pytest.raises(ValueError):
+        X.fig_diverging_shared(shared_long(ids4), ids4, slots=slots_for(4), names=NAMES)
+
+
+def test_shared_rows_rank_by_combined_volume_and_a_hole_stays_a_hole():
+    ids2 = IDS[:2]
+    d = shared_long(ids2)
+    fig = X.fig_diverging_shared(d, ids2, slots=slots_for(2), names=NAMES)
+    assert sum(len(tr.x) for tr in fig.data) == len(d)
+    top = d.groupby("topic_id")["vol"].sum().idxmax()
+    assert d[d["topic_id"] == top]["name"].iloc[0] in str(fig.layout.yaxis.ticktext[0])
+
+
+# ---------------------------------------------------------------- the pulse ---
+def test_pulse_marks_the_partial_year_hollow_and_stars_its_tick():
+    fig = X.fig_pulse(pulse_frame(), bonus_year=PULSE_YEARS[-1])
+    assert len(fig.data) == 2
+    full, bonus = fig.data
+    assert full.marker.color == P.SHARED_FRONTIER
+    assert bonus.marker.color == P.SURFACE
+    assert bonus.marker.line.color == P.SHARED_FRONTIER
+    assert list(fig.layout.xaxis.ticktext)[-1] == PULSE_YEARS[-1] + X.PARTIAL_YEAR_GLYPH
+    assert list(fig.layout.xaxis.ticktext)[0] == PULSE_YEARS[0]
+
+
+def test_pulse_keeps_a_real_zero_year_on_the_axis():
+    fig = X.fig_pulse(pulse_frame())
+    assert sum(len(tr.x) for tr in fig.data) == len(PULSE_YEARS)
+    assert 0.0 in list(fig.data[0].y)
+    assert fig.layout.showlegend is False
+
+
+def test_pulse_wears_no_institution_colour():
+    """The joint corpus belongs to neither side, so it takes the one hue no
+    institution owns."""
+    fig = X.fig_pulse(pulse_frame(), bonus_year=PULSE_YEARS[-1])
+    used = {tr.marker.color for tr in fig.data} | {tr.marker.line.color for tr in fig.data}
+    assert not (used & set(P.INSTITUTION_COLORS))
+
+
+# --------------------------------------------------------- the legend strip ---
+def test_legend_strip_is_slot_ordered_and_can_name_the_shared_hue(cids, cslots, kc):
+    html = X.legend_strip(cids, slots=cslots, names=NAMES, shared=True)
+    order = [P.institution_color(n) for n in range(kc)] + [P.SHARED_FRONTIER]
+    assert [html.index(c) for c in order] == sorted(html.index(c) for c in order)
+    for i in cids:
+        assert NAMES[i] in html
+    assert X.LABEL_SHARED in html
+    assert P.SHARED_FRONTIER not in X.legend_strip(cids, slots=cslots, names=NAMES)
+
+
+def test_every_2br_builder_paints_the_surface_and_hides_the_plotly_legend(cids, cslots):
+    figs = [X.fig_metric_bars(metric_frame(cids), "share", cids, slots=cslots, names=NAMES),
+            X.fig_frontier_map(pooled_points(cids), slots=cslots, names=NAMES),
+            X.fig_diverging_shared(shared_long(cids), cids, slots=cslots, names=NAMES),
+            X.fig_pulse(pulse_frame(), bonus_year=PULSE_YEARS[-1])]
+    for fig in figs:
+        assert fig.layout.paper_bgcolor == P.SURFACE
+        assert fig.layout.plot_bgcolor == P.SURFACE
+        assert fig.layout.showlegend is False
+        assert all(tr.showlegend is False for tr in fig.data)
+
+
+# ----------------------------------------------------------- palette additions ---
+def test_shared_frontier_is_not_an_institution_and_not_chrome():
+    upper = {c.upper() for c in P.INSTITUTION_COLORS}
+    assert P.SHARED_FRONTIER.upper() not in upper
+    assert P.SHARED_FRONTIER.upper() != P.FOCAL.upper()
+    assert P.SHARED_FRONTIER.upper() != P.COMPARISON.upper()
+    others = ([v.upper() for v in P.OA_DOMAIN_COLORS.values()]
+              + [v.upper() for v in P.ERC_DOMAIN_COLORS.values()]
+              + [v.upper() for v in P.DOCTYPE_COLORS.values()]
+              + [v.upper() for v in P.SDG_COLORS.values()]
+              + [v.upper() for v in P.GREY_STATE_COLORS.values()])
+    assert P.SHARED_FRONTIER.upper() not in others
+    assert P.institution_color(P.INSTITUTION_SLOT_MAX) != P.SHARED_FRONTIER
+
+
+def test_viz_spec_has_rejected_alternative_per_2br_view_row():
+    """Section 2 quater carries the same obligation as sections 2 and 2 ter."""
+    spec = (APP_DIR / "docs" / "VIZ_SPEC.md").read_text(encoding="utf-8")
+    rows_2br = len(re.findall(r"^### 4\.\d+", spec, flags=re.MULTILINE))
+    assert rows_2br >= 8, f"expected the 2B-R view rows in VIZ_SPEC, found {rows_2br}"
+    find_rows = len(re.findall(r"^### 2\.\d+", spec, flags=re.MULTILINE))
+    compare_rows = len(re.findall(r"^### 3\.\d+", spec, flags=re.MULTILINE))
+    assert spec.count("Rejected alternative:") >= find_rows + compare_rows + rows_2br

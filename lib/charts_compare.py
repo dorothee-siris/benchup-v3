@@ -74,6 +74,30 @@ WHAT IS DELIBERATELY *NOT* CARRIED OVER FROM `charts.py`
     serves the breakdown pair. That legend is not optional: it is the secondary
     encoding the validator's deutan 7.6 WARN obliges (palette_validation.txt
     run 9).
+
+PHASE 2B-R AMENDMENT (2026-08-30, stream VS) -- THE CAP CHANGED, SO THE FORM DID
+--------------------------------------------------------------------------------
+Everything above was written for a basket of SIX. 2B-R-4 caps Compare at THREE,
+and that single number reopens the form question the 2B wind tunnel closed: the
+"2.6 px per bar" arithmetic that killed grouped bars was 26 fields x 6
+institutions, and at k = 3 the same pitch gives a bar an order of magnitude more
+room. A/B #7 (VIZ_SPEC section 7) re-ran the contest on real data at k = 3 and
+the grouped bar WON, on the one thing the dot row cannot do: put the NUMBER on
+the mark. So the 2B-R views take `fig_metric_bars`, and `fig_mirror_dots` is
+retained for the frames that still want a two-panel share + SI read.
+
+The one rule (2B-1) survives intact and is narrowed in exactly one place: colour
+on a MARK still means the institution and only the institution, and 2B-R-8 lets
+the taxonomy's OFFICIAL colour appear as a glyph in the ROW LABEL of the ERC and
+SDG views -- axis furniture, never a mark, never a legend chip, and never the
+other way round (an institution colour on a label accent is forbidden outright).
+The doctrine, the direction and the single resolver live in `palette.py`'s
+LABEL ACCENTS section.
+
+`palette.SHARED_FRONTIER` is the one new hue: it is NOT a fourth institution but
+the intersection -- the pooled frontier map's "every compared institution holds
+this topic" bubbles, and the Collaborate pulse, whose subject is likewise the
+JOINT corpus rather than either side.
 """
 from __future__ import annotations
 
@@ -1164,3 +1188,693 @@ def institution_legend_html(names, slots: Mapping) -> str:
                                    for k, v in items])
     return C.chip_legend_html([(str(v), P.institution_color(i))
                                for i, v in enumerate(names)])
+
+
+# ===========================================================================
+# PHASE 2B-R (stream VS, 2026-08-30) -- the Compare/Collaborate redesign
+# ===========================================================================
+# Geometry and vocabulary for the new builders. Same two scans apply: no hex
+# literal (every hue comes from `lib.palette`), no digit inside a string
+# literal (every number is an int/float constant or a caller-filled value).
+# ---------------------------------------------------------------------------
+COMPARE_MAX_SERIES = 3      # 2B-R-4, the HARD cap. It is not a preference: the
+                            # bar geometry below is sized from it, and the k = 3
+                            # institution prefix is the set validator run 13
+                            # measured warning-free.
+BAR_PX = 13                 # target thickness of ONE institution's bar in a
+                            # grouped row. Well above the MIN_MARK_PX floor, and
+                            # the number `metric_row_height` sizes the row band
+                            # from -- so a bar can never be thinner than this by
+                            # arithmetic, whatever the row count.
+BAR_GROUP_SPAN = 0.82       # the share of a row band the bar group occupies
+BAR_GROUP_FILL = 0.86       # the share of a group slot one bar occupies (the
+                            # remainder is the SURFACE gap the dataviz mark
+                            # specs ask for between adjacent bars)
+AXIS_PAD_FRAC = 0.20        # x-range headroom so an outer-end label never
+                            # collides with the plot frame (measured need, A/B #9)
+ROW_RULE_PX = 1             # hairline between two category rows
+REF_HALF_BAND = 0.40        # half-height of a per-row reference dash, in category units
+BOLD_AXIS_PX = 2            # the BOLD BLACK 0/0 axes (2B-R-9 / 2B-R-13). INK on a
+                            # RULE, not on a mark -- the quadrant split is the
+                            # figure's own frame of reference, so it is the one
+                            # line that may out-weigh the grid.
+MAP_BUBBLE_MIN_PX = 9       # pooled frontier map: the smallest topic bubble
+MAP_BUBBLE_MAX_PX = 40      # ...and the largest (combined volume, area-scaled)
+MAP_HEIGHT_PX = 560
+PULSE_HEIGHT_PX = 320
+PULSE_BAR_SPAN = 0.62       # one pulse bar's share of its year slot
+
+ACCENT_GLYPH = "\N{BLACK VERTICAL RECTANGLE}"
+# The row-label accent (2B-R-8). A GLYPH, drawn in the taxonomy's official hue
+# through plotly's tick pseudo-html, sitting to the left of a label that names
+# the taxon in full -- so the colour is recognition and the text is the
+# encoding. Never a mark; see palette.LABEL_ACCENT_FAMILIES.
+ACCENT_GAP = "\N{NO-BREAK SPACE}"
+
+PARTIAL_YEAR_GLYPH = "\N{ASTERISK}"
+# 2B-R-12: the partial final year is labelled `<year>*` on every x axis and the
+# footnote lives in the section tooltip. The YEAR itself is always a
+# caller-supplied string -- this module never names one.
+
+SHARED_OWNER = "shared"
+# The `owner` value that means "every compared institution holds this topic"
+# (contract section 4, `frontier_pooled`). Its colour is `palette.SHARED_FRONTIER`,
+# which is deliberately not an institution slot.
+
+METRICS = ("share", "vol_top10", "pp", "sdg_share", "dynamics", "si")
+LEVELS = ("field", "subfield", "erc", "sdg")
+
+AX_TOP_DECILE_VOL = "Publications in the world top decile"
+AX_TOP_DECILE_SHARE = "Share of publications in the world top decile"
+AX_SDG_TAGGED = "Share of publications tagged to a goal"
+AX_DYNAMICS = "Change in mean annual volume"
+AX_COPUBS = "Joint publications"
+AX_JOINT_VOLUME = "Joint publications on the topic"
+
+HOVER_REFERENCE = "index reference"
+HOVER_DENOMINATOR = "denominator"
+HOVER_OWNER = "held by"
+HOVER_COMBINED = "combined volume"
+LABEL_SHARED = "shared"
+
+_METRIC_AXIS = {
+    "share": C.AX_SHARE,
+    "vol_top10": AX_TOP_DECILE_VOL,
+    "pp": AX_TOP_DECILE_SHARE,
+    "sdg_share": AX_SDG_TAGGED,
+    "dynamics": AX_DYNAMICS,
+    "si": C.AX_SI,
+}
+_METRIC_KIND = {"share": "pct", "vol_top10": "vol", "pp": "pct",
+                "sdg_share": "pct", "dynamics": "pct", "si": "si"}
+_SIGNED_METRICS = ("dynamics",)
+_METRIC_DEFAULT_REF = {"si": C.SI_NEUTRAL}
+# `si` is the one metric whose reference is a CONSTANT of the indicator itself
+# (specialisation is defined against the index mean, so the neutral value is
+# one). Every other reference -- the index PP, the index share -- is DATA and
+# arrives in the frame's `ref_value` column; this module never invents one.
+
+_ACCENT_COLS = {"erc": ("erc_domain",), "sdg": ("sdg_number", "sdg_idx")}
+_LEVEL_ACCENT_FAMILY = {"erc": "erc", "sdg": "sdg"}
+
+
+def _fmt_metric(v, metric: str) -> str:
+    kind = _METRIC_KIND.get(metric, "vol")
+    if kind == "pct":
+        return _fmt_pct(v)
+    if kind == "si":
+        return _fmt_si(v)
+    return _fmt_vol(v)
+
+
+def metric_row_height(n_rows: int, n_series: int, n_wrapped: int = 0,
+                      minimum: int = C.MIN_HEIGHT) -> int:
+    """Figure height for `n_rows` grouped-bar rows -- the twin of
+    `compare_row_height`, sized from `BAR_PX` instead of from a lane pitch.
+
+    The profile pitch is kept whenever it already gives every bar its target
+    thickness; when it does not, the row band grows to exactly what the bar
+    stack needs and no further. That is what makes "no bar is thinner than
+    `BAR_PX`" an arithmetic property of the builder rather than a hope about the
+    row count -- the 2B wind tunnel's 2.6 px bars were the same picture drawn
+    into a band sized for dots."""
+    n_rows = max(int(n_rows), 1)
+    base = C.row_height(n_rows, minimum=minimum, n_wrapped=n_wrapped)
+    chrome = C.BASE_PX + C.BASE_PX // 2
+    need = BAR_PX * max(int(n_series), 1) / (BAR_GROUP_SPAN * BAR_GROUP_FILL)
+    have = max(base - chrome, 0) / n_rows
+    if have >= need:
+        return base
+    return int(round(need * n_rows)) + chrome
+
+
+def _series_ids(d: pd.DataFrame, slots: Mapping, ids: Sequence | None) -> list:
+    """The compared institutions, in SLOT order, capped at `COMPARE_MAX_SERIES`.
+
+    Refusing rather than truncating is deliberate: a builder that silently drew
+    three of four institutions would produce a figure whose caption, legend and
+    export all disagree with it. `lib/selection.py` owns the truncation, once,
+    with a copy line (2B-R-4)."""
+    out = list(ids) if ids is not None else _ordered_ids(d, slots)
+    out = sorted(dict.fromkeys(out), key=lambda i: (_slot_of(slots, i), str(i)))
+    if len(out) > COMPARE_MAX_SERIES:
+        raise ValueError(f"at most {COMPARE_MAX_SERIES} institutions per compare "
+                         f"figure, got {len(out)}")
+    if not out:
+        raise ValueError("no institutions to draw")
+    return out
+
+
+def _accent_ticktext(rows: pd.DataFrame, level: str, label_col: str,
+                     accent_col: str | None) -> tuple[list[str], list[str]]:
+    """`(plain, styled)` tick strings, with the 2B-R-8 taxonomy accent.
+
+    `plain` is what `_gutter_margin_px` measures (the glyph and its gap occupy
+    real width, so they are counted); `styled` is what plotly draws. When the
+    level has no official palette, or the frame carries no accent key, the two
+    are the wrapped label and nothing else -- an accent is never invented."""
+    family = _LEVEL_ACCENT_FAMILY.get(level)
+    plain, styled = [], []
+    for _, r in rows.iterrows():
+        text_plain, text_styled = C._tick_display(str(r[label_col]), None)
+        if family and accent_col and accent_col in rows.index.names + list(rows.columns):
+            hexcol = P.label_accent_color(family, r[accent_col])
+            text_plain = f"{ACCENT_GLYPH}{ACCENT_GAP}{text_plain}"
+            text_styled = (f'<span style="color:{hexcol}">{ACCENT_GLYPH}</span>'
+                           f"{ACCENT_GAP}{text_styled}")
+        plain.append(text_plain)
+        styled.append(text_styled)
+    return plain, styled
+
+
+def _row_rules(fig: go.Figure, n_rows: int) -> None:
+    """A hairline BETWEEN two rows -- not a zebra band.
+
+    A grouped row is already a visual block (two or three touching bars); a
+    filled band behind it would fight the bars for the same ink, where a rule
+    only says where one row stops. `_zebra` stays the right answer for the
+    lane-split dot mirrors, whose rows hold nothing but whitespace."""
+    for i in range(n_rows - 1):
+        fig.add_shape(type="line", x0=0, x1=1, xref="x domain",
+                      y0=i + 0.5, y1=i + 0.5,
+                      line=dict(color=P.BORDER, width=ROW_RULE_PX),
+                      layer="below")
+
+
+def _bold_axes(fig: go.Figure, *, x: float = C.FRONTIER_ORIGIN,
+               y: float | None = C.FRONTIER_ORIGIN) -> None:
+    """The bold black origin lines (2B-R-9 / 2B-R-13)."""
+    fig.add_vline(x=x, line=dict(color=P.INK, width=BOLD_AXIS_PX))
+    if y is not None:
+        fig.add_hline(y=y, line=dict(color=P.INK, width=BOLD_AXIS_PX))
+
+
+# ---------------------------------------------------------------------------
+# 9. The metric selector's chart -- horizontal grouped bars (2B-R-5 / 2B-R-8)
+# ---------------------------------------------------------------------------
+def fig_metric_bars(
+    frame: pd.DataFrame,
+    metric: str,
+    ids: Sequence | None = None,
+    *,
+    slots: Mapping,
+    names: Mapping | None = None,
+    level: str = "field",
+    value_col: str = "value",
+    label_col: str | None = None,
+    key_col: str | None = None,
+    ref_col: str = "ref_value",
+    ref_value: float | None = None,
+    denominator_col: str = "denominator",
+    accent_col: str | None = None,
+    metric_label: str | None = None,
+) -> go.Figure:
+    """ONE metric, one taxonomy level, up to three institutions: horizontal
+    grouped bars, one row per taxon, the value written on the mark.
+
+    This is 2B-R-5's form and A/B #7's measured winner (VIZ_SPEC section 7). The
+    thing it does that the dot mirror could not is put the NUMBER on the mark:
+    at k = 6 a row held six values and had nowhere to write them, so they went
+    to the hover; at k = 3 they fit on the bars, and a comparison the reader can
+    read without hovering is a different chart.
+
+    ROW ORDER IS THE CALLER'S. 2B-R-5 removed the sort toggles, so the frame
+    arrives ranked and this builder preserves the order the keys first appear in
+    -- it never re-sorts. Colour still follows the entity, so nothing repaints
+    when the caller changes the ranking.
+
+    ENCODING. Bar = institution (`palette.institution_slots`, ascending
+    `inst_key`). Row label = the taxon, and for ERC and SDG ONLY it carries a
+    glyph in the taxonomy's official colour (2B-R-8). The direction is one-way
+    and routed through `palette.label_accent_color`: taxonomy colour on labels,
+    institution colour on marks, never the reverse.
+
+    REFERENCE. `si` defaults to the neutral value; every other reference is data
+    and comes from `ref_col`. A reference that is the SAME for every row is
+    drawn as one dashed rule across the panel; one that VARIES by row is drawn
+    as a short dash inside each row band, because a single line would be a lie
+    about a per-taxon index mean.
+
+    EMPTY STATE (n/a never zero, BUILD_PLAN_2A L11). An institution with no row
+    for a taxon gets NO bar and NO label. A GENUINE zero gets no visible bar
+    either -- a zero-length bar cannot be drawn -- but it does get its value
+    label at the origin, so "measured, and it is zero" and "not measured" look
+    different rather than identical.
+    """
+    if metric not in METRICS:
+        raise ValueError(f"metric must be one of {METRICS}, got {metric!r}")
+    if level not in LEVELS:
+        raise ValueError(f"level must be one of {LEVELS}, got {level!r}")
+    if "institution_id" not in frame.columns or value_col not in frame.columns:
+        raise ValueError(f"frame needs institution_id and {value_col!r}")
+
+    d = frame.copy()
+    label_col = label_col or _first_col(d, ("taxon_label",) + C._LABEL_COLS)
+    if label_col is None:
+        raise ValueError("no label column found; pass label_col=")
+    key_col = key_col or _first_col(d, ("taxon_id",) + _KEY_COLS.get(level, ())) or label_col
+    accent_col = accent_col or _first_col(d, _ACCENT_COLS.get(level, ()))
+    series = _series_ids(d, slots, ids)
+
+    keep = [c for c in (key_col, label_col, ref_col, accent_col) if c and c in d.columns]
+    rows = d.drop_duplicates(subset=[key_col])[keep].reset_index(drop=True)
+    n = len(rows)
+    if n == 0:
+        raise ValueError("no rows to draw")
+
+    cells = {(r[key_col], r["institution_id"]): r for _, r in d.iterrows()}
+    vals = pd.to_numeric(d[value_col], errors="coerce")
+    vmax = float(vals.max()) if len(vals) and np.isfinite(vals.max()) else 0.0
+    vmin = float(vals.min()) if len(vals) and np.isfinite(vals.min()) else 0.0
+    signed = metric in _SIGNED_METRICS or vmin < 0
+
+    fig = go.Figure()
+    _row_rules(fig, n)
+    for k, iid in enumerate(series):
+        offset, bar_w = C._series_offset_width(len(series), k, BAR_GROUP_SPAN,
+                                               BAR_GROUP_FILL)
+        color = P.institution_color(_slot_of(slots, iid))
+        xs, ys, texts, hovers = [], [], [], []
+        for ri, key in enumerate(rows[key_col].tolist()):
+            r = cells.get((key, iid))
+            if r is None:
+                continue
+            v = _num(r[value_col])
+            if not np.isfinite(v):
+                continue
+            xs.append(v)
+            ys.append(ri)
+            texts.append(_fmt_metric(v, metric))
+            hovers.append(_metric_hover(r, iid, names, label_col, value_col,
+                                        metric, ref_col, denominator_col,
+                                        metric_label))
+        fig.add_trace(go.Bar(
+            x=xs, y=ys, orientation="h", offset=offset, width=bar_w,
+            marker=dict(color=color, line=dict(color=P.SURFACE, width=C.HAIRLINE_PX)),
+            text=texts, textposition="outside", cliponaxis=False,
+            textfont=dict(size=C.GUTTER_FONT_PX, color=P.INK_SECONDARY),
+            customdata=hovers, hovertemplate="%{customdata}<extra></extra>",
+            showlegend=False))
+
+    fig.update_layout(barmode="overlay", bargap=0)
+    _add_reference(fig, rows, ref_col, ref_value, _METRIC_DEFAULT_REF.get(metric))
+
+    plain, styled = _accent_ticktext(rows, level, label_col, accent_col)
+    _y_axis(fig, n, styled)
+    n_wrapped = sum(1 for s in styled if "<br>" in s)
+    lo = min(vmin, 0.0)
+    hi = max(vmax, 0.0)
+    span = (hi - lo) or (abs(hi) or 1.0)
+    pad = span * AXIS_PAD_FRAC
+    fig.update_xaxes(range=[lo - (pad if signed else 0.0), hi + pad],
+                     title_text=metric_label or _METRIC_AXIS[metric],
+                     gridcolor=P.GRID, zerolinecolor=P.GRID, linecolor=P.BORDER)
+    if _METRIC_KIND[metric] == "pct":
+        fig.update_xaxes(tickformat=C._AXIS_PCT_FMT)
+    if signed:
+        _bold_axes(fig, y=None)
+    plain_lines = [s.replace("<br>", "\n") for s in plain]
+    return C._base_layout(fig, metric_row_height(n, len(series), n_wrapped=n_wrapped),
+                          margin=dict(t=C.BASE_PX // 2,
+                                      l=C._gutter_margin_px(plain_lines),
+                                      r=C.BASE_PX, b=C.BASE_PX))
+
+
+def _metric_hover(r, iid, names, label_col, value_col, metric, ref_col,
+                  denominator_col, metric_label) -> str:
+    title = (metric_label or _METRIC_AXIS[metric]).lower()
+    parts = [_name_of(names, iid), str(r[label_col]),
+             f"{title}{C.THIN_SPACE}{_fmt_metric(r[value_col], metric)}"]
+    index = list(getattr(r, "index", []))
+    if ref_col in index:
+        parts.append(f"{HOVER_REFERENCE}{C.THIN_SPACE}{_fmt_metric(r[ref_col], metric)}")
+    if denominator_col in index:
+        parts.append(f"{HOVER_DENOMINATOR}{C.THIN_SPACE}{_fmt_vol(r[denominator_col])}")
+    return "<br>".join(parts)
+
+
+def _add_reference(fig: go.Figure, rows: pd.DataFrame, ref_col: str,
+                   ref_value: float | None, default_ref: float | None) -> None:
+    """One dashed rule for a CONSTANT reference, a per-row dash for a VARYING
+    one. The distinction is the whole point: an index PP is a different number
+    in every field, and drawing one line across the panel would assert a single
+    benchmark that does not exist."""
+    if ref_value is not None:
+        _ref_line(fig, float(ref_value))
+        return
+    if ref_col in rows.columns:
+        series = pd.to_numeric(rows[ref_col], errors="coerce")
+        finite = series[np.isfinite(series)]
+        if len(finite):
+            if float(finite.max()) - float(finite.min()) <= 1e-12:
+                _ref_line(fig, float(finite.iloc[0]))
+            else:
+                for ri, v in enumerate(series.tolist()):
+                    if not np.isfinite(v):
+                        continue
+                    fig.add_shape(type="line", x0=float(v), x1=float(v),
+                                  y0=ri - REF_HALF_BAND, y1=ri + REF_HALF_BAND,
+                                  line=dict(color=P.INK_SECONDARY,
+                                            width=C.HAIRLINE_PX, dash="dash"))
+            return
+    if default_ref is not None:
+        _ref_line(fig, float(default_ref))
+
+
+def _ref_line(fig: go.Figure, x: float) -> None:
+    fig.add_vline(x=x, line=dict(color=P.INK_SECONDARY, width=C.HAIRLINE_PX,
+                                 dash="dash"))
+
+
+# ---------------------------------------------------------------------------
+# 10. The pooled frontier map (2B-R-9, chart 1)
+# ---------------------------------------------------------------------------
+def fig_frontier_map(
+    points: pd.DataFrame,
+    top_n: int | None = None,
+    *,
+    slots: Mapping,
+    names: Mapping | None = None,
+    x_col: str = "x",
+    y_col: str = "y",
+    size_col: str = "combined_vol",
+    owner_col: str = "owner",
+    label_col: str = "name",
+    labels: Mapping | None = None,
+) -> go.Figure:
+    """ONE Expansion x Acceleration plane over the compared institutions' top
+    frontier topics, POOLED: each topic appears once, sized by the volume the
+    compared set puts into it and coloured by who holds it.
+
+    This answers A/B #6's problem rather than re-running it. The 2B overlay drew
+    each institution's own cloud, so the SAME topic appeared k times and 90.7 %
+    of marks were occluded by a different institution's. Here the pooling
+    happens in the DATA (contract section 4, `frontier_pooled`): one bubble per
+    topic, `owner` naming either the single institution that holds it or
+    `SHARED_OWNER`. Cross-institution occlusion is therefore not reduced, it is
+    impossible -- two institutions never draw the same topic twice.
+
+    ENCODING. Area = combined volume, one scale for the whole plane. Colour =
+    the exclusive holder's institution hue, or `palette.SHARED_FRONTIER` for a
+    topic every compared institution holds. Bold black rules at the origin on
+    both axes: the quadrant split is the figure's frame of reference, so it is
+    the one line allowed to out-weigh the grid. A top-quartile topic takes an
+    INK outline -- a shape flag, never a new hue.
+
+    AUTOSCALED, with the origin forced inside the range. A pooled top-N set can
+    sit entirely in one quadrant, and a quadrant plot whose quadrant lines are
+    off-screen is not a quadrant plot.
+
+    `top_n` keeps the largest bubbles by combined volume -- the slider 2B-R-9
+    puts on the panel. Rows with no frontier score are DROPPED and must be
+    counted in the caller's caption."""
+    labels = dict({SHARED_OWNER: LABEL_SHARED}, **(labels or {}))
+    d = points.copy()
+    for col in (x_col, y_col, owner_col):
+        if col not in d.columns:
+            raise ValueError(f"missing column {col!r}")
+    d = d[np.isfinite(pd.to_numeric(d[x_col], errors="coerce"))
+          & np.isfinite(pd.to_numeric(d[y_col], errors="coerce"))].copy()
+    d["_m"] = (pd.to_numeric(d[size_col], errors="coerce").fillna(0.0)
+               if size_col in d.columns else 1.0)
+    d = d.sort_values("_m", ascending=False, kind="mergesort")
+    if top_n is not None:
+        d = d.head(int(top_n))
+    d = d.reset_index(drop=True)
+    if not len(d):
+        raise ValueError("no scored topics to draw")
+    mmax = float(d["_m"].max()) or 1.0
+
+    exclusive = [o for o in dict.fromkeys(d[owner_col].tolist()) if o != SHARED_OWNER]
+    owners = _series_ids(d, slots, exclusive) if exclusive else []
+    # the shared cloud is drawn LAST, i.e. on top: it is the answer the panel
+    # exists for, and it is the one colour no institution owns.
+    if (d[owner_col] == SHARED_OWNER).any():
+        owners = owners + [SHARED_OWNER]
+
+    fig = go.Figure()
+    for owner in owners:
+        mine = d[d[owner_col] == owner]
+        if not len(mine):
+            continue
+        shared = owner == SHARED_OWNER
+        color = P.SHARED_FRONTIER if shared else P.institution_color(_slot_of(slots, owner))
+        who = labels.get(owner, _name_of(names, owner))
+        top = (mine["top25pct_frontier"].fillna(False).to_numpy(dtype=bool)
+               if "top25pct_frontier" in mine.columns else np.zeros(len(mine), dtype=bool))
+        sizes = MAP_BUBBLE_MIN_PX + (MAP_BUBBLE_MAX_PX - MAP_BUBBLE_MIN_PX) * np.sqrt(
+            mine["_m"].to_numpy(dtype=float) / mmax)
+        hovers = ["<br>".join([
+            str(r[label_col]), f"{HOVER_OWNER}{C.THIN_SPACE}{who}",
+            f"{C.HOVER_EXPANSION}{C.THIN_SPACE}{_fmt_frontier(r[x_col])}",
+            f"{C.HOVER_ACCELERATION}{C.THIN_SPACE}{_fmt_frontier(r[y_col])}",
+            f"{HOVER_COMBINED}{C.THIN_SPACE}{_fmt_vol(r['_m'])}"])
+            for _, r in mine.iterrows()]
+        fig.add_trace(go.Scatter(
+            x=mine[x_col].to_numpy(dtype=float), y=mine[y_col].to_numpy(dtype=float),
+            mode="markers",
+            marker=dict(color=color, size=sizes, sizemode="diameter",
+                        opacity=OVERLAY_OPACITY,
+                        line=dict(color=[P.INK if t else P.SURFACE for t in top],
+                                  width=[P.OUTLINE_WIDTH if t else C.HAIRLINE_PX
+                                         for t in top])),
+            customdata=hovers, hovertemplate="%{customdata}<extra></extra>",
+            showlegend=False))
+
+    _bold_axes(fig)
+    fig.update_xaxes(title_text=C.AX_EXPANSION, range=_origin_range(d[x_col]),
+                     gridcolor=P.GRID, zerolinecolor=P.GRID, linecolor=P.BORDER)
+    fig.update_yaxes(title_text=C.AX_ACCELERATION, range=_origin_range(d[y_col]),
+                     gridcolor=P.GRID, zerolinecolor=P.GRID, linecolor=P.BORDER,
+                     automargin=True, title_standoff=6)
+    return C._base_layout(fig, MAP_HEIGHT_PX,
+                          margin=dict(t=C.BASE_PX // 2, l=8, r=16, b=C.BASE_PX))
+
+
+def _origin_range(values) -> list:
+    """Autoscale that always contains the origin, with room at the edges for the
+    largest bubble's radius."""
+    v = pd.to_numeric(values, errors="coerce")
+    v = v[np.isfinite(v)]
+    lo = min(float(v.min()), C.FRONTIER_ORIGIN) if len(v) else -1.0
+    hi = max(float(v.max()), C.FRONTIER_ORIGIN) if len(v) else 1.0
+    span = (hi - lo) or 1.0
+    pad = span * AXIS_PAD_FRAC / 2.0
+    return [lo - pad, hi + pad]
+
+
+# ---------------------------------------------------------------------------
+# 11. Who holds the shared frontier (2B-R-9, chart 2)
+# ---------------------------------------------------------------------------
+def fig_diverging_shared(
+    rows: pd.DataFrame,
+    ids: Sequence | None = None,
+    *,
+    slots: Mapping,
+    names: Mapping | None = None,
+    label_col: str = "name",
+    key_col: str = "topic_id",
+    value_col: str = "vol",
+    top_n: int | None = None,
+) -> go.Figure:
+    """The shared frontier topics, ranked by combined volume, with each
+    institution's own contribution drawn.
+
+    TWO institutions -> a DIVERGING pair: one bar left of a bold zero, one
+    right, so the IMBALANCE is the shape of the row and a reader recovers a
+    twenty-to-one split by comparing two LENGTHS rather than two colours
+    (A/B #8's measurement, VIZ_SPEC section 7). The axis ticks carry ABSOLUTE
+    values, because a negative count would be a lie about the data -- the sign
+    is a direction, not a magnitude.
+
+    THREE institutions -> GROUPED rows, all on one side. A diverging bar has no
+    second direction to give a third series, and stacking would turn three
+    per-institution volumes into a total nobody asked for.
+
+    The frame is LONG (institution_id, key, label, value) -- the same shape
+    every other builder in this module takes."""
+    d = rows.copy()
+    for col in ("institution_id", key_col, value_col):
+        if col not in d.columns:
+            raise ValueError(f"missing column {col!r}")
+    series = _series_ids(d, slots, ids)
+    d["_v"] = pd.to_numeric(d[value_col], errors="coerce").fillna(0.0)
+    combined = d.groupby(key_col, sort=False)["_v"].sum().sort_values(
+        ascending=False, kind="mergesort")
+    if top_n is not None:
+        combined = combined.head(int(top_n))
+    first = d.drop_duplicates(subset=[key_col]).set_index(key_col)
+    order = list(combined.index)
+    n = len(order)
+    if n == 0:
+        raise ValueError("no shared topics to draw")
+
+    cells = {(r[key_col], r["institution_id"]): r for _, r in d.iterrows()}
+    diverging = len(series) == 2
+    fig = go.Figure()
+    _row_rules(fig, n)
+    vmax = 0.0
+    for k, iid in enumerate(series):
+        color = P.institution_color(_slot_of(slots, iid))
+        if diverging:
+            offset, bar_w = -BAR_GROUP_SPAN / 2.0, BAR_GROUP_SPAN
+            sign = -1.0 if k == 0 else 1.0
+        else:
+            offset, bar_w = C._series_offset_width(len(series), k, BAR_GROUP_SPAN,
+                                                   BAR_GROUP_FILL)
+            sign = 1.0
+        xs, ys, texts, hovers = [], [], [], []
+        for ri, key in enumerate(order):
+            r = cells.get((key, iid))
+            if r is None:
+                continue
+            v = _num(r["_v"])
+            if not np.isfinite(v):
+                continue
+            vmax = max(vmax, abs(v))
+            xs.append(sign * v)
+            ys.append(ri)
+            texts.append(_fmt_vol(v))
+            hovers.append("<br>".join([
+                _name_of(names, iid), str(first.loc[key, label_col]),
+                f"{AX_JOINT_VOLUME.lower()}{C.THIN_SPACE}{_fmt_vol(v)}",
+                f"{HOVER_COMBINED}{C.THIN_SPACE}{_fmt_vol(combined.loc[key])}"]))
+        fig.add_trace(go.Bar(
+            x=xs, y=ys, orientation="h", offset=offset, width=bar_w,
+            marker=dict(color=color, line=dict(color=P.SURFACE, width=C.HAIRLINE_PX)),
+            text=texts, textposition="outside", cliponaxis=False,
+            textfont=dict(size=C.GUTTER_FONT_PX, color=P.INK_SECONDARY),
+            customdata=hovers, hovertemplate="%{customdata}<extra></extra>",
+            showlegend=False))
+
+    fig.update_layout(barmode="overlay", bargap=0)
+    styled = [C.wrap_label(str(first.loc[k, label_col])) for k in order]
+    _y_axis(fig, n, styled)
+    n_wrapped = sum(1 for s in styled if "<br>" in s)
+    vmax = vmax or 1.0
+    pad = vmax * AXIS_PAD_FRAC
+    if diverging:
+        _bold_axes(fig, y=None)
+        ticks = [t for t in C._nice_ticks(vmax) if t > 0]
+        fig.update_xaxes(
+            range=[-vmax - pad, vmax + pad], tickmode="array",
+            tickvals=[-t for t in reversed(ticks)] + [0.0] + ticks,
+            ticktext=([_fmt_vol(t) for t in reversed(ticks)] + [_fmt_vol(0.0)]
+                      + [_fmt_vol(t) for t in ticks]))
+    else:
+        fig.update_xaxes(range=[0, vmax + pad], tickvals=C._nice_ticks(vmax))
+    fig.update_xaxes(title_text=AX_JOINT_VOLUME, gridcolor=P.GRID,
+                     zerolinecolor=P.GRID, linecolor=P.BORDER)
+    plain = [s.replace("<br>", "\n") for s in styled]
+    return C._base_layout(fig,
+                          metric_row_height(n, 1 if diverging else len(series),
+                                            n_wrapped=n_wrapped),
+                          margin=dict(t=C.BASE_PX // 2,
+                                      l=C._gutter_margin_px(plain),
+                                      r=C.BASE_PX, b=C.BASE_PX))
+
+
+# ---------------------------------------------------------------------------
+# 12. Collaborate -- the relationship pulse (2B-R-10, section 1)
+# ---------------------------------------------------------------------------
+def fig_pulse(
+    per_year: pd.DataFrame,
+    *,
+    year_col: str = "year",
+    value_col: str = "co_pubs",
+    bonus_year: str | None = None,
+    axis_title: str | None = None,
+) -> go.Figure:
+    """Joint publications per year for ONE pair -- the Collaborate opener.
+
+    ONE series, and it belongs to neither side: a co-publication is the PAIR's,
+    so it wears `palette.SHARED_FRONTIER` rather than either institution's hue.
+    That is also why this is the one figure on these two pages whose colour
+    carries no institution identity at all -- there is nothing here to tell
+    apart, which is what makes a single-series chart legal with no legend of its
+    own (the page's institution strip still names both sides for the figures
+    below it).
+
+    `bonus_year` names the PARTIAL final year (2B-R-12): its bar is drawn hollow
+    -- SURFACE fill, coloured outline -- and its tick reads `<year>*`, the same
+    hollow-means-partial idiom `fig_trends_small_multiples` uses for its last
+    point. The year itself is always the caller's string; this module never
+    names one.
+
+    A year with no joint publications is a REAL zero and keeps its place on the
+    axis with a zero-height bar and its own value label; a year absent from the
+    frame is absent from the chart. Two different facts, two different pictures.
+    """
+    d = per_year.copy()
+    for col in (year_col, value_col):
+        if col not in d.columns:
+            raise ValueError(f"missing column {col!r}")
+    years = [str(y) for y in d[year_col].tolist()]
+    vals = [_num(v) for v in d[value_col].tolist()]
+    if not years:
+        raise ValueError("no years to draw")
+
+    fig = go.Figure()
+    for is_bonus in (False, True):
+        xs, ys, texts, hovers = [], [], [], []
+        for y, v in zip(years, vals):
+            if (y == bonus_year) != is_bonus:
+                continue
+            xs.append(y)
+            ys.append(0.0 if not np.isfinite(v) else v)
+            texts.append(_fmt_vol(v))
+            hovers.append(f"{C.AX_YEAR.lower()}{C.THIN_SPACE}{y}"
+                          f"<br>{AX_COPUBS.lower()}{C.THIN_SPACE}{_fmt_vol(v)}")
+        if not xs:
+            continue
+        fig.add_trace(go.Bar(
+            x=xs, y=ys, width=PULSE_BAR_SPAN,
+            marker=dict(color=P.SURFACE if is_bonus else P.SHARED_FRONTIER,
+                        line=dict(color=P.SHARED_FRONTIER,
+                                  width=P.OUTLINE_WIDTH if is_bonus
+                                  else C.HAIRLINE_PX)),
+            text=texts, textposition="outside", cliponaxis=False,
+            textfont=dict(size=C.GUTTER_FONT_PX, color=P.INK_SECONDARY),
+            customdata=hovers, hovertemplate="%{customdata}<extra></extra>",
+            showlegend=False))
+
+    ticktext = [f"{y}{PARTIAL_YEAR_GLYPH}" if y == bonus_year else y for y in years]
+    fig.update_layout(barmode="overlay", bargap=0)
+    fig.update_xaxes(type="category", categoryorder="array", categoryarray=years,
+                     tickmode="array", tickvals=years, ticktext=ticktext,
+                     gridcolor=P.GRID, linecolor=P.BORDER)
+    fig.update_yaxes(title_text=axis_title or AX_COPUBS, rangemode="tozero",
+                     gridcolor=P.GRID, zerolinecolor=P.GRID, linecolor=P.BORDER,
+                     automargin=True, title_standoff=6)
+    return C._base_layout(fig, PULSE_HEIGHT_PX,
+                          margin=dict(t=C.BASE_PX // 2, l=8, r=16, b=C.BASE_PX))
+
+
+# ---------------------------------------------------------------------------
+# 13. The legend strip -- rendered above EVERY compare chart (2B-R-12)
+# ---------------------------------------------------------------------------
+def legend_strip(ids: Sequence, *, slots: Mapping, names: Mapping | None = None,
+                 shared: bool = False, shared_label: str = LABEL_SHARED,
+                 extra: Sequence | None = None) -> str:
+    """The institution chip strip, in slot order, for the ids actually drawn.
+
+    2B-R-12 makes it mandatory ABOVE EVERY Compare chart rather than once per
+    view: the page now scrolls through a metric selector, two frontier charts
+    and a trends grid, and a legend the reader has scrolled past is not a
+    legend. It is also still the secondary encoding the palette's warnings
+    oblige (palette_validation.txt runs 9 and 16).
+
+    `shared=True` appends the `palette.SHARED_FRONTIER` chip -- the frontier map
+    and the pulse are the two figures whose marks are not all institutions, and
+    a chip is the only thing that says so without a caption.
+
+    `extra` takes further `(label, hex)` chips for a caller that needs one; the
+    hex must still come from `lib.palette`, which the app-wide hex scan enforces
+    on every caller anyway."""
+    order = sorted(dict.fromkeys(ids), key=lambda i: (_slot_of(slots, i), str(i)))
+    items = [(_name_of(names, i), P.institution_color(_slot_of(slots, i)))
+             for i in order]
+    if shared:
+        items.append((shared_label, P.SHARED_FRONTIER))
+    items.extend([(str(a), str(b)) for a, b in (extra or [])])
+    return C.chip_legend_html(items)

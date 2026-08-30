@@ -124,6 +124,64 @@ mutual validator distance a NON-requirement (see palette_validation.txt run 6).
 #   same module) is the applicable one and returns OK on all four of its checks:
 #   lightness monotone light->dark, every adjacent dL >= 0.06, light-end contrast
 #   2.14:1 (floor 2:1), single hue (spread 4 degrees).
+# Run 13 (2026-08-30, 2B-R/VS): the k = 3 COMPARE prefix alone (#D55E00,
+#   #009E73, #6A3D9A), `--pairs all` -> ALL CHECKS PASS with no warning at all
+#   (worst CVD 11.0 deutan, worst normal 25.8, every contrast >= 3:1). 2B-R-4
+#   caps Compare at three institutions, so this -- not the k = 6 run 9 -- is the
+#   set the new Compare figures actually draw.
+# Run 14 (2026-08-30, 2B-R/VS): the SHARED-FRONTIER candidate screen. Every
+#   candidate was validated as {k = 3 institutions} + FOCAL + candidate,
+#   `--pairs all`, so any FAIL involving the candidate is the candidate's
+#   (FOCAL's own pre-existing deutan 6.9 vs #6A3D9A is the run-11 finding
+#   restated). REJECTED, all measured:
+#     #2E75B6 -> passes the 4-slot set but is FOCAL's twin: normal DeltaE 2.3 /
+#               protan 1.3 vs #0072B2. FOCAL paints Streamlit's own buttons and
+#               links ON THE COMPARE PAGE, so this is a same-screen collision,
+#               not a sequential one. The strongest candidate, rejected anyway.
+#     #0E7C9E -> normal 14.0 vs #009E73 (below the 15 floor).
+#     #386CB0 -> normal 13.0 / deutan 6.7 vs #6A3D9A.
+#     #A6761D -> protan 2.4 / normal 9.4 vs #D55E00.
+#     #005F73, #00796B, #0B7285, #00838F, #2C6E49 -> chroma 0.081-0.095, below
+#               the 0.1 floor (they read grey), and #0B7285/#00838F also collide
+#               with FOCAL (normal 7.3 / 8.5).
+#     #8A5A00 -> normal 14.3 vs #D55E00 (and it is the ERC SH hue).
+#     #1F4E9C -> protan 1.7 / normal 10.8 vs #6A3D9A (and it is the ERC PE hue).
+#     #7A7A7A -> chroma 0, plus deutan 4.6 vs #009E73: a grey "shared" mark
+#               would also read as the COMPARISON unknown slot.
+#     #6B8E00 -> deutan 3.6 vs #D55E00, normal 10.1 vs #009E73.
+#     #B5197C -> protan 5.7 vs #6A3D9A.
+#     #B03060, #AD1457 -> both PASS the 8-slot run, and both lose to #C2185B on
+#               the one criterion that separated them: distance to the crimson
+#               NEIGHBOURHOOD this app already owns (see run 16).
+# Run 15 (2026-08-30, 2B-R/VS): the WINNER #C2185B with the six institution
+#   slots + FOCAL (8 slots), `--pairs all` -> ALL CHECKS PASS. The only WARN
+#   lines are the two pre-existing ones from run 9 (#CC79A7 <-> #009E73 deutan
+#   7.6; #56B4E9 2.31:1 and #E69F00 2.25:1 contrast). #C2185B itself is in no
+#   failing or warning pair: its nearest institution hue is #CC79A7 at normal
+#   17.8 / deutan 14.9, and #6A3D9A at normal 19.9 / protan 11.7.
+# Run 16 (2026-08-30, 2B-R/VS): #C2185B against the CRIMSON NEIGHBOURHOOD, the
+#   run that decided the winner. Pairwise, `--pairs all`:
+#       vs #CC79A7 (institution slot 4)  normal 17.8 / deutan 14.9  PASS
+#       vs #6A3D9A (institution slot 3)  normal 19.9 / protan 11.7  PASS
+#       vs #9B1B6B (ERC LS)              normal  8.8 / protan  6.1  FAIL
+#       vs #A10A4E (doctype letter)      normal  7.4 / protan  6.0  FAIL
+#   The two FAILs are DISPOSED OF by the coexistence rule, exactly as runs 6b
+#   and 10 are, and the disposition is checkable rather than asserted: the
+#   doctype family renders ONLY in the Find yearly breakdown, and the ERC hues
+#   render ONLY as LABEL ACCENTS (see the label-accent section below), never as
+#   a mark and never in the frontier map, which is the one figure `SHARED_FRONTIER`
+#   paints. The two families and this hue are never in one figure or one legend.
+#   #C2185B was preferred over #B03060 (normal 5.8 / 6.5 to the same two) and
+#   #AD1457 (3.0 / 5.1) because it maximises that minimum distance -- the
+#   sequential-memory margin is the only thing that separated three hues which
+#   all passed every check.
+# Run 17 (2026-08-30, 2B-R/VS): the k = 3 institution slots + the 3 ERC accent
+#   hues (6 slots), the co-occurrence `fig_metric_bars(level="erc")` creates ->
+#   FAIL (#1F4E9C <-> #6A3D9A protan 1.7 / normal 10.8). DESCRIPTIVE, and the
+#   reason the label-accent rule below is written as narrowly as it is: the ERC
+#   hue is never a MARK in that figure, only a glyph in the row LABEL, so the
+#   two are never two marks a reader has to tell apart. Recorded rather than
+#   suppressed because they ARE on screen together.
 
 # ---------------------------------------------------------------------------
 # Focal / comparison / neutral / ink
@@ -519,6 +577,35 @@ INSTITUTION_SLOT_MAX = len(INSTITUTION_COLORS)
 # non-negotiable): the basket cap is this number, enforced in lib/state.py.
 
 
+SHARED_FRONTIER = "#C2185B"
+# **NOT a seventh institution slot** -- deliberately kept OUT of
+# `INSTITUTION_COLORS` so `institution_color` can never hand it to an
+# institution and `INSTITUTION_SLOT_MAX` keeps meaning what it says.
+#
+# WHAT IT MEANS (2B-R-9): in the pooled Compare frontier map a topic is painted
+# in an institution's own hue when ONLY that institution holds it, and in this
+# hue when EVERY compared institution holds it. "Shared" is not an entity, it is
+# the intersection, so it takes a hue no entity owns. The same hue paints the
+# Collaborate relationship pulse (2B-R-10 section 1), whose subject is likewise
+# the pair's JOINT corpus rather than either institution -- one colour, one
+# meaning, in both places it appears.
+#
+# WHY THIS HEX (validator runs 14-16 above, all measured, none eyeballed): with
+# the Compare cap at three institutions the drawn set is
+# {#D55E00, #009E73, #6A3D9A, SHARED_FRONTIER}, and only three candidates in the
+# whole screen cleared that set AND `FOCAL` -- which had to be cleared because
+# FOCAL paints the Streamlit buttons and links ON THE SAME PAGE (that is what
+# eliminated #2E75B6, otherwise the best candidate, at normal DeltaE 2.3 from
+# FOCAL). Of the three survivors #C2185B keeps the largest margin to the crimson
+# hues the app already owns in OTHER figures (#9B1B6B ERC LS, #A10A4E doctype
+# letter), which is the sequential-memory criterion run 16 decided on.
+#
+# RELIEF the two run-16 FAILs oblige: the frontier map's chip legend carries a
+# "shared" chip beside the institution chips (`charts_compare.legend_strip`),
+# every bubble's hover names its owner in words, and the map's own export column
+# carries the owner as text -- so "shared" is never colour-alone, and the two
+# colliding hues are in neither that figure nor its legend.
+
 def institution_color(slot) -> str:
     """Colour for an institution SLOT (zero-based, as returned by
     `institution_slots`). Out of range / unknown -> COMPARISON grey, the same
@@ -570,6 +657,57 @@ def institution_slots(inst_keys) -> dict:
             return (1, 0.0, str(key))
 
     return {ident: i for i, (ident, _k) in enumerate(sorted(seen.items(), key=_order))}
+
+
+# ---------------------------------------------------------------------------
+# LABEL ACCENTS -- the ONE documented narrowing of the coexistence rule (2B-R-8)
+# ---------------------------------------------------------------------------
+# The coexistence rule in the module docstring says one identity family per
+# chart, and in Compare that family is the institution. 2B-R-8 keeps that rule
+# for MARKS and narrows it for one piece of AXIS FURNITURE: in the Compare
+# ERC and SDG views the row label may carry a small coloured glyph in its own
+# taxonomy's OFFICIAL colour -- the three ERC domain hues, the sixteen UN goal
+# hues -- so a reader can see the PE / LS / SH grouping, or recognise a goal by
+# its UN colour, without the panel losing the institution as its identity.
+#
+# THE RULE, in three parts, and all three are load-bearing:
+#   1. A taxonomy colour may appear ONLY in a y-axis tick label, never in a bar,
+#      dot, bubble, line, interval or legend chip. The reader is never asked to
+#      tell two MARKS apart by two different families' hues -- which is the
+#      thing validator run 17 measures as unsafe (ERC PE #1F4E9C vs institution
+#      slot 3 #6A3D9A, protan 1.7).
+#   2. The accent is never the only carrier of the taxon: the label TEXT beside
+#      it names the panel or the numbered goal in full, so the accent is
+#      recognition, never encoding. That is the same relief the SDG panel has
+#      carried since run 7 (the UN palette's two near-identical ambers), applied
+#      one level up.
+#   3. INSTITUTION IDENTITY NEVER APPEARS ON A LABEL ACCENT. The direction is
+#      fixed and one-way: colour on a MARK means the institution, colour on a
+#      LABEL means the taxonomy. If both could go either way, neither would
+#      mean anything.
+# Families with no official colour of their own -- OA fields, subfields, topics
+# -- take NO accent in Compare rather than borrowing the OA domain hues: an
+# accent is worth its ink only where the taxonomy's colour is a thing the
+# reader already knows from outside the app.
+
+LABEL_ACCENT_FAMILIES = ("erc", "sdg")
+
+
+def label_accent_color(family, key) -> str:
+    """Colour for a ROW-LABEL accent glyph, by taxonomy family.
+
+    The ONE entry point for part 1 of the rule above -- a chart module asks for
+    an accent by family and never reaches into `ERC_DOMAIN_COLORS` or
+    `SDG_COLORS` itself, so the "labels only, marks never" split has a single
+    place it can be audited. An unsupported family (`oa`, `doctype`, anything
+    else) returns COMPARISON grey, the family convention: no accent rather than
+    a borrowed one."""
+    fam = str(family).strip().lower()
+    if fam == "erc":
+        return erc_color(key)
+    if fam == "sdg":
+        return sdg_color(key)
+    return COMPARISON
 
 
 # ---------------------------------------------------------------------------
