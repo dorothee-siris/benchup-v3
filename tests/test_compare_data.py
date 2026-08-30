@@ -449,10 +449,57 @@ def test_metric_frame_sdg_share_matches_sdg_long_and_dynamics_anchor(ctx, subs_b
         np.testing.assert_allclose(dyn.loc[dyn["taxon_id"] == sidx, "value"].iloc[0], pct, rtol=1e-5)
 
 
+def test_metric_frame_vol_erc_and_sdg_anchors(ctx):
+    """2B-R-8 gap fix: raw-volume metric `vol` -- ERC 'Volume' from
+    erc.parquet.mass, SDG 'Volume tagged' from sdg.parquet.mass. Anchors
+    (Strasbourg, independently read off the raw parquet): ERC panel 0 mass
+    14.554565, panel 1 mass 62.74084; SDG idx 3 mass 67.25587, idx 1 mass
+    21.483147."""
+    erc_vol = CD.metric_frame(ctx, {"tree": "bestfit"}, [STRASBOURG], "erc", "vol")
+    assert list(erc_vol.columns) == CD.METRIC_FRAME_COLS
+    np.testing.assert_allclose(erc_vol.loc[erc_vol["taxon_id"] == 0, "value"].iloc[0], 14.554565, atol=1e-3)
+    np.testing.assert_allclose(erc_vol.loc[erc_vol["taxon_id"] == 1, "value"].iloc[0], 62.74084, atol=1e-3)
+    assert erc_vol["ref_value"].isna().all()
+    assert erc_vol["denominator"].iloc[0] == CD.ERC_VOL_DENOM_NOTE
+
+    sdg_vol = CD.metric_frame(ctx, {"tree": "bestfit"}, [STRASBOURG], "sdg", "vol")
+    assert len(sdg_vol) == 16  # dense, matches sdg_long's own convention
+    np.testing.assert_allclose(sdg_vol.loc[sdg_vol["taxon_id"] == 3, "value"].iloc[0], 67.25587, atol=1e-3)
+    np.testing.assert_allclose(sdg_vol.loc[sdg_vol["taxon_id"] == 1, "value"].iloc[0], 21.483147, atol=1e-3)
+    assert "2020-2025" in sdg_vol["denominator"].iloc[0]  # window named per the manager's gap-fix ask
+    assert sdg_vol["ref_value"].isna().all()
+
+
+def test_metric_frame_vol_matches_erc_long_and_sdg_long_mass(ctx):
+    """`vol`'s value column is IDENTICAL to erc_long/sdg_long's own `mass`
+    column -- same source, no recomputation."""
+    erc_vol = CD.metric_frame(ctx, {"tree": "bestfit"}, IDS6, "erc", "vol")
+    el = CD.erc_long(ctx, IDS6).set_index(["institution_id", "panel_idx"])["mass"]
+    got = erc_vol.set_index(["institution_id", "taxon_id"])["value"]
+    np.testing.assert_allclose(got.reindex(el.index).to_numpy(dtype="float64"),
+                               el.to_numpy(dtype="float64"), atol=1e-6)
+
+    sdg_vol = CD.metric_frame(ctx, {"tree": "bestfit"}, IDS6, "sdg", "vol")
+    sl = CD.sdg_long(ctx, IDS6).set_index(["institution_id", "sdg_idx"])["mass"]
+    got2 = sdg_vol.set_index(["institution_id", "taxon_id"])["value"]
+    np.testing.assert_allclose(got2.reindex(sl.index).to_numpy(dtype="float64"),
+                               sl.to_numpy(dtype="float64"), atol=1e-6)
+
+
+def test_metric_frame_vol_unavailable_at_field_and_subfield(ctx):
+    assert not CD.metric_frame_available("vol", "field")
+    assert not CD.metric_frame_available("vol", "subfield")
+    df_field = CD.metric_frame(ctx, {"tree": "bestfit"}, [STRASBOURG], "field", "vol")
+    assert df_field.empty and df_field.attrs.get("reason")
+    df_sub = CD.metric_frame(ctx, {"tree": "bestfit"}, [STRASBOURG], "subfield", "vol", field_id=27)
+    assert df_sub.empty and df_sub.attrs.get("reason")
+
+
 @pytest.mark.parametrize("metric,level", [
     ("vol_top10", "subfield"), ("pp", "subfield"), ("sdg_share", "subfield"),
     ("vol_top10", "erc"), ("pp", "erc"), ("sdg_share", "erc"), ("dynamics", "erc"),
     ("vol_top10", "sdg"), ("pp", "sdg"), ("sdg_share", "sdg"), ("si", "sdg"),
+    ("vol", "field"), ("vol", "subfield"),
 ])
 def test_metric_frame_unavailable_combinations_return_typed_empty(ctx, metric, level):
     assert not CD.metric_frame_available(metric, level)

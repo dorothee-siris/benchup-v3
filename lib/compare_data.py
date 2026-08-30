@@ -372,7 +372,7 @@ def overview(ctx: dict, ids: list[str]) -> pd.DataFrame:
 # ------------------------------------------------------------- metric_frame -
 
 METRIC_FRAME_COLS = ["institution_id", "taxon_id", "taxon_label", "value", "ref_value", "denominator"]
-METRICS = ("share", "vol_top10", "pp", "sdg_share", "dynamics", "si")
+METRICS = ("share", "vol_top10", "pp", "sdg_share", "dynamics", "si", "vol")
 LEVELS = ("field", "subfield", "erc", "sdg")
 
 # 2B-R-6: dynamics windows, named everywhere they are used (contract + UI).
@@ -400,6 +400,8 @@ UNAVAILABLE_REASON = {
     ("pp", "sdg"): "impact_fields does not cross with SDG; no SDG x impact artefact shipped",
     ("sdg_share", "sdg"): "'% SDG-tagged' is not meaningful when the taxon IS the SDG",
     ("si", "sdg"): "2B-R-8 excludes SI from the SDG metric selector (SDG's own specialisation column is `esi`, a different metric -- see profile_data.sdg_table)",
+    ("vol", "field"): "raw volume is not on 2B-R-5's ruled field-level metric list (share/vol_top10/pp/sdg_share/dynamics/si) -- use `overview`/`vol_top10` instead",
+    ("vol", "subfield"): "raw volume is not on 2B-R-5's ruled field-level metric list, and does not drill to subfield grain either",
 }
 
 
@@ -455,6 +457,40 @@ def _si_frame(ctx, subs, ids, level, field_id=None) -> pd.DataFrame:
         denom = "population mean share among institutions with nonzero mass in this ERC panel (no floor observed)"
     out = base[["institution_id", "taxon_id", "taxon_label", "si"]].rename(columns={"si": "value"})
     out["ref_value"] = 1.0  # 2B-R-5: SI reference line is always 1
+    out["denominator"] = denom
+    return out.reindex(columns=METRIC_FRAME_COLS)
+
+
+ERC_VOL_DENOM_NOTE = (
+    "raw fractional work-mass classified into this ERC panel (erc.parquet.mass) -- a headline "
+    "VOLUME, not a share, so there is no denominator to name beyond the mass unit itself "
+    "(single-label-dominant: a work's ERC mass is 1/n_panels across the panels it clears tau in)."
+)
+SDG_VOL_DENOM_NOTE = (
+    "raw fractional SDG-tagged work-mass (sdg.parquet.mass, MULTI-LABEL -- a work tagged with "
+    ">=1 SDG counts toward each), on the FULL 2020-2025 run window (6 years, confirmed via "
+    "sdg_year.parquet's own year-sum invariant) -- NOT the 2020-2024 core window used elsewhere "
+    "in Compare (e.g. overview's vol_full/vol_frac, intl_share/company_share)."
+)
+
+
+def _vol_frame(ctx, ids, level) -> pd.DataFrame:
+    """2B-R-8 gap fix: ERC 'Volume' / SDG 'Volume tagged' -- the raw
+    fractional MASS underlying each taxon's `share` (contrast `share`, which
+    divides by the institution's own classified/tagged total). ERC reads
+    `erc.parquet.mass` (2020-2024-ish classified-mass basis, same as
+    `erc_long`'s own `mass` column, unchanged here); SDG reads
+    `sdg.parquet.mass`, whose basis is the FULL 2020-2025 run window --
+    NAMED explicitly in `SDG_VOL_DENOM_NOTE` since it differs from the
+    2020-2024 core window most other Compare KPIs use."""
+    if level == "erc":
+        base = erc_long(ctx, ids).rename(columns={"panel_idx": "taxon_id", "panel_label": "taxon_label"})
+        denom = ERC_VOL_DENOM_NOTE
+    else:  # sdg
+        base = sdg_long(ctx, ids).rename(columns={"sdg_idx": "taxon_id", "sdg_label": "taxon_label"})
+        denom = SDG_VOL_DENOM_NOTE
+    out = base[["institution_id", "taxon_id", "taxon_label", "mass"]].rename(columns={"mass": "value"})
+    out["ref_value"] = None  # raw volume carries no reference line (2B-R-5: SI=1/index-PP only)
     out["denominator"] = denom
     return out.reindex(columns=METRIC_FRAME_COLS)
 
@@ -608,10 +644,10 @@ def metric_frame(ctx: dict, subs: dict, ids: list[str], level: str, metric: str,
     """2B-R-5/6/8 the ONE 'Compare by' metric selector, generalised over
     every (level, metric) combination the Compare page needs:
 
-      level='field'                -> taxon = 26 fields, all 6 metrics available.
+      level='field'                -> taxon = 26 fields, all of {share,vol_top10,pp,sdg_share,dynamics,si}.
       level='subfield'             -> taxon = subfields of ONE `field_id` (required); share/si/dynamics only.
-      level='erc'                  -> taxon = 28 ERC panels; share/si only.
-      level='sdg'                  -> taxon = 16 SDGs; share/dynamics only.
+      level='erc'                  -> taxon = 28 ERC panels; share/si/vol (2B-R-8 'Volume').
+      level='sdg'                  -> taxon = 16 SDGs; share/dynamics/vol (2B-R-8 'Volume tagged').
 
     An unavailable (metric, level) pair (see `UNAVAILABLE_REASON`) returns an
     EMPTY `METRIC_FRAME_COLS` frame with `.attrs["reason"]` set -- check
@@ -651,6 +687,8 @@ def metric_frame(ctx: dict, subs: dict, ids: list[str], level: str, metric: str,
         return _field_pp_frame(ctx, ids, tree, floor, want_vol=True)
     if metric == "sdg_share":
         return _sdg_share_field_frame(ctx, subs, ids, tree)
+    if metric == "vol":
+        return _vol_frame(ctx, ids, level)  # level in {"erc", "sdg"} only (field/subfield marked unavailable)
     raise AssertionError("unreachable")  # pragma: no cover
 
 
