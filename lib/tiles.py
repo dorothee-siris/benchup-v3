@@ -9,7 +9,7 @@ WHY HTML AND NOT `st.metric`: `st.metric` has no subline, and the subline is
 the whole point -- the house rule "every KPI pairs its value with the
 denominator or reference it is computed against" (BUILD_PLAN_2A.md L11) is
 what the third line carries. `st.metric`'s delta arrow would also imply a
-change-over-time reading that none of these eight one-snapshot measures has
+change-over-time reading that none of these point-in-time measures has
 (VIZ_SPEC.md S2.11, the named rejected alternative).
 
 Two house rules this module obeys mechanically:
@@ -32,6 +32,10 @@ from lib import palette as P
 
 # Type scale (design-system/DESIGN_TOKENS.md S3, Lorraine's own tile sizes).
 VALUE_PX = 22
+# 2B-R-2: a card may carry a SECOND value (the fractional count beside the full
+# one, the bootstrap interval beside PP) -- one step down the same scale, so it
+# reads as a companion figure and never competes with the headline.
+VALUE2_PX = 15
 META_PX = 12
 VALUE_WEIGHT = 700
 VALUE_LINE_HEIGHT = 1.25
@@ -45,6 +49,10 @@ TILE_CLASS = "benchup-kpi"
 # "every tile states where the seed sits in the population" becomes countable
 # (`html.count(SUBLINE_CLASS) == 2`) rather than a claim about prose.
 SUBLINE_CLASS = "benchup-kpi-sub"
+# 2B-R-2: the companion-figure line gets its own hook too, so "the publications
+# card really shows both counting bases" is countable rather than a claim about
+# a rendered string.
+VALUE2_CLASS = "benchup-kpi-value2"
 
 
 def _esc(value) -> str:
@@ -59,32 +67,60 @@ def _subline_html(text: str) -> str:
             f'line-height:{META_LINE_HEIGHT};color:{P.INK_SECONDARY};">{_esc(text)}</div>')
 
 
-def tile_html(label: str, value: str, subline: str, subline2: str | None = None) -> str:
+def tile_html(label: str, value: str, subline: str, subline2: str | None = None, *,
+              value2: str | None = None, value2_label: str | None = None) -> str:
     """The tile's markup on its own (no Streamlit call) -- pure, so a test can
     assert on it without a running app.
 
     `subline2` (R2/L31) is the index-baseline line: "index median {m} . higher
     than {pct} of institutions". It is OPTIONAL rather than required so the tile
     stays usable where no baseline exists for a measure; where one does, the
-    caller passes it and the tile renders four lines instead of three."""
+    caller passes it and the tile renders four lines instead of three.
+
+    `value2`/`value2_label` (2B-R-2) are the companion figure: the fractional
+    count beside the full one on the publications card, the bootstrap interval
+    beside PP(top10%). Both or neither -- a bare number with no name is exactly
+    the unlabelled figure the house rule forbids, so the label is required
+    whenever the value is given."""
+    if (value2 is None) != (value2_label is None):
+        raise ValueError("value2 and value2_label are given together or not at all")
     parts = [
         f'<div class="{TILE_CLASS}">',
         f'<div style="font-size:{VALUE_PX}px;font-weight:{VALUE_WEIGHT};'
         f'line-height:{VALUE_LINE_HEIGHT};color:{P.INK};">{_esc(value)}</div>',
         f'<div style="font-size:{META_PX}px;line-height:{META_LINE_HEIGHT};'
         f'color:{P.INK_SECONDARY};">{_esc(label)}</div>',
-        _subline_html(subline),
     ]
+    if value2 is not None:
+        parts.append(
+            f'<div class="{VALUE2_CLASS}" style="font-size:{VALUE2_PX}px;'
+            f'font-weight:{VALUE_WEIGHT};line-height:{VALUE_LINE_HEIGHT};'
+            f'color:{P.INK};">{_esc(value2)}'
+            f'<span style="font-size:{META_PX}px;font-weight:normal;'
+            f'color:{P.INK_SECONDARY};"> {_esc(value2_label)}</span></div>')
+    parts.append(_subline_html(subline))
     if subline2 is not None:
         parts.append(_subline_html(subline2))
     parts.append('</div>')
     return "".join(parts)
 
 
-def kpi_tile(col, label: str, value: str, subline: str, subline2: str | None = None) -> None:
+def kpi_tile(col, label: str, value: str, subline: str, subline2: str | None = None, *,
+             help: str | None = None, value2: str | None = None,
+             value2_label: str | None = None) -> None:
     """Render one tile into `col` (a `st.columns(...)` slot): a bordered
     container whose chrome is Streamlit's own `border=True` hairline, holding
-    the three- or four-line block above."""
+    the three- to five-line block above.
+
+    `help` (2B-R-2) puts the measure's WHOLE methodology behind Streamlit's own
+    `?` affordance on the markdown block. That is the ruled home for it: the
+    cards show a value and its position in the index, and a reader who wants
+    the definition asks for it rather than reading it under every card on every
+    visit. It shadows the builtin `help` inside this function only, which costs
+    nothing here and keeps the keyword named after the Streamlit parameter it
+    forwards to."""
     with col:
         with st.container(border=True):
-            st.markdown(tile_html(label, value, subline, subline2), unsafe_allow_html=True)
+            st.markdown(tile_html(label, value, subline, subline2,
+                                  value2=value2, value2_label=value2_label),
+                        unsafe_allow_html=True, help=help)

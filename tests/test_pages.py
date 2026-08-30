@@ -87,18 +87,33 @@ def test_menu_has_at_least_three_nav_cards():
         assert word in all_markdown, all_markdown
 
 
-def test_menu_snapshot_caption_has_real_label_and_no_na():
+def test_menu_data_caption_names_the_index_size_and_the_harvest_date():
+    """2B-R-12 (edited by stream FA, which removed the caption this replaces):
+    the menu no longer prints "Snapshot: <label> (generated <timestamp>)". It
+    prints the two facts that stamp was standing in for -- how many
+    institutions the index holds and what date the data was harvested -- both
+    computed at run time. The old assertions are inverted rather than deleted:
+    the snapshot LABEL must now be ABSENT, and the caption must still carry no
+    n/a mark (a manifest with no parsable stamp would produce one)."""
     at = AppTest.from_file(MENU_PAGE, default_timeout=60).run()
     from lib.app_config import CFG
-    from lib.data_cache import manifest
+    from lib.data_cache import index, manifest
+    from lib.exports import data_date_label
 
     mf = manifest()
     snapshot_label = mf.get("snapshot") or CFG.get("snapshot", "n/a")
     captions = [c.value for c in at.caption]
-    snap_caption = next((c for c in captions if c.startswith("Snapshot:")), None)
-    assert snap_caption is not None, captions
-    assert snapshot_label in snap_caption
-    assert "n/a" not in snap_caption, snap_caption
+    expected_date = data_date_label(
+        mf.get("source_manifest_generated_at") or mf.get("generated_at")
+        or mf.get("deployed_at"), "n/a")
+    data_caption = next((c for c in captions if expected_date in c), None)
+    assert data_caption is not None, captions
+    assert f"{len(index()):,}" in data_caption, data_caption
+    assert "n/a" not in data_caption, data_caption
+    # ...and the retired stamp is gone from the whole page, not just moved.
+    page_text = " ".join([*captions, *(m.value for m in at.markdown)])
+    assert snapshot_label not in page_text, page_text
+    assert "Snapshot:" not in page_text, page_text
 
 
 # ---------------------------------------------------------------- Find -----
@@ -215,28 +230,33 @@ CONTROLS_ROW_KEYS = ("depth", "c1_on", "l7_on")
 POST_FILTER_KEYS = ("f_types", "f_countries", "f_excl_own", "f_size", "f_guard", "f_family")
 
 
-def test_find_profile_section_renders_header_and_eight_tiles():
-    """L30/L31: the profile section holds the seed's name and exactly EIGHT
-    KPI tiles, each carrying TWO sublines (its own reference line and the index
-    baseline). AppTest exposes no container element type (see
-    test_menu_has_at_least_three_nav_cards), so the tiles are counted by
-    lib/tiles.py's own stable class hooks, never by a user-facing string."""
+def test_find_profile_section_renders_header_and_four_cards():
+    """2B-R-2 (edited by stream FA, which replaced the eight tiles): the profile
+    section holds the seed's name and exactly FOUR KPI cards, each carrying ONE
+    subline -- the index baseline. AppTest exposes no container element type
+    (see test_menu_has_at_least_three_nav_cards), so the cards are counted by
+    lib/tiles.py's own stable class hooks, never by a user-facing string.
+
+    The four dropped measures are asserted ABSENT rather than simply not
+    asserted present: "the tiles are gone" is the decision, and a test that
+    only stopped naming them would pass with all eight still on screen."""
     at = _find_app(seed_id=STRASBOURG).run()
     assert not at.exception, [str(e) for e in at.exception]
     headers = [h.value for h in at.header]
     assert copy.FIND["PROFILE_HEADER"] in headers, headers
     assert copy.FIND["BENCHMARK_HEADER"] in headers, headers
     rendered = [m.value for m in at.markdown if tiles.TILE_CLASS in m.value]
-    assert len(rendered) == views_find.N_TILES == 8, len(rendered)
+    assert len(rendered) == views_find.N_CARDS == 4, len(rendered)
     for html in rendered:
-        assert html.count(tiles.SUBLINE_CLASS) == 2, html
-    for label_key in ("TILE_SIZE_FULL", "TILE_SIZE_FRAC", "TILE_HHI", "TILE_BREADTH",
-                      "TILE_SDG", "TILE_FRONTIER", "TILE_PP"):
+        assert html.count(tiles.SUBLINE_CLASS) == 1, html
+    for label_key in ("KPI_PUBS_LABEL", "KPI_SDG_LABEL", "KPI_FRONTIER_LABEL", "KPI_PP_LABEL"):
         assert any(copy.FIND[label_key] in html for html in rendered), label_key
     from lib.app_config import CFG
-    bonus = copy.FIND["TILE_BONUS_YEAR"].format(year=CFG["bonus_year"])
-    assert any(bonus in html for html in rendered), bonus
-    # ...and every tile's second subline is the index baseline itself.
+    dropped = [copy.FIND["TILE_HHI"], copy.FIND["TILE_BREADTH"],
+               copy.FIND["TILE_BONUS_YEAR"].format(year=CFG["bonus_year"])]
+    for label in dropped:
+        assert not any(label in html for html in rendered), label
+    # ...and every card's subline is the index baseline itself.
     baseline_fixed = _template_literal_segment(copy.FIND["TILE_BASELINE_SUB"])
     for html in rendered:
         assert baseline_fixed in html, html

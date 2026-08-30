@@ -248,8 +248,15 @@ FIND = {
     "ADD_COMPARATOR_BUTTON": "Add to basket",
     "PAGE_TITLE": "Find",
     "PAGE_INTRO": "Search for an institution, then read who resembles it across independent lenses.",
-    "SNAPSHOT_CAPTION": ("Snapshot: {snapshot} (generated {generated_at}) {sep} {n_institutions} "
-                         "institutions in the index."),
+    # 2B-R-12 / A14: the verbose "Snapshot: <label> (generated <timestamp>)"
+    # stamp is GONE from every page. The key and its four call-site keywords
+    # (`snapshot`, `generated_at`, `n_institutions`, `sep`) are kept exactly as
+    # they were -- `str.format` ignores the keywords a template stops using --
+    # so the four callers (Find, Compare, Collaborate, Methods) drop the string
+    # without any of their files being edited. Find and Menu use the richer
+    # DATA_CAPTION below; the Methods page keeps its factual provenance in its
+    # own METHODS["snapshot"] section, which is where a vintage belongs.
+    "SNAPSHOT_CAPTION": "{n_institutions} institutions in the index.",
     "SEED_SEARCH_LABEL": "Institution name, acronym or alternative name",
     "SEED_PICK_LABEL": "Matching institutions",
     "SEED_PROMPT": "Type an institution name above to load its benchmark.",
@@ -473,6 +480,81 @@ FIND = {
                              "basis; the CSV export carries every subfield."),
     "CAPTION_TOP_N_SHARE": ("Showing the top {n} topics by share of output; the CSV export "
                             "carries every topic."),
+
+    # ======================================================================
+    # Sprint 2 Phase 2B-R, stream FA (2B-R-1 / 2B-R-2 / 2B-R-12). ADDITIVE
+    # ONLY: every key below is new. The eight-tile keys above are left in
+    # place -- lib/views_compare.py still reads BONUS_YEAR_CAPTION, and a
+    # deleted key is a crash in another stream's file, not a cleanup.
+    # ======================================================================
+
+    # 2B-R-12: the results list no longer auto-loads its best match. The
+    # placeholder is what the reader sees until they pick deliberately.
+    "SEED_PICK_PLACEHOLDER": "Choose one of these institutions",
+
+    # 2B-R-2: FOUR cards replace the eight tiles. Each shows one big value,
+    # the index-baseline line (TILE_BASELINE_SUB above), and carries ALL of
+    # its methodology in its own `?` tooltip -- the sublines that used to
+    # print a definition under every tile are gone from the page surface.
+    "KPI_PUBS_LABEL": "Publications",
+    "KPI_PUBS_FRAC_LABEL": "on fractional counting",
+    "KPI_PUBS_HELP": (
+        "Publications from {y0} to {y1}. The large figure is full counting, which credits the "
+        "whole publication to every institution named on it; the second figure is fractional "
+        "counting, which credits only the author share the institution holds. {bonus_year} is "
+        "harvested as a bonus year, reported for volumes only and left out of every impact "
+        "indicator. The index position under the card is computed on full counting."),
+    "KPI_SDG_LABEL": "SDG-tagged share",
+    "KPI_SDG_HELP": (
+        "Share of the institution's SDG-eligible fractional mass that carries at least one hit "
+        "from the SDG keyword vocabulary. Eligibility excludes records the classifier cannot "
+        "read (no usable text, or an untranslated language); the SDG panel below names the goals "
+        "the vocabulary does not cover, which are missing from every institution alike."),
+    "KPI_FRONTIER_LABEL": "Frontier top-quartile share",
+    "KPI_FRONTIER_HELP": (
+        "Share of the institution's frontier-scorable output sitting in topics that fall in the "
+        "global top quartile of emergence. A topic that carries no frontier score is left out of "
+        "both the numerator and the denominator, so this is a share of what can be scored, never "
+        "a share of everything published."),
+    "KPI_PP_LABEL": "PP(top10%)",
+    "KPI_PP_VALUE_CI": "[{lo}{dash}{hi}]",
+    "KPI_PP_CI_LABEL": "bootstrap interval",
+    "KPI_PP_HELP": (
+        "Share of the institution's fractional output that sits in the world top decile of its "
+        "own citation distribution. The bootstrap interval is shown with the value and never "
+        "dropped for the point estimate alone: two institutions whose intervals overlap are not "
+        "separated by this measure. Articles and reviews only; the bonus year is excluded."),
+
+    # 2B-R-7: two identity-column facts. The columns land on index.parquet
+    # later this phase (stream P2); until they do, both read n/a -- never 0.
+    "IDENTITY_INTL_LABEL": "International co-publications",
+    "IDENTITY_COMPANY_LABEL": "with a company",
+    "IDENTITY_FACTS_HELP": (
+        "Share of the institution's publications from {y0} to {y1}, full counting, carrying at "
+        "least one other institution named directly on the record: based in another country for "
+        "the first figure, typed as a company for the second. Both read n/a until the "
+        "co-publication tables ship."),
+
+    # 2B-R-1 / A15: what the cloud encodes, and the one thing a reader has to
+    # know before comparing two renders of it.
+    "WORDCLOUD_HELP": (
+        "Word size is the subfield's publications on the current counting basis and word colour "
+        "is its OpenAlex domain. Fractional counting up-weights few-author subfields, social "
+        "sciences and humanities in particular, so the two bases render at different scales: "
+        "compare positions within one basis, never sizes across the two."),
+
+    # 2B-R-2: the breakdown pair gets a section title carrying the bonus-year
+    # footnote in its tooltip; the standalone banner under the pair is gone and
+    # the control's own "Break down by" label is collapsed.
+    "BREAKDOWN_SECTION_TITLE": "Publication breakdown",
+    "BREAKDOWN_SECTION_HELP": (
+        "Both figures read the counting basis chosen in the sidebar and split the same total: "
+        "one shows it over the whole window, the other year by year. {year}{star} is a bonus "
+        "year, marked with a star on the year axis: it is reported for volumes only and left out "
+        "of every impact indicator."),
+
+    # 2B-R-12: what replaces the snapshot stamp on Find and on the menu.
+    "DATA_CAPTION": "{n_institutions} institutions {sep} data from {date}",
 }
 
 # ==========================================================================

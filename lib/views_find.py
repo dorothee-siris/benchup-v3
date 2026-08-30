@@ -9,19 +9,23 @@ wordcloud_png,ranked,search,filters,badges,exports,links,countries,copy,state,
 palette,app_config,data_cache}. Nothing here re-implements them and nothing
 here types a value into a rendered string (BUILD_PLAN_2A.md L10).
 
-PAGE ORDER (L16/L17, re-laid by R2/L30 as the Lorraine lab card's GRID, top to
-bottom, and the order the code below follows):
-  title + intro + verdict + snapshot caption, with the "Filtered by..." strip
-  slot right under it -> seed search -> PROFILE section: row 1 in three columns
-  (identity | eight KPI tiles in a 2 x 4 grid, each carrying its index baseline
-  | subfield wordcloud), row 2 full width (one segmented control and one chip
-  legend above a global + yearly breakdown pair), then six collapsed chart
-  panels -> BENCHMARK section, headed by the controls row (depth, C1, L7, a
-  post-filters expander) and the "How to read the lenses" guide -> the lens
-  tabs, labelled by `copy.LENS_NAMES`. The SIDEBAR now holds only what is
-  app-wide: counting & taxonomy (tree, basis) and the Basket (L16 -- gate-2A
-  feedback #1: a control that governs one section belongs at the head of that
-  section, not a page away in the sidebar).
+PAGE ORDER (L16/L17, re-laid by R2/L30, re-laid again by Phase 2B-R decision
+2B-R-2 as a 2 + 2 split; top to bottom, and the order the code below follows):
+  title + intro + verdict + data caption ("N institutions . data from <date>";
+  2B-R-12 removed the snapshot label and its generated timestamp), with the
+  "Filtered by..." strip slot right under it -> seed search, which loads
+  NOTHING until the reader picks a match (2B-R-12: the results selectbox opens
+  on `index=None`) -> PROFILE section: row 1 in two halves (identity + the
+  subfield wordcloud under it | FOUR KPI cards in a 2 x 2 grid, each carrying
+  its index baseline on the surface and all of its methodology in a `?`), row 2
+  full width (a titled section, one segmented control and one chip legend above
+  a height-matched global + yearly breakdown pair whose bonus year is starred
+  on the axis), then six collapsed chart panels -> BENCHMARK section, headed by
+  the controls row (depth, C1, L7, a post-filters expander) and the "How to
+  read the lenses" guide -> the lens tabs, labelled by `copy.LENS_NAMES`. The
+  SIDEBAR holds only what is app-wide: counting & taxonomy (tree, basis) and
+  the Basket (L16 -- gate-2A feedback #1: a control that governs one section
+  belongs at the head of that section, not a page away in the sidebar).
 
   The R1 coverage line is GONE (L30, VIZ_SPEC S2.12 RETIRED): each of its four
   items now sits where it is read -- ERC-classified share in the ERC panel
@@ -72,7 +76,7 @@ from lib.engine import (
     concordance, cut_with_ties, family_overlap_scores, load_context, rank_all, seed_card,
 )
 from lib.engine.evidence import rows_evidence
-from lib.exports import ranking_csv, ranking_filename
+from lib.exports import data_date_label, ranking_csv, ranking_filename
 from lib.filters import active_controls_strip, apply_filters, explain_empty
 from lib.palette import NA_MARK
 from lib.ranked import (
@@ -106,24 +110,32 @@ DEPTH_OPTIONS = [CFG["depth"]["default"], CFG["depth"]["max"]]
 
 # Layout constants (VIZ_SPEC S1.9 / S2.11 / S2.21). Streamlit collapses a
 # horizontal block to a vertical stack below its own small breakpoint, which is
-# what makes the eight tiles wrap one-per-row at 390 px with no media query.
-N_TILES = 8
-# L30 asks for a 2 x 4 grid inside row 1's middle column. MEASURED at 1280 px
-# (`tests/ui/screenshots/e3_find_top_1280.png`, first render): the main content
-# box is ~820 px, the profile's own bordered container takes ~32 px of it, the
-# three columns split the remaining ~756 px 1.0 : 2.0 : 1.4, so the middle
-# column is ~344 px -- four tiles across it are ~74 px wide, ~40 px inside each
-# tile's bordered container, and every label breaks mid-word ("Concent ration",
-# "publicat ions"). That is the SAME failure the R1 manager edit recorded for
-# seven tiles in one full-width row, at half the width. Four rows of two give
-# each tile ~150 px (~118 px inside the border), which holds "Concentration" on
-# one line -- so the grid is transposed, not the ruled column widths. Flip this
-# constant back to 4 the day the middle column is wide enough (it already is at
-# 1920 px, where four across measure ~146 px).
-TILE_GRID_COLS = 2                     # 4 rows x 2 tiles (L30, transposed)
-PROFILE_ROW1_WIDTHS = [1.0, 2.0, 1.4]  # identity | KPI tiles | wordcloud
+# what makes the cards wrap one-per-row at 390 px with no media query.
+#
+# 2B-R-2 replaces R2's eight tiles with FOUR cards and R2's three-column row 1
+# with a 2 + 2 split: the identity block and the wordcloud it illustrates share
+# the left half (cloud UNDER identity, so the cloud gets the full half-width
+# instead of R2's ~1.4/4.4 sliver), the four cards fill the right half as a
+# 2 x 2 grid. Each card is therefore ~half of half the content box -- ~200 px at
+# 1280 px, ~340 px at 1920 px -- comfortably past the ~118 px at which R2
+# measured labels breaking mid-word, which is what made the eight-tile grid
+# need transposing in the first place.
+N_CARDS = 4
+CARD_GRID_COLS = 2                     # 2 rows x 2 cards (2B-R-2)
+PROFILE_ROW1_WIDTHS = [1, 1]           # identity + wordcloud | the four cards
 PROFILE_ROW2_WIDTHS = [1, 1]           # global breakdown | yearly breakdown
 CONTROLS_ROW_WIDTHS = [1, 1, 1, 2]     # depth | C1 | L7 | post-filters expander
+
+# 2B-R-2: the bonus year is marked ON the axis instead of banner-ed under the
+# pair. The footnote itself moved into the section's `?` tooltip
+# (copy.FIND["BREAKDOWN_SECTION_HELP"]).
+BONUS_STAR = "*"
+
+# 2B-R-7: the two identity-column facts. Stream P2 lands these columns on
+# `index.parquet` later this phase; `_identity_fact` reads n/a until they exist,
+# so this file needs no edit the day they do.
+INTL_COLUMN = "intl_share"
+COMPANY_COLUMN = "company_share"
 
 SORT_VOLUME, SORT_TAXONOMY = "volume", "taxonomy"
 
@@ -334,31 +346,55 @@ def _sidebar_basket(bundle: dict) -> None:
 # ------------------------------------------------------- header + search ----
 
 def _header(bundle: dict) -> None:
-    """Title, the standing verdict line, and the snapshot stamp -- both label
-    and figures computed from the deployed manifest (BUILD_PLAN_2A.md L11)."""
+    """Title, the standing verdict line, and the data stamp.
+
+    2B-R-12: the stamp is no longer "Snapshot: august_2026 (generated
+    2026-08-27T13:41:28.350794+00:00)". An internal artefact name and a
+    microsecond-precision machine timestamp are provenance for an operator, not
+    a caption for a reader -- and the Methods page already carries the vintage
+    in its own provenance section, where an operator looks. What stays is the
+    two facts a reader uses: how big the index is, and how old the data is.
+    Both are computed (index length, the manifest's own source stamp parsed by
+    `exports.data_date_label`), never typed."""
     st.title(copy.FIND["PAGE_TITLE"])
     st.caption(copy.FIND["PAGE_INTRO"])
     st.markdown(f"**{copy.VERDICT_LINE}**")
     mf = manifest()
     # ops/deploy.py writes `source_manifest_generated_at` / `deployed_at`; the
-    # pre-staged source_manifest.json writes `generated_at`. Take whichever the
-    # deployed file actually carries rather than showing NA_MARK for both.
-    stamp = (mf.get("generated_at") or mf.get("source_manifest_generated_at")
-             or mf.get("deployed_at") or NA_MARK)
-    st.caption(copy.FIND["SNAPSHOT_CAPTION"].format(
-        snapshot=mf.get("snapshot") or CFG["snapshot"], generated_at=stamp,
-        n_institutions=f"{len(bundle['index_df']):,}", sep=SEP))
+    # pre-staged source_manifest.json writes `generated_at`. The SOURCE stamp is
+    # preferred here (it dates the harvest, which is what "data from" claims);
+    # `deployed_at` only dates the copy into app/data/.
+    stamp = (mf.get("source_manifest_generated_at") or mf.get("generated_at")
+             or mf.get("deployed_at"))
+    st.caption(copy.FIND["DATA_CAPTION"].format(
+        n_institutions=f"{len(bundle['index_df']):,}", sep=SEP,
+        date=data_date_label(stamp, NA_MARK)))
 
 
 def _seed_search(bundle: dict) -> str | None:
-    """VIZ_SPEC S2.1: search-first, no default listing. The chosen id lives in
-    the plain (non-widget) session key `seed_id`, so it survives page hops."""
+    """VIZ_SPEC S2.1 + 2B-R-12: search-first, no default listing, and NO
+    auto-load of the best match.
+
+    `index=None` plus a placeholder is the whole change (Wind Tunnel A12
+    measured it as supported on the pinned Streamlit 1.61.1). Before it, typing
+    three letters silently loaded whichever institution the ranker happened to
+    put first, and a reader who had not chosen anything was looking at a full
+    benchmark for an institution they had not named -- the gate-2B complaint.
+    Now the selectbox starts empty, `pick` stays None, `seed_id` is never
+    written, and `render()`'s existing early return keeps the ENTIRE page below
+    the search box unrendered until the reader picks. A pick already made
+    survives a query edit: `seed_id` is only ever overwritten by another pick,
+    never cleared by typing.
+
+    The chosen id lives in the plain (non-widget) session key `seed_id`, so it
+    survives page hops."""
     query = st.text_input(copy.FIND["SEED_SEARCH_LABEL"], key="seed_query", **state.PERSIST)
     hits = search(query, bundle["search_idx"]) if query else []
     if query and not hits:
         st.info(copy.SEARCH_EMPTY_TEMPLATE.format(query=query))
     if hits:
         pick = st.selectbox(copy.FIND["SEED_PICK_LABEL"], [h["id"] for h in hits],
+                            index=None, placeholder=copy.FIND["SEED_PICK_PLACEHOLDER"],
                             format_func=lambda i: _hit_label(hits, i), key="seed_pick")
         if pick:
             st.session_state["seed_id"] = pick
@@ -381,13 +417,19 @@ def _count(value) -> str:
     return f"{float(value):,.0f}"
 
 
-def _hhi(value) -> str:
-    """The subfield HHI as the data ships it: a 0-10,000 scale (`index.parquet`
-    min 88, max 7,454 -- data_contract.yaml), so one precision level for this
-    measure is the integer, not three decimals."""
-    if value is None or pd.isna(value):
+def _identity_fact(row, column: str) -> str:
+    """2B-R-7: one of the two co-publication shares, as a formatted percent.
+
+    Stream P2 adds `intl_share` / `company_share` to `index.parquet` LATER this
+    phase. Until then the column simply is not on the row, and the honest render
+    is `n/a` -- never 0, which would claim the institution co-publishes with
+    nobody abroad. `pandas.Series.get` returns None for a missing label, so the
+    presence check and the null check are the same branch; the explicit
+    `column not in row.index` test is kept so the intent survives a future
+    pandas that starts raising instead."""
+    if column not in row.index:
         return NA_MARK
-    return f"{float(value):,.0f}"
+    return _pct(row.get(column))
 
 
 # ------------------------------------------------------------- profile ------
@@ -440,6 +482,16 @@ def _profile_identity(card: dict, row, bundle: dict) -> None:
     st.markdown(f" {SEP} ".join(parts),
                 help=f"{tooltip} {copy.FIND['LINK_OPENALEX_HELP']}")
 
+    # 2B-R-7: the two co-publication facts sit in the IDENTITY column, not on a
+    # card -- they describe who this institution publishes WITH, which is a fact
+    # about the institution rather than a performance measure the index has a
+    # median for. One caption, one tooltip carrying both definitions and their
+    # shared denominator.
+    st.caption(f"{copy.FIND['IDENTITY_INTL_LABEL']} {_identity_fact(row, INTL_COLUMN)} "
+               f"{SEP} {copy.FIND['IDENTITY_COMPANY_LABEL']} "
+               f"{_identity_fact(row, COMPANY_COLUMN)}",
+               help=copy.FIND["IDENTITY_FACTS_HELP"].format(y0=WINDOW_START, y1=WINDOW_END))
+
 
 def _baseline_sub(bundle: dict, kpi: str, value, fmt) -> str:
     """R2/L31: the tile's SECOND subline, positioning the value in the index --
@@ -457,62 +509,70 @@ def _baseline_sub(bundle: dict, kpi: str, value, fmt) -> str:
     return copy.FIND["TILE_BASELINE_SUB"].format(median=fmt(ref["median"]), pct=pct_text, sep=SEP)
 
 
-def _tile_specs(card: dict, row, bundle: dict) -> list[tuple]:
-    """(baseline key, label, value, formatter, own subline) x 8, in the FIXED
-    order of `baselines.KPI_COLUMNS` (VIZ_SPEC S2.11): size full, size
-    fractional, concentration, breadth, SDG-tagged share, frontier top-quartile
-    share, PP(top10%), publications in the bonus year.
+def _card_specs(card: dict, row) -> list[tuple]:
+    """(baseline key, label, value, formatter, tooltip, 2nd value, 2nd label)
+    x 4 -- the 2B-R-2 cards, in the ruled order: publications (both counting
+    bases on ONE card), SDG-tagged share, frontier top-quartile share,
+    PP(top10%) with its interval.
 
-    The concentration tile carries NO class word (R2/L32: `hhi_class`'s
-    textbook thresholds called 86 % of the index "generalist", which is not a
-    distinction) -- the index percentile in the baseline subline is what
-    positions it now."""
-    iid = card["institution_id"]
+    What is GONE and why (2B-R-2, closing R2 gate items #3 and #5):
+      * concentration (HHI) and breadth -- R2 had already stripped the
+        concentration tile's class word because `hhi_class` called 86 % of the
+        index "generalist"; the gate found the bare index equally unreadable,
+        and breadth is the same statistic seen from the other side. Both are
+        still in `index.parquet` and still exported;
+      * the two size tiles, MERGED here: full and fractional counting are one
+        measure under two conventions, and reading them as two neighbouring
+        "sizes" invited exactly the subtraction they do not support;
+      * the bonus-year tile -- a single year's volume next to a five-year
+        window is a category error at the same visual weight; the bonus year is
+        now marked where it is actually read, on the breakdown's year axis.
+
+    Every definition that used to print as a subline under its tile is now in
+    the card's `?` tooltip: the card surface carries the value and the index
+    position, and nothing else.
+
+    `frontier_top25_share_index` (not `frontier_top25_share`) is the card's
+    value: `seed_card` names the index-basis column that way, while the
+    baseline key stays the `index.parquet` column name `baselines.KPI_COLUMNS`
+    knows -- the same pairing R2's tile spec used."""
     return [
-        ("total_full_2020_2024", copy.FIND["TILE_SIZE_FULL"],
+        ("total_full_2020_2024", copy.FIND["KPI_PUBS_LABEL"],
          card["total_full_2020_2024"], _count,
-         copy.FIND["TILE_SIZE_FULL_SUB"].format(y0=WINDOW_START, y1=WINDOW_END, dash=DASH)),
-        ("total_frac_2020_2024", copy.FIND["TILE_SIZE_FRAC"],
-         card["total_frac_2020_2024"], _count,
-         copy.FIND["TILE_SIZE_FRAC_SUB"]),
-        ("hhi_subfield", copy.FIND["TILE_HHI"],
-         card["hhi_subfield"], _hhi,
-         copy.FIND["TILE_HHI_SUB"]),
-        ("breadth_subfields", copy.FIND["TILE_BREADTH"],
-         card["breadth_subfields"], _count,
-         copy.FIND["TILE_BREADTH_SUB"].format(floor=CFG["g6_floor"])),
-        ("sdg_tagged_share", copy.FIND["TILE_SDG"],
+         copy.FIND["KPI_PUBS_HELP"].format(y0=WINDOW_START, y1=WINDOW_END,
+                                           bonus_year=CFG["bonus_year"]),
+         _count(card["total_frac_2020_2024"]), copy.FIND["KPI_PUBS_FRAC_LABEL"]),
+        ("sdg_tagged_share", copy.FIND["KPI_SDG_LABEL"],
          card["sdg_tagged_share"], _pct,
-         copy.FIND["TILE_SDG_SUB"]),
-        ("frontier_top25_share", copy.FIND["TILE_FRONTIER"],
+         copy.FIND["KPI_SDG_HELP"], None, None),
+        ("frontier_top25_share", copy.FIND["KPI_FRONTIER_LABEL"],
          card["frontier_top25_share_index"], _pct,
-         copy.FIND["TILE_FRONTIER_SUB"]),
-        ("pp_top10_frac", copy.FIND["TILE_PP"],
+         copy.FIND["KPI_FRONTIER_HELP"], None, None),
+        ("pp_top10_frac", copy.FIND["KPI_PP_LABEL"],
          row["pp_top10_frac"], _pct,
-         copy.FIND["TILE_PP_SUB"].format(lo=_pct(row["pp_ci_low"]),
-                                         hi=_pct(row["pp_ci_high"]), dash=DASH)),
-        ("bonus_year_full", copy.FIND["TILE_BONUS_YEAR"].format(year=CFG["bonus_year"]),
-         bundle["bonus_year_full"].get(iid), _count,
-         copy.FIND["TILE_BONUS_YEAR_SUB"]),
+         copy.FIND["KPI_PP_HELP"],
+         copy.FIND["KPI_PP_VALUE_CI"].format(lo=_pct(row["pp_ci_low"]),
+                                             hi=_pct(row["pp_ci_high"]), dash=DASH),
+         copy.FIND["KPI_PP_CI_LABEL"]),
     ]
 
 
-def _profile_tiles(card: dict, row, bundle: dict) -> None:
-    """VIZ_SPEC S2.11 / L30 / L31: EIGHT tiles in a 2 x 4 grid filling column 2
-    of the profile's row 1, each `value + label + its own subline + the index
-    baseline`. `n/a` for anything the data cannot support -- never 0, never a
-    hidden tile.
+def _profile_cards(card: dict, row, bundle: dict) -> None:
+    """2B-R-2: FOUR cards in a 2 x 2 grid filling the right half of the profile
+    row, each `big value (+ companion figure) + label + the index baseline`,
+    with all methodology behind the card's own `?`. `n/a` for anything the data
+    cannot support -- never 0, never a hidden card.
 
-    A grid rather than one row of eight, at TILE_GRID_COLS per row: see that
-    constant for the 1280 px measurement that fixes its value. Streamlit stacks
-    every row one-tile-per-line below its own small breakpoint, so 390 px needs
-    no media query."""
+    Streamlit stacks every row one-card-per-line below its own small
+    breakpoint, so 390 px needs no media query."""
     st.markdown(f"**{copy.FIND['TILES_HEADER']}**", help=copy.FIND["BASELINE_HELP"])
     cols = []
-    for _ in range(N_TILES // TILE_GRID_COLS):
-        cols.extend(st.columns(TILE_GRID_COLS))
-    for col, (kpi, label, value, fmt, subline) in zip(cols, _tile_specs(card, row, bundle)):
-        tiles.kpi_tile(col, label, fmt(value), subline, _baseline_sub(bundle, kpi, value, fmt))
+    for _ in range(N_CARDS // CARD_GRID_COLS):
+        cols.extend(st.columns(CARD_GRID_COLS))
+    for col, (kpi, label, value, fmt, tip, value2, value2_label) in zip(
+            cols, _card_specs(card, row)):
+        tiles.kpi_tile(col, label, fmt(value), _baseline_sub(bundle, kpi, value, fmt),
+                       help=tip, value2=value2, value2_label=value2_label)
 
 
 def _erc_share(card: dict, row) -> float | None:
@@ -532,18 +592,26 @@ def _erc_share(card: dict, row) -> float | None:
 
 
 def _profile_wordcloud(iid: str, ctl: dict) -> None:
-    """VIZ_SPEC S2.13 / R2 L30: a raster in COLUMN 3 of the profile's row 1,
-    beside the tiles it illustrates rather than beside the breakdown pair it was
-    never related to. Size = publications on the current basis, colour = domain
-    -- both stated in the caption, because a wordcloud whose size channel is
-    unstated is a decoration."""
+    """VIZ_SPEC S2.13 / 2B-R-2: a raster UNDER the identity block, in the left
+    half of the profile row -- it illustrates what the institution works on, so
+    it belongs with its name rather than in a third column competing with the
+    cards. Size = publications on the current basis, colour = domain -- both
+    stated in the caption, because a wordcloud whose size channel is unstated is
+    a decoration.
+
+    2B-R-1 / A15 adds the one caveat a reader needs before comparing two
+    renders: the caption's `?` says that fractional counting up-weights
+    few-author (SSH) subfields and that the two bases therefore render at
+    different scales. The font cap that made the cloud readable at all lives in
+    `wordcloud_png.MAX_FONT_SIZE`, not here."""
     weights, domains = _wordcloud_inputs(iid, ctl["tree"], ctl["basis"])
     png = render_wordcloud_png(weights, domains)
     if png is None:
         st.caption(copy.FIND["WORDCLOUD_EMPTY"])
         return
     st.image(png, width="stretch")
-    st.caption(copy.FIND["WORDCLOUD_CAPTION"].format(sep=SEP))
+    st.caption(copy.FIND["WORDCLOUD_CAPTION"].format(sep=SEP),
+               help=copy.FIND["WORDCLOUD_HELP"])
 
 
 def _domain_series(iid: str, ctl: dict, bundle: dict, years: list[int]):
@@ -590,16 +658,38 @@ def _doctype_series(iid: str, ctl: dict, years: list[int]):
     return keys, labels, colors, totals
 
 
+def _year_label(year) -> str:
+    """The year as an axis tick, with the bonus year starred (2B-R-2).
+
+    `charts.fig_breakdown_yearly` requires STRING years (a numeric axis
+    autoranges and ticks differently from every other chart in the app), so the
+    star costs nothing structurally -- it rides on a label that was already
+    text. The star's meaning is stated once, in the section's `?` tooltip, and
+    never repeated under the figure."""
+    if int(year) == int(CFG["bonus_year"]):
+        return f"{int(year)}{BONUS_STAR}"
+    return str(int(year))
+
+
 def _profile_breakdown(iid: str, ctl: dict, bundle: dict) -> None:
     """VIZ_SPEC S2.14: ONE segmented control swapping the identity family for
     BOTH figures, ONE shared chip legend, grouped bars (never stacked), years
     as strings. The two figures can never disagree because one control drives
     them both."""
+    # 2B-R-2: the section gets a TITLE carrying the bonus-year footnote in its
+    # `?`, and the control loses its "Break down by" label -- two options
+    # reading "Domain" and "Document type" state their own question, so the
+    # label was a line of chrome above every render. The label ARGUMENT stays
+    # (Streamlit requires one, and it is what a screen reader announces); only
+    # its visual rendering is collapsed.
+    st.markdown(f"**{copy.FIND['BREAKDOWN_SECTION_TITLE']}**",
+                help=copy.FIND["BREAKDOWN_SECTION_HELP"].format(
+                    year=CFG["bonus_year"], star=BONUS_STAR))
     st.segmented_control(
         copy.FIND["BREAKDOWN_CONTROL_LABEL"],
         [copy.FIND["BREAKDOWN_DOMAIN"], copy.FIND["BREAKDOWN_DOCTYPE"]],
         default=copy.FIND["BREAKDOWN_DOMAIN"], required=True,
-        key="breakdown_dim", **state.PERSIST)
+        key="breakdown_dim", label_visibility="collapsed", **state.PERSIST)
     pick = st.session_state.get("breakdown_dim") or copy.FIND["BREAKDOWN_DOMAIN"]
 
     years = sorted(int(y) for y in _yearly_domain_frame(iid, ctl["tree"])["year"].unique())
@@ -626,20 +716,33 @@ def _profile_breakdown(iid: str, ctl: dict, bundle: dict) -> None:
     # Lorraine lab card does and what makes the two reads comparable at a
     # glance. Streamlit stacks the two columns anyway below its own small
     # breakpoint, so the 390 px behaviour is exactly R1's.
+    #
+    # 2B-R-2 adds the height MATCH. The two builders size themselves from
+    # different rules -- the global one from its row count (six domains ->
+    # 260 px), the yearly one from a fixed scatter budget (400 px) -- so the
+    # pair rendered as two panels of visibly different height sitting side by
+    # side, which reads as two unrelated figures rather than one split total.
+    # The yearly figure is COMPRESSED onto the global one's height here, in the
+    # composing view, rather than in `lib/charts.py`: the constraint is a fact
+    # about this LAYOUT (these two figures, this row), not about either builder,
+    # and charts.py is another stream's file this wave. Reading the height off
+    # the built figure keeps the two in step if that stream retunes either rule.
+    global_fig = charts.fig_breakdown_global([labels[k] for k in keys],
+                                             [sum(totals[k]) for k in keys],
+                                             [colors[k] for k in keys])
+    # The bonus year is marked ON the axis (2B-R-2): the banner that used to sit
+    # under the pair is gone and its footnote moved into the section tooltip, so
+    # the mark has to travel with the tick it qualifies.
+    yearly_fig = charts.fig_breakdown_yearly([_year_label(y) for y in years],
+                                             keys, labels, colors, totals)
+    yearly_fig.update_layout(height=global_fig.layout.height)
     left, right = st.columns(PROFILE_ROW2_WIDTHS)
     with left:
         st.markdown(f"**{copy.FIND['BREAKDOWN_GLOBAL_TITLE']}**")
-        st.plotly_chart(
-            charts.fig_breakdown_global([labels[k] for k in keys],
-                                        [sum(totals[k]) for k in keys],
-                                        [colors[k] for k in keys]),
-            width="stretch", key="fig_breakdown_global")
+        st.plotly_chart(global_fig, width="stretch", key="fig_breakdown_global")
     with right:
         st.markdown(f"**{copy.FIND['BREAKDOWN_YEARLY_TITLE']}**")
-        st.plotly_chart(
-            charts.fig_breakdown_yearly([str(y) for y in years], keys, labels, colors, totals),
-            width="stretch", key="fig_breakdown_yearly")
-    st.caption(copy.FIND["BONUS_YEAR_CAPTION"].format(year=CFG["bonus_year"]))
+        st.plotly_chart(yearly_fig, width="stretch", key="fig_breakdown_yearly")
 
 
 # ---------------------------------------------------------- chart panels ----
@@ -833,24 +936,24 @@ def _profile_panels(iid: str, ctl: dict, card: dict) -> None:
 
 
 def _render_profile(bundle: dict, subs: dict, seed_id: str, ctl: dict) -> dict:
-    """VIZ_SPEC S1.9 / L30 -- the Lorraine lab card's grid. Row 1 in three
-    columns (identity | eight KPI tiles | wordcloud), row 2 full width (one
-    control and one chip legend above the breakdown pair), then the six
-    collapsed panels. Returns the seed card, which the L2f tab intro and the
-    export path both read after the profile has rendered."""
+    """VIZ_SPEC S1.9 / 2B-R-2 -- the profile as a 2 + 2 split. Row 1 in two
+    halves (identity with the wordcloud UNDER it | the four KPI cards as a
+    2 x 2 grid), row 2 full width (a titled section holding one control, one
+    chip legend and the height-matched breakdown pair), then the six collapsed
+    panels. Returns the seed card, which the L2f tab intro and the export path
+    both read after the profile has rendered."""
     ctx = bundle["ctx"]
     card = seed_card(ctx, seed_id, subs, bundle["catchall"])
     row = ctx["index_by_id"].loc[seed_id]
     card["_erc_share"] = _erc_share(card, row)
     st.header(copy.FIND["PROFILE_HEADER"])
     with st.container(border=True, key="profile"):
-        c_identity, c_tiles, c_cloud = st.columns(PROFILE_ROW1_WIDTHS)
+        c_identity, c_cards = st.columns(PROFILE_ROW1_WIDTHS)
         with c_identity:
             _profile_identity(card, row, bundle)
-        with c_tiles:
-            _profile_tiles(card, row, bundle)
-        with c_cloud:
             _profile_wordcloud(seed_id, ctl)
+        with c_cards:
+            _profile_cards(card, row, bundle)
         _profile_breakdown(seed_id, ctl, bundle)
         _profile_panels(seed_id, ctl, card)
     return card

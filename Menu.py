@@ -20,8 +20,11 @@ from pathlib import Path
 import streamlit as st
 
 from lib import copy, state
-from lib.app_config import CFG
 from lib.data_cache import index, manifest
+from lib.exports import data_date_label
+from lib.palette import NA_MARK
+
+SEP = "·"   # middle dot, the separator every other caption in the app uses
 
 st.set_page_config(page_title="BenchUp v3", layout="wide")
 state.ensure()
@@ -59,11 +62,15 @@ with st.container(key="nav_cards"):
 
 st.markdown("---")
 
+# 2B-R-12: the snapshot LABEL ("august_2026") and its generated timestamp are
+# both gone from the page -- an internal artefact name and a machine stamp told
+# a reader nothing they could act on. What replaces them is what they were
+# standing in for: how many institutions the index holds, and the date the data
+# was harvested. Both are read at run time (the index length, the manifest's own
+# source stamp) so no digit is typed here.
 _manifest = manifest()
-_snapshot_label = _manifest.get("snapshot") or CFG.get("snapshot", "n/a")
-_generated_at = (_manifest.get("source_manifest_generated_at") or _manifest.get("generated_at")
-                 or _manifest.get("deployed_at") or "n/a")  # deploy.py MANIFEST vs source_manifest keys (manager fix 2026-08-29)
-st.caption(
-    f"Snapshot: {_snapshot_label} (generated {_generated_at}) -- {len(index())} "
-    "institutions in the index."
-)
+_stamp = (_manifest.get("source_manifest_generated_at") or _manifest.get("generated_at")
+          or _manifest.get("deployed_at"))  # deploy.py MANIFEST vs source_manifest keys
+st.caption(copy.FIND["DATA_CAPTION"].format(
+    n_institutions=f"{len(index()):,}", sep=SEP,
+    date=data_date_label(_stamp, NA_MARK)))

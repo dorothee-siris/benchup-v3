@@ -53,11 +53,22 @@ MIN_FONT_SIZE = 9         # the structural relief palette.py's validator run 3 a
                            # on the Social Sciences hue (lightness above the band): its
                            # words are drawn at a real weight, never a thin hairline.
 
+# 2B-R-1 / Wind Tunnel A15. `wordcloud` leaves `max_font_size` UNSET by
+# default, which makes it the canvas height -- so a fractional-basis cloud
+# whose top subfield dominates drew that one word at ~199 px, then fell off a
+# font-size cliff that left only 34 of the 120 words placed at all. Capping the
+# largest word at MAX_FONT_SIZE restores a readable ratio (top1/top3 = 1.79)
+# and places 62 words on the same input. Measured on Strasbourg, both bases;
+# the full-counting basis is cap-INERT (its largest word is ~47 px either way),
+# which is why A15 waived the A/B on that basis rather than running it twice.
+MAX_FONT_SIZE = 84
+
 
 @st.cache_data(show_spinner=False, max_entries=16)
 def render_wordcloud_png(weights: dict, domains: dict,
                          width: int = DEFAULT_WIDTH, height: int = DEFAULT_HEIGHT,
-                         max_words: int = DEFAULT_MAX_WORDS) -> bytes | None:
+                         max_words: int = DEFAULT_MAX_WORDS,
+                         max_font_size: int = MAX_FONT_SIZE) -> bytes | None:
     """`({subfield_name: weight}, {subfield_name: domain_id})` -> PNG bytes.
 
     Returns `None` -- never a blank white box -- when there is nothing to draw
@@ -88,6 +99,7 @@ def render_wordcloud_png(weights: dict, domains: dict,
         width=width, height=height, max_words=max_words,
         background_color=P.SURFACE, prefer_horizontal=PREFER_HORIZONTAL,
         relative_scaling=RELATIVE_SCALING, min_font_size=MIN_FONT_SIZE,
+        max_font_size=max_font_size,
     )
     cloud.generate_from_frequencies(freqs)
     cloud.recolor(color_func=color_func)
