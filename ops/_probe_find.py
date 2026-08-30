@@ -55,7 +55,7 @@ SHOT_HEIGHT_PX = 2400   # see _probe_widths: full_page=True is a no-op here
 N_DEFAULT_TABS = 10   # Overview + the 8 default lenses + Aspirational
 N_TOGGLED_TABS = 12   # ... + C1 + L7
 N_PANELS = 6          # Fields, Top subfields, Top topics, Frontier, SDG, ERC
-N_TILES = 8           # R2/L30: 2 x 4 grid, the eighth being the bonus year
+N_TILES = 4           # 2B-R-2: 2 x 2 card grid (size, SDG, frontier, PPtop10)
 GOLD_RANK1 = ("I34250744", 0.793119)
 
 PORT = DEFAULT_PORT

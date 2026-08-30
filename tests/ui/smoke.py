@@ -89,7 +89,7 @@ SUBFIELDS_TOP_N = 30
 
 # R2/L30/L31: the profile's 2 x 4 (rendered as 4 rows x 2, VIZ_SPEC S2.11
 # deviation) KPI tile grid, `lib/tiles.py`'s TILE_CLASS/SUBLINE_CLASS hooks.
-N_TILES = 8
+N_TILES = 4
 
 # R2/L29: the six profile chart panels, keyed `panel_<name>`, with their
 # `copy.FIND["PANEL_*"]` header text (lib/copy.py) -- HARDCODED here (not
@@ -585,7 +585,7 @@ def check_profile_and_panels(page) -> dict:
     check(tiles.count() == N_TILES, f"Profile: {N_TILES} KPI tiles render (found {tiles.count()})")
     sublines = page.locator(".st-key-profile .benchup-kpi-sub")
     n_sub = sublines.count()
-    check(n_sub == N_TILES * 2, f"Profile: every tile carries two sublines (found {n_sub})")
+    check(n_sub == N_TILES, f"Profile: every card carries its baseline subline (found {n_sub})")
     sub_texts = [sublines.nth(i).text_content() or "" for i in range(n_sub)]
     n_baseline = sum(1 for t in sub_texts if "index median" in t)
     check(n_baseline == N_TILES,
