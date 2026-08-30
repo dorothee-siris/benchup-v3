@@ -86,6 +86,7 @@ METRIC_LABELS = {
     "sdg_share": copy.COMPARE["METRIC_SDG_SHARE"],
     "dynamics": copy.COMPARE["METRIC_DYNAMICS"],
     "si": copy.COMPARE["METRIC_SI"],
+    "vol": copy.COMPARE["METRIC_VOL"],
 }
 # Every section starts from the SAME six-metric vocabulary and lets the level
 # filter it (2B-R-5). Starting each section from a hand-written short list would

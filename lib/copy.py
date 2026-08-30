@@ -920,6 +920,7 @@ COMPARE = {
     "METRIC_SDG_SHARE": "SDG-tagged share",
     "METRIC_DYNAMICS": "Change in mean annual volume",
     "METRIC_SI": "Specialisation",
+    "METRIC_VOL": "Volume",
     "METRIC_HIDDEN_HEADER": "Measures not offered here, and why",
     "METRIC_HIDDEN_LINE": "{metric}: {reason}",
 
