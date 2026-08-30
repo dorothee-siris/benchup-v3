@@ -189,6 +189,147 @@ def test_breadth_jaccard_symmetric(ctx, subs_bestfit):
     assert fwd["n_shared"] == bwd["n_shared"]
 
 
+CNRS = "I1294671590"
+
+
+# ============================================================================
+# 2B-R (Stream CD, BUILD_PLAN_2BR.md S1 2B-R-10, S4) -- anchors recomputed
+# 2026-08-30 via an INDEPENDENT code path (plain pandas over
+# app/data/collab_pairs.parquet / collab_pair_topics.parquet, no import of
+# lib.collab_data) -- see V3/progress/2BR_CD.md for the script.
+# ============================================================================
+
+def test_pulse_pinned_anchor_cnrs_strasbourg_table_order(ctx):
+    """Manager-pinned fact (BUILD_PLAN_2BR.md CD brief): copubs_total 12694,
+    rank_in_b 1 -- called in the TABLE's own a<b order (CNRS < Strasbourg
+    lexicographically)."""
+    got = CL.pulse(ctx, CNRS, STRASBOURG)
+    assert got["copubs_total"] == 12694
+    assert got["rank_in_a"] == 16
+    assert got["rank_in_b"] == 1
+    want_years = {2020: 2284, 2021: 2357, 2022: 2190, 2023: 2123, 2024: 2034, 2025: 1706}
+    for y, v in want_years.items():
+        row = got["yearly"].loc[got["yearly"]["year"] == y, "copubs"].iloc[0]
+        assert int(row) == v
+    assert got["yearly"]["copubs"].sum() == 12694
+
+
+def test_pulse_swapped_call_order_reorients_ranks(ctx):
+    """Calling pulse(Strasbourg, CNRS) -- the OPPOSITE of the table's own
+    a<b order -- must swap rank_in_a/rank_in_b to stay CALLER-relative:
+    rank_in_a (rank of CNRS among Strasbourg's partners) == 1, rank_in_b
+    (rank of Strasbourg among CNRS's partners) == 16."""
+    got = CL.pulse(ctx, STRASBOURG, CNRS)
+    assert got["copubs_total"] == 12694
+    assert got["rank_in_a"] == 1
+    assert got["rank_in_b"] == 16
+
+
+def test_pulse_denominators_and_share_anchor(ctx):
+    """Independently summed off index.vol_full_by_year_this_run (2020-2025):
+    Strasbourg 22865, CNRS 281939 (raw pandas over index.parquet, not
+    lib.collab_data's own _parse_packed_years call site)."""
+    got = CL.pulse(ctx, STRASBOURG, CNRS)
+    np.testing.assert_allclose(got["denominator_a"], 22865.0, rtol=1e-9)
+    np.testing.assert_allclose(got["denominator_b"], 281939.0, rtol=1e-9)
+    np.testing.assert_allclose(got["share_of_a"], 12694 / 22865.0, rtol=1e-9)
+    np.testing.assert_allclose(got["share_of_b"], 12694 / 281939.0, rtol=1e-9)
+
+
+def test_pulse_none_for_a_pair_that_never_co_published(ctx):
+    """Two small, unrelated institutions with NO row in collab_pairs at all
+    (floor 1 -- absent truly means zero co-publications, 2BR A1)."""
+    a, b = "I1305429183", "I1308570094"
+    import pandas as _pd
+    pairs = _pd.read_parquet(Path(ctx["data_dir"]) / "collab_pairs.parquet")
+    lo, hi = sorted([a, b])
+    assert pairs[(pairs["a"] == lo) & (pairs["b"] == hi)].empty  # precondition, independently checked
+    assert CL.pulse(ctx, a, b) is None
+
+
+def test_joint_profile_anchor_strasbourg_ifpen(ctx, subs_bestfit):
+    """Independently recomputed off collab_pair_topics.parquet: 12 topic
+    rows, Sigma(vol_total) == 15 == collab_pairs.copubs_total (below the
+    top-20 cap so this pair's FULL joint corpus is captured, no truncation),
+    Sigma(sdg_tagged_n) == 0, erc_top_panel 'PE3' / panel_n 6 / labelled_n 15."""
+    got = CL.joint_profile(ctx, subs_bestfit, STRASBOURG, IFPEN)
+    assert got is not None
+    assert got["meta"]["n_topics_shown"] == 12
+    assert int(got["topics"]["vol_total"].sum()) == 15
+    pulse_ab = CL.pulse(ctx, STRASBOURG, IFPEN)
+    assert pulse_ab["copubs_total"] == 15
+    assert got["sdg_tagged_total"] == 0
+    assert got["erc"]["panel_idx"] == "PE3"
+    assert got["erc"]["panel_n"] == 6
+    assert got["erc"]["labelled_n"] == 15
+    assert list(got["topics"].columns) == CL.JOINT_TOPICS_COLS
+    assert got["topics"]["vol_total"].is_monotonic_decreasing
+    assert got["fields"]["vol_total"].sum() == got["topics"]["vol_total"].sum()
+    assert got["subfields"]["vol_total"].sum() == got["topics"]["vol_total"].sum()
+
+
+def test_joint_profile_below_floor_returns_none(ctx, subs_bestfit):
+    """A pair with copubs_total in {1, 2} (below PAIR_TOPICS_FLOOR=3) has
+    ZERO rows in collab_pair_topics -- independently verified here -- and
+    joint_profile must return None, not an empty-but-present frame."""
+    pairs = _load_pairs_raw(ctx)
+    below = pairs[pairs["copubs_total"].between(1, 2)].iloc[0]
+    a, b = below["a"], below["b"]
+    topics = _load_topics_raw(ctx)
+    assert topics[(topics["a"] == a) & (topics["b"] == b)].empty
+    assert CL.joint_profile(ctx, subs_bestfit, a, b) is None
+    assert CL.PAIR_TOPICS_FLOOR == 3
+    assert CL.PAIR_TOPICS_TOP_N == 20
+
+
+def _load_pairs_raw(ctx):
+    import pandas as _pd
+    return _pd.read_parquet(Path(ctx["data_dir"]) / "collab_pairs.parquet")
+
+
+def _load_topics_raw(ctx):
+    import pandas as _pd
+    return _pd.read_parquet(Path(ctx["data_dir"]) / "collab_pair_topics.parquet")
+
+
+def test_untapped_gap_positive_sorted_and_capped(ctx, subs_bestfit):
+    got = CL.untapped(ctx, subs_bestfit, STRASBOURG, IFPEN, top_n=10)
+    df = got["topics"]
+    assert list(df.columns) == CL.UNTAPPED_COLS
+    assert len(df) <= 10
+    assert (df["gap"] > 0).all()
+    assert df["gap"].is_monotonic_decreasing
+    np.testing.assert_allclose((df["joint_expected"] - df["joint_observed"]).to_numpy(dtype="float64"),
+                               df["gap"].to_numpy(dtype="float64"), atol=1e-9)
+
+
+def test_untapped_k_formula_independent_recompute(ctx, subs_bestfit):
+    """k = copubs_total / min(a_total, b_total) -- independently recomputed
+    (Strasbourg/IFPEN): 15 / min(22865, 1247) = 0.012028869286287089."""
+    got = CL.untapped(ctx, subs_bestfit, STRASBOURG, IFPEN)
+    np.testing.assert_allclose(got["k"], 0.012028869286287089, rtol=1e-9)
+
+
+def test_untapped_siblings_exclude_shared_topics_and_are_active_on_a_side(ctx, subs_bestfit):
+    got = CL.untapped(ctx, subs_bestfit, STRASBOURG, SORBONNE, top_n=15)
+    shared_ids = set(CL.shared_topics(ctx, subs_bestfit, STRASBOURG, SORBONNE)["topic_id"])
+    sib = got["siblings"]
+    assert list(sib.columns) == CL.SIBLING_COLS
+    assert set(sib["topic_id"]).isdisjoint(shared_ids)
+    assert ((sib["vol_a"] > 0) | (sib["vol_b"] > 0)).all()
+
+
+def test_untapped_self_pair_never_raises_and_types_are_frames(ctx, subs_bestfit):
+    """Defensive edge case: a self-pair (a==b, k undefined via pulse since a
+    pair never co-publishes 'with itself' in collab_pairs -- absent from the
+    table) must return typed frames, never raise. k falls back to 0.0 (no
+    pulse row -> smaller==0 guard) rather than NaN propagating into gap."""
+    got = CL.untapped(ctx, subs_bestfit, STRASBOURG, STRASBOURG)
+    assert isinstance(got["topics"], pd.DataFrame) and list(got["topics"].columns) == CL.UNTAPPED_COLS
+    assert isinstance(got["siblings"], pd.DataFrame) and list(got["siblings"].columns) == CL.SIBLING_COLS
+    assert got["k"] == 0.0
+
+
 def test_breadth_jaccard_min_full_floor_shrinks_sets(ctx, subs_bestfit):
     subs = subs_bestfit
     """Manager addition 2026-08-29 (WT-2B E5): a publication floor never grows a

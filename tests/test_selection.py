@@ -20,6 +20,12 @@ KNOWN = {"A", "B", "C", "D", "E", "F", "G", "H"}
 
 # ------------------------------------------------------------- state.py -----
 
+def test_compare_cap_is_three_and_distinct_from_basket_cap():
+    """2BR A13/2B-R-4: Compare is capped at 3, hard; the basket stays 6."""
+    assert state.COMPARE_CAP == 3
+    assert state.BASKET_CAP == 6
+
+
 def _fresh_basket(ids=()):
     """Resets the live st.session_state singleton to an empty (or seeded)
     basket. Works outside a running Streamlit script ("bare mode" -- a
@@ -144,6 +150,52 @@ def test_compare_ids_dedupes_across_query_and_basket():
 def test_compare_ids_drops_unknown_from_either_side():
     out = selection.compare_ids(["A", "ZZZ"], "YYY,B", KNOWN, cap=6)
     assert out == ["B", "A"]
+
+
+# --------------------------------------------------- compare_ids_capped -----
+# 2BR A13/2B-R-4: additive sibling of compare_ids (unchanged above) -- the
+# already-shipped Phase 2B lib/views_compare.py calls compare_ids directly
+# and iterates a flat list, so that signature must not change; the 2B-R
+# Compare rebuild (Stream CP) adopts compare_ids_capped instead.
+
+def test_compare_ids_capped_query_wins_then_basket_fills_and_reports_cut():
+    """4 candidates (A,B from query; D,E,F,G from basket) = 6 combined,
+    capped at 3 -- 3 are cut (E, F, G)."""
+    basket = ["D", "E", "F", "G"]
+    query = "A,B"
+    out, n_truncated = selection.compare_ids_capped(basket, query, KNOWN, cap=3)
+    assert out == ["A", "B", "D"]
+    assert n_truncated == 3
+
+
+def test_compare_ids_capped_dedupes_across_query_and_basket_no_truncation():
+    out, n_truncated = selection.compare_ids_capped(["A", "B"], "B,C", KNOWN, cap=6)
+    assert out == ["B", "C", "A"]
+    assert n_truncated == 0
+
+
+def test_compare_ids_capped_drops_unknown_from_either_side():
+    out, n_truncated = selection.compare_ids_capped(["A", "ZZZ"], "YYY,B", KNOWN, cap=6)
+    assert out == ["B", "A"]
+    assert n_truncated == 0
+
+
+def test_compare_ids_capped_truncation_count_at_the_2br_cap():
+    """2BR A13: state.COMPARE_CAP == 3 -- 5 known candidates capped at 3
+    reports n_truncated == 2, surviving ids in query-then-basket order."""
+    out, n_truncated = selection.compare_ids_capped(["C", "D", "E"], "A,B", KNOWN, cap=state.COMPARE_CAP)
+    assert out == ["A", "B", "C"]
+    assert n_truncated == 2
+
+
+def test_compare_ids_capped_matches_compare_ids_ids_half():
+    """compare_ids_capped's `ids` half is byte-identical to compare_ids on
+    the same inputs -- one function is not quietly a different resolution
+    order from the other."""
+    basket, query = ["D", "E", "F"], "A,B"
+    plain = selection.compare_ids(basket, query, KNOWN, cap=3)
+    capped_ids, _ = selection.compare_ids_capped(basket, query, KNOWN, cap=3)
+    assert plain == capped_ids
 
 
 def test_pair_from_explicit_pair_when_valid():

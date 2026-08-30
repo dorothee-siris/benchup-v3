@@ -35,6 +35,11 @@ PERSIST = dict(persist_state="session")
 # is read once at import time, same as every other CFG-derived module constant in this app.
 BASKET_CAP: int = int(CFG.get("basket_cap", 6))
 
+# 2BR (A13/2B-R-4): Compare itself is capped at 3, hard -- separate from the
+# 6-slot basket (a shortlist) above. Config-backed the same way, additive
+# `compare_cap` key in config.yaml, same import-time-constant convention.
+COMPARE_CAP: int = int(CFG.get("compare_cap", 3))
+
 
 def ensure() -> None:
     """setdefault the basket. Call at the top of every page, before reading st.session_state["basket"]."""

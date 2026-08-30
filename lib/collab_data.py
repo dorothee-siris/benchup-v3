@@ -129,6 +129,259 @@ def _topic_membership(ctx: dict, subs: dict, idx: int, min_full: int) -> "np.nda
     return out
 
 
+# ============================================================================
+# 2B-R additions (Stream CD, BUILD_PLAN_2BR.md S1 2B-R-10, S4) -- the four
+# Collaborate v2 sections over ONE pair (a, b), from the NEW `collab_pairs.
+# parquet`/`collab_pair_topics.parquet` pair artefacts (2B-R-15/A1/A2). Both
+# tables key on (a, b) with `a` the LEXICOGRAPHICALLY SMALLER institution_id
+# (the table's OWN convention) -- every function below accepts (a, b) in the
+# CALLER's own order and re-orients whatever it reads back, so a caller never
+# has to know or care which of its two ids happens to sort first.
+# ============================================================================
+
+def _load_collab_pairs(ctx: dict) -> pd.DataFrame:
+    """Lazy, ctx-cached (`collab_pairs.parquet`, 2B-R-15/A1): ALL a<b
+    indexed-institution pairs with >=1 co-published work 2020-2025 (floor 1
+    -- WT A1 refutes a floor here), ranks computed before any floor."""
+    if "collab_pairs_df" not in ctx:
+        ctx["collab_pairs_df"] = pd.read_parquet(Path(ctx["data_dir"]) / "collab_pairs.parquet")
+    return ctx["collab_pairs_df"]
+
+
+def _load_collab_pair_topics(ctx: dict) -> pd.DataFrame:
+    """Lazy, ctx-cached (`collab_pair_topics.parquet`, 2B-R-15/A2): top-20
+    joint topics (primary topic only) per pair with `copubs_total >=
+    PAIR_TOPICS_FLOOR`."""
+    if "collab_pair_topics_df" not in ctx:
+        ctx["collab_pair_topics_df"] = pd.read_parquet(Path(ctx["data_dir"]) / "collab_pair_topics.parquet")
+    return ctx["collab_pair_topics_df"]
+
+
+PULSE_YEARS = list(range(2020, 2026))  # collab_pairs' own window (2020-2025 incl. the 2025 bonus year)
+PULSE_YEARLY_COLS = ["year", "copubs"]
+
+
+def pulse(ctx: dict, a: str, b: str) -> dict | None:
+    """2B-R-10 S1 (Relationship pulse). Reads ONE row of `collab_pairs.
+    parquet` (regardless of the table's own a<b ordering) and returns it in
+    the CALLER's (a, b) orientation:
+
+      yearly            -- DataFrame[year, copubs], 2020-2025 (2025 labelled
+                            the bonus year by the caller/page, same
+                            convention as topics_all/doctype_by_year).
+      copubs_total       -- SUM over 2020-2025, full counting.
+      share_of_a/b       -- copubs_total / that side's own total FULL-counted
+                            works over the SAME 2020-2025 window (index.
+                            vol_full_by_year_this_run summed over all 6
+                            years) -- NOT total_full_2020_2024's 5-year core
+                            window; see `denominator_note`.
+      rank_in_a          -- dense rank (1=highest) of `b` among ALL of `a`'s
+                            partners by copubs_total, computed BEFORE any
+                            floor (2B-R-15) -- re-oriented from the table's
+                            own rank_in_a/rank_in_b when the caller's (a, b)
+                            is the table's (b, a).
+      rank_in_b          -- dense rank of `a` among ALL of `b`'s partners.
+
+    Returns `None` when the pair has never co-published at all (absent from
+    `collab_pairs`, which ships floor 1 -- absent truly means zero, 2BR A1).
+    Pinned anchor: `pulse(ctx, "I1294671590", "I68947357")` (CNRS, Strasbourg
+    -- the table's own a<b order) -> copubs_total 12694, rank_in_a 16,
+    rank_in_b 1 (manager-verified fact, BUILD_PLAN_2BR.md CD brief)."""
+    pairs = _load_collab_pairs(ctx)
+    lo, hi = (a, b) if a < b else (b, a)
+    row = pairs[(pairs["a"] == lo) & (pairs["b"] == hi)]
+    if row.empty:
+        return None
+    row = row.iloc[0]
+    swapped = a != lo  # caller's `a` is the table's `b`
+
+    yearly = pd.DataFrame({"year": PULSE_YEARS, "copubs": [int(row[f"copubs_{y}"]) for y in PULSE_YEARS]},
+                          columns=PULSE_YEARLY_COLS)
+    rank_in_a = int(row["rank_in_b"] if swapped else row["rank_in_a"])
+    rank_in_b = int(row["rank_in_a"] if swapped else row["rank_in_b"])
+
+    idx = ctx["index_by_id"]
+    denom_a = sum(P._parse_packed_years(idx.loc[a, "vol_full_by_year_this_run"]).get(y, 0.0) for y in PULSE_YEARS)
+    denom_b = sum(P._parse_packed_years(idx.loc[b, "vol_full_by_year_this_run"]).get(y, 0.0) for y in PULSE_YEARS)
+    total = int(row["copubs_total"])
+
+    return {
+        "a": a, "b": b, "yearly": yearly, "copubs_total": total,
+        "share_of_a": (total / denom_a) if denom_a > 0 else np.nan,
+        "share_of_b": (total / denom_b) if denom_b > 0 else np.nan,
+        "denominator_a": denom_a, "denominator_b": denom_b,
+        "denominator_note": ("share_of_a/share_of_b = copubs_total / that side's own total full-counted "
+                             "works, 2020-2025 (index.vol_full_by_year_this_run summed over all 6 years -- "
+                             "the SAME window as copubs_total; NOT total_full_2020_2024's 5-year core window)."),
+        "rank_in_a": rank_in_a, "rank_in_b": rank_in_b,
+    }
+
+
+PAIR_TOPICS_FLOOR = 3    # WT A2: collab_pair_topics.parquet ships only for pairs with copubs_total >= this
+PAIR_TOPICS_TOP_N = 20   # WT A2: top-20 joint topics per pair by vol_total
+
+JOINT_TOPICS_COLS = ["topic_id", "topic_name", "subfield_id", "subfield_name", "field_id", "field_name",
+                     "domain_id", "domain_name", "vol_w1", "vol_w2", "vol_2025", "vol_total", "sdg_tagged_n"]
+JOINT_ROLLUP_VALUE_COLS = ["vol_w1", "vol_w2", "vol_2025", "vol_total", "sdg_tagged_n"]
+
+
+def joint_profile(ctx: dict, subs: dict, a: str, b: str) -> dict | None:
+    """2B-R-10 S2 (Joint corpus). From `collab_pair_topics.parquet` (floor
+    `PAIR_TOPICS_FLOOR`, top `PAIR_TOPICS_TOP_N` topics per pair, primary
+    topic only, 2BR A2). Field/subfield/domain names are resolved TREE-AWARE
+    (`subs['tree']`'s own `{tree}_subfield_id`) even though `topic_id` itself
+    never changes -- only which subfield a topic rolls into does.
+
+    Returns `None` when the pair's `copubs_total` is below `PAIR_TOPICS_
+    FLOOR` (or the pair never co-published) -- both `PAIR_TOPICS_FLOOR` and
+    `PAIR_TOPICS_TOP_N` are public module constants so a caller can render
+    'below the floor of {F}' without a second lookup.
+
+    On a hit, returns:
+      topics       -- one row per joint topic (<= PAIR_TOPICS_TOP_N rows),
+                      sorted by vol_total descending.
+      fields       -- topics rolled up to field grain (sum of the window/sdg
+                      columns over the SHOWN topics only -- see `meta.note`).
+      subfields    -- topics rolled up to subfield grain, same caveat.
+      sdg_tagged_total -- sum of sdg_tagged_n over the shown topics (a LOWER
+                      BOUND on the pair's true joint SDG-tagged count,
+                      because of the top-N cap).
+      erc          -- PAIR-LEVEL dict (erc_top_panel/panel_n/labelled_n) --
+                      the source columns are repeated on every row of
+                      `collab_pair_topics` for this pair, never per-topic
+                      (2BR contract); `denominator_note` states the labelled-
+                      of-89.6%-corpus-coverage convention (2BR A9): NEVER
+                      divide panel_n by copubs_total, only by labelled_n.
+      meta         -- {floor, top_n_cap, n_topics_shown, note}."""
+    topics = _load_collab_pair_topics(ctx)
+    lo, hi = (a, b) if a < b else (b, a)
+    rows = topics[(topics["a"] == lo) & (topics["b"] == hi)]
+    if rows.empty:
+        return None
+
+    tree_col = f"{subs['tree']}_subfield_id"
+    dim = ctx["topics_dim_df"][["topic_id", tree_col]].rename(columns={tree_col: "subfield_id"})
+    sfd = P._subfield_field_domain_map(ctx)
+    extra = P._topics_dim_extra(ctx)[["topic_id", "topic_name"]]
+
+    df = rows.merge(dim, on="topic_id", how="left").merge(sfd, on="subfield_id", how="left") \
+             .merge(extra, on="topic_id", how="left")
+    df = df.sort_values("vol_total", ascending=False).reset_index(drop=True)
+    topics_out = df.reindex(columns=JOINT_TOPICS_COLS)
+
+    fields_out = (df.groupby(["field_id", "field_name"], as_index=False)[JOINT_ROLLUP_VALUE_COLS].sum()
+                    .sort_values("vol_total", ascending=False).reset_index(drop=True))
+    subfields_out = (df.groupby(["subfield_id", "subfield_name", "field_id", "field_name"], as_index=False)
+                       [JOINT_ROLLUP_VALUE_COLS].sum()
+                       .sort_values("vol_total", ascending=False).reset_index(drop=True))
+
+    r0 = rows.iloc[0]
+    erc = {
+        "panel_idx": r0["erc_top_panel"], "panel_n": int(r0["erc_top_panel_n"]),
+        "labelled_n": int(r0["erc_labelled_n"]),
+        "denominator_note": ("of the labelled ~89.6% of joint works with an erc_probs row "
+                             "(erc_top_panel_n / erc_labelled_n) -- NEVER divide by copubs_total (2BR A9)."),
+    }
+    return {
+        "a": a, "b": b, "topics": topics_out, "fields": fields_out, "subfields": subfields_out,
+        "sdg_tagged_total": int(df["sdg_tagged_n"].sum()), "erc": erc,
+        "meta": {"floor": PAIR_TOPICS_FLOOR, "top_n_cap": PAIR_TOPICS_TOP_N, "n_topics_shown": len(topics_out),
+                "note": (f"top {PAIR_TOPICS_TOP_N} joint topics by volume shown (2BR A2) -- the pair's true "
+                        "topic diversity may exceed this cap; sdg_tagged_total and the field/subfield "
+                        "rollups sum ONLY the shown topics, a lower bound.")},
+    }
+
+
+def _joint_vol_by_topic(ctx: dict, a: str, b: str) -> dict:
+    """topic_id -> vol_total for the pair (a, b) from `collab_pair_topics`,
+    empty dict when the pair is below `PAIR_TOPICS_FLOOR` or absent."""
+    topics = _load_collab_pair_topics(ctx)
+    lo, hi = (a, b) if a < b else (b, a)
+    rows = topics[(topics["a"] == lo) & (topics["b"] == hi)]
+    return dict(zip(rows["topic_id"], rows["vol_total"]))
+
+
+UNTAPPED_COLS = ["topic_id", "topic_name", "subfield_id", "subfield_name", "vol_a", "vol_b",
+                "joint_observed", "joint_expected", "gap"]
+SIBLING_COLS = ["subfield_id", "subfield_name", "topic_id", "topic_name", "vol_a", "vol_b"]
+
+
+def untapped(ctx: dict, subs: dict, a: str, b: str, top_n: int = 20) -> dict:
+    """2B-R-10 S3 (Untapped potential). Shared topics (`shared_topics`'s own
+    `min_share > 0` rule, L3 topic grain, tree/basis-aware via `subs`) where
+    the pair's REALISED joint output is below a simple EXPECTED baseline:
+
+        k = pair_copubs_total / min(a_total, b_total)      (pulse's own
+                                                             denominators,
+                                                             the smaller side)
+        joint_expected(topic) = k * min(vol_a(topic), vol_b(topic))
+        gap = joint_expected - joint_observed
+
+    Reading: 'if this pair collaborated on this topic at the SAME overall
+    rate they collaborate institution-wide (k), we would expect this many
+    joint works there'. `joint_observed` comes from `collab_pair_topics`
+    (0 for a shared topic outside the pair's shown top-20, or for a pair
+    entirely below `PAIR_TOPICS_FLOOR` -- both a genuine 'untapped' signal
+    here, not a data gap). Rows are kept only where `gap > 0`, sorted
+    descending, capped at `top_n`.
+
+    `siblings`: for the subfields appearing in the untapped list, every
+    OTHER topic in that subfield (`topics_dim`, tree-aware) that EITHER side
+    already holds nonzero volume in but which is NOT itself one of the
+    pair's `shared_topics` -- adjacent topics the pair could plausibly
+    extend collaboration into, uncapped, sorted by (subfield, vol_a, vol_b)
+    descending.
+
+    The 2B `gaps()`/`shared_topics()` functions above are UNCHANGED and stay
+    in place -- this is an additional, distinct analysis, not a replacement."""
+    shared = shared_topics(ctx, subs, a, b)
+    if shared.empty:
+        return {"topics": pd.DataFrame(columns=UNTAPPED_COLS), "siblings": pd.DataFrame(columns=SIBLING_COLS),
+               "k": np.nan}
+
+    vol_col = "vol_full" if subs["basis"] == "full" else "vol_frac"
+    ta = P.topics_table(ctx, subs, a)[["topic_id", vol_col]].rename(columns={vol_col: "vol_a"})
+    tb = P.topics_table(ctx, subs, b)[["topic_id", vol_col]].rename(columns={vol_col: "vol_b"})
+    # `shared_topics`' own SHARED_TOPICS_COLS carries subfield_NAME only --
+    # this function additionally needs subfield_id (for the sibling lookup
+    # below), so join it back in via the same tree-aware map `shared_topics`
+    # itself uses internally.
+    subfield_ids = _topic_subfield_map(ctx, subs["tree"])
+    df = shared[["topic_id", "topic_name", "subfield_name"]].merge(
+        subfield_ids, on="topic_id", how="left").merge(
+        ta, on="topic_id", how="left").merge(tb, on="topic_id", how="left")
+    df[["vol_a", "vol_b"]] = df[["vol_a", "vol_b"]].fillna(0.0)
+
+    pulse_ab = pulse(ctx, a, b)
+    a_total = float(pulse_ab["denominator_a"]) if pulse_ab else 0.0
+    b_total = float(pulse_ab["denominator_b"]) if pulse_ab else 0.0
+    copubs_total = float(pulse_ab["copubs_total"]) if pulse_ab else 0.0
+    smaller = min(a_total, b_total) if (a_total > 0 and b_total > 0) else 0.0
+    k = (copubs_total / smaller) if smaller > 0 else 0.0
+
+    joint = _joint_vol_by_topic(ctx, a, b)
+    df["joint_observed"] = df["topic_id"].map(joint).fillna(0.0)
+    df["joint_expected"] = k * np.minimum(df["vol_a"], df["vol_b"])
+    df["gap"] = df["joint_expected"] - df["joint_observed"]
+    df = df[df["gap"] > 0].sort_values("gap", ascending=False).head(top_n).reset_index(drop=True)
+    topics_out = df.reindex(columns=UNTAPPED_COLS)
+
+    subfield_ids = set(int(s) for s in topics_out["subfield_id"].dropna().unique())
+    tree_col = f"{subs['tree']}_subfield_id"
+    dim = ctx["topics_dim_df"][["topic_id", tree_col]].rename(columns={tree_col: "subfield_id"})
+    dim = dim[dim["subfield_id"].isin(subfield_ids) & ~dim["topic_id"].isin(set(shared["topic_id"]))]
+    extra = P._topics_dim_extra(ctx)[["topic_id", "topic_name"]]
+    sfd_names = P._subfield_field_domain_map(ctx)[["subfield_id", "subfield_name"]]
+    sib = dim.merge(extra, on="topic_id", how="left").merge(sfd_names, on="subfield_id", how="left") \
+             .merge(ta, on="topic_id", how="left").merge(tb, on="topic_id", how="left")
+    sib[["vol_a", "vol_b"]] = sib[["vol_a", "vol_b"]].fillna(0.0)
+    sib = sib[(sib["vol_a"] > 0) | (sib["vol_b"] > 0)]
+    siblings_out = sib.reindex(columns=SIBLING_COLS).sort_values(
+        ["subfield_id", "vol_a", "vol_b"], ascending=[True, False, False]).reset_index(drop=True)
+
+    return {"topics": topics_out, "siblings": siblings_out, "k": k}
+
+
 def breadth_jaccard(ctx: dict, subs: dict, a: str, b: str, min_full: int = 0) -> dict:
     """Unweighted Jaccard over topics with nonzero share on `subs`'s basis --
     deliberately answers a DIFFERENT question from `shared_topics` (topic

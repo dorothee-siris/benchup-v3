@@ -19,6 +19,15 @@ An id that the caller's `known_ids` does not recognise (a stale link, a
 retired institution, a typo) is DROPPED, never raised on and never kept: a
 shared link that names one bad id still opens on the rest, and the dropped
 id is reported back so a caller can disclose it rather than fail silently.
+
+2BR (A13/2B-R-4): Compare's own cap is `state.COMPARE_CAP` (3, hard), separate
+from the 6-slot `state.BASKET_CAP` -- `compare_ids` below is cap-generic (the
+caller passes whichever cap applies) and now ALSO reports how many ids were
+cut by the cap, so a page can render 'showing 3 of {n}, capped'. Neither this
+module nor `state.py` filters on `index.pool_excluded` -- 2B-R-3/A6 rules that
+flag out of CANDIDATE POOLS only; a Compare/Collaborate id is a real,
+already-picked institution, so `known_ids` here must be the FULL index id set
+(pool-excluded ids included), never a pool-filtered subset.
 """
 from __future__ import annotations
 
@@ -80,7 +89,13 @@ def compare_ids(basket, query, known_ids, cap: int) -> list[str]:
     should show what it names), the basket fills any remaining slots; both
     are re-validated against `known_ids` and de-duplicated across each
     other, in QUERY-then-BASKET order, capped at `cap`. `basket` and `query`
-    each accept either shape `parse_ids` accepts (comma string or list)."""
+    each accept either shape `parse_ids` accepts (comma string or list).
+
+    UNCHANGED return shape (plain list) -- the already-shipped Phase 2B
+    `lib/views_compare.py` calls this directly and iterates the result as a
+    flat id list; 2BR's `compare_ids_capped` below is the ADDITIVE sibling
+    that also reports the truncation count, for the 2B-R Compare rebuild
+    (Stream CP) to adopt without breaking the page that ships until then."""
     q_kept, _ = parse_ids(query, known_ids)
     b_kept, _ = parse_ids(basket, known_ids)
     seen: set[str] = set()
@@ -93,6 +108,26 @@ def compare_ids(basket, query, known_ids, cap: int) -> list[str]:
         if len(out) >= cap:
             break
     return out
+
+
+def compare_ids_capped(basket, query, known_ids, cap: int) -> tuple[list[str], int]:
+    """2BR A13/2B-R-4: SAME query-then-basket, deduplicated resolution as
+    `compare_ids`, but ALSO reports how many additional deduplicated, known
+    ids existed beyond `cap` -- `state.COMPARE_CAP` (3, hard) is the cap the
+    2B-R Compare page passes. Returns `(ids, n_truncated)`: `ids` is capped
+    at `cap`; `n_truncated` is 0 when nothing was cut. A page uses
+    `n_truncated` to render its own 'showing 3 of {3 + n_truncated}, capped'
+    copy line (2B-R-4) rather than this module typing that string."""
+    q_kept, _ = parse_ids(query, known_ids)
+    b_kept, _ = parse_ids(basket, known_ids)
+    seen: set[str] = set()
+    combined: list[str] = []
+    for iid in (*q_kept, *b_kept):
+        if iid in seen:
+            continue
+        seen.add(iid)
+        combined.append(iid)
+    return combined[:cap], max(0, len(combined) - cap)
 
 
 def pair_from(ids, a: str | None = None, b: str | None = None):

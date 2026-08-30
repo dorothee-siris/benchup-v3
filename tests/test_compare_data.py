@@ -305,3 +305,234 @@ def test_trends_subfields_warm_under_200ms(ctx, subs_bestfit):
     dt = time.time() - t0
     print(f"[timing] trends_subfields(1 institution)={dt:.4f}s")
     assert dt < 0.2
+
+
+# ============================================================================
+# 2B-R (Stream CD, BUILD_PLAN_2BR.md S4) -- anchors recomputed on 2026-08-30
+# via an INDEPENDENT code path (plain pandas over app/data/*.parquet, no
+# import of lib.compare_data) -- see V3/progress/2BR_CD.md for the script.
+# ============================================================================
+
+def test_overview_columns_and_anchors(ctx):
+    """10 independently-recomputed anchors (index.parquet read directly):
+    Strasbourg + ETH x 5 columns each."""
+    df = CD.overview(ctx, [STRASBOURG, ETH])
+    assert list(df.columns) == CD.OVERVIEW_COLS
+    s = df[df["institution_id"] == STRASBOURG].iloc[0]
+    e = df[df["institution_id"] == ETH].iloc[0]
+    np.testing.assert_allclose(s["vol_full"], 19402.0, rtol=1e-9)
+    np.testing.assert_allclose(s["vol_frac"], 4716.2568287880495, rtol=1e-6)
+    np.testing.assert_allclose(s["sdg_share"], 0.15542365135307884, rtol=1e-6)
+    np.testing.assert_allclose(s["frontier_top25_share"], 0.18884864, rtol=1e-5)
+    np.testing.assert_allclose(s["intl_share"], 0.5645294299556747, rtol=1e-6)
+    np.testing.assert_allclose(e["vol_full"], 37877.0, rtol=1e-9)
+    np.testing.assert_allclose(e["pp"], 0.2577321470534367, rtol=1e-6)
+    np.testing.assert_allclose(e["ci_low"], 0.2517363750957043, rtol=1e-6)
+    np.testing.assert_allclose(e["ci_high"], 0.2640919396495935, rtol=1e-6)
+    np.testing.assert_allclose(e["company_share"], 0.11394777833513742, rtol=1e-6)
+    assert (df["ci_low"] <= df["pp"]).all() and (df["pp"] <= df["ci_high"]).all()
+
+
+def test_metric_frame_field_share_matches_fields_long(ctx, subs_bestfit):
+    mf = CD.metric_frame(ctx, subs_bestfit, IDS6, "field", "share")
+    assert list(mf.columns) == CD.METRIC_FRAME_COLS
+    fl = CD.fields_long(ctx, subs_bestfit, IDS6)
+    sums = mf.groupby("institution_id")["value"].sum().astype("float64")
+    assert (sums.sub(1.0).abs() <= 1e-6).all(), sums.to_dict()
+    assert len(mf) == len(fl)
+    assert mf["ref_value"].isna().all()
+
+
+def test_metric_frame_field_si_matches_fields_long_and_ref_is_one(ctx, subs_bestfit):
+    mf = CD.metric_frame(ctx, subs_bestfit, IDS6, "field", "si")
+    assert (mf["ref_value"] == 1.0).all()
+    fl = CD.fields_long(ctx, subs_bestfit, IDS6).set_index(["institution_id", "field_id"])["si"]
+    got = mf.set_index(["institution_id", "taxon_id"])["value"]
+    np.testing.assert_allclose(got.reindex(fl.index).to_numpy(dtype="float64"),
+                               fl.to_numpy(dtype="float64"), atol=1e-6)
+
+
+def test_metric_frame_field_pp_and_vol_top10_anchor(ctx):
+    """Anchor (Strasbourg, bestfit, floor 30): field 35 pp_top10_frac
+    0.252981, n_works_full 160 -> vol_top10 = 0.252981*160 = 40.47696."""
+    pp = CD.metric_frame(ctx, None, [STRASBOURG], "field", "pp", tree="bestfit", floor=30)
+    row = pp[pp["taxon_id"] == 35].iloc[0]
+    np.testing.assert_allclose(row["value"], 0.252981, atol=1e-5)
+    assert row["ref_value"] is not None and not pd.isna(row["ref_value"])
+
+    vol = CD.metric_frame(ctx, None, [STRASBOURG], "field", "vol_top10", tree="bestfit", floor=30)
+    vrow = vol[vol["taxon_id"] == 35].iloc[0]
+    np.testing.assert_allclose(vrow["value"], 0.252981 * 160, rtol=1e-4)
+    assert vol["ref_value"].isna().all()
+
+
+def test_metric_frame_field_sdg_share_anchor(ctx, subs_bestfit):
+    """Anchor (Strasbourg, bestfit): field 33 SDG-tagged mass 253.856812 /
+    field mass 878.0426 = 0.28911674; field 23: 100.5692/114.91687 =
+    0.8751474 (independently summed off sdg_fields.parquet/fields.parquet)."""
+    df = CD.metric_frame(ctx, subs_bestfit, [STRASBOURG], "field", "sdg_share")
+    row33 = df[df["taxon_id"] == 33].iloc[0]
+    row23 = df[df["taxon_id"] == 23].iloc[0]
+    np.testing.assert_allclose(row33["value"], 0.28911674, rtol=1e-4)
+    np.testing.assert_allclose(row23["value"], 0.8751474, rtol=1e-4)
+    assert (df["taxon_id"] != -1).all()  # untopiced residual never surfaces as a field row
+
+
+def test_metric_frame_field_dynamics_matches_independent_yearly_rollup(ctx, subs_bestfit):
+    """Field-grain dynamics for Strasbourg must equal an INDEPENDENT rollup
+    of `profile_data.yearly_by_subfield` to field via the subfield->field
+    map (same source data, hand-rolled groupby -- not calling
+    compare_data._field_dynamics_frame's own code)."""
+    from lib import profile_data as P
+    yb = P.yearly_by_subfield(ctx, STRASBOURG, "bestfit")
+    sfd = P._subfield_field_domain_map(ctx)[["subfield_id", "field_id"]]
+    yb = yb.merge(sfd, on="subfield_id", how="left")
+    yb["field_id"] = yb["field_id"].fillna(0).astype(int)
+    mf = CD.metric_frame(ctx, subs_bestfit, [STRASBOURG], "field", "dynamics")
+    checked = 0
+    for fid, g in yb.groupby("field_id"):
+        by_year = g.groupby("year")["vol_frac"].sum().to_dict()  # sum subfields sharing a field/year
+        w1 = np.mean([by_year.get(y, 0.0) for y in (2020, 2021, 2022)])
+        w2 = np.mean([by_year.get(y, 0.0) for y in (2023, 2024)])
+        want = np.nan if w1 <= 0 else (w2 - w1) / w1
+        got = mf.loc[mf["taxon_id"] == fid, "value"]
+        if not len(got):
+            continue
+        if np.isnan(want):
+            assert np.isnan(got.iloc[0])
+        else:
+            np.testing.assert_allclose(got.iloc[0], want, rtol=1e-6)
+        checked += 1
+    assert checked >= 10
+
+
+def test_metric_frame_subfield_share_and_dynamics_within_field(ctx, subs_bestfit):
+    """Subfield drill (field_id=27, Medicine, Strasbourg's top field):
+    share sums to <= the field's own share (a subset of the full share
+    vector), and dynamics values are finite or NaN, never raise."""
+    field_id = 27
+    share = CD.metric_frame(ctx, subs_bestfit, [STRASBOURG], "subfield", "share", field_id=field_id)
+    dyn = CD.metric_frame(ctx, subs_bestfit, [STRASBOURG], "subfield", "dynamics", field_id=field_id)
+    assert len(share) > 0 and len(dyn) > 0
+    assert set(share["taxon_id"]) == set(dyn["taxon_id"])
+    field_share = CD.fields_long(ctx, subs_bestfit, [STRASBOURG])
+    field_share = field_share.loc[field_share["field_id"] == field_id, "share"].iloc[0]
+    np.testing.assert_allclose(share["value"].sum(), field_share, rtol=1e-3)
+
+
+def test_metric_frame_erc_share_si_matches_erc_long(ctx):
+    share = CD.metric_frame(ctx, {"tree": "bestfit"}, IDS6, "erc", "share")
+    si = CD.metric_frame(ctx, {"tree": "bestfit"}, IDS6, "erc", "si")
+    el = CD.erc_long(ctx, IDS6)
+    got_share = share.set_index(["institution_id", "taxon_id"])["value"]
+    want_share = el.set_index(["institution_id", "panel_idx"])["share"]
+    np.testing.assert_allclose(got_share.reindex(want_share.index).to_numpy(dtype="float64"),
+                               want_share.to_numpy(dtype="float64"), atol=1e-6)
+    assert (si["ref_value"] == 1.0).all()
+
+
+def test_metric_frame_sdg_share_matches_sdg_long_and_dynamics_anchor(ctx, subs_bestfit):
+    """SDG-grain `share` reuses `sdg_long` exactly; `dynamics` anchor
+    (Strasbourg, independently recomputed off sdg_year.parquet): sdg_idx 0
+    pct -0.11040, sdg_idx 1 pct -0.16949, sdg_idx 2 pct -0.25533."""
+    share = CD.metric_frame(ctx, {"tree": "bestfit"}, IDS6, "sdg", "share")
+    sl = CD.sdg_long(ctx, IDS6)
+    got = share.set_index(["institution_id", "taxon_id"])["value"]
+    want = sl.set_index(["institution_id", "sdg_idx"])["share"]
+    np.testing.assert_allclose(got.reindex(want.index).to_numpy(dtype="float64"),
+                               want.to_numpy(dtype="float64"), atol=1e-6)
+
+    dyn = CD.metric_frame(ctx, subs_bestfit, [STRASBOURG], "sdg", "dynamics")
+    assert len(dyn) == 16  # dense, matching sdg_table's own convention
+    want_pct = {0: -0.11040039229141002, 1: -0.16949344533806474, 2: -0.25532591239100466}
+    for sidx, pct in want_pct.items():
+        np.testing.assert_allclose(dyn.loc[dyn["taxon_id"] == sidx, "value"].iloc[0], pct, rtol=1e-5)
+
+
+@pytest.mark.parametrize("metric,level", [
+    ("vol_top10", "subfield"), ("pp", "subfield"), ("sdg_share", "subfield"),
+    ("vol_top10", "erc"), ("pp", "erc"), ("sdg_share", "erc"), ("dynamics", "erc"),
+    ("vol_top10", "sdg"), ("pp", "sdg"), ("sdg_share", "sdg"), ("si", "sdg"),
+])
+def test_metric_frame_unavailable_combinations_return_typed_empty(ctx, metric, level):
+    assert not CD.metric_frame_available(metric, level)
+    kwargs = {"field_id": 27} if level == "subfield" else {}
+    df = CD.metric_frame(ctx, {"tree": "bestfit"}, [STRASBOURG], level, metric, **kwargs)
+    assert df.empty
+    assert list(df.columns) == CD.METRIC_FRAME_COLS
+    assert df.attrs.get("reason")
+
+
+def test_metric_frame_rejects_subfield_without_field_id(ctx, subs_bestfit):
+    with pytest.raises(AssertionError):
+        CD.metric_frame(ctx, subs_bestfit, [STRASBOURG], "subfield", "share")
+
+
+# --------------------------------------------------------- frontier 2B-R ----
+
+def test_frontier_pooled_owner_categories_and_combined_vol(ctx, subs_bestfit):
+    """2B-R-9: with N=3 ids, owner is one of the 3 ids or 'shared' -- never
+    a 4th value; combined_vol == the per-id vol columns' row sum."""
+    ids3 = [STRASBOURG, IFPEN, GDANSK]
+    df = CD.frontier_pooled(ctx, subs_bestfit, ids3, top_n=60)
+    assert set(df.columns) == {"topic_id", "name", "x", "y", "combined_vol", "owner",
+                               f"vol_{STRASBOURG}", f"vol_{IFPEN}", f"vol_{GDANSK}"}
+    assert set(df["owner"].unique()) <= set(ids3) | {"shared"}
+    vol_cols = [f"vol_{i}" for i in ids3]
+    np.testing.assert_allclose(df[vol_cols].sum(axis=1).to_numpy(dtype="float64"),
+                               df["combined_vol"].to_numpy(dtype="float64"), rtol=1e-6)
+    assert len(df) <= 60
+    assert df["combined_vol"].is_monotonic_decreasing
+
+
+def test_shared_frontier_is_subset_owned_by_two_or_more(ctx, subs_bestfit):
+    ids3 = [STRASBOURG, IFPEN, GDANSK]
+    pooled = CD.frontier_pooled(ctx, subs_bestfit, ids3, top_n=10_000)
+    shared = CD.shared_frontier(ctx, subs_bestfit, ids3)
+    assert (shared["owner"] == "shared").all()
+    vol_cols = [f"vol_{i}" for i in ids3]
+    n_holders = (shared[vol_cols] > 0).sum(axis=1)
+    assert (n_holders >= 2).all()
+    assert set(shared["topic_id"]) <= set(pooled.loc[pooled["owner"] == "shared", "topic_id"])
+    assert shared["combined_vol"].is_monotonic_decreasing
+
+
+# --------------------------------------------------------- performance -----
+
+def test_three_institution_2br_frames_warm_under_1s(ctx, subs_bestfit):
+    """CD brief acceptance: warm-frame timing for 3 institutions (Compare's
+    own cap, `state.COMPARE_CAP`), printed, < 1 s target -- `overview` +
+    the field-grain metric selector (share/dynamics/pp) + sdg dynamics +
+    both frontier charts (the frame group one Compare render needs). The
+    lazy sdg_fields/sdg_year/impact_fields/collab_* loaders are warmed by
+    the module-scoped `ctx` fixture's earlier tests, matching how a real
+    Streamlit session keeps `ctx` warm across reruns."""
+    ids3 = [STRASBOURG, IFPEN, GDANSK]
+    t0 = time.time()
+    CD.overview(ctx, ids3)
+    t1 = time.time()
+    CD.metric_frame(ctx, subs_bestfit, ids3, "field", "share")
+    t2 = time.time()
+    CD.metric_frame(ctx, subs_bestfit, ids3, "field", "dynamics")
+    t3 = time.time()
+    CD.metric_frame(ctx, subs_bestfit, ids3, "field", "pp", tree="bestfit", floor=30)
+    t4 = time.time()
+    CD.metric_frame(ctx, subs_bestfit, ids3, "sdg", "dynamics")
+    t5 = time.time()
+    CD.frontier_pooled(ctx, subs_bestfit, ids3, top_n=60)
+    t6 = time.time()
+    CD.shared_frontier(ctx, subs_bestfit, ids3)
+    t7 = time.time()
+    print(f"[timing] overview={t1-t0:.4f}s field_share={t2-t1:.4f}s field_dynamics={t3-t2:.4f}s "
+          f"field_pp={t4-t3:.4f}s sdg_dynamics={t5-t4:.4f}s frontier_pooled={t6-t5:.4f}s "
+          f"shared_frontier={t7-t6:.4f}s total={t7-t0:.4f}s")
+    assert (t7 - t0) < 1.0
+
+
+def test_frontier_pooled_empty_for_no_frontier_topics(ctx, subs_bestfit):
+    """A single id with a normal frontier footprint still returns rows
+    (sanity: the function never raises on N=1); owner is that id for every
+    row since a set of 1 can never produce 'shared'."""
+    df = CD.frontier_pooled(ctx, subs_bestfit, [IFPEN], top_n=50)
+    if len(df):
+        assert (df["owner"] == IFPEN).all()
