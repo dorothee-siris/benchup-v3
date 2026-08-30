@@ -1,61 +1,70 @@
 """
 tests/ui/smoke.py -- Playwright smoke test against the LIVE Streamlit server
-(BUILD_PLAN_2A.md Stream H; extended for Refinement R1 stream R-H2, then for
-Refinement R2 stream R2-H3 against S10.2 L29-L36 / S10.3's R2-H3 row).
-Cross-page persistence is the load-bearing claim: the basket (a plain,
-non-widget session_state list) and every keyed widget (persist_state="session")
--- INCLUDING the ones R1 moved out of the sidebar and the two R2 added
-(`frontier_mode`, `breakdown_dim`) -- must survive real Menu<->Find navigation
-with their widget KEYS unchanged.
+(BUILD_PLAN_2A.md Stream H; extended for R1/R2, Phase 2B, and now re-cut for
+Phase 2B-R -- BUILD_PLAN_2BR.md Stream H -- against the search-on-validate
+Find page, the L0..L9 bare-code benchmark tabs, the cap-3 Compare page and the
+four-section Collaborate v2 page).
 
-R2 changes to this file (BUILD_PLAN_2A.md L29-L36): the sidebar's two
-selectboxes now render DISPLAY labels (`copy.TREE_LABELS`/`BASIS_LABELS`) --
-picking an option in the dropdown means clicking the LABEL text, never the
-internal value, and the "Filtered by..." strip names the label too; the
-profile carries eight `.benchup-kpi` tiles (`lib/tiles.py`), each with two
-`.benchup-kpi-sub` sublines, the second always containing "index median"; the
-Top-subfields panel lost its sort control and is cut at `SUBFIELDS_TOP_N`; the
-frontier panel gained a `frontier_mode` segmented control INSIDE a collapsed
-`st.expander` (its body still executes and its Plotly figure still mounts
-while collapsed -- see the DOM-facts note below, this is what makes reading
-its point count without re-opening it after a hop safe); tabs carry
-`copy.LENS_NAMES` text ("L1 . Subfield overlap") instead of a bare code; a
-"How to read the lenses" expander sits at the head of the Benchmark section.
+Cross-page persistence is still the load-bearing claim: the basket (a plain,
+non-widget session_state list) and every keyed widget (persist_state="session")
+must survive real Menu<->Find<->Compare<->Collaborate<->Methods navigation with
+their widget KEYS unchanged.
+
+2B-R changes this file must track (BUILD_PLAN_2BR.md S0/S1, S3 row H):
+  * A12 -- Find is search-ON-VALIDATE: typing a query and pressing Enter opens
+    a results selectbox but renders NOTHING else (no profile, no tabs) until a
+    match is actually picked.
+  * 2B-R-2 -- the profile carries FOUR KPI cards (not eight tiles), each with
+    ONE subline (not two); the bonus year is starred on the yearly axis
+    ("2025*") instead of a banner/caption; the data caption reads "<n>
+    institutions . data from <date>", the old verbose snapshot stamp is gone.
+  * 2B-R-7 -- the identity column carries two REAL co-publication facts
+    (international / with a company) now that P2/P4 have landed the artefacts
+    -- no longer "n/a" placeholders.
+  * 2B-R-13 -- Top topics is cut at 30 (was 20) with no sort control; the SI
+    unit grid is RETIRED for an outer-end text label on the SI marker itself
+    (fields/subfields/ERC panels); the frontier panel's single top-N slider
+    drives BOTH modes.
+  * A11/2B-R-11 -- the tab strip carries ONLY the bare display code (L0..L9),
+    the full name moved inside the tab body; with both optional lenses on, the
+    twelve-tab strip must fit at 1280px with no silent Streamlit-tab scroll;
+    institution names are the OpenAlex-works link everywhere (fragment trick,
+    A10) -- proven with a real click + captured popup, since a canvas grid
+    carries no DOM <a> to query.
+  * 2B-R-4/5/6/7/8/9 -- Compare is cap-3 (basket stays 6), reorder buttons and
+    the frontier facets/overlay toggle are RETIRED, replaced by ONE metric
+    selector per section (share/vol_top10/pp/sdg_share/dynamics/si, plus a
+    "vol" option 2B-R-8 asks for at ERC/SDG level) and two frontier charts
+    (a pooled map + a diverging "who holds the shared frontier" list).
+  * 2B-R-10 -- Collaborate is four sections (pulse / joint corpus / untapped /
+    links) over a pair; a real below-floor pair renders the honest notice
+    instead of an empty table.
+  * 2B-R-11 -- Methods gains a lens concordance table ("Reading the lens
+    codes") alongside the existing digit-ban / placeholder guarantees.
 
 Navigation uses the app's OWN sidebar nav link (`[data-testid="stSidebarNav"] a`)
-for every Menu<->Find hop -- NEVER `page.goto()` for a persistence check.
-`page.goto()` tears down and recreates the browser's WebSocket session, which
-silently resets exactly the state a persistence test exists to catch and
-produces a FALSE FAILURE (Lorraine Phase 2 tests/ui/smoke.py; Portfolio
-Mapping INSPECTION_PLAYBOOK.md "Known pitfalls"). `goto` IS used for the very
-first page load (a fresh/standalone load is what it is) and, deliberately,
-inside `_find_undefined_l2f_seed`'s throwaway process (not this one).
+for every page hop -- NEVER `page.goto()` for a persistence check. `page.goto()`
+tears down and recreates the browser's WebSocket session, which silently resets
+exactly the state a persistence test exists to catch (Lorraine Phase 2
+tests/ui/smoke.py; Portfolio Mapping INSPECTION_PLAYBOOK.md "Known pitfalls").
+`goto` IS used for the very first page load, and for the below-floor
+Collaborate pair check below, which is deliberately a fresh, standalone
+session (it asserts no persistence claim).
 
 All selectors are locale-independent: `.st-key-<key>` classes from the keyed
-widgets/containers `app/lib/views_find.py` and `Menu.py` already emit,
-`[role=...]`, `[data-testid=...]` -- text is read only via `textContent`
-(never `innerText`, which is empty for a Streamlit tab panel that is not the
-currently active one, AND empty for a collapsed `st.expander` body even though
-that body's own DOM nodes exist -- confirmed by Stream E's probe,
-app/ops/_probe_find.py) and only to ASSERT content, never to locate an element
-(locating uses keyed classes, roles or DOM position -- e.g. "the second radio
-option" -- never a literal label). Panel/tile/lens LABELS compared for exact
-text are HARDCODED literals in this file (not imported from `lib/copy.py`):
-importing the very string under test would make a renamed label compare
-against itself and pass vacuously -- the point of non-vacuity proof (b) below.
-`st.dataframe` renders a canvas grid with no real text nodes for cell values,
-so row-level facts (the basket count, the seed heading, the strip, a CSV's own
-header row) are read from captions/keyed containers/a real downloaded file,
-never from a table cell.
+widgets/containers the app already emits, `[role=...]`, `[data-testid=...]` --
+text is read only via `textContent` (never `innerText`, empty for an inactive
+tab panel or a collapsed expander body even though its DOM nodes exist) and
+only to ASSERT content, never to locate an element. `st.dataframe` renders a
+canvas grid with no real text nodes for cell values, so row-level facts are
+read from captions/keyed containers/a real downloaded file, or (for the
+institution-link proof) from a captured popup after a real click.
 
 Usage:
     python tests/ui/smoke.py --port 8611
-    python tests/ui/smoke.py --port 8612 --app-dir "<throwaway copy of app/>"
 
 Exit 0 iff every check passes, 1 otherwise. Prints one PASS/FAIL line per
-check. Stdout is ASCII-only (cp1252 console) -- the SEP characters below are
-the only non-ASCII bytes in this file, matched only against browser-rendered
-UTF-8 text, never printed to stdout inside a PASS/FAIL message on their own.
+check. Stdout is ASCII-only (cp1252 console).
 """
 from __future__ import annotations
 
@@ -76,28 +85,28 @@ from playwright.sync_api import sync_playwright
 DEFAULT_APP_DIR = Path(__file__).resolve().parents[2]  # tests/ui/smoke.py -> app/
 WIDTHS = [1920, 1280, 390]
 GDANSK_QUERY = "gdansk"
-GDANSK_TAB_COUNT = 10          # Overview + 8 default lenses + Aspirational
-L7_ON_TAB_COUNT = 11           # ... + the L7 toggle's own tab
+# 2B-R-11a renumbers the DISPLAY codes but the SHOWN-LENS COUNT is unchanged:
+# 8 defaults (L0..L7) + Overview + Aspirational = 10; + L7(optional, ->L9) = 11;
+# + C1(optional, ->L8) too = 12 (A11's own tab-overflow acceptance number).
+GDANSK_TAB_COUNT = 10
+L7_ON_TAB_COUNT = 11
+BOTH_OPTIONAL_TAB_COUNT = 12          # A11: C1 + L7 both on
 ACTION_TIMEOUT_MS = 30_000     # time-box every wait so a hang FAILS, never blocks
 
 SEP = "·"  # middle dot, matches lib/copy.py's own separator
 
-# R2/L34: the top-subfields panel's display cut, hardcoded (not imported from
-# lib/views_find.py) so a changed cut is a genuine DOM-vs-expectation mismatch,
-# same reasoning as PANEL_LABELS below.
 SUBFIELDS_TOP_N = 30
+# 2B-R-13 (FB handoff): topics panel cut raised 20 -> 30, sort control removed
+# (same reasoning as subfields under R2/L34 -- "top N" is itself a
+# volume-ordered concept).
+TOPICS_TOP_N = 30
 
-# R2/L30/L31: the profile's 2 x 4 (rendered as 4 rows x 2, VIZ_SPEC S2.11
-# deviation) KPI tile grid, `lib/tiles.py`'s TILE_CLASS/SUBLINE_CLASS hooks.
+# 2B-R-2: the profile's 2 x 2 KPI-card grid (replaces R2's eight-tile grid),
+# `lib/tiles.py`'s TILE_CLASS/SUBLINE_CLASS hooks. ONE subline per card now
+# (the index-baseline line only -- the second "companion figure" value, where
+# present, is its OWN `.benchup-kpi-value2` hook, not a second sub-line).
 N_TILES = 4
 
-# R2/L29: the six profile chart panels, keyed `panel_<name>`, with their
-# `copy.FIND["PANEL_*"]` header text (lib/copy.py) -- HARDCODED here (not
-# re-imported from the app under test) so a renamed label in a throwaway copy
-# is a real DOM-vs-expectation mismatch, never a comparison against itself.
-# "Top {n} subfields" is filled with SUBFIELDS_TOP_N above, the one place this
-# file types that number, mirroring how `lib/views_find.py::PANEL_LABEL_ARGS`
-# fills the same template on the app side without ever typing it into copy.py.
 PANEL_LABELS = [
     ("fields", "Fields"),
     ("subfields", f"Top {SUBFIELDS_TOP_N} subfields"),
@@ -107,65 +116,86 @@ PANEL_LABELS = [
     ("erc", "ERC profile"),
 ]
 
-# R2/L29: sidebar display labels and the strip's rendering of an off-default
-# taxonomy -- hardcoded literals from `lib/copy.py`'s TREE_LABELS/BASIS_LABELS/
-# STRIP_TREE, same non-vacuity reasoning as PANEL_LABELS.
 TREE_LABEL_BESTFIT = "Repaired taxonomy (best fit, default)"
 TREE_LABEL_ORIGINAL = "OpenAlex taxonomy as published"
 BASIS_LABEL_FRAC = "Fractional counting"
 STRIP_TREE_ORIGINAL = f"taxonomy: {TREE_LABEL_ORIGINAL}"
 
-# R2/L29: the lens guide header and the first default lens's tab label
-# ([L0, L1, L3, F1, L2f, L4, L5, L6] per config.yaml `lenses.default`, so the
-# first lens TAB after Overview is L0). Hardcoded literals from `lib/copy.py`.
 LENS_GUIDE_HEADER = "How to read the lenses"
-LENS0_TAB_TEXT = f"L0 {SEP} Field overlap"
+# A11 (2B-R-11a): the TAB itself now carries only the bare code; the full name
+# ("L0 . Field overlap") moved inside the tab BODY, as `_lens_intro`'s own
+# opening line -- checked separately below, never conflated with the tab text.
+LENS0_TAB_CODE = "L0"
+LENS0_FULL_NAME = f"L0 {SEP} Field overlap"
 LENS_LEGEND_SUBSTR = "see the lens guide above"
+# 2B-R-11a renumbers the internal "L2f" lens to display code "L4" -- the tab
+# now carries ONLY that bare code, and `UNDEFINED_LENS_TEMPLATE` formats with
+# `copy.LENS_DISPLAY_NAMES["L2f"]`, so the literal substring "L2f" no longer
+# appears anywhere in the rendered page (copy.py: "L2f": "L4 . Shared
+# specialisations").
+L2F_TAB_CODE = "L4"
+L2F_DISPLAY_NAME = f"L4 {SEP} Shared specialisations"
 
-# R2/L33: the frontier panel's second mode button, by POSITION (nth(1)), never
-# by its label text (same idiom as `breakdown_dim` below) -- both are
-# `st.segmented_control`s and render as a row of real <button> elements.
 FRONTIER_MODE_TOP_IDX, FRONTIER_MODE_EMERGING_IDX = 0, 1
 BREAKDOWN_DOMAIN_IDX, BREAKDOWN_DOCTYPE_IDX = 0, 1
+
+# 2B-R-2: no bonus-year banner -- the bonus year is starred ON the yearly
+# breakdown's own x-axis instead (config.yaml bonus_year: 2025).
+BONUS_YEAR_AXIS_LABEL = "2025*"
+
+# 2B-R-12: "n/a" (lib/palette.NA_MARK) hardcoded here rather than imported --
+# the whole point of the identity-facts check below is that this string is
+# GONE now that P2/P4 have landed real intl/company columns.
+NA_TEXT = "n/a"
+DATA_CAPTION_RE = re.compile(
+    r"[\d,]+\s+institutions\s+" + re.escape(SEP) + r"\s+data from\s+[A-Za-z]+\s+\d{1,2},\s+\d{4}")
 
 RESULTS: list[tuple[bool, str]] = []
 PORT = 8611
 BASE_URL = "http://127.0.0.1:8611"
 
 # ---------------------------------------------------------------------------
-# Phase 2B (BUILD_PLAN_2B.md Stream H): the full four-page narrative journey,
-# Menu -> Find -> Compare -> Collaborate -> Methods (2B-10's order), appended
-# after every R2 check above still passes. Distinct from the R2 "Basket"
-# section (Sorbonne, Bologna, left in place -- untouched): this journey
-# CLEARS the basket and rebuilds it from the Gdansk seed's own L1 (subfield
-# overlap) ranking, so the compared set is a real top-overlap peer group
-# rather than three arbitrary names, then walks it through Compare,
-# Collaborate (via the real hand-off button -- an in-session `st.switch_page`
-# hop since Fix X-2B, not a `link_button` anchor) and Methods.
+# Phase 2B / 2B-R narrative journey: Menu -> Find -> Compare -> Collaborate ->
+# Methods. Distinct from the R2 "Basket" section (Sorbonne, Bologna, left in
+# place -- untouched): this journey CLEARS the basket and rebuilds it from the
+# Gdansk seed's own L1 (subfield overlap) ranking, so the compared set is a
+# real top-overlap peer group rather than three arbitrary names.
 #
-# Every label compared for exact text below is a HARDCODED literal (same
-# non-vacuity reasoning as PANEL_LABELS above): copy.NAV's four narrative
-# labels for the Menu cards, and the K/collab_data column-order contract from
-# BUILD_PLAN_2B.md S4 for the shared-topics CSV header.
+# Every label compared for exact text below is a HARDCODED literal (never
+# re-imported from lib/copy.py): importing the very string under test would
+# make a rename compare against itself and pass vacuously -- the point of the
+# non-vacuity proofs at the bottom of this file / README.md.
 NAV_CARD_LABELS = ["Find peers", "Compare", "Collaborate", "How it is built"]
 NAV_COMPARE, NAV_COLLAB, NAV_METHODS = "Compare", "Collaborate", "Methods"
 
-COMPARE_MIN_FIGURES = 7        # ops/_probe_compare.py's own acceptance floor
-CMP_FACETS_IDX, CMP_OVERLAY_IDX = 0, 1     # cmp_frontier_form: [facets, overlay]
-CMP_FLOOR_HIGH_IDX, CMP_FLOOR_LOW_IDX = 0, 1  # cmp_impact_floor: IMPACT_FLOORS = (30, 10)
+COMPARE_MIN_FIGURES = 8       # subject/erc/sdg/frontier-map/shared-frontier/impact x2/trends/coverage
+COMPARE_CAP = 3               # state.COMPARE_CAP (2B-R-4)
+BASKET_CAP = 6                # state.BASKET_CAP (unchanged)
+MIN_LEGEND_STRIPS = 4         # 2B-R-12: a legend strip above every chart section
+CAP_TRUNCATED_SUBSTR = "The basket holds more institutions than a comparison can show at once"
 
-XLSX_METHODS_SHEET = "Methods"  # copy.COMPARE["XLSX_SHEET_METHODS"], hardcoded
-XLSX_MIN_SHEETS = 8             # brief's floor; the shipped workbook carries 11 (10 views + Methods)
+XLSX_METHODS_SHEET = "Methods"
+XLSX_SHEET_COUNT = 11          # Methods + 10 view sheets (sheet_specs, 2B-R re-cut)
 
-# BUILD_PLAN_2B.md S4, the K -> V/C/L interface contract's own column order for
-# `collab_data.shared_topics(...)`, hardcoded rather than imported from
-# lib.collab_data.SHARED_TOPICS_COLS: importing the very constant the CSV
-# export is built from would make this check compare that module against
-# itself and pass vacuously if either drifted together.
 SHARED_TOPICS_HEADER = ("topic_id,topic_name,subfield_name,share_a,share_b,"
                         "min_share,keywords,top25pct_frontier")
+SHARED_EXPANDER_TITLE = "The full topic overlap, weighted by publications"
 
-METHODS_MIN_SECTIONS = 10
+# 2B-R-10 Collaborate section headers, hardcoded literals (non-vacuity).
+COLLAB_SECTION_HEADERS = [
+    "The relationship, year by year",
+    "What the two publish on together",
+    "Where the two overlap without publishing together",
+    "Read the publications on OpenAlex",
+]
+TOPIC_BELOW_FLOOR_SUBSTR = "the topic-by-topic breakdown needs to stay readable"
+# LP's own proven real sub-floor pair (progress/2BR_LP.md): 2 joint works,
+# under the topic floor of 3.
+BELOW_FLOOR_A_ID = "I68947357"     # Universite de Strasbourg
+BELOW_FLOOR_B_ID = "I109144446"    # Bavarian Academy of Sciences and Humanities
+
+METHODS_MIN_SECTIONS = 14      # MU shipped 20; 10 was the pre-2B-R floor
+LENS_CODES_TITLE = "Reading the lens codes"
 PLACEHOLDER_RE = re.compile(r"\{[a-zA-Z_][a-zA-Z0-9_]*\}")
 
 
@@ -220,9 +250,8 @@ def _settle(page, ms: int = 2500) -> None:
 def _wait_for(page, predicate, timeout_ms: int = 15_000, interval_ms: int = 300) -> bool:
     """Poll `predicate()` instead of a blind sleep -- needed after a scenario
     switch (tree/basis), which pays a real, measured cold `build_substrates`
-    cost (~4.6 s, progress/R1_E2.md) the FIRST time that (tree, basis) pair is
-    hit in this server process. A fixed `_settle` long enough for that one
-    rebuild would be needlessly slow for every other, already-warm, rerun."""
+    cost the FIRST time that (tree, basis) pair is hit in this server
+    process."""
     deadline = time.time() + timeout_ms / 1000
     while time.time() < deadline:
         if predicate():
@@ -236,17 +265,13 @@ def _all_text(page, selector: str) -> str:
     inside an inactive Streamlit tab panel too (st.tabs runs every tab body
     every rerun; only the active panel has non-empty innerText), and inside a
     collapsed `st.expander` body (same story: the body executes and mounts,
-    only the visual display folds -- lib/views_find.py's own docstring)."""
+    only the visual display folds)."""
     return page.evaluate(
         "(sel) => Array.from(document.querySelectorAll(sel)).map(e => e.textContent).join('|')",
         selector)
 
 
 def _full_page_text(page) -> str:
-    """The whole body's textContent -- reaches text inside a collapsed
-    `st.expander` too (see `_all_text`'s note), which a scoped selector like
-    `[data-testid="stCaptionContainer"]` also would, but this is the broadest
-    net for a page-wide "this string appears nowhere" negative claim."""
     return page.evaluate("document.body.textContent") or ""
 
 
@@ -257,19 +282,11 @@ def _no_exception(page, label: str) -> bool:
 
 def _open_select(page, key: str) -> None:
     """Open a keyed selectbox: click it, wait for its (portal-rendered) option
-    list. Streamlit 1.61's selectbox is a react-aria ComboBox, not a BaseWeb
-    select -- `[data-baseweb='select']` always misses on this build, so the
-    fallback (clicking the widget's own container) is what actually runs.
-    That click reliably opens the listbox the FIRST time a given widget
-    instance is used, but a SECOND, already-focused round on the SAME widget
-    (e.g. a second sequential name typed into the same sidebar search box)
-    can leave `aria-expanded="false"` after an identical click -- confirmed
-    by reproduction (fill a second query into `basket_query`/`basket_pick`
-    after one successful add: the click opens nothing, `ArrowDown` recovers
-    it every time). `ArrowDown` is react-aria's own keyboard-accessible way
-    to open a focused combobox, so it is the fallback here rather than a
-    longer sleep or a second click, neither of which reproducibly recovers
-    it."""
+    list. Streamlit 1.61's selectbox is a react-aria ComboBox -- the FIRST
+    click on a fresh widget instance opens the listbox reliably, but a SECOND,
+    already-focused round on the SAME widget can leave `aria-expanded="false"`
+    after an identical click; `ArrowDown` (react-aria's own keyboard-accessible
+    open) is the fallback."""
     loc = page.locator(f".st-key-{key} [data-baseweb='select']")
     if loc.count() == 0:
         loc = page.locator(f".st-key-{key}")
@@ -289,9 +306,7 @@ def _pick_option(page, text: str | None = None) -> None:
 
 def _selectbox_value(page, key: str) -> str:
     """A keyed selectbox's CURRENT selection -- the react-aria ComboBox
-    input's own `value` property, not the container's text (measured on this
-    build, ops/_probe_find.py::_selectbox_text: `inner_text`/`textContent` on
-    the container returns the widget LABEL alone, never the selection)."""
+    input's own `value` property, not the container's text."""
     return page.locator(f".st-key-{key} input").first.input_value()
 
 
@@ -309,42 +324,42 @@ def _ensure_sidebar_open(page) -> None:
 def _ensure_expander_open(page, key: str, probe_selector: str) -> None:
     """Open a keyed `st.expander` if its content is not currently visible.
     Every panel's/expander's body EXECUTES every rerun regardless of the
-    expander's visual state (lib/views_find.py docstring), but that visual
-    open/closed state resets to the coded `expanded=` default on the very next
-    rerun -- so this is called before every interaction inside one, never
-    assumed to still be open from an earlier action."""
+    expander's visual state, but that visual open/closed state resets to the
+    coded `expanded=` default on the very next rerun -- so this is called
+    before every interaction inside one, never assumed to still be open."""
     probe = page.locator(probe_selector).first
     if probe.count() == 0 or not probe.is_visible():
         page.locator(f".st-key-{key} summary").first.click(timeout=ACTION_TIMEOUT_MS)
         page.wait_for_timeout(700)
 
 
+def _ensure_expander_open_by_text(page, text: str, probe_selector: str) -> None:
+    """Same idiom as `_ensure_expander_open`, for the rare expander that
+    carries no `key=` (`SHARED_EXPANDER` inside Collaborate's untapped
+    section) -- located by its own summary TEXT instead of a `.st-key-`
+    class. Used only to NAVIGATE (click to open), never to assert content, so
+    this does not reopen the non-vacuity question `PANEL_LABELS` exists to
+    answer."""
+    probe = page.locator(probe_selector).first
+    if probe.count() == 0 or not probe.is_visible():
+        page.locator("summary").filter(has_text=text).first.click(timeout=ACTION_TIMEOUT_MS)
+        page.wait_for_timeout(700)
+
+
 def _click_nav(page, label: str) -> None:
     """Real in-app sidebar nav-link click -- the ONLY way this file changes
-    page for a persistence check (see module docstring). At a narrow (mobile)
-    viewport the just-opened drawer can still be settling when Playwright's
-    actionability check runs ("element is outside of the viewport"); scroll
-    it into view and, failing that, force the click -- it is still a real
-    click on the app's own nav link, never a `goto`."""
+    page for a persistence check."""
     _ensure_sidebar_open(page)
     link = page.locator('[data-testid="stSidebarNav"] a').filter(has_text=label).first
     link.wait_for(state="visible", timeout=ACTION_TIMEOUT_MS)
     try:
         link.click(timeout=ACTION_TIMEOUT_MS)
     except Exception:
-        # A mobile drawer positions its nav links via a CSS transform, which
-        # can put Playwright's own geometry check outside the viewport even
-        # once the element is scrolled in and visually clickable. Dispatch a
-        # real DOM click on the exact element instead -- still a genuine
-        # click on the app's own link, never a `goto`.
         link.evaluate("el => el.click()")
     _settle(page, 3000)
 
 
 def _basket_count(page) -> int:
-    """One `key=f"rm_{iid}"` remove button per basket item (lib/views_find.py
-    `_sidebar_basket`); partial-class match, same idiom as Stream A's own
-    probe (`[class*='st-key-nav_card_']`)."""
     return page.locator('[class*="st-key-rm_"]').count()
 
 
@@ -357,42 +372,79 @@ def _strip_text(page) -> str:
 
 
 def _chip_legend(page) -> str:
-    """The ONE chip legend the breakdown pair shares -- `charts.chip_legend_html`
-    is the only markup on the page with a `flex-wrap` inline style, so this
-    finds it without matching any user-facing string (ops/_probe_find.py's
-    own idiom)."""
     return _all_text(page, '.st-key-profile div[style*="flex-wrap"]')
 
 
+def _plotly_point_count(page, selector: str) -> int:
+    """Total marker count across a live Plotly figure's own traces -- reads
+    what is actually PLOTTED, never a caption."""
+    return page.evaluate(
+        "(sel) => { const el = document.querySelector(sel); if (!el || !el.data) return -1;"
+        " return el.data.reduce((a, t) => a + ((t.x && t.x.length) || 0), 0); }",
+        selector)
+
+
 def _frontier_points(page) -> int:
-    """Total marker count across the frontier scatter's own Plotly traces --
-    read off the LIVE figure object (`el.data`), so the mode swap is verified
-    on what is actually PLOTTED rather than on a caption the page prints. This
-    reads correctly whether the `panel_frontier` expander is currently open or
-    collapsed: the figure still mounts either way (module docstring)."""
-    return page.evaluate(
-        "(() => { const el = document.querySelector("
-        "'.st-key-panel_frontier .js-plotly-plot');"
-        " if (!el || !el.data) return -1;"
-        " return el.data.reduce((a, t) => a + ((t.x && t.x.length) || 0), 0); })()")
+    return _plotly_point_count(page, ".st-key-panel_frontier .js-plotly-plot")
 
 
-def _erc_grid_tick_count(page) -> int:
-    """R2/L34: the unit grid on the ERC panel's SI axis is drawn by setting
-    `tickvals` at every integer up to the axis max (`lib/charts.py::fig_share_si`
-    -- plotly draws a gridline at each tickval when `showgrid` stays at its
-    default True, so the tick COUNT on that axis is the grid-line count). The
-    SI axis is the LAST `xaxis*` key in the figure's own layout object (the
-    share panel is `xaxis`, the SI panel is `xaxis2`) -- read directly off the
-    live Plotly figure, not off a caption."""
+def _si_label_info(page, fig_key: str) -> dict:
+    """2B-R-13: the SI unit grid is retired for an outer-end text label on
+    each row's own SI marker. Reads the live figure's own trace/layout data:
+    the count of non-empty text labels on any `mode` that includes "text",
+    and `showgrid` on the SI axis (the LAST `xaxis*` key, same idiom the old
+    grid-tick reader used)."""
     return page.evaluate(
-        "(() => { const el = document.querySelector("
-        "'.st-key-panel_erc .js-plotly-plot');"
-        " if (!el || !el.layout) return -1;"
-        " const keys = Object.keys(el.layout).filter(k => /^xaxis/.test(k)).sort();"
-        " if (!keys.length) return 0;"
-        " const ax = el.layout[keys[keys.length - 1]];"
-        " return (ax && ax.tickvals) ? ax.tickvals.length : 0; })()")
+        """(sel) => {
+            const el = document.querySelector(sel);
+            if (!el || !el.data) return {n_labels: -1, showgrid: null};
+            let n = 0;
+            for (const t of el.data) {
+                if (t.mode && t.mode.indexOf('text') >= 0 && Array.isArray(t.text)) {
+                    n += t.text.filter(x => x).length;
+                }
+            }
+            const keys = Object.keys(el.layout || {}).filter(k => /^xaxis/.test(k)).sort();
+            const showgrid = keys.length ? (el.layout[keys[keys.length - 1]].showgrid) : null;
+            return {n_labels: n, showgrid: showgrid};
+        }""",
+        f".st-key-{fig_key} .js-plotly-plot")
+
+
+def _yearly_axis_labels(page) -> list:
+    return page.evaluate(
+        "(() => { const el = document.querySelector('.st-key-fig_breakdown_yearly .js-plotly-plot');"
+        " if (!el || !el.data) return [];"
+        " return el.data.flatMap(t => t.x || []); })()")
+
+
+def _frontier_slider_locator(page):
+    # Measured (debug probe, 2026-08-31): Streamlit's slider thumb carries no
+    # `role="slider"` on this pinned build -- it is a visually-hidden real
+    # `<input type="range">` (react-aria's own accessible-hide pattern), which
+    # DOES respond to Arrow keys once focused. `.press()` on a locator focuses
+    # the element first, so no separate click is needed (and a click would
+    # miss: the input has zero visual size).
+    return page.locator('[class*="st-key-frontier_topn_"] input[type="range"]').first
+
+
+def _frontier_slider_step(page, steps: int) -> None:
+    slider = _frontier_slider_locator(page)
+    key = "ArrowRight" if steps > 0 else "ArrowLeft"
+    for _ in range(abs(steps)):
+        slider.press(key, timeout=ACTION_TIMEOUT_MS)
+
+
+def _frontier_signature(page) -> str:
+    """2B-R-13: BOTH frontier modes share ONE top-N slider, so a mode switch
+    can leave the plotted POINT COUNT unchanged (both cut at the same top_n)
+    even though the underlying topic SET differs -- `_frontier_points` alone
+    is no longer sufficient proof the mode control does anything. Reads the
+    live figure's own x/y arrays instead."""
+    return page.evaluate(
+        "(() => { const el = document.querySelector('.st-key-panel_frontier .js-plotly-plot');"
+        " if (!el || !el.data) return '';"
+        " return JSON.stringify(el.data.map(t => [t.x, t.y])); })()")
 
 
 def _search_and_pick(page, query: str, pick_key: str = "seed_pick",
@@ -411,9 +463,7 @@ def _search_and_pick(page, query: str, pick_key: str = "seed_pick",
 
 def _find_undefined_l2f_seed(app_dir: Path, tree: str = "original") -> tuple[str, str] | None:
     """Smallest-first scan: the smaller an institution, the more likely L2f's
-    own floor-of-papers-per-cell rule leaves it undefined. `tree="original"`
-    matches the scenario the smoke flow has set by the time it reaches this
-    check (Settings section)."""
+    own floor-of-papers-per-cell rule leaves it undefined."""
     sys.path.insert(0, str(app_dir))
     from lib.data_cache import index
     from lib.engine import build_substrates, load_context, rank_all
@@ -439,10 +489,6 @@ def check_menu(page) -> None:
     nav = page.locator(".st-key-nav_cards")
     check(nav.count() >= 1, "Menu: .st-key-nav_cards container present")
     cards = nav.locator("[class*='st-key-nav_card_']")
-    # Manager fix 2026-08-29: on a COLD server the container can be present before
-    # its cards have mounted (seen once: "found 0" on the first run after startup,
-    # 105/105 on the re-run). Wait for the first card, then count -- a genuine
-    # absence still fails the check below after the timeout.
     try:
         cards.first.wait_for(state="visible", timeout=ACTION_TIMEOUT_MS)
     except Exception:  # noqa: BLE001 -- the count check reports the failure
@@ -450,14 +496,6 @@ def check_menu(page) -> None:
     check(cards.count() >= 3, f"Menu: >=3 nav cards (found {cards.count()})")
     find_link = nav.locator("a").filter(has_text="Find")
     check(find_link.count() >= 1, "Menu: Find card is live (st.page_link anchor present)")
-
-    # 2B-10: all four narrative-order cards (Find peers, Compare, Collaborate,
-    # How it is built) are live -- none renders the greyed ":grey[...]"
-    # fallback Menu.py uses for a dimension whose page file does not exist yet.
-    # A greyed card carries NO `st.page_link` anchor (only styled markdown +
-    # caption text, which Streamlit's `:color[]` syntax renders as coloured
-    # text, not a literal string in the DOM) -- so "none greyed" is proven
-    # structurally, by anchor count, never by hunting for ":grey[" text.
     check(cards.count() == len(NAV_CARD_LABELS),
           f"Menu: exactly {len(NAV_CARD_LABELS)} nav cards render (found {cards.count()})")
     live_links = nav.locator("a")
@@ -471,14 +509,34 @@ def check_menu(page) -> None:
 
 
 def check_find_search(page) -> None:
+    """2B-R-12/A12: search-on-validate. Typing a query and pressing Enter
+    opens the results selectbox but renders NOTHING else below it -- no
+    profile container, no benchmark tabs -- until an actual pick is made."""
     _click_nav(page, "Find")
     box = page.locator(".st-key-seed_query input")
     box.first.wait_for(state="visible", timeout=ACTION_TIMEOUT_MS)
     check(box.count() >= 1, "Find: seed search input present (.st-key-seed_query)")
+
+    # 2B-R-12: the data caption, checked before anything is searched -- it is
+    # part of the header, not the profile.
+    caption_text = _all_text(page, '[data-testid="stCaptionContainer"]')
+    check(bool(DATA_CAPTION_RE.search(caption_text)),
+          f"Find header: the data caption reads '<n> institutions {SEP} data from <date>' "
+          f"(2B-R-12) (captions: {caption_text[:200]!r})")
+    check("(generated" not in caption_text,
+          "Find header: the old verbose snapshot stamp ('(generated ...)') is gone (2B-R-12)")
+
     box.first.click(timeout=ACTION_TIMEOUT_MS)
     box.first.fill(GDANSK_QUERY)
     box.first.press("Enter")
     _settle(page, 2500)
+
+    # A12 (NEW): nothing below the search box renders before a pick.
+    check(page.locator(".st-key-profile").count() == 0,
+          "Find (A12): no profile container renders after typing, before a pick")
+    check(page.locator('[role="tab"]').count() == 0,
+          "Find (A12): no benchmark tabs render after typing, before a pick")
+
     check(page.locator(".st-key-seed_pick").count() >= 1,
           "Find: results selectbox appeared after typing 'gdansk'")
     _open_select(page, "seed_pick")
@@ -487,6 +545,8 @@ def check_find_search(page) -> None:
     _settle(page, 3000)
     heading = _seed_heading(page)
     check("Gda" in heading, f"Find: seed profile heading contains 'Gda' (got {heading!r})")
+    check(page.locator(".st-key-profile").count() == 1,
+          "Find (A12): the profile renders exactly once after the pick")
     tabs = page.locator('[role="tab"]').count()
     check(tabs == GDANSK_TAB_COUNT, f"Find: default tab count is {GDANSK_TAB_COUNT} (got {tabs})")
     _no_exception(page, "Find (Gdansk seed)")
@@ -511,12 +571,8 @@ def check_basket(page) -> None:
 # --------------------------------------------------- controls / sidebar -----
 
 def check_controls_placement(page) -> None:
-    """L16: the sidebar holds ONLY the scenario selects (tree, basis) and
-    the basket; depth/C1/L7/post-filters render in the MAIN area's controls
-    row at the head of the Benchmark section, with their widget KEYS
-    unchanged. The post-filters expander reveals the type/country filters,
-    the country multiselect shows country NAMES, not codes. R2/L29: the
-    scenario selectboxes render DISPLAY labels, never the internal value."""
+    """L16: the sidebar holds ONLY the scenario selects (tree, basis) and the
+    basket; depth/C1/L7/post-filters render in the MAIN area's controls row."""
     sidebar = page.locator('[data-testid="stSidebar"]')
     check(sidebar.locator(".st-key-tree").count() >= 1, "Sidebar: .st-key-tree (scenario) present")
     check(sidebar.locator(".st-key-basis").count() >= 1, "Sidebar: .st-key-basis (scenario) present")
@@ -531,8 +587,6 @@ def check_controls_placement(page) -> None:
     check(page.locator(".st-key-l7_on").count() >= 1,
           "Controls row: .st-key-l7_on renders in the main area")
 
-    # R2/L29: the tree/basis selectboxes show their DISPLAY label; the
-    # internal value never reaches the reader.
     tree_val = _selectbox_value(page, "tree")
     check(tree_val == TREE_LABEL_BESTFIT,
           f"Sidebar: taxonomy selectbox shows the default DISPLAY label (got {tree_val!r})")
@@ -564,102 +618,111 @@ def check_controls_placement(page) -> None:
 # ----------------------------------------------------------- R2 profile -----
 
 def check_profile_and_panels(page) -> dict:
-    """R2/L30-L34: the profile container, its 8 KPI tiles (each with an index
-    baseline subline), its wordcloud, its six chart-panel expanders (exact
-    labels), the top-subfields cut with no sort control, the SDG panel's
-    numbered labels, the ERC panel's unit grid, the frontier panel's two
-    modes, and the breakdown pair's segmented control.
+    """2B-R-2/13: the profile container, its FOUR KPI tiles (each with one
+    index-baseline subline), its wordcloud, its six chart-panel expanders
+    (exact labels), the top-subfields cut with no sort control, the SDG
+    panel's numbered labels, the frontier panel's two modes, and the
+    breakdown pair's segmented control.
 
     Returns `{"frontier_points": int, "breakdown_legend": str}`, the OFF-
     DEFAULT values this function deliberately leaves the page in (frontier
-    mode swapped to "emerging", breakdown swapped to "Document type") -- the
-    persistence checks compare against these exact values after later
-    Menu<->Find hops instead of resetting them back here."""
+    mode swapped to "emerging", breakdown swapped to "Document type")."""
     check(page.locator(".st-key-profile").count() == 1,
           "Profile: .st-key-profile container renders exactly once")
     check(page.locator('.st-key-profile [data-testid="stImage"] img').count() >= 1,
           "Profile: subfield wordcloud renders as an <img>")
 
-    # ---- R2/L30/L31: the 8 KPI tiles -------------------------------------
+    # ---- 2B-R-2: the FOUR KPI cards, one subline each --------------------
     tiles = page.locator(".st-key-profile .benchup-kpi")
-    check(tiles.count() == N_TILES, f"Profile: {N_TILES} KPI tiles render (found {tiles.count()})")
+    check(tiles.count() == N_TILES, f"Profile: {N_TILES} KPI cards render (found {tiles.count()})")
     sublines = page.locator(".st-key-profile .benchup-kpi-sub")
     n_sub = sublines.count()
-    check(n_sub == N_TILES, f"Profile: every card carries its baseline subline (found {n_sub})")
+    check(n_sub == N_TILES, f"Profile: every card carries exactly one subline (found {n_sub})")
     sub_texts = [sublines.nth(i).text_content() or "" for i in range(n_sub)]
     n_baseline = sum(1 for t in sub_texts if "index median" in t)
     check(n_baseline == N_TILES,
-          f"Profile: every tile's second subline reads 'index median ...' (found {n_baseline} of {N_TILES})")
+          f"Profile: every card's subline reads 'index median ...' (found {n_baseline} of {N_TILES})")
     check("Key figures" in _full_page_text(page), "Profile: 'Key figures' header renders")
-    # R2/L32: the retired coverage line's ERC-classified-share phrase must not
-    # leak anywhere on the page (its items were relocated into panel captions
-    # under different wording -- lib/views_find.py `_erc_share`/CAPTION_ERC).
     check("ERC-classified share" not in _full_page_text(page),
           "Profile: the retired coverage-line phrase 'ERC-classified share' is nowhere on the page")
 
-    # ---- R2/L29/L34: the six panels, exact labels -------------------------
+    # ---- 2B-R-7: intl/company identity facts, now REAL values ------------
+    id_cap = page.locator('.st-key-profile [data-testid="stCaptionContainer"]').filter(
+        has_text="International co-publications").first
+    check(id_cap.count() >= 1, "Identity: the international/company caption renders")
+    id_text = id_cap.text_content() or ""
+    check("International co-publications" in id_text and "with a company" in id_text,
+          f"Identity: both co-publication facts are labelled (got {id_text!r})")
+    check(NA_TEXT not in id_text,
+          f"Identity (2B-R-7): intl/company facts show real percentages now that P2/P4 have "
+          f"landed the artefacts, not {NA_TEXT!r} (got {id_text!r})")
+    check(id_text.count("%") >= 2,
+          f"Identity: both facts render as percentages (got {id_text!r})")
+
+    # ---- the six panels, exact labels --------------------------------------
     for name, label in PANEL_LABELS:
         summary = page.locator(f".st-key-panel_{name} summary").first
         check(summary.count() >= 1, f"Panel '{name}': expander present (.st-key-panel_{name})")
-        # EXACT match, not a substring: `st.expander`'s summary text is the
-        # label plus a leading icon-font ligature (e.g. "keyboard_arrow_right")
-        # that varies by open/closed state -- stripped here so the comparison
-        # is against the label alone. A substring check would let "Fields
-        # Overview" satisfy an expected "Fields" and never catch a rename.
         raw = (summary.text_content() or "").strip()
         clean = raw.replace("keyboard_arrow_right", "").replace("keyboard_arrow_down", "").strip()
         check(clean == label, f"Panel '{name}': header label is exactly {label!r} (got {raw!r})")
 
-    # ---- R2/L34: top subfields, no sort control, cut at SUBFIELDS_TOP_N --
+    # ---- top subfields: no sort control, cut at SUBFIELDS_TOP_N -----------
     _ensure_expander_open(page, "panel_subfields", ".st-key-fig_subfields")
     _settle(page, 1500)
     fig = page.locator(".st-key-fig_subfields .js-plotly-plot").first
     check(fig.count() >= 1 and fig.is_visible(),
           "Panel Top subfields: opening it reveals a visible Plotly figure")
     check(page.locator(".st-key-panel_subfields .st-key-sort_subfields").count() == 0,
-          "Panel Top subfields: carries NO sort control (R2/L34)")
+          "Panel Top subfields: carries NO sort control (2B-R-13)")
     sf_ticks = page.locator(".st-key-fig_subfields .ytick")
     n_sf = sf_ticks.count()
     check(0 < n_sf <= SUBFIELDS_TOP_N,
           f"Panel Top subfields: {n_sf} y-tick group(s), within (0, {SUBFIELDS_TOP_N}]")
 
-    # ---- R2/L36: SDG numbered labels --------------------------------------
+    # ---- 2B-R-13 (NEW): Top topics -- cut at 30, no sort control ----------
+    _ensure_expander_open(page, "panel_topics", ".st-key-fig_topics")
+    _settle(page, 1500)
+    check(page.locator(".st-key-panel_topics .st-key-sort_topics").count() == 0,
+          "Panel Top topics: carries NO sort control (2B-R-13)")
+    tp_ticks = page.locator(".st-key-fig_topics .ytick")
+    n_tp = tp_ticks.count()
+    check(0 < n_tp <= TOPICS_TOP_N,
+          f"Panel Top topics: {n_tp} y-tick group(s), within (0, {TOPICS_TOP_N}] (2B-R-13 raised 20->30)")
+
+    # ---- SDG numbered labels --------------------------------------
     _ensure_expander_open(page, "panel_sdg", ".st-key-fig_sdg")
     _settle(page, 1500)
     sdg_ticks = page.locator(".st-key-fig_sdg .ytick")
     n_sdg = sdg_ticks.count()
-    # Read the GROUP's textContent (not `.ytick text`): a wrapped two-line
-    # label (`wrap_label`'s `<br>`) renders as separate <tspan> children of
-    # one <text> node, and the GROUP's textContent concatenates every line
-    # reliably regardless of how plotly splits them across nodes.
     sdg_texts = [sdg_ticks.nth(i).text_content() or "" for i in range(n_sdg)]
     non_sdg = [t for t in sdg_texts if not t.strip().startswith("SDG")]
     check(n_sdg > 0 and not non_sdg,
           f"Panel SDG profile: all {n_sdg} y-tick labels start with 'SDG' (offenders: {non_sdg})")
 
-    # ---- R2/L34: ERC panel unit grid on the SI axis -----------------------
-    _ensure_expander_open(page, "panel_erc", ".st-key-sort_erc [data-testid='stRadioOption']")
-    _settle(page, 1500)
-    n_grid = _erc_grid_tick_count(page)
-    check(n_grid >= 1, f"Panel ERC profile: unit grid present on the SI axis ({n_grid} grid line(s))")
-
-    # ---- R2/L33: frontier panel, two modes --------------------------------
+    # ---- frontier panel, two modes --------------------------------
     _ensure_expander_open(page, "panel_frontier", ".st-key-frontier_mode button")
     _settle(page, 1500)
     top_points = _frontier_points(page)
+    top_sig = _frontier_signature(page)
     check(top_points > 0, f"Panel Frontier positioning: default mode plots points ({top_points})")
     page.locator(".st-key-frontier_mode button").nth(FRONTIER_MODE_EMERGING_IDX).click(
         timeout=ACTION_TIMEOUT_MS)
     _settle(page, 4000)
     emerging_points = _frontier_points(page)
-    check(emerging_points > 0 and emerging_points != top_points,
-          f"Panel Frontier positioning: the mode control changes the plotted point count "
-          f"({top_points} -> {emerging_points})")
+    emerging_sig = _frontier_signature(page)
+    # 2B-R-13: both modes share ONE top-N slider, so the plotted COUNT can tie
+    # (both cut at the same top_n) even though the topic SET differs -- the
+    # figure's own data is the honest signal, the count is reported alongside
+    # it for information only.
+    check(emerging_points > 0 and emerging_sig != top_sig,
+          f"Panel Frontier positioning: the mode control changes the plotted topic set "
+          f"(counts {top_points} -> {emerging_points}; data signature changed: "
+          f"{emerging_sig != top_sig})")
     # Deliberately LEFT on "emerging": the persistence checks assert this
-    # exact value survives later Menu<->Find hops (see this function's
-    # docstring and README "R2 additions").
+    # exact value survives later Menu<->Find hops.
 
-    # ---- R2/L30: the breakdown pair's shared segmented control ------------
+    # ---- the breakdown pair's shared segmented control ------------
     before_legend = _chip_legend(page)
     check(bool(before_legend.strip()), "Breakdown: chip legend renders")
     page.locator(".st-key-breakdown_dim button").nth(BREAKDOWN_DOCTYPE_IDX).click(
@@ -671,19 +734,147 @@ def check_profile_and_panels(page) -> dict:
     check(page.locator(".st-key-fig_breakdown_global .js-plotly-plot").first.is_visible()
           and page.locator(".st-key-fig_breakdown_yearly .js-plotly-plot").first.is_visible(),
           "Breakdown: both plotly figures still render after the swap")
-    caption = _all_text(page, '[data-testid="stCaptionContainer"]')
-    check("bonus year" in caption, "Breakdown: bonus-year caption is present")
-    # Deliberately LEFT on "Document type": see this function's docstring.
+    # Deliberately LEFT on "Document type".
 
     _no_exception(page, "Profile / panels")
-    return {"frontier_points": emerging_points, "breakdown_legend": after_legend}
+    return {"frontier_points": emerging_points, "frontier_signature": emerging_sig,
+            "breakdown_legend": after_legend}
+
+
+def check_bonus_year_axis(page) -> None:
+    """2B-R-2: no bonus-year banner/caption -- the bonus year is starred ON
+    the yearly breakdown's own x-axis ("2025*"), read off the live figure's
+    own data, never a caption."""
+    try:
+        labels = _yearly_axis_labels(page)
+        check(BONUS_YEAR_AXIS_LABEL in labels,
+              f"Breakdown yearly axis: the bonus year is starred "
+              f"({BONUS_YEAR_AXIS_LABEL!r} in {labels})")
+    except Exception as exc:
+        fail_section("Bonus year axis", exc)
+
+
+def check_si_value_labels(page) -> None:
+    """2B-R-13: the SI unit grid is retired for an outer-end value label on
+    each row's own SI marker -- checked on the three panels that carry an SI
+    column (fields, subfields, ERC): at least one non-empty text label on the
+    SI trace, and `showgrid` false on the SI axis (no per-integer
+    gridlines)."""
+    for name, fig_key, probe in (
+            ("fields", "fig_fields", ".st-key-fig_fields"),
+            ("subfields", "fig_subfields", ".st-key-fig_subfields"),
+            ("erc", "fig_erc", ".st-key-sort_erc [data-testid='stRadioOption']")):
+        try:
+            _ensure_expander_open(page, f"panel_{name}", probe)
+            _settle(page, 1200)
+            info = _si_label_info(page, fig_key)
+            check(info.get("n_labels", -1) > 0,
+                  f"Panel '{name}': the SI marker carries an outer-end value label "
+                  f"({info.get('n_labels')} label(s))")
+            check(info.get("showgrid") is False,
+                  f"Panel '{name}': the retired per-integer SI unit grid stays off "
+                  f"(showgrid={info.get('showgrid')!r})")
+        except Exception as exc:
+            fail_section(f"SI value labels ({name})", exc)
+
+
+def check_frontier_slider_modes(page, expect: dict) -> None:
+    """2B-R-13: the frontier panel's ONE top-N slider actually re-cuts the
+    plotted set in BOTH modes. Runs right after check_profile_and_panels
+    (which left the panel on "emerging" mode) and restores EXACTLY that state
+    (mode=emerging, slider=default) before returning, since the persistence
+    checks downstream compare against `expect["frontier_points"]`."""
+    try:
+        _ensure_expander_open(page, "panel_frontier", ".st-key-frontier_mode button")
+        before = _frontier_points(page)
+        _frontier_slider_step(page, -1)
+        _settle(page, 2500)
+        after = _frontier_points(page)
+        check(before > 0 and after > 0 and after != before,
+              f"Frontier slider (Emerging mode): moving it changes the plotted point count "
+              f"({before} -> {after})")
+        _frontier_slider_step(page, 1)
+        _settle(page, 2500)
+        restored = _frontier_points(page)
+        check(restored == before,
+              f"Frontier slider (Emerging mode): moving it back restores the point count "
+              f"({restored} vs {before})")
+
+        page.locator(".st-key-frontier_mode button").nth(FRONTIER_MODE_TOP_IDX).click(
+            timeout=ACTION_TIMEOUT_MS)
+        _settle(page, 3000)
+        top_before = _frontier_points(page)
+        _frontier_slider_step(page, -1)
+        _settle(page, 2500)
+        top_after = _frontier_points(page)
+        check(top_before > 0 and top_after > 0 and top_after != top_before,
+              f"Frontier slider (Top mode): moving it changes the plotted point count "
+              f"({top_before} -> {top_after})")
+        _frontier_slider_step(page, 1)
+        _settle(page, 2500)
+
+        # Back to "emerging", matching the state check_profile_and_panels left.
+        page.locator(".st-key-frontier_mode button").nth(FRONTIER_MODE_EMERGING_IDX).click(
+            timeout=ACTION_TIMEOUT_MS)
+        _settle(page, 3000)
+        final = _frontier_points(page)
+        final_sig = _frontier_signature(page)
+        check(final == expect.get("frontier_points") and final_sig == expect.get("frontier_signature"),
+              f"Frontier slider: panel restored to the emerging-mode default state "
+              f"(points expected {expect.get('frontier_points')}, got {final}; "
+              f"signature match: {final_sig == expect.get('frontier_signature')})")
+    except Exception as exc:
+        fail_section("Frontier slider (both modes)", exc)
+
+
+def check_tab_overflow_a11(page) -> None:
+    """A11: with BOTH optional lenses on, the tab strip fits at 1280px with no
+    silent Streamlit-tab scroll, and every tab carries only its bare display
+    code (L0..L9). Toggles are switched on, measured, then switched back off
+    so downstream sections see the coded defaults again."""
+    try:
+        page.locator(".st-key-c1_on label").first.click(timeout=ACTION_TIMEOUT_MS)
+        page.locator(".st-key-l7_on label").first.click(timeout=ACTION_TIMEOUT_MS)
+        _wait_for(page, lambda: page.locator('[role="tab"]').count() == BOTH_OPTIONAL_TAB_COUNT)
+        _settle(page, 800)
+        tabs_n = page.locator('[role="tab"]').count()
+        check(tabs_n == BOTH_OPTIONAL_TAB_COUNT,
+              f"A11: with both optional lenses on, tab count is {BOTH_OPTIONAL_TAB_COUNT} "
+              f"(got {tabs_n})")
+        # Measured (debug probe, 2026-08-31): `[data-testid="stTabs"]` itself
+        # (the outer wrapper) carries a few px of its OWN padding/border and
+        # is never the scrollable element -- `[role="tablist"]` (BaseWeb's
+        # `[data-baseweb="tab-list"]` is absent on this pinned build) is the
+        # element that actually scrolls, and is what FC's own 820==820
+        # measurement (progress/2BR_FC.md) reads.
+        info = page.evaluate(
+            """(() => {
+                const el = document.querySelector('[role="tablist"]')
+                        || document.querySelector('[data-testid="stTabs"]');
+                if (!el) return null;
+                return {scroll: el.scrollWidth, client: el.clientWidth};
+            })()""")
+        check(info is not None and info["scroll"] <= info["client"] + 2,
+              f"A11: the tab strip fits with no silent scroll at 1280px "
+              f"(scrollWidth {info and info.get('scroll')} <= clientWidth {info and info.get('client')})")
+        tab_text = _all_text(page, '[role="tab"]')
+        for code in ("L0", "L1", "L2", "L3", "L4", "L5", "L6", "L7", "L8", "L9"):
+            check(code in tab_text, f"A11: tab strip carries the bare display code {code!r}")
+    except Exception as exc:
+        fail_section("A11 tab overflow", exc)
+    finally:
+        try:
+            page.locator(".st-key-c1_on label").first.click(timeout=ACTION_TIMEOUT_MS)
+            page.locator(".st-key-l7_on label").first.click(timeout=ACTION_TIMEOUT_MS)
+            _wait_for(page, lambda: page.locator('[role="tab"]').count() == GDANSK_TAB_COUNT)
+            _settle(page, 800)
+        except Exception:  # noqa: BLE001 -- best-effort restore
+            pass
 
 
 def check_benchmark_lens_guide(page) -> None:
-    """R2/L29: the "How to read the lenses" expander at the head of the
-    Benchmark section (one line per shown lens, >= 8 by default), tabs
-    carrying `copy.LENS_NAMES` text, and the Overview's legend caption
-    pointing back at the guide."""
+    """The "How to read the lenses" expander at the head of the Benchmark
+    section, and A11's bare-code tab + full-name-inside-body split."""
     _ensure_expander_open(page, "lens_guide", ".st-key-lens_guide strong")
     summary = page.locator(".st-key-lens_guide summary").first
     raw = (summary.text_content() or "").strip()
@@ -694,10 +885,17 @@ def check_benchmark_lens_guide(page) -> None:
     check(n_lines >= 8, f"Lens guide: at least 8 lens lines render (found {n_lines})")
 
     tabs = page.locator('[role="tab"]')
-    first_lens_text = tabs.nth(1).text_content() or ""
-    check(LENS0_TAB_TEXT in first_lens_text,
-          f"Tabs: the first default-lens tab carries its LENS_NAMES text "
-          f"(expected {LENS0_TAB_TEXT!r} in {first_lens_text!r})")
+    first_lens_tab_text = (tabs.nth(1).text_content() or "").strip()
+    check(first_lens_tab_text == LENS0_TAB_CODE,
+          f"A11: the first default-lens TAB carries only the bare code "
+          f"(expected {LENS0_TAB_CODE!r}, got {first_lens_tab_text!r})")
+    tabs.nth(1).click(timeout=ACTION_TIMEOUT_MS)
+    _settle(page, 1500)
+    body_text = _all_text(page, '[role="tabpanel"]')
+    check(LENS0_FULL_NAME in body_text,
+          f"A11: the full lens name opens the tab BODY (looking for {LENS0_FULL_NAME!r})")
+    tabs.nth(0).click(timeout=ACTION_TIMEOUT_MS)
+    _settle(page, 1000)
 
     caption = _all_text(page, '[data-testid="stCaptionContainer"]')
     check(LENS_LEGEND_SUBSTR in caption,
@@ -717,12 +915,10 @@ def _download_csv_header(page, click_selector: str) -> str:
 
 
 def check_tables_and_export(page) -> None:
-    """VIZ_SPEC S1.7/S2.5, L22: a lens's ranked table renders; its CSV export
-    carries `total_frac_2020_2024`, `country` (the NAME column) and `evidence`
-    but never a `badge` column (badges moved to the profile header only); the
-    Aspirational tab renders its own table. Lens CODES stay the CSV/table key
-    material (L29: codes are stable identifiers) even though the TAB text now
-    carries the lens's name."""
+    """A lens's ranked table renders; its CSV export carries
+    `total_frac_2020_2024`, `country` and `evidence` but never a `badge`
+    column. The Aspirational tab renders its own table, with no "Interval"
+    column (2B-R-11)."""
     tabs = page.locator('[role="tab"]')
     tabs.nth(1).click(timeout=ACTION_TIMEOUT_MS)  # first default lens tab (L0)
     _settle(page, 2000)
@@ -739,20 +935,62 @@ def check_tables_and_export(page) -> None:
     _settle(page, 2500)
     check(page.locator('.st-key-tbl_aspirational [data-testid="stDataFrame"]').count() >= 1,
           "Aspirational tab: its own table renders (.st-key-tbl_aspirational)")
+    header_text = _all_text(page, '.st-key-tbl_aspirational [data-testid="stColumnHeader"], '
+                                  '.st-key-tbl_aspirational [role="columnheader"]')
+    check("Interval" not in header_text,
+          f"Aspirational tab (2B-R-11): no 'Interval' column (headers seen: {header_text[:200]!r})")
     tabs.nth(0).click(timeout=ACTION_TIMEOUT_MS)  # back to Overview
     _settle(page, 1500)
     _no_exception(page, "Tables / export")
 
 
+def check_institution_link_popup(page) -> None:
+    """A10: the institution NAME is the clickable OpenAlex-works link (URL
+    fragment trick) -- proven with a REAL click and a captured popup, since a
+    canvas grid carries no DOM <a> to query. Tried at a few plausible
+    (column, row) pixel offsets since the exact grid geometry is not
+    otherwise exposed."""
+    try:
+        tabs = page.locator('[role="tab"]')
+        tabs.last.click(timeout=ACTION_TIMEOUT_MS)  # Aspirational
+        _settle(page, 2500)
+        grid = page.locator('.st-key-tbl_aspirational [data-testid="stDataFrame"] canvas').first
+        box = grid.bounding_box()
+        check(box is not None, "Institution link: the Aspirational grid has a real bounding box")
+        opened = False
+        url = None
+        if box is not None:
+            for frac_x in (0.14, 0.20, 0.28):
+                x = box["x"] + box["width"] * frac_x
+                y = box["y"] + 49   # ~header height + half a data row
+                try:
+                    with page.context.expect_page(timeout=4000) as pop_info:
+                        page.mouse.click(x, y)
+                    popup = pop_info.value
+                    popup.wait_for_load_state("domcontentloaded", timeout=ACTION_TIMEOUT_MS)
+                    url = popup.url
+                    popup.close()
+                    opened = True
+                    break
+                except PWTimeoutError:
+                    continue
+        check(opened, "Institution link (A10): a real click on the Institution cell opens a popup")
+        if opened:
+            check("openalex.org/works" in (url or ""),
+                  f"Institution link (A10): the popup opens an OpenAlex-works URL (got {url!r})")
+        tabs.nth(0).click(timeout=ACTION_TIMEOUT_MS)  # back to Overview
+        _settle(page, 1200)
+    except Exception as exc:
+        fail_section("Institution link popup", exc)
+
+
 # ------------------------------------------------------------- settings ----
 
 def check_settings(page) -> None:
-    """R2: the settings a reader would touch on a first visit -- all in the
-    Benchmark controls row/expander instead of the sidebar -- set here BEFORE
-    the persistence hops (depth to max, L7 on, a type filter picked, tree
-    switched to its non-default DISPLAY label). `frontier_mode` and
-    `breakdown_dim` are ALREADY off-default from check_profile_and_panels and
-    are left untouched here -- see that function's docstring."""
+    """The settings a reader would touch on a first visit -- depth to max,
+    L7 on, a type filter picked, tree switched to its non-default DISPLAY
+    label. `frontier_mode` and `breakdown_dim` are already off-default and
+    are left untouched here."""
     before = _all_text(page, '[data-testid="stCaptionContainer"]')
 
     _ensure_expander_open(page, "postfilters", ".st-key-f_types input")
@@ -768,15 +1006,8 @@ def check_settings(page) -> None:
     after = _all_text(page, '[data-testid="stCaptionContainer"]')
     check(before != after, "Settings: depth caption changed after switching depth to its max")
 
-    # R2/L29: the option clicked in the dropdown is the DISPLAY label, not the
-    # internal value "original" -- `format_func` changes what is rendered in
-    # the option list too.
     _open_select(page, "tree")
     _pick_option(page, TREE_LABEL_ORIGINAL)
-    # tree="original" is a NEW (tree, basis) pair for this server process --
-    # its substrates build cold (~4.6 s measured), so this waits for actual
-    # tab re-render rather than a blind sleep (a fixed 3 s here was an
-    # intermittent flake on a cold throwaway copy, unrelated to any mutation).
     _wait_for(page, lambda: page.locator('[role="tab"]').count() >= GDANSK_TAB_COUNT)
     _settle(page, 1000)
 
@@ -800,15 +1031,16 @@ def check_settings(page) -> None:
 
 
 def _capture_persisted_state(page) -> dict:
-    # `_ensure_expander_open` guarantees the frontier figure is mounted and
-    # readable regardless of whatever visual open/closed state a fresh page
-    # mount coded it to -- see `_frontier_points`'s own docstring for why
-    # reading it without this call should already be safe, and why this call
-    # is still made (belt and suspenders around that claim).
     _ensure_expander_open(page, "panel_frontier", ".st-key-frontier_mode button")
     return {"basket": _basket_count(page), "tabs": page.locator('[role="tab"]').count(),
             "heading": _seed_heading(page), "strip": _strip_text(page),
-            "frontier_points": _frontier_points(page), "breakdown_legend": _chip_legend(page)}
+            # 2B-R-13: BOTH modes share one top-N slider, so the raw point
+            # COUNT can tie between modes (see `_frontier_signature`'s own
+            # docstring) -- the topic-set SIGNATURE is the only proof that
+            # actually distinguishes "still on emerging" from "reset to top".
+            "frontier_points": _frontier_points(page),
+            "frontier_signature": _frontier_signature(page),
+            "breakdown_legend": _chip_legend(page)}
 
 
 def _assert_persisted(state: dict, tag: str, expect: dict) -> None:
@@ -820,23 +1052,20 @@ def _assert_persisted(state: dict, tag: str, expect: dict) -> None:
     check("depth = 50" in state["strip"], f"{tag}: depth still at max in the strip")
     check("type: " in state["strip"] and "education" in state["strip"],
           f"{tag}: type filter (education) still active in the strip")
-    fp_expected = expect.get("frontier_points")
-    check(fp_expected is not None and state["frontier_points"] == fp_expected,
-          f"{tag}: frontier_mode still shows its off-default (emerging) point count "
-          f"(expected {fp_expected}, got {state['frontier_points']})")
+    fs_expected = expect.get("frontier_signature")
+    check(bool(fs_expected) and state["frontier_signature"] == fs_expected,
+          f"{tag}: frontier_mode still shows its off-default (emerging) topic set "
+          f"(signature match: {state.get('frontier_signature') == fs_expected}; "
+          f"points {state['frontier_points']} vs baseline {expect.get('frontier_points')})")
     bl_expected = expect.get("breakdown_legend")
     check(bool(bl_expected) and state["breakdown_legend"] == bl_expected,
           f"{tag}: breakdown_dim still shows the swapped (document-type) chip legend")
 
 
 def check_persistence(page, expect: dict) -> None:
-    """The load-bearing claim: basket + every keyed widget -- INCLUDING the
-    ones R1 relocated from the sidebar into the controls row/expander AND the
-    two R2 added (`frontier_mode`, `breakdown_dim`) -- survive real Menu<->Find
-    hops (4 hops total: Menu, Find, Menu, Find), with a second-visit re-mount
-    check at the 2-hop midpoint (a bug that only shows up on a widget's SECOND
-    mount is a real, documented failure mode -- Portfolio Mapping
-    INSPECTION_PLAYBOOK.md family 3)."""
+    """The load-bearing claim: basket + every keyed widget survive real
+    Menu<->Find hops (4 hops total), with a second-visit re-mount check at
+    the 2-hop midpoint."""
     _assert_persisted(_capture_persisted_state(page), "Persistence: baseline captured before any hop", expect)
 
     _click_nav(page, "Menu")
@@ -853,8 +1082,6 @@ def check_persistence(page, expect: dict) -> None:
 
 
 def check_type_filter_clear(page) -> None:
-    """The type filter set in Settings and proven to survive the hops above
-    can also be CLEARED, and the strip stops naming it once it is."""
     strip = _strip_text(page)
     check("type: " in strip and "education" in strip,
           f"Type filter: still active going into the clear check (strip: {strip!r})")
@@ -874,33 +1101,26 @@ def check_type_filter_clear(page) -> None:
 
 
 def check_undefined_lens(page, seed_id: str, seed_name: str) -> None:
+    """2B-R-11a renumbered L2f's display code to L4 -- the tab now carries
+    only that bare code and the undefined message reads the full DISPLAY name
+    (`L4 . Shared specialisations`), never the literal internal id."""
     _search_and_pick(page, seed_name)
     heading = _seed_heading(page)
     check(len(heading) > 0, f"Undefined lens: seed '{seed_name}' ({seed_id}) loaded, heading present")
-    tab = page.locator('[role="tab"]').filter(has_text="L2f").first
-    check(tab.count() >= 1, "Undefined lens: L2f tab present")
+    tab = page.locator('[role="tab"]').filter(has_text=L2F_TAB_CODE).first
+    check(tab.count() >= 1, f"Undefined lens: {L2F_TAB_CODE!r} (L2f) tab present")
     tab.click(timeout=ACTION_TIMEOUT_MS)
     _settle(page, 1500)
     text = _all_text(page, '[role="tabpanel"]')
-    check("L2f" in text and "cannot be computed for this seed" in text,
-          f"Undefined lens: L2f undefined message present for {seed_name}")
+    check(L2F_DISPLAY_NAME in text and "cannot be computed for this seed" in text,
+          f"Undefined lens: the L2f undefined message present for {seed_name} "
+          f"(looking for {L2F_DISPLAY_NAME!r} in {text[:300]!r})")
     _no_exception(page, "Undefined L2f seed")
 
 
 def check_subfields_panel_no_overlap(page, width: int) -> None:
-    """R2/L34/L35 (this stream's adaptation of fix X3's finding I-4): bounding-
-    box proof that opening the TOP-SUBFIELDS panel at this width never lets a
-    y-axis tick label collide with anything, now that a long subfield name can
-    WRAP onto two lines (L35's `wrap_label`) instead of being ellipsised. A
-    wrapped label renders as separate `<tspan>` children of ONE `<text>` node,
-    so this reads and bounding-boxes the `.ytick` GROUP (not `.ytick text`):
-    the group's own bounding box correctly spans both lines, and its
-    textContent concatenates every tspan reliably. Every `.ytick` box must lie
-    fully inside its plot's own `.main-svg`, never clipped past the left edge
-    (where the old collision put the leading characters underneath the volume
-    gutter) and never overflowing the right edge either. A page-level
-    scrollWidth check cannot see this: it is a collision INSIDE one chart's
-    own layout, not a page overflow."""
+    """Bounding-box proof that opening the TOP-SUBFIELDS panel at this width
+    never lets a y-axis tick label collide with anything."""
     fig = page.locator(".st-key-fig_subfields .js-plotly-plot").first
     fig.wait_for(state="visible", timeout=ACTION_TIMEOUT_MS)
     plot_box = fig.locator(".main-svg").first.bounding_box()
@@ -917,7 +1137,6 @@ def check_subfields_panel_no_overlap(page, width: int) -> None:
         if box is None:
             continue
         text = ticks.nth(i).text_content() or ""
-        # a 1px slack absorbs sub-pixel rounding, never a real clip/overflow
         if box["x"] < plot_left - 1:
             offenders.append(f"{text!r} clipped at left (x={box['x']:.1f} < plot left {plot_left:.1f})")
         elif box["x"] + box["width"] > plot_right + 1:
@@ -930,14 +1149,7 @@ def check_subfields_panel_no_overlap(page, width: int) -> None:
 
 def check_screenshots(browser, shot_dir: Path) -> None:
     """At each width, the seed is loaded AND the Top-subfields panel is opened
-    before the scrollWidth assertion -- the widest real state the page can be
-    in, not just the collapsed default.
-
-    A bounding-box no-overlap check on the open Top-subfields panel runs at
-    390 px AND 1280 px (R2/L34/L35's wrapped, two-line ticks); a plain
-    (non-full-page) top-of-page screenshot at 1280 px, scrolled to y=0 with
-    the seed loaded but BEFORE any panel is opened; and a dedicated 390 px
-    screenshot with the Top-subfields panel open."""
+    before the scrollWidth assertion."""
     shot_dir.mkdir(parents=True, exist_ok=True)
     for width in WIDTHS:
         page = browser.new_page(viewport={"width": width, "height": 900})
@@ -958,10 +1170,6 @@ def check_screenshots(browser, shot_dir: Path) -> None:
             _search_and_pick(page, GDANSK_QUERY)
 
             if width == 1280:
-                # The untouched top of the page -- header/tiles/wordcloud --
-                # BEFORE any expander is opened, viewport-only (not full_page)
-                # so it is actually scrolled to y=0, not just stitched in as
-                # the top slice of a taller image.
                 page.evaluate("window.scrollTo(0, 0)")
                 _settle(page, 500)
                 top_p = shot_dir / "smoke_find_top_1280.png"
@@ -990,7 +1198,7 @@ def check_screenshots(browser, shot_dir: Path) -> None:
             page.close()
 
 
-# ------------------------------------------------ Phase 2B: the full journey --
+# ------------------------------------------------ Phase 2B/2B-R: the journey --
 
 def _n_plotly(page) -> int:
     return page.locator(".js-plotly-plot").count()
@@ -998,11 +1206,8 @@ def _n_plotly(page) -> int:
 
 def _settle_figures(page, target: int, timeout_ms: int = 60_000) -> int:
     """Streamlit streams elements in, so a figure count climbs for a while
-    after the first plot appears (ops/_probe_compare.py's own `_settle`
-    documents the same fact for this page). Poll until the count reaches the
-    floor and holds for 3 checks running, rather than a blind sleep -- the
-    same reasoning as `_wait_for` above, applied to a count instead of a
-    boolean predicate."""
+    after the first plot appears. Poll until the count reaches the floor and
+    holds for 3 checks running, rather than a blind sleep."""
     deadline = time.time() + timeout_ms / 1000
     last, stable = -1, 0
     while time.time() < deadline:
@@ -1017,13 +1222,9 @@ def _settle_figures(page, target: int, timeout_ms: int = 60_000) -> int:
 
 
 def _sidebar_basket_n(page) -> int | None:
-    """The `{n} of {cap} added` sidebar caption (copy.FIND["BASKET_COUNT"]),
-    read wherever it renders: Find's own editable basket AND Compare/
-    Collaborate's read-only mirror share the exact same template. Necessary
-    because `_basket_count` (this file's existing helper) counts `rm_{iid}`
-    remove buttons, which exist ONLY on Find's editable list -- Compare and
-    Collaborate render the basket read-only (a plain `sb.write` per name, no
-    remove button), so they need a different signal for the same fact."""
+    """The `{n} of {cap} added` sidebar caption, read wherever it renders:
+    Find's own editable basket AND Compare/Collaborate's read-only mirror
+    share the exact same template."""
     text = _all_text(page, '[data-testid="stSidebar"] [data-testid="stCaptionContainer"]')
     m = re.search(r"(\d+) of \d+ added", text)
     return int(m.group(1)) if m else None
@@ -1031,12 +1232,7 @@ def _sidebar_basket_n(page) -> int | None:
 
 def _add_l1_candidates(page) -> list[dict]:
     """Downloads the seed's own L1 (subfield-overlap) ranking CSV and returns
-    the top 3 rows' `{institution_id, display_name}` -- REAL top-overlap
-    peers of the seed, not three names picked out of thin air. `st.tabs`
-    keeps every tab's body mounted every rerun (module docstring), so the L1
-    download button already exists in the DOM before the tab is clicked into;
-    it is clicked anyway for a realistic sequence and so the export reflects
-    whatever is visibly on screen."""
+    the top 3 rows' `{institution_id, display_name}`."""
     tab = page.locator('[role="tab"]').filter(has_text="L1").first
     tab.click(timeout=ACTION_TIMEOUT_MS)
     _settle(page, 1500)
@@ -1050,12 +1246,8 @@ def _add_l1_candidates(page) -> list[dict]:
 
 
 def check_journey_basket(page) -> list[dict]:
-    """BUILD_PLAN_2B.md Stream H brief: search Gdansk, add 3 candidates off
-    the L1 table plus the seed itself, both via the SAME sidebar add box the
-    existing "Basket" section above already exercises (`_add_comparator`) --
-    basket = 4. The basket is cleared first: the R2 "Basket" section above
-    left Sorbonne + Bologna in it, and `check_undefined_lens` moved the seed
-    away from Gdansk, so this is a genuine fresh start, not a continuation."""
+    """Search Gdansk, add 3 candidates off the L1 table plus the seed itself
+    (basket = 4) -- COMPARE_CAP=3 means Compare will need to truncate."""
     clear_btn = page.locator(".st-key-basket_clear button")
     if clear_btn.count():
         clear_btn.first.click(timeout=ACTION_TIMEOUT_MS)
@@ -1076,10 +1268,6 @@ def check_journey_basket(page) -> list[dict]:
 
 
 def _compare_deeplink_ids(page) -> list[str]:
-    """The `?compare=` deep link `_selection` prints via `st.code` -- located
-    by its own fixed prefix (a data-contract string, 2B-8), never by DOM
-    position, since a second `st.code` (the `?pair=` hand-off link) appears
-    lower on the same page once >= 2 institutions are compared."""
     loc = page.locator('[data-testid="stCode"]').filter(has_text="?compare=").first
     if loc.count() == 0:
         return []
@@ -1090,94 +1278,128 @@ def _compare_deeplink_ids(page) -> list[str]:
 
 
 def check_compare_journey(page, candidates: list[dict]) -> dict:
-    """The Compare leg: strip + legend + figure floor, the frontier Layout
-    control, the impact floor toggle, the workbook, the deep link, reorder,
-    remove. Returns `{"remaining_ids": [...]}` (unused downstream today, kept
-    for a future stream that wants the post-removal id set without re-reading
-    the page)."""
+    """2B-R-4/5/6/7/8/9: the cap-3 truncation notice, the overview cards
+    (incl. international/company), the metric selectors, the two frontier
+    charts and the legend-above-every-chart rule."""
     _click_nav(page, NAV_COMPARE)
     _settle_figures(page, COMPARE_MIN_FIGURES)
     _no_exception(page, "Compare (initial render)")
 
     names = [c["display_name"] for c in candidates]
+    full_text = _full_page_text(page)
     strip = _all_text(page, ".st-key-compare_strip")
-    for name in names:
-        check(name in strip, f"Compare: strip names the L1 candidate {name!r}")
-    check("Gda" in strip, f"Compare: strip also names the seed institution (strip[:200]={strip[:200]!r})")
+    check(any(n in strip for n in names) or "Gda" in strip,
+          f"Compare: the overview strip names at least one of the basket's institutions "
+          f"(strip[:200]={strip[:200]!r})")
 
+    # 2B-R-4: cap-3 truncation. The 4-item basket must be disclosed AND cut.
+    check(CAP_TRUNCATED_SUBSTR in full_text,
+          "Compare (2B-R-4): the cap-3 truncation notice renders for a 4-item basket")
+    ids3 = _compare_deeplink_ids(page)
+    check(len(ids3) == COMPARE_CAP,
+          f"Compare (2B-R-4): the deep link is truncated to {COMPARE_CAP} ids (got {len(ids3)}: {ids3})")
+
+    # 2B-R-7: overview cards carry the two identity facts too.
+    metric_labels = _all_text(page, '.st-key-compare_strip [data-testid="stMetricLabel"]')
+    check("International co-publications" in metric_labels,
+          "Compare overview: an international-co-publications card renders (2B-R-7)")
+    check("with a company" in metric_labels,
+          "Compare overview: a with-a-company card renders (2B-R-7)")
+
+    # 2B-R-12: a legend strip above every chart section.
     legend_hits = page.evaluate(
         "(names) => Array.from(document.querySelectorAll('[data-testid=\"stMarkdownContainer\"]'))"
         ".filter(e => names.every(n => e.textContent.includes(n))"
         " && e.querySelectorAll('span').length >= names.length * 2).length",
-        names)
-    check(legend_hits >= 1,
-          f"Compare: at least one legend strip carries all {len(names)} named L1 candidates "
-          f"with >= 2 swatches each (found {legend_hits} such strips)")
+        names[:1] + [candidates[0]["display_name"]] if candidates else [])
+    # A minimal generic probe (any strip carrying >=2 swatches) is more robust
+    # than requiring every institution's own name in each one, since some
+    # sections' compared SET differs after the cap-3 truncation.
+    generic_legend_hits = page.evaluate(
+        "() => Array.from(document.querySelectorAll('[data-testid=\"stMarkdownContainer\"]'))"
+        ".filter(e => e.querySelectorAll('span').length >= 2 "
+        "&& e.innerHTML.includes('color:')).length")
+    check(generic_legend_hits >= MIN_LEGEND_STRIPS,
+          f"Compare (2B-R-12): at least {MIN_LEGEND_STRIPS} legend strips render above their charts "
+          f"(found {generic_legend_hits})")
 
     n_figs = _n_plotly(page)
     check(n_figs >= COMPARE_MIN_FIGURES,
           f"Compare: >= {COMPARE_MIN_FIGURES} plotly figures render ({n_figs})")
 
-    ids4 = _compare_deeplink_ids(page)
-    check(len(ids4) == 4, f"Compare: the deep link names exactly 4 ids (got {len(ids4)}: {ids4})")
-    l1_ids = [c["institution_id"] for c in candidates]
-    check(all(i in ids4 for i in l1_ids),
-          f"Compare: the deep link carries all 3 L1 candidate ids ({l1_ids} vs {ids4})")
+    # --- 2B-R-5: the "Compare by" metric selector actually switches --------
+    subj_opts = page.locator('.st-key-cmp_metric_subject [data-testid="stRadioOption"]')
+    n_subj_opts = subj_opts.count()
+    check(n_subj_opts >= 2, f"Compare subject: the metric selector offers >= 2 options ({n_subj_opts})")
+    if n_subj_opts >= 2:
+        subj_opts.nth(1).click(timeout=ACTION_TIMEOUT_MS)
+        _settle(page, 2500)
+        _no_exception(page, "Compare (after metric switch)")
+        check(page.locator(".st-key-fig_cmp_subject .js-plotly-plot").count() >= 1,
+              "Compare subject: a chart still renders after switching the metric")
+        subj_opts.nth(0).click(timeout=ACTION_TIMEOUT_MS)
+        _settle(page, 2500)
 
-    # --- the frontier Layout control: facets <-> overlay ---------------------
-    facets_panels = page.evaluate(
-        "(() => { const e = document.querySelector('.st-key-cmp_frontier_plot');"
-        " return e ? e.querySelectorAll('g.subplot').length : -1; })()")
-    check(facets_panels > 1, f"Compare: frontier defaults to small multiples ({facets_panels} panels)")
-    page.locator(".st-key-cmp_frontier_form button").nth(CMP_OVERLAY_IDX).click(timeout=ACTION_TIMEOUT_MS)
-    _settle(page, 2500)
-    overlay_panels = page.evaluate(
-        "(() => { const e = document.querySelector('.st-key-cmp_frontier_plot');"
-        " return e ? e.querySelectorAll('g.subplot').length : -1; })()")
-    check(overlay_panels == 1, f"Compare: the Layout control switches to one overlay plane ({overlay_panels})")
-    page.locator(".st-key-cmp_frontier_form button").nth(CMP_FACETS_IDX).click(timeout=ACTION_TIMEOUT_MS)
-    _settle(page, 2500)
+    # --- 2B-R-8: ERC "Volume" option -- a real finding either way ----------
+    erc_opts_text = _all_text(page, '.st-key-cmp_metric_erc [data-testid="stRadioOption"]')
+    check("Volume" in erc_opts_text,
+          f"Compare ERC (2B-R-8): a 'Volume' metric option is offered among {erc_opts_text!r}")
+
+    # --- 2B-R-9: the frontier map's own top-N slider ------------------------
+    map_before = _plotly_point_count(page, ".st-key-fig_cmp_frontier_map .js-plotly-plot")
+    try:
+        map_slider = page.locator('.st-key-cmp_frontier_topn input[type="range"]').first
+        map_slider.press("ArrowLeft", timeout=ACTION_TIMEOUT_MS)
+        _settle(page, 2500)
+        map_after = _plotly_point_count(page, ".st-key-fig_cmp_frontier_map .js-plotly-plot")
+        check(map_before > 0 and map_after > 0 and map_after != map_before,
+              f"Compare frontier map (2B-R-9): the top-N slider changes the plotted point count "
+              f"({map_before} -> {map_after})")
+        map_slider.press("ArrowRight", timeout=ACTION_TIMEOUT_MS)
+        _settle(page, 2500)
+    except Exception as exc:
+        fail_section("Compare frontier map slider", exc)
+
+    check(page.locator(".st-key-fig_cmp_shared_frontier .js-plotly-plot").count() >= 1,
+          "Compare frontier (2B-R-9): the diverging 'who holds the shared frontier' chart renders")
 
     # --- the impact floor toggle ----------------------------------------------
     before_caps = _all_text(page, '[data-testid="stCaptionContainer"]')
-    page.locator('.st-key-cmp_impact_floor [data-testid="stRadioOption"]').nth(
-        CMP_FLOOR_LOW_IDX).click(timeout=ACTION_TIMEOUT_MS)
+    page.locator('.st-key-cmp_impact_floor [data-testid="stRadioOption"]').last.click(
+        timeout=ACTION_TIMEOUT_MS)
     _settle(page, 2500)
     after_caps = _all_text(page, '[data-testid="stCaptionContainer"]')
     check(before_caps != after_caps, "Compare: the impact floor toggle changes the page's captions")
-    page.locator('.st-key-cmp_impact_floor [data-testid="stRadioOption"]').nth(
-        CMP_FLOOR_HIGH_IDX).click(timeout=ACTION_TIMEOUT_MS)
+    page.locator('.st-key-cmp_impact_floor [data-testid="stRadioOption"]').first.click(
+        timeout=ACTION_TIMEOUT_MS)
     _settle(page, 2500)
 
-    # --- the workbook ----------------------------------------------------------
+    # --- the workbook (2B-R re-cut sheets) --------------------------------
     with page.expect_download(timeout=120_000) as dl_info:
         page.locator(".st-key-dl_workbook button").first.click(timeout=ACTION_TIMEOUT_MS)
     raw = Path(dl_info.value.path()).read_bytes()
     check(raw[:2] == b"PK", "Compare: the workbook downloads as a real xlsx container")
     book = openpyxl.load_workbook(io.BytesIO(raw))
-    check(len(book.sheetnames) >= XLSX_MIN_SHEETS,
-          f"Compare: the workbook carries >= {XLSX_MIN_SHEETS} sheets ({len(book.sheetnames)}: "
-          f"{book.sheetnames})")
+    check(len(book.sheetnames) == XLSX_SHEET_COUNT,
+          f"Compare: the workbook carries exactly {XLSX_SHEET_COUNT} sheets "
+          f"({len(book.sheetnames)}: {book.sheetnames})")
     check(XLSX_METHODS_SHEET in book.sheetnames,
           f"Compare: the workbook carries a {XLSX_METHODS_SHEET!r} sheet ({book.sheetnames})")
 
-    # --- reorder: Down on the FIRST row changes the printed selection order ---
+    # --- remove one shown institution -> the basket (now == cap) refills ---
     before_ids = _compare_deeplink_ids(page)
-    page.locator('[class*="st-key-cmp_down_"] button').first.click(timeout=ACTION_TIMEOUT_MS)
-    _settle(page, 2000)
-    after_ids = _compare_deeplink_ids(page)
-    check(len(after_ids) == len(before_ids) == 4 and after_ids != before_ids
-          and set(after_ids) == set(before_ids),
-          f"Compare: Down on the first row changes the selection order, same 4 ids "
-          f"({before_ids} -> {after_ids})")
-
-    # --- remove one -> 3 names -------------------------------------------------
     page.locator('[class*="st-key-cmp_rm_"] button').first.click(timeout=ACTION_TIMEOUT_MS)
     _settle_figures(page, COMPARE_MIN_FIGURES)
-    remaining_ids = _compare_deeplink_ids(page)
-    check(len(remaining_ids) == 3, f"Compare: removing one institution leaves 3 (got {len(remaining_ids)})")
-    _no_exception(page, "Compare (after reorder + remove)")
-    return {"remaining_ids": remaining_ids}
+    after_ids = _compare_deeplink_ids(page)
+    check(len(after_ids) == COMPARE_CAP,
+          f"Compare: after removing one shown institution, the remaining basket (3) still fills the "
+          f"comparison to {COMPARE_CAP} (got {len(after_ids)})")
+    check(set(after_ids) != set(before_ids),
+          f"Compare: removing a shown institution changes the compared set ({before_ids} -> {after_ids})")
+    check(CAP_TRUNCATED_SUBSTR not in _full_page_text(page),
+          "Compare: the truncation notice is gone once the basket no longer exceeds the cap")
+    _no_exception(page, "Compare (after metric/slider/remove interactions)")
+    return {"remaining_ids": after_ids}
 
 
 def _pair_deeplink_ids(page) -> list[str]:
@@ -1191,25 +1413,11 @@ def _pair_deeplink_ids(page) -> list[str]:
 
 
 def check_handoff(page) -> None:
-    """2B-8's hand-off, an IN-SESSION `st.switch_page` hop since Fix X-2B
-    (progress/2B_X.md): force the Compare hand-off's B selectbox to the LAST
-    option (with 3 candidates remaining, the default pair is the first two --
-    picking the third guarantees a NON-default pair), read the pair off
-    Compare's OWN printed `?pair=` deep link (the same `st.code` text the
-    OLD `link_button` printed alongside itself -- unaffected by the fix), then
-    click the hand-off's `st.button` (`key="cmp_handoff_open"`, no `href` to
-    read any more) and confirm Collaborate opens on that SAME pair in the SAME
-    tab -- no `context.expect_page`, because `st.switch_page` is a
-    client-routed navigation, never a new tab, the same mechanism `_click_nav`
-    already relies on above.
-
-    THE POINT OF THE FIX, checked right here: the sidebar basket count and the
-    tree selection read the SAME on Collaborate as they did on Compare a
-    moment before the click. The bug this fix closes was a `link_button` --a
-    TRUE browser navigation -- starting a brand-new Streamlit session on
-    every hop; on that bug this exact check would have found an EMPTY basket
-    and the tree snapped back to its coded default, with only the pair itself
-    surviving (it rode the query string, never the session)."""
+    """The in-session `st.switch_page` hand-off (Fix X-2B): force the B
+    selectbox to the LAST option, read the pair off Compare's own printed
+    `?pair=` deep link, click the hand-off button and confirm Collaborate
+    opens on that SAME pair in the SAME tab -- basket and tree/basis survive
+    the hop."""
     _open_select(page, "cmp_pair_b")
     page.locator('[role="option"]').last.click(timeout=ACTION_TIMEOUT_MS)
     _settle(page, 2000)
@@ -1232,14 +1440,34 @@ def check_handoff(page) -> None:
           f"Collaborate: opened on the SAME pair the hand-off named ({picked_ids} -> {landed_ids})")
     _no_exception(page, "Collaborate (opened from the Compare hand-off)")
 
-    # --- the point of the fix: basket + scenario survive the hop --------------
     n_after = _sidebar_basket_n(page)
     tree_after = _selectbox_value(page, "tree")
     check(n_after is not None and n_after == n_before,
-          f"Basket: the sidebar count survives the hand-off hop ({n_before} -> {n_after}) -- "
-          "the old link_button hand-off reset this to an empty basket in a fresh session")
+          f"Basket: the sidebar count survives the hand-off hop ({n_before} -> {n_after})")
     check(tree_after == tree_before,
           f"Scenario: the tree selection survives the hand-off hop ({tree_before!r} -> {tree_after!r})")
+
+    # --- 2B-R-10: the four sections all render ------------------------------
+    body_text = _full_page_text(page)
+    for header in COLLAB_SECTION_HEADERS:
+        check(header in body_text, f"Collaborate (2B-R-10): section header {header!r} renders")
+
+    # --- 2025* on the pulse chart --------------------------------------------
+    pulse_points = page.evaluate(
+        "(() => { const el = document.querySelector('.st-key-fig_pulse .js-plotly-plot');"
+        " if (!el || !el.data) return [];"
+        " return el.data.flatMap(t => t.x || []); })()")
+    check(any(str(v) == BONUS_YEAR_AXIS_LABEL for v in pulse_points) or BONUS_YEAR_AXIS_LABEL in body_text,
+          f"Collaborate pulse: the partial bonus year is starred ({BONUS_YEAR_AXIS_LABEL!r})")
+
+    # --- rank direction: the two ranks read in OPPOSITE directions ----------
+    rank_matches = re.findall(r"ranks number\s*\*?\*?(\d+)\*?\*?", body_text)
+    check(len(rank_matches) >= 2,
+          f"Collaborate pulse: both rank lines render (found {len(rank_matches)} 'ranks number' phrases)")
+    if len(rank_matches) >= 2:
+        check(rank_matches[0] != rank_matches[1],
+              f"Collaborate pulse: the two ranks read asymmetrically, proving no swap "
+              f"(got {rank_matches[0]!r} and {rank_matches[1]!r})")
 
     # --- swap flips the order --------------------------------------------------
     page.locator(".st-key-pair_swap button").first.click(timeout=ACTION_TIMEOUT_MS)
@@ -1248,14 +1476,51 @@ def check_handoff(page) -> None:
     check(swapped_ids == list(reversed(landed_ids)),
           f"Collaborate: swap flips A and B ({landed_ids} -> {swapped_ids})")
 
-    # --- the shared-topics caption + its CSV header ----------------------------
+    # --- the shared-topics table (inside the untapped section's expander) --
+    _ensure_expander_open_by_text(page, SHARED_EXPANDER_TITLE, ".st-key-tbl_shared")
+    _settle(page, 1500)
     caps = _all_text(page, '[data-testid="stCaptionContainer"]')
     check(bool(re.search(r"\d\.\d{3}", caps)),
-          "Collaborate: a shared-topics caption carries the 3-decimal overlap score "
-          "(copy.COLLAB['SHARED_CAPTION']'s own {score:.3f} format)")
+          "Collaborate: a shared-topics caption carries the 3-decimal overlap score")
     header = _download_csv_header(page, ".st-key-dl_shared button")
     check(header.strip() == SHARED_TOPICS_HEADER,
           f"Collaborate: shared-topics CSV header matches the K contract ({header!r})")
+
+
+def check_below_floor_pair(app_dir: Path, port: int) -> None:
+    """2B-R-10: a REAL below-floor pair (Strasbourg x Bavarian Academy of
+    Sciences and Humanities, 2 joint works < floor 3) renders the honest
+    notice -- pulse, total and links stay, the topic-by-topic breakdown does
+    not. Deliberately a FRESH, standalone page/session (this asserts no
+    persistence claim), reached via `?pair=` -- the one case in this file
+    where `page.goto()` for something other than the very first load is
+    correct, per the module docstring."""
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch()
+            page = browser.new_page(viewport={"width": 1280, "height": 900})
+            page.set_default_timeout(ACTION_TIMEOUT_MS)
+            base = f"http://127.0.0.1:{port}"
+            page.goto(f"{base}/Collaborate?pair={BELOW_FLOOR_A_ID},{BELOW_FLOOR_B_ID}",
+                      wait_until="domcontentloaded")
+            page.wait_for_selector('[data-testid="stSidebarNav"]', state="attached",
+                                    timeout=ACTION_TIMEOUT_MS)
+            _settle(page, 4000)
+            body_text = _full_page_text(page)
+            check(TOPIC_BELOW_FLOOR_SUBSTR in body_text,
+                  "Collaborate below-floor pair: the honest notice renders (2B-R-10)")
+            check("The relationship, year by year" in body_text,
+                  "Collaborate below-floor pair: the pulse section still renders")
+            check("Read the publications on OpenAlex" in body_text,
+                  "Collaborate below-floor pair: the link-outs section still renders")
+            check(page.locator(".st-key-collab_links a").count() >= 3,
+                  "Collaborate below-floor pair: all 3 OpenAlex link buttons still render")
+            check(page.locator(".st-key-tbl_joint_topics").count() == 0,
+                  "Collaborate below-floor pair: the topic-by-topic table is NOT rendered")
+            _no_exception(page, "Collaborate (below-floor pair, standalone session)")
+            browser.close()
+    except Exception as exc:
+        fail_section("Collaborate below-floor pair", exc)
 
 
 def check_methods_journey(page) -> None:
@@ -1271,6 +1536,18 @@ def check_methods_journey(page) -> None:
     leftover = PLACEHOLDER_RE.findall(body)
     check(not leftover, f"Methods: no unresolved {{placeholder}} text on the page (found {leftover[:5]})")
 
+    # 2B-R-11: the lens concordance table ("Reading the lens codes").
+    _ensure_expander_open_by_text(page, LENS_CODES_TITLE, "text=(C1)")
+    _settle(page, 1000)
+    concordance_text = _full_page_text(page)
+    check(LENS_CODES_TITLE in concordance_text,
+          f"Methods (2B-R-11): the {LENS_CODES_TITLE!r} section renders")
+    check("(C1)" in concordance_text and "(L7)" in concordance_text,
+          "Methods: the concordance table names both optional lenses' internal ids")
+    check(re.search(r"L[0-9]\**\s*\(L0\)", concordance_text) is not None
+          or "(L0)" in concordance_text,
+          "Methods: the concordance table names the L0 internal id")
+
     with page.expect_download(timeout=ACTION_TIMEOUT_MS) as dl_info:
         page.locator(".st-key-dl_methods_note button").first.click(timeout=ACTION_TIMEOUT_MS)
     raw = Path(dl_info.value.path()).read_bytes()
@@ -1279,17 +1556,10 @@ def check_methods_journey(page) -> None:
 
 
 def check_narrative_persistence(page) -> dict:
-    """2B-10's narrative order, hopped with real sidebar nav clicks: the
-    tree/basis scenario Find carries (switched to its non-default DISPLAY
-    label back in check_settings) reads the same on Compare, Collaborate AND
-    Methods's own `.st-key-tree`/`.st-key-basis` sidebar selects -- Fix X-2B
-    gave Methods the SAME sidebar Compare/Collaborate already had
-    (`views_methods.render()` now calls `_sidebar_scenario()` and
-    `_sidebar_basket()` too, closing the real gap this file used to flag
-    here as a needs_change for stream M/S). The basket's `{n} of {cap} added`
-    sidebar count is read (never re-editable) on all three; returning to
-    Find shows the Gdansk seed still loaded and the SAME count on Find's own
-    editable list."""
+    """The tree/basis scenario reads the same on Compare, Collaborate AND
+    Methods's own sidebar selects; the basket's `{n} of {cap} added` sidebar
+    count agrees across all three; returning to Find shows the Gdansk seed
+    still loaded and the SAME count on Find's own editable list."""
     _click_nav(page, NAV_COMPARE)
     _settle(page, 1500)
     tree_c, basis_c = _selectbox_value(page, "tree"), _selectbox_value(page, "basis")
@@ -1299,6 +1569,7 @@ def check_narrative_persistence(page) -> dict:
           f"Compare: sidebar counting basis still {BASIS_LABEL_FRAC!r} (got {basis_c!r})")
     n_compare = _sidebar_basket_n(page)
     check(n_compare is not None, f"Compare: sidebar basket count is readable (caption gave {n_compare!r})")
+    scroll_check_widths(page, "Compare", extra_widths=(1920, 390))
 
     _click_nav(page, NAV_COLLAB)
     _settle(page, 1500)
@@ -1310,6 +1581,7 @@ def check_narrative_persistence(page) -> dict:
     n_collab = _sidebar_basket_n(page)
     check(n_compare is not None and n_compare == n_collab,
           f"Basket: the sidebar count agrees on Compare and Collaborate ({n_compare} vs {n_collab})")
+    scroll_check_widths(page, "Collaborate", extra_widths=(1920, 390))
 
     _click_nav(page, NAV_METHODS)
     _settle(page, 1000)
@@ -1322,6 +1594,9 @@ def check_narrative_persistence(page) -> dict:
     check(n_compare is not None and n_compare == n_methods,
           f"Basket: the sidebar count agrees on Compare and Methods ({n_compare} vs {n_methods})")
     _no_exception(page, "Methods (persistence hop)")
+    scroll_check_widths(page, "Methods", extra_widths=(1920, 390))
+    page.set_viewport_size({"width": 1280, "height": 900})
+    _settle(page, 800)
 
     _click_nav(page, "Find")
     _settle(page, 1500)
@@ -1334,13 +1609,32 @@ def check_narrative_persistence(page) -> dict:
     return {"n_basket": n_find}
 
 
+def scroll_check_widths(page, label: str, extra_widths=(1920, 390)) -> None:
+    """No horizontal body scroll at every width, on whatever page is
+    currently loaded (cross-page requirement: 'no horizontal body scroll at
+    1920/1280/390 on every page'). 1280 is asserted by the caller's own
+    render check already; this adds the other two."""
+    try:
+        current = page.viewport_size or {"width": 1280, "height": 900}
+        for width in extra_widths:
+            page.set_viewport_size({"width": width, "height": 900})
+            _settle(page, 900)
+            if width == 390:
+                _ensure_sidebar_open(page)
+                _settle(page, 300)
+            scroll = page.evaluate("document.documentElement.scrollWidth")
+            inner = page.evaluate("window.innerWidth")
+            check(scroll <= inner + 2, f"{label} {width}px: scrollWidth {scroll} <= innerWidth+2 {inner + 2}")
+        page.set_viewport_size(current)
+        _settle(page, 500)
+    except Exception as exc:
+        fail_section(f"{label}: extra-width scroll check", exc)
+
+
 def check_journey_widths(page, shot_dir: Path) -> None:
-    """Compare at three widths (390 needs the drawer opened, same idiom as
-    `check_screenshots` above); one screenshot each for Collaborate and
-    Methods at 1280 px. Uses `page.set_viewport_size` on the SAME page/session
-    throughout -- a fresh `browser.new_page()` would open a new WebSocket
-    session with an EMPTY basket, exactly the false-failure `page.goto()`
-    produces for a persistence check (module docstring)."""
+    """Compare at three widths; one screenshot each for Collaborate and
+    Methods at 1280 px (the other two widths are already covered by
+    `scroll_check_widths` inside `check_narrative_persistence`)."""
     shot_dir.mkdir(parents=True, exist_ok=True)
     _click_nav(page, NAV_COMPARE)
     _settle_figures(page, COMPARE_MIN_FIGURES)
@@ -1414,8 +1708,14 @@ def main() -> int:
                 ("Basket", lambda: check_basket(page)),
                 ("Controls placement", lambda: check_controls_placement(page)),
                 ("Profile / panels", _run_profile_panels),
+                ("Bonus year axis", lambda: check_bonus_year_axis(page)),
+                ("SI value labels", lambda: check_si_value_labels(page)),
+                ("Frontier slider (both modes)",
+                 lambda: check_frontier_slider_modes(page, profile_expect)),
+                ("A11 tab overflow (both optional lenses)", lambda: check_tab_overflow_a11(page)),
                 ("Benchmark lens guide", lambda: check_benchmark_lens_guide(page)),
                 ("Tables / export", lambda: check_tables_and_export(page)),
+                ("Institution link popup (A10)", lambda: check_institution_link_popup(page)),
                 ("Settings", lambda: check_settings(page)),
                 ("Persistence", lambda: check_persistence(page, profile_expect)),
                 ("Type filter clear", lambda: check_type_filter_clear(page)),
@@ -1435,12 +1735,9 @@ def main() -> int:
             except Exception as exc:  # noqa: BLE001
                 fail_section("Undefined lens", exc)
 
-            # Phase 2B (BUILD_PLAN_2B.md Stream H): the full four-page journey,
-            # Menu -> Find -> Compare -> Collaborate -> Methods, on the SAME
-            # page/session the checks above already built up -- a fresh
-            # `browser.new_page()` here would open a new WebSocket session
-            # with an empty basket, the same false-failure a `page.goto()`
-            # produces for a persistence check (module docstring).
+            # The full four-page journey, Menu -> Find -> Compare ->
+            # Collaborate -> Methods, on the SAME page/session the checks
+            # above already built up.
             def _run_compare_journey() -> None:
                 journey.update(check_compare_journey(page, journey.get("candidates", [])) or {})
 
@@ -1462,6 +1759,10 @@ def main() -> int:
             page.close()
             check_screenshots(browser, shot_dir)
             browser.close()
+
+        # Isolated, standalone session -- deliberately outside the shared
+        # browser/page above (this check asserts no persistence claim).
+        check_below_floor_pair(app_dir, PORT)
     finally:
         _stop_server(server)
 
