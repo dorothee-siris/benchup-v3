@@ -1290,6 +1290,10 @@ COLLAB = {
     # file (tests/test_forbidden_vocabulary.py scans this dict).
     # ======================================================================
 
+    # ---- section one: the pulse, its prose folded into the chart tooltip --
+    "PULSE_CHART_READING": (
+        "Publications signed by both institutions, counted in full, one bar per year."),
+
     # ---- the swap control, once the directional gap tables are gone -------
     "PAIR_SWAP_HELP_PAIR": (
         "Swapping changes which institution is read first. Every figure below covers the pair as a "
@@ -1322,6 +1326,10 @@ COLLAB = {
         "{cap} of them, and only for pairs with at least {floor} joint publications; the counts by "
         "goal and by panel below therefore describe the topics shown rather than the whole joint "
         "corpus. Topics roll up to the subfield the taxonomy choice in the sidebar gives them."),
+    # ---- section four: the untapped reading, its formula behind the mark --
+    "UNTAPPED_READING": (
+        "Shared topics where the two publish less together than their own overall rate predicts."),
+
     "TOPICS_SLIDER": "Topics shown",
     "TOPICS_SLIDER_HELP": (
         "How many of the pair's most-published shared topics to list. The ones left out are the "
