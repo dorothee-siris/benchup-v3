@@ -361,6 +361,12 @@ def slots_row(view: str, n: int) -> list[str | None]:
         for i in range(n):
             st.session_state[_slot_key(view, i)] = seeded[i]
         st.session_state[hydrated_key] = True
+        if any(i != SLOT_EMPTY for i in seeded):
+            # First-paint ordering (TEV-U finding): the sidebar basket has
+            # already been drawn this run, BEFORE these ids were folded in --
+            # one guarded rerun repaints it consistent with the slots. Fires
+            # at most once per session (hydrated_key is already set).
+            st.rerun()
 
     basket = state.items()
     options = [SLOT_EMPTY, *basket]
