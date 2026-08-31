@@ -204,7 +204,10 @@ DEPTH_CAPTION_TEMPLATE = ("showing the top {n} of {m} ranked candidates; search 
                           "download the full ranking")
 EXPORT_BUTTON_LABEL = "Download full ranking (CSV)"
 TAIL_SEARCH_EMPTY_TEMPLATE = "'{query}' does not appear anywhere in this lens's ranking for this seed."
-ADD_COMPARATOR_HELP = "Add a comparator by name"
+# ADD_COMPARATOR_HELP DELETED 2BR3 (TEV-U wave 3 deletion ledger, SEL's own
+# flag): the old per-page "add a comparator by name" flow this help text
+# belonged to is gone (superseded by `selection.render_sidebar`'s shared
+# search); confirmed zero usage by grep across lib/ and tests/.
 
 # ---- Find page (moved from lib/views_find.py EXTRA_COPY, Stream X1 2026-08-29) ----
 
@@ -801,16 +804,6 @@ COMPARE = {
     # slots (`selection.slots_row("compare", 3)`) own the pick; the share
     # link moved to the bottom meta block (`links.share_link_block`).
 
-    # ---- the institution strip ------------------------------------------
-    "STRIP_HEADER": "Who is in the comparison",
-    "STRIP_COLOUR_NOTE": "Colours are assigned once and hold across every chart below.",
-    "STRIP_COUNTRY": "Country",
-    "STRIP_TYPE": "Type",
-    "STRIP_SIZE_FULL": "Size (full)",
-    "STRIP_SIZE_FRAC": "Size (fractional)",
-    "STRIP_PP": "PP(top10%)",
-    "STRIP_BREADTH": "Breadth",
-
     # ---- the nine views: section headers ---------------------------------
     "VIEW_FIELDS": "Fields",
     "VIEW_SUBFIELDS": "Subfields",
@@ -822,20 +815,12 @@ COMPARE = {
     "VIEW_COVERAGE": "Coverage",
 
     # ---- captions: denominator and basis, one per view -------------------
-    "CAPTION_FIELDS": ("Share of each institution's publications held in each field, on the {basis} "
-                       "basis and the {tree} taxonomy; the shares sum to one per institution. The "
-                       "mark beside each bar is the specialisation, read against that same mass."),
-    "CAPTION_SUBFIELDS": ("Share of each institution's publications held in each subfield, on the "
-                          "{basis} basis and the {tree} taxonomy; the shares sum to one per "
-                          "institution. Subfields are ordered by the mass the compared set holds in "
-                          "them, so every institution is represented."),
-    "CAPTION_ERC": ("Share of each institution's ERC-classified publications held in each panel. The "
-                    "denominator is the institution's own classified mass, which differs from one "
-                    "institution to the next: the coverage view gives each one. Fractional basis "
-                    "only."),
-    "CAPTION_SDG": ("Share of each institution's SDG-tagged publications held under each goal. A "
-                    "publication can carry several goals, so these shares need not sum to one, and "
-                    "the denominator is the institution's own tagged mass. Fractional basis only."),
+    # CAPTION_FIELDS/CAPTION_SUBFIELDS/CAPTION_ERC/CAPTION_SDG (the pre-metric-
+    # selector, one-caption-per-view shape) DELETED 2BR3 (TEV-U wave 3
+    # deletion ledger): confirmed dead by grep (zero usages in lib/ or tests/)
+    # BEFORE this stream too -- superseded by 2B-R2-8's `_metric_tip`/
+    # `_taxon_tip` tooltip captions, long before 2BR3 (flagged by VC's own
+    # progress note, not this round's regression).
     "CAPTION_FRONTIER_MIX": ("Share of each institution's whole output in each quadrant of the "
                              "frontier map. Frontier scores measure attention dynamics rather than "
                              "novelty or quality: a low score can mark a foundational area."),
@@ -850,15 +835,11 @@ COMPARE = {
                          "states are exclusive and sum to that total, so the classified share is "
                          "what the subject, ERC and SDG views above rest on."),
 
-    # ---- frontier quadrant: the fifth segment (A2) ------------------------
-    "QUADRANT_UNSCORED_LABEL": "Not frontier-scored",
-    "QUADRANT_UNSCORED_HELP": ("Publications in topics on the excluded list, plus publications in "
-                               "topics that carry no frontier score for another reason. Showing them "
-                               "is what makes the quadrant shares add up to the whole output."),
-    "QUADRANT_MISSING_HELP": ("A quadrant an institution holds nothing in reads as zero by "
-                              "construction, not as a missing measurement."),
-    "CAPTION_QUADRANT_COUNTS": ("{n_scored} of this set's publications sit in topics carrying a "
-                                "frontier score; {n_unscored} sit in excluded or unscored topics."),
+    # QUADRANT_UNSCORED_LABEL/QUADRANT_UNSCORED_HELP/QUADRANT_MISSING_HELP/
+    # CAPTION_QUADRANT_COUNTS (the retired four-quadrant frontier-mix chart)
+    # DELETED 2BR3 (TEV-U wave 3 deletion ledger): confirmed dead by grep --
+    # pre-existing (superseded by 2B-R-9's pooled map + shared-frontier
+    # chart), not a 2BR3 regression.
 
     # ---- impact: the union frame, the missing cells, the floor toggle -----
     "IMPACT_INDEX_HEADER": "Across the whole output",
@@ -939,11 +920,10 @@ COMPARE = {
                   "carries. Colours do not move with it."),
     "READING_ORDER": ("Inside every row, the institutions read from top to bottom in the order the "
                       "legend lists them from left to right."),
-    "CAPTION_SUBFIELDS_TOP": ("Showing the {n} subfields the compared set holds the most "
-                              "publications in."),
-    "FRONTIER_FORM_LABEL": "Layout",
-    "FRONTIER_FORM_FACETS": "One panel per institution",
-    "FRONTIER_FORM_OVERLAY": "Every institution in one plane",
+    # CAPTION_SUBFIELDS_TOP / FRONTIER_FORM_LABEL / FRONTIER_FORM_FACETS /
+    # FRONTIER_FORM_OVERLAY DELETED 2BR3 (TEV-U wave 3 deletion ledger):
+    # confirmed dead by grep -- the retired facets-vs-overlay frontier layout
+    # toggle, pre-existing (superseded by 2B-R-9), not a 2BR3 regression.
     "CAPTION_FRONTIER_OVERLAY": ("In this layout nearly every mark is covered by a mark of another "
                                  "institution, measured on a full comparison at this width. Read it "
                                  "for which topics sit furthest out over the whole set, and read the "
@@ -1240,8 +1220,12 @@ COLLAB = {
     "BREADTH_FLOOR": ("A topic counts for an institution once at least {min_pubs} of its "
                       "full-counted publications sit there, so a single co-authored paper does "
                       "not by itself put a topic in a portfolio."),
-    "DOWNLOAD_SHARED": "Download the shared topics (CSV)",
-    "DOWNLOAD_GAPS": "Download this gap list (CSV)",
+    # DOWNLOAD_SHARED / DOWNLOAD_GAPS DELETED 2BR3 (TEV-U wave 3 deletion
+    # ledger, VL's own flag): DOWNLOAD_SHARED went dead THIS round (the
+    # manual CSV button VL's rework dropped in favour of the native
+    # `st.dataframe` export toolbar); DOWNLOAD_GAPS predates 2BR3 entirely
+    # (the old "does not publish in" gap tables, retired 2B-R2-11f). Both
+    # confirmed zero usage by grep across lib/ and tests/.
     "DEEPLINK_LABEL": "Link to this pair",
 
     # 2B-R-10/MU: the below-floor honest notice, additive here for stream LP's
@@ -1533,17 +1517,13 @@ IMPACT_CI_CAPTION = (
     "A {ci_coverage}% bootstrap interval, from {n_bootstrap} resamples of the cell's own "
     "fractional citation mass, is shown beside every impact figure and never in place of it.")
 
-# 2B-R2-11(c) / stream MU3: the FWCI descope, stated once and hoisted so the
-# Methods page and, if a future wave wants it, a Collaborate tooltip read the
-# exact same sentence rather than two hand-typed versions that could drift.
-# One honest sentence, no jargon: it names what a field-normalised score
-# would need and says plainly that the tool does not hold it, rather than
-# naming the indicator by its acronym or citing a world mean that is not one.
-FWCI_NOT_AVAILABLE_LINE = (
-    "A single field-normalised score across the whole joint corpus is not offered here: "
-    "building one would need a citation count for every publication worldwide in every field "
-    "the two institutions share, and that is not part of what this tool holds. The covered "
-    "publications and world-top-decile figures above are shown instead.")
+# FWCI_NOT_AVAILABLE_LINE (2B-R2-11(c) / MU3) DELETED 2BR3 (TEV-U wave 3, MT
+# sweep casualty #4): FWCI is a real, always-attempted column now (ruling 4,
+# `fwci_ref.parquet` + `collab_pairs`/`collab_pair_topics`/`collab_pair_
+# fields`'s own `fwci_median`), never a "not available" descope line -- the
+# ONE caller (`ops/_probe_collab.py`, itself deleted this wave, superseded by
+# `tests/ui/probe.py`) is gone with it. Zero other usage confirmed
+# (`grep -rn "FWCI_NOT_AVAILABLE_LINE"` across lib/tests/ops).
 
 # 2B-R2-2 / stream MU3: the colour-system rule stated once, in plain terms, so
 # a future chart caption on any page can quote it rather than re-explaining

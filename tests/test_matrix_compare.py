@@ -83,7 +83,7 @@ import pandas as pd
 import pytest
 from streamlit.testing.v1 import AppTest
 
-from lib import charts_compare, collab_data as CL, compare_data as K, copy, selection, views_compare, views_collab
+from lib import charts_compare, collab_data as CL, compare_data as K, copy, selection, state, views_compare, views_collab
 from lib.data_cache import DATA_DIR
 from lib.engine import load_context
 from lib.views_find import _subs
@@ -129,12 +129,16 @@ assert set(K.METRICS) - set(SUBJECT_METRICS) == {"vol_top10"}, (
 # page -- including the two 2B-R-9 frontier charts -- survives the full
 # scenario cross product, not just the single scenario
 # tests/test_pages_compare.py checks in depth.
+# 2BR3 VC (BUILD_PLAN_2BR3.md SS3 VC): the old pair hand-off section
+# (copy.COMPARE["HANDOFF_HEADER"]) is DELETED outright -- the selection
+# rework (`selection.slots_row`/`render_sidebar`) supersedes it, Collaborate's
+# own entry point is its own slots, not a button on this page (TEV-U wave 3
+# cleanup, MT sweep casualty #1).
 EXPECTED_SUBHEADERS = [
     copy.COMPARE["OVERVIEW_HEADER"], copy.COMPARE["VIEW_SUBJECT"],
     copy.COMPARE["VIEW_ERC"], copy.COMPARE["VIEW_SDG"],
     copy.COMPARE["VIEW_FRONTIER_MAP"], copy.COMPARE["VIEW_SHARED_FRONTIER"],
     copy.COMPARE["VIEW_IMPACT"], copy.COMPARE["VIEW_COVERAGE"],
-    copy.COMPARE["HANDOFF_HEADER"],
 ]
 
 
@@ -143,11 +147,31 @@ def ctx():
     return load_context(str(DATA_DIR))
 
 
+def _seed_slots(at: AppTest, view: str, ids, n: int) -> None:
+    """2BR3 SEL (plan §3 SEL, ruling 1): `views_compare.render()`/
+    `views_collab.render()` no longer read the basket directly -- they call
+    `selection.slots_row(view, n)`, which reads/writes its OWN per-(view,
+    index) session keys (`slot_<view>_<i>`) and only auto-fills them from a
+    `?compare=`/`?pair=` URL param on first load. An AppTest session has no
+    URL, so the slots have to be seeded directly, exactly the shape
+    `slots_row` itself would have written them to (`selection.SLOT_EMPTY`
+    padding) -- and the one-shot hydration guard set so the page's own
+    (no-op, empty-query) hydration pass never overwrites them (TEV-U wave 3
+    re-cut, MT sweep casualty #1)."""
+    from lib.selection import SLOT_EMPTY
+
+    padded = (list(ids) + [SLOT_EMPTY] * n)[:n]
+    at.session_state[f"_slots_hydrated_{view}"] = True
+    for i, iid in enumerate(padded):
+        at.session_state[f"slot_{view}_{i}"] = iid
+
+
 def _compare_app(ids, tree, basis) -> AppTest:
     at = AppTest.from_file(COMPARE_PAGE, default_timeout=600)
     at.session_state["basket"] = list(ids)
     at.session_state["tree"] = tree
     at.session_state["basis"] = basis
+    _seed_slots(at, "compare", ids, state.COMPARE_CAP)
     return at.run()
 
 
@@ -156,6 +180,7 @@ def _collab_app(pair, tree, basis) -> AppTest:
     at.session_state["basket"] = list(pair)
     at.session_state["tree"] = tree
     at.session_state["basis"] = basis
+    _seed_slots(at, "collab", pair, state.COLLAB_CAP)
     return at.run()
 
 
@@ -228,7 +253,10 @@ def test_compare_matrix_cell(size, tree, basis, ctx):
     subheaders = [s.value for s in at.subheader]
     for expected in EXPECTED_SUBHEADERS:
         assert expected in subheaders, (size, tree, basis, expected, subheaders)
-    assert any(s.startswith("Trends in the") for s in subheaders), (size, tree, basis, subheaders)
+    # 2BR3 VC: "Trends in the N subfields" is DELETED outright (CD4 dropped
+    # compare_data.trends_subfields, the function it read) -- assert its
+    # ABSENCE now, the inverse of the old presence check (TEV-U wave 3).
+    assert not any(s.startswith("Trends in the") for s in subheaders), (size, tree, basis, subheaders)
 
     # -- legend swatch count == basket size, and the exact markup is on the
     # page (test_pages_compare.py's own idiom).
@@ -337,8 +365,13 @@ def test_collab_matrix_cell_joint_topics_match_the_shipped_pair_table(tree, basi
     assert len(topics) <= CL.PAIR_TOPICS_TOP_N
     assert frame["meta"]["floor"] == CL.PAIR_TOPICS_FLOOR
 
-    value_cols = CL.JOINT_ROLLUP_VALUE_COLS   # vol_w1/vol_w2/vol_2025/vol_total/n_covered/n_top10/sdg_tagged_n
-    sorted_by_vol = frame["topics"]["vol_total"].to_numpy()
+    # 2BR3 P7 v2 schema (TEV-U wave 3 re-cut, MT sweep casualty #1): the
+    # primary volume column is `vol` now (was `vol_total`; `vol_2025` also
+    # dropped) -- CD4 already updated CL.JOINT_ROLLUP_VALUE_COLS to the new
+    # names (vol_w1/vol_w2/vol/n_covered/n_top10/n_sdg), read dynamically
+    # below so this test tracks any future rename with no edit here.
+    value_cols = CL.JOINT_ROLLUP_VALUE_COLS
+    sorted_by_vol = frame["topics"]["vol"].to_numpy()
     assert np.all(sorted_by_vol[:-1] >= sorted_by_vol[1:]), "joint topics must be sorted by vol_total, descending"
     assert (topics["n_top10"] <= topics["n_covered"]).all(), (tree, basis, "n_top10 must never exceed n_covered")
 

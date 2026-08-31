@@ -63,11 +63,22 @@ def test_new_table_exists_with_exact_columns(contract: dict, fname: str) -> None
     )
 
 
-def test_contract_declares_18_files(contract: dict) -> None:
+def test_contract_declares_19_files(contract: dict) -> None:
     # 17 (2B-R) -> 18 (2B-R2-12): NEW `collab_pair_fields.parquet` (pair x
     # field, uncapped, bestfit-only -- feeds the 2B-R2-11(a) field-breakdown
     # chart). `collab_pair_topics.parquet` itself is a REGEN, not a new file.
-    assert len(contract["files"]) == 18, sorted(contract["files"])
+    # 18 -> 19 (BUILD_PLAN_2BR3.md §2.2, P7 v2, TEV-U wave 3 re-pin, MT sweep
+    # casualty #3): NEW `collab_topic_vols.parquet` (the slim, UNCAPPED
+    # a/b/topic_id/vol table the gaps-on-capped-data fix needs, §2.2). Live-
+    # verified against `ops/deploy.py --check-only`'s own count, not typed
+    # in twice. `collab_facts.json` (momentum constants) and the pipeline-
+    # internal `fwci_ref.parquet` do NOT join this count -- both are
+    # DELIBERATELY excluded from `contract["files"]` by the contract's own
+    # documented design (data_contract.yaml's own notes: collab_facts.json
+    # "not contract-checked", fwci_ref.parquet "pipeline-internal, NOT
+    # deployed" -- neither is a parquet table this app/data/ directory ships
+    # with a column schema to check).
+    assert len(contract["files"]) == 19, sorted(contract["files"])
 
 
 # ---------------------------------------------------------------------------

@@ -257,47 +257,17 @@ def test_coverage_anchors_recomputed_independently_from_the_parquet_directly():
 
 
 # ------------------------------------------------------------------ trends --
-# Recomputation: topics_all.parquet joined to topics_dim.parquet's
-# bestfit_subfield_id, grouped by hand -- a pandas groupby, not the app's own
-# duckdb-based profile_data.yearly_by_subfield query.
-
-TRENDS_ANCHORS = [
-    # (institution, year, subfield_id, vol_full, vol_frac)
-    (ETH, 2021, 2306, 227, 68.407883),
-    (ETH, 2021, 3107, 204, 101.584518),
-    (ETH, 2023, 2306, 236, 78.865967),
-    (STRASBOURG, 2021, 3106, 155, 4.278943),
-    (STRASBOURG, 2021, 2730, 141, 27.868067),
-    (STRASBOURG, 2023, 3106, 159, 4.315337),
-]
-
-
-@pytest.mark.parametrize("iid,year,subfield_id,vol_full,vol_frac", TRENDS_ANCHORS)
-def test_trends_subfields_anchor(ctx, iid, year, subfield_id, vol_full, vol_frac):
-    df = CD.trends_subfields(ctx, iid, "bestfit")
-    row = df[(df["year"] == year) & (df["subfield_id"] == subfield_id)].iloc[0]
-    assert int(row["vol_full"]) == vol_full, (iid, year, subfield_id)
-    np.testing.assert_allclose(float(row["vol_frac"]), vol_frac, atol=1e-4)
-
-
-def test_trends_anchors_recomputed_independently_from_the_parquet_directly():
-    """Re-derives all six TRENDS_ANCHORS rows with a hand pandas groupby over
-    the raw topics_all + topics_dim join -- the independent recomputation
-    the pinned values above were taken from, run again here so the anchors
-    can never silently drift from the script that produced them."""
-    import pandas as pd
-
-    topics_all = pd.read_parquet(DATA_DIR / "topics_all.parquet")
-    topics_dim = pd.read_parquet(DATA_DIR / "topics_dim.parquet",
-                                 columns=["topic_id", "bestfit_subfield_id"])
-    merged = topics_all.merge(topics_dim, on="topic_id", how="left")
-    for iid, year, subfield_id, want_full, want_frac in TRENDS_ANCHORS:
-        sub = merged[merged["institution_id"] == iid]
-        g = sub[sub["bestfit_subfield_id"] == subfield_id]
-        got_full = int(g[f"vol_full_{year}"].sum())
-        got_frac = float(g[f"vol_frac_{year}"].sum())
-        assert got_full == want_full, (iid, year, subfield_id, got_full, want_full)
-        np.testing.assert_allclose(got_frac, want_frac, atol=1e-4)
+# RETIRED 2BR3 (TEV-U wave 3 re-cut, MT sweep casualty #2): "Trends in the
+# 6 subfields" is DELETED outright per BUILD_PLAN_2BR3.md §1 item 5 / stream
+# VC's own acceptance -- CD4 already deleted `compare_data.trends_subfields`,
+# the function this whole family anchored (confirmed live:
+# `hasattr(compare_data, "trends_subfields")` is False). Nothing in
+# `compare_data` is left to anchor, and no other section reads the same
+# quantity (unlike "gaps" below, re-pinned onto its 2B-R2-11a replacement
+# section -- this one has no replacement anywhere in the product; the ruling
+# is a straight deletion). TRENDS_ANCHORS / test_trends_subfields_anchor /
+# test_trends_anchors_recomputed_independently_from_the_parquet_directly are
+# gone with it.
 
 
 # --------------------------------------------------------------------- gaps -
@@ -327,21 +297,33 @@ def test_trends_anchors_recomputed_independently_from_the_parquet_directly():
 #     SORBONNE + 3 GDANSK x ISCTE            IFPEN x SORBONNE (of 55 shown) +       family's table
 #     `share_b` values off the OLD           3 GDANSK x ISCTE (of 11 shown)         entirely
 #     gap join                               vol/impact rows off the NEW table
+#
+# RE-PINNED AGAIN 2BR3 (TEV-U wave 3 re-cut, MT sweep casualty #2): P7's v2
+# `collab_pair_topics.parquet` (BUILD_PLAN_2BR3.md §2.2) changes the basis to
+# CORE-AR (articles+reviews, 2020-2024, ruling 3) and the column set --
+# `vol_total` -> `vol`, `sdg_tagged_n` -> `n_sdg`, `vol_2025` DROPPED
+# outright, `fwci_median` (Float32, nullable < 3 covered works, ruling 4) and
+# `mom_class` (ruling 6) ADDED. The pinned pairs and topic ids are UNCHANGED
+# (same two anchor pairs, same six named topics: the identities survive, only
+# their values move to the new basis); every value below is re-derived
+# straight from the shipped v2 parquet with plain pandas (`pair_rows`,
+# bypassing collab_data's ctx-cached loader and joint_profile's tree/name
+# joins) -- never pasted from `collab_data.joint_profile`'s own output.
 
 PAIR_TOPICS_ROW_COUNT_ANCHORS = {
-    (IFPEN, SORBONNE): 55,   # co-published joint topics shown, floor 5 / top-100 cap (2B-R2-12)
+    (IFPEN, SORBONNE): 50,   # co-published joint topics shown, CORE-AR floor 5 / top-100 cap
     (GDANSK, ISCTE): 11,
 }
 PAIR_TOPICS_VALUE_ANCHORS = [
-    # (a, b, topic_id, vol_w1, vol_w2, vol_2025, vol_total, n_covered, n_top10, sdg_tagged_n)
-    (IFPEN, SORBONNE, "T10399", 4, 5, 0, 9, 8, 0, 1),
-    (IFPEN, SORBONNE, "T10965", 4, 2, 1, 7, 6, 0, 0),
-    (IFPEN, SORBONNE, "T11351", 3, 2, 1, 6, 5, 0, 1),
-    (GDANSK, ISCTE, "T10314", 1, 1, 0, 2, 2, 1, 2),
-    (GDANSK, ISCTE, "T11040", 1, 1, 0, 2, 2, 1, 1),
-    (GDANSK, ISCTE, "T10006", 0, 1, 0, 1, 1, 1, 1),
+    # (a, b, topic_id, vol_w1, vol_w2, vol, n_covered, n_top10, n_sdg, fwci_median, mom_class)
+    (IFPEN, SORBONNE, "T10399", 4, 4, 8, 8, 0, 1, 0.574087, "weak"),
+    (IFPEN, SORBONNE, "T10965", 4, 2, 6, 6, 0, 0, 0.489592, "weak"),
+    (IFPEN, SORBONNE, "T11351", 3, 2, 5, 5, 0, 1, 0.139407, "weak"),
+    (GDANSK, ISCTE, "T10314", 1, 1, 2, 2, 1, 2, None, "weak"),   # fwci null: n_covered=2 < 3 (ruling 4)
+    (GDANSK, ISCTE, "T11040", 1, 1, 2, 2, 1, 1, None, "weak"),
+    (GDANSK, ISCTE, "T10006", 0, 1, 1, 1, 1, 1, None, "ns"),
 ]
-PAIR_TOPICS_VALUE_COLS = ["vol_w1", "vol_w2", "vol_2025", "vol_total", "n_covered", "n_top10", "sdg_tagged_n"]
+PAIR_TOPICS_INT_COLS = ["vol_w1", "vol_w2", "vol", "n_covered", "n_top10", "n_sdg"]
 
 
 @pytest.mark.parametrize("pair,want_rows", list(PAIR_TOPICS_ROW_COUNT_ANCHORS.items()))
@@ -353,16 +335,20 @@ def test_pair_topics_row_count_anchor(ctx, subs_bestfit, pair, want_rows):
     assert len(frame["topics"]) == want_rows, (a, b, len(frame["topics"]))
 
 
-@pytest.mark.parametrize("a,b,topic_id,vol_w1,vol_w2,vol_2025,vol_total,n_covered,n_top10,sdg_tagged_n",
+@pytest.mark.parametrize("a,b,topic_id,vol_w1,vol_w2,vol,n_covered,n_top10,n_sdg,fwci_median,mom_class",
                          PAIR_TOPICS_VALUE_ANCHORS)
-def test_pair_topics_topic_level_anchor(ctx, subs_bestfit, a, b, topic_id, vol_w1, vol_w2, vol_2025,
-                                        vol_total, n_covered, n_top10, sdg_tagged_n):
+def test_pair_topics_topic_level_anchor(ctx, subs_bestfit, a, b, topic_id, vol_w1, vol_w2, vol,
+                                        n_covered, n_top10, n_sdg, fwci_median, mom_class):
     frame = CL.joint_profile(ctx, subs_bestfit, a, b)
     row = frame["topics"].set_index("topic_id").loc[topic_id]
-    want = dict(vol_w1=vol_w1, vol_w2=vol_w2, vol_2025=vol_2025, vol_total=vol_total,
-               n_covered=n_covered, n_top10=n_top10, sdg_tagged_n=sdg_tagged_n)
+    want = dict(vol_w1=vol_w1, vol_w2=vol_w2, vol=vol, n_covered=n_covered, n_top10=n_top10, n_sdg=n_sdg)
     for col, val in want.items():
         assert int(row[col]) == val, (a, b, topic_id, col, int(row[col]), val)
+    if fwci_median is None:
+        assert row["fwci_median"] is None or np.isnan(float(row["fwci_median"])), (a, b, topic_id)
+    else:
+        np.testing.assert_allclose(float(row["fwci_median"]), fwci_median, atol=1e-5, err_msg=(a, b, topic_id))
+    assert str(row["mom_class"]) == mom_class, (a, b, topic_id, row["mom_class"], mom_class)
 
 
 def test_pair_topics_anchors_recomputed_independently_from_the_parquet_directly():
@@ -382,10 +368,16 @@ def test_pair_topics_anchors_recomputed_independently_from_the_parquet_directly(
         got = pair_rows(a, b)
         assert len(got) == want_rows, (a, b, len(got), want_rows)
 
-    for a, b, topic_id, *want_vals in PAIR_TOPICS_VALUE_ANCHORS:
+    for a, b, topic_id, *rest in PAIR_TOPICS_VALUE_ANCHORS:
+        want_int_vals, fwci_median, mom_class = rest[:6], rest[6], rest[7]
         row = pair_rows(a, b).set_index("topic_id").loc[str(topic_id)]
-        for col, want in zip(PAIR_TOPICS_VALUE_COLS, want_vals):
+        for col, want in zip(PAIR_TOPICS_INT_COLS, want_int_vals):
             assert int(row[col]) == want, (a, b, topic_id, col, int(row[col]), want)
+        if fwci_median is None:
+            assert pd.isna(row["fwci_median"]), (a, b, topic_id)
+        else:
+            np.testing.assert_allclose(float(row["fwci_median"]), fwci_median, atol=1e-5, err_msg=(a, b, topic_id))
+        assert str(row["mom_class"]) == mom_class, (a, b, topic_id)
 
 
 # ------------------------------------------------------------------ summary --
@@ -398,10 +390,14 @@ def test_every_padded_family_now_clears_ten_anchors():
     counts = {
         "impact": len(IMPACT_ANCHORS) * 3,          # pp, ci_low, ci_high each
         "coverage": sum(len(v) for v in COVERAGE_ANCHORS.values()),
-        "trends": len(TRENDS_ANCHORS) * 2,           # vol_full, vol_frac each
+        # "trends" (2B/2B-R) RETIRED 2BR3 -- "Trends in the 6 subfields" is a
+        # straight deletion (BUILD_PLAN_2BR3.md §1 item 5), no replacement
+        # section exists to re-pin the family slot onto; dropped from this
+        # summary with it (TEV-U wave 3, MT sweep casualty #2).
         # "gaps" (2B) retired 2B-R2-11(f) -- the family slot is now filled by
-        # PAIR_TOPICS_* (2B-R2-12's shipped collab_pair_topics.parquet).
-        "pair_topics": len(PAIR_TOPICS_ROW_COUNT_ANCHORS) + len(PAIR_TOPICS_VALUE_ANCHORS) * len(PAIR_TOPICS_VALUE_COLS),
+        # PAIR_TOPICS_* (2BR3 P7 v2 collab_pair_topics.parquet, CORE-AR basis).
+        "pair_topics": (len(PAIR_TOPICS_ROW_COUNT_ANCHORS)
+                        + len(PAIR_TOPICS_VALUE_ANCHORS) * (len(PAIR_TOPICS_INT_COLS) + 2)),  # + fwci + mom_class
         "erc": len(ERC_ANCHORS) * 4,                 # share, mass, si, status each
         "sdg": len(SDG_ANCHORS) * 4,                 # share, mass, esi, status each
         "frontier_mix": sum(len(v) for v in FRONTIER_MIX_ANCHORS.values()),

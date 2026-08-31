@@ -55,6 +55,11 @@ from tests.test_narrative import collect_copy_module_strings
 FORBIDDEN_CI = [
     "2B-R", "2b-r", "BUILD_PLAN", "artefact", "pipeline", "parquet",
     "wind tunnel", "wind-tunnel",
+    # 2BR3 TEV-U (wave 3 acceptance): "pastel" (the retired institution
+    # trio's own family name -- never a word a reader needs, even in the
+    # abstract) and the "2B-R3"/"2BR3" stream-round family, alongside every
+    # earlier round's "2B-R" this list already banned.
+    "pastel", "2b-r3", "2br3",
 ]
 FORBIDDEN_CODES = re.compile(
     r"\b(MU3|CP3|LP3|VS3|FA3|CD3|WT2?|P[1-6]|G2|H2|I2)\b"
