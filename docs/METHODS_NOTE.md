@@ -65,6 +65,62 @@ fix that took the invariant from 97.8% violations to zero). 1,582,463 pairs clea
 the shipped snapshot; a pair below it keeps its total and a link to every shared publication, and
 loses the topic, SDG and ERC breakdown (`copy.COLLAB["TOPIC_BELOW_FLOOR_NOTICE"]`).
 
+## Reading a pair's shared subjects
+
+The 2B-R2 regeneration of the pair tables ships a floor of 5 shared works (raised from the 2B-R
+floor of 3) and up to the top 100 shared topics per pair by joint volume (raised from 20),
+measured live off the shipped `collab_pair_topics.parquet` at 5 and 100 respectively
+(`lib.views_methods._collab_pair_topic_facts`, `progress/2BR2_P6.md`). The same shared works are
+also rolled up to field level, uncapped: every field a pair has any joint work in ships, since a
+pair spans a mean of about 4 distinct fields, far fewer than its topic diversity
+(`app/docs/data_contract.yaml`, `collab_pair_fields.parquet` grain, WT #13).
+
+Two impact-adjacent figures ship per topic or field row: `n_covered` and `n_top10`. Covered means
+the row's joint publications published 2020 to 2024, article or review only, non-retracted, that
+fall in a (subfield, year, document type) cell the world citation-threshold table actually covers;
+the threshold table is null on a meaningful share of cells, so a joint publication in an uncovered
+cell counts in the row's total but in neither of these two figures
+(`app/docs/data_contract.yaml`, `collab_pair_topics.parquet.n_covered`; WT claim #7). `n_top10` is,
+of the covered works, how many reach the world subfield x year x type top-decile citation cutoff,
+using the exact same `>=` convention as `agg/impact.py::join_thresholds`'s `pp_hit`. Volume-weighted
+coverage across the shipped snapshot is 98.4% on topics and 98.3% on fields, well above the raw
+76% cell-coverage rate, because joint works cluster in the larger, denser cells that are most
+likely to carry a threshold (`progress/2BR2_P6.md`). The subfield behind every covered cell is
+read under the best-fit taxonomy only: no tree-neutral subfield column exists on the topic
+dictionary, and shipping all three trees on this table would triple its size for a secondary fact
+(WT claim #8).
+
+A field-normalised score across the whole joint corpus (FWCI) is not shipped: building one would
+need a citation count for every publication worldwide in every field the pair shares, well beyond
+what the harvest holds, and FWCI's own world mean is not one to begin with (SIRIS `CLAUDE.md`,
+OpenAlex gotchas). The covered and top-decile figures above are offered instead.
+
+A mean-citations figure ships on the field-level table only, as a nullable integer, never on the
+topic-level table: at the topic table's row count, even a two-byte integer column pushed the file
+past the size the tool can serve (96.6 MB against a 95 MB cap, `progress/2BR2_P6.md`), so it is
+dropped there and kept on the much smaller, uncapped field table instead, where a real citation
+tail past a 16-bit integer's range is stored exactly as a 32-bit one.
+
+Every topic row, every field row and the pair as a whole carries a link to OpenAlex, filtered live
+to exactly the joint publications behind that row. There is no offline browsing mode for this
+detail: the deep dive is always the live OpenAlex list, and it can drift a little from the
+snapshot the way every OpenAlex link in the tool does (`copy.FIND["LINK_OPENALEX_HELP"]`).
+
+## How colour is used
+
+One colour system runs through every page. An institution keeps one colour for as long as it
+stays in a comparison or a pair: three pastel hues, each with a darker same-hue twin used for
+value labels and legend text, validated against the tool's own accessibility bar in light mode
+and kept distinct from the OpenAlex-domain, SDG and ERC palettes (`evals/wind_tunnel_2BR2.md` A1;
+`palette.INSTITUTION_COLORS`).
+
+A taxonomy carries its own official colour too: the OpenAlex domain, the ERC panel (mapped to
+PE/LS/SH's own vermillion, green and violet) or the Sustainable Development Goal, none of them
+chosen by this tool. That colour never fills a bar or a mark that also carries an institution's
+colour; it appears on a label or a chip beside a name instead, on the field-breakdown chart's own
+field names and the topic tables' subject chips alike, so the two colour systems are always
+readable apart (`evals/wind_tunnel_2BR2.md` A1 and A6, coexistence exception).
+
 ## International and company co-publication shares
 
 The international share is the part of an institution's eligible works, 2020 to 2024 (the core
@@ -92,6 +148,11 @@ from the first to the second, 2025 excluded from both windows (`app/docs/data_co
 absorbs the noise a single year carries and still leaves two periods short enough to read as
 before and after. Where the earlier window is empty for an institution, no percentage is shown,
 because a change measured against zero has no reading.
+
+A dynamics figure carries a low-volume marker whenever the earlier window's mean annual output, on
+the full count, sits under 10 publications a year (`lib.charts_compare.LOW_VOLUME_FLOOR`; 2B-R2-4,
+brainstorm Q3): a change read off a handful of publications swings on very little evidence, and the
+marker is drawn in the chart and stated in the gutter alike.
 
 ## The subject taxonomy and its three versions
 
@@ -248,6 +309,15 @@ of the taxonomy, and the exclusion list is versioned with a reason code per topi
 `index.frontier_quadrant_mix` sums to 1 only once the excluded and unscored shares are added
 (median 0.967, minimum 0.128; one institution holds three quadrants), which is why the Compare
 quadrant bar carries a fifth segment (`BUILD_PLAN_2B.md` §0 A2).
+
+The Compare page's pooled frontier map (2B-R2-10) offers two pool modes. `"volume"`, the default,
+keeps every topic flagged `top25pct_frontier` (the global top quartile of `frontier_score_latest`)
+that at least one compared institution publishes in, ranked by their combined volume. `"elite"`
+keeps only topics in the global top decile of `frontier_score_latest`, cut over all 3,706 scored
+topics rather than over the compared institutions' own footprint, so the pool never moves when the
+comparison changes (`lib.compare_data.ELITE_FRONTIER_PERCENTILE` = 0.90; WT 2BR2 claim #22). The
+elite set is a subset of the volume set by construction, a stricter percentile cut on the same
+score.
 
 ## The ERC classifier
 

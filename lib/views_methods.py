@@ -69,6 +69,7 @@ import yaml
 
 from lib import copy
 from lib.app_config import CFG
+from lib.charts_compare import LOW_VOLUME_FLOOR
 from lib.data_cache import DATA_DIR, collab_pair_topics, collab_pairs, erc, index, manifest, sdg, topics_dim
 from lib.palette import NA_MARK
 from lib.profile_data import SI_FLOOR_SOLID, SI_FLOOR_THIN
@@ -262,6 +263,7 @@ def methods_values() -> dict:
         "dynamics_window_1": window_facts["dynamics_window_1"],
         "dynamics_window_2": window_facts["dynamics_window_2"],
         "ci_coverage": _fact("impact_ci_coverage_pct"),
+        "low_volume_floor": int(LOW_VOLUME_FLOOR),
     }
 
 

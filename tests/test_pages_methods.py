@@ -157,18 +157,20 @@ def test_lens_concordance_covers_all_ten_lenses_both_ways():
 
 
 def test_collab_topic_floor_and_cap_are_measured_off_the_shipped_tables():
-    """2BR P2/WT A2: collab_pair_topics.parquet ships floor>=3 co-publications
-    + top-20 topics per pair. These are MEASURED here off the actual shipped
-    parquet files (lib.views_methods._collab_pair_topic_facts), not a config
-    literal, so a future artefact refresh that recalibrates the floor/cap
-    fails this test loudly rather than drifting silently from the copy."""
+    """2B-R2-12/P6: collab_pair_topics.parquet ships floor>=5 co-publications
+    + top-100 topics per pair (regenerated from the 2B-R floor>=3/top-20
+    build, progress/2BR2_P6.md). These are MEASURED here off the actual
+    shipped parquet files (lib.views_methods._collab_pair_topic_facts), not a
+    config literal, so a future artefact refresh that recalibrates the
+    floor/cap fails this test loudly rather than drifting silently from the
+    copy."""
     from lib.palette import NA_MARK
     from lib.views_methods import _collab_pair_topic_facts
 
     facts = _collab_pair_topic_facts()
     assert facts["collab_topic_floor"] != NA_MARK, "collab_pairs/collab_pair_topics not found under app/data"
-    assert facts["collab_topic_floor"] == 3, facts
-    assert facts["collab_topic_cap"] == 20, facts
+    assert facts["collab_topic_floor"] == 5, facts
+    assert facts["collab_topic_cap"] == 100, facts
 
 
 def test_dynamics_windows_come_from_the_contract_verbatim():

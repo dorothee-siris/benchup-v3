@@ -80,7 +80,7 @@ LENS_INTRO = {
     "L5": "Similar means specialised in the same ERC panels relative to the average; it surfaces peers "
           "the other views miss, with thinner outside corroboration than they have.",
     "L6": "Similar means the same profile of SDG-tagged output across the goals; its candidates come "
-          "from other countries readily, so the list is not a country artefact.",
+          "from other countries readily, so the list is not simply an effect of shared country.",
     "C1": "Similar means the same subfields as L1, with the comparison narrowed to the seed's own "
           "strongest subfields, so it reads the core rather than the whole profile; noise grows "
           "quickly past the first ranks.",
@@ -145,7 +145,7 @@ LENS_CAVEAT = {
     "L4": "Companies and government bodies occasionally leak into the candidate set.",
     "L5": "Kept because it surfaced peers no other view found, with less outside corroboration than "
           "the other defaults; read its candidates with that in mind.",
-    "L6": "Country clustering is modest here, so the list is not a country artefact.",
+    "L6": "Country clustering is modest here, so the list does not simply reflect a shared country.",
     "C1": "A refinement of L1 rather than a view of its own; noise grows faster than L1's past rank "
           "{core_top_n}.",
     "L7": "Mostly noise, with the occasional peer no other view surfaces.",
@@ -741,6 +741,27 @@ NAV = {
     "METHODS_LEAD": "Where does each number come from, and what does it leave out?",
 }
 
+# ==========================================================================
+# Sprint 2 Phase 2B-R2, stream MU3 (2B-R2-8/13): two plain-language templates
+# a reader meets on more than one page, hoisted here so CP3 (Compare) and
+# LP3 (Collaborate) read one shared wording rather than each writing its own
+# for the same two situations: a measure this page does not show, and a row
+# too thin to break down further. Neither names a plan code, a stream, or a
+# table or file name: tests/test_forbidden_vocabulary.py scans this dict
+# like every other constant in this file. Additive: COMPARE's own
+# METRIC_HIDDEN_HEADER/METRIC_HIDDEN_LINE and COLLAB's own
+# TOPIC_BELOW_FLOOR_NOTICE stay exactly where they are and say the same
+# thing in the same voice; a page may read either its own key or this one.
+# ==========================================================================
+
+SHARED = {
+    "NOT_OFFERED_HEADER": "Not shown here, and why",
+    "NOT_OFFERED_LINE": "{feature}: {reason}",
+    "BELOW_FLOOR_NOTICE": (
+        "{item} holds {n} publications, under the {floor} a breakdown needs to stay readable. "
+        "The total above is shown; the breakdown itself is not."),
+}
+
 # --------------------------------------------------------- Compare page ----
 # 2B-1 to 2B-6, 2B-13, 2B-14. Stream C renders these keys. Each view carries
 # a caption naming its denominator and its counting basis, because a share
@@ -1309,6 +1330,33 @@ IMPACT_CI_CAPTION = (
     "A {ci_coverage}% bootstrap interval, from {n_bootstrap} resamples of the cell's own "
     "fractional citation mass, is shown beside every impact figure and never in place of it.")
 
+# 2B-R2-11(c) / stream MU3: the FWCI descope, stated once and hoisted so the
+# Methods page and, if a future wave wants it, a Collaborate tooltip read the
+# exact same sentence rather than two hand-typed versions that could drift.
+# One honest sentence, no jargon: it names what a field-normalised score
+# would need and says plainly that the tool does not hold it, rather than
+# naming the indicator by its acronym or citing a world mean that is not one.
+FWCI_NOT_AVAILABLE_LINE = (
+    "A single field-normalised score across the whole joint corpus is not offered here: "
+    "building one would need a citation count for every publication worldwide in every field "
+    "the two institutions share, and that is not part of what this tool holds. The covered "
+    "publications and world-top-decile figures above are shown instead.")
+
+# 2B-R2-2 / stream MU3: the colour-system rule stated once, in plain terms, so
+# a future chart caption on any page can quote it rather than re-explaining
+# the same convention. The rule itself: institution colour fills a mark, a
+# taxonomy's own colour never does (COMPARE's CAPTION_ACCENT_ERC/_SDG already
+# say the narrower, per-chart version of this same sentence).
+COLOUR_SYSTEM_NOTE = (
+    "One colour system runs through every page. An institution keeps one colour for as long as "
+    "it stays in a comparison or a pair, drawn from a small set of light, deliberately "
+    "understated hues chosen so a mark reads first as data and only second as decoration.\n\n"
+    "A taxonomy, an OpenAlex domain, an ERC panel or a Sustainable Development Goal, carries its "
+    "own official colour too, fixed by the body that owns it rather than chosen by this tool. "
+    "That colour never fills a bar or a mark that also carries an institution's colour: it "
+    "appears on a label or a small chip beside a name instead, so the two colour systems are "
+    "always readable apart and never asked to share one mark.")
+
 METHODS = {
     "publications": {
         "title": "What counts as a publication",
@@ -1357,6 +1405,36 @@ METHODS = {
             "link to every shared publication; the topic-level breakdown is left out rather than "
             "served too thin to read."),
     },
+    "collab_detail": {
+        "title": "Reading a pair's shared subjects",
+        "body": (
+            "Below the joint total, a pair's shared topics are broken down one row per topic, "
+            "capped at the {collab_topic_cap} most-published ones by joint volume; a pair with a "
+            "longer tail of shared subjects than that is summarised rather than shown in full. "
+            "The same breakdown is rolled up to field level too, with every field the pair has "
+            "any joint work in shown, however small.\n\n"
+            "Two figures sit beside a topic or a field row. Covered counts the row's joint "
+            "publications published between {y0} and {y1}, articles and reviews only, that fall "
+            "in a subfield, year and document-type cell the world holds a citation threshold "
+            "for. Of that covered count, the second figure is how many reach the world top "
+            "decile of citations for their own cell. A joint publication outside a covered cell "
+            "still counts in the row's own total, so the top-decile figure should always be read "
+            "against covered, never against the total. The subfield behind a covered cell is "
+            "always read under the best-fit taxonomy, whatever the taxonomy setting elsewhere on "
+            "the page shows.\n\n" + FWCI_NOT_AVAILABLE_LINE + "\n\n"
+            "A mean citation figure is shown at field level only, never at topic level: keeping "
+            "it on the far larger topic table would have pushed the file past what the tool can "
+            "ship, so it is dropped there and kept where the table is small enough to carry "
+            "it.\n\n"
+            "Every topic row, every field row and the pair as a whole carries a link to "
+            "OpenAlex, live, filtered to exactly the joint publications behind that row; there "
+            "is no offline browsing mode for them, and the live count can drift a little from "
+            "the snapshot's own, the same gap every OpenAlex link in the tool carries."),
+    },
+    "colour": {
+        "title": "How colour is used",
+        "body": COLOUR_SYSTEM_NOTE,
+    },
     "intl_company": {
         "title": "International and company co-publication shares",
         "body": (
@@ -1386,7 +1464,12 @@ METHODS = {
             "same reason it is left out of every impact figure: a year this recent has not "
             "settled into a stable count yet. Where the earlier window is empty for an "
             "institution, no percentage is shown, because a change measured against zero has no "
-            "reading."),
+            "reading.\n\n"
+            "A dynamics figure carries a low-volume marker whenever the earlier window's mean "
+            "annual output, on the full count, sits under {low_volume_floor} publications a "
+            "year: a change read off a handful of publications swings on very little evidence, "
+            "and the marker says so wherever the figure is drawn, in the chart and in the gutter "
+            "alike."),
     },
     "taxonomy": {
         "title": "The subject taxonomy and its three versions",
@@ -1507,7 +1590,15 @@ METHODS = {
             "outside the subject scope of the taxonomy, and the exclusion list is versioned with a "
             "reason recorded per topic. Their mass is shown as a segment of its own rather than "
             "dropped, so the quadrant shares add up to the institution's whole output and a large "
-            "unscored share is visible instead of hidden."),
+            "unscored share is visible instead of hidden.\n\n"
+            "On the Compare page, the topics pooled across several institutions can be widened "
+            "or narrowed by one setting. The wider pool, and the default, keeps every topic in "
+            "the top quartile of frontier emergence that at least one compared institution "
+            "publishes in, ranked by their combined volume. The narrower pool keeps only topics "
+            "in the global top decile of frontier emergence, a fixed cut over every topic the "
+            "score covers rather than over the compared institutions' own footprint, so the pool "
+            "does not move when the comparison changes; it sits inside the wider pool by "
+            "construction, a stricter cut on the same score."),
     },
     "erc": {
         "title": "The ERC classifier",
@@ -1654,6 +1745,7 @@ METHODS_SOURCES = {
     "dynamics_window_1": "docs/data_contract.yaml window_conventions block, the earlier dynamics window, verbatim",
     "dynamics_window_2": "docs/data_contract.yaml window_conventions block, the later dynamics window, verbatim",
     "ci_coverage": "config.yaml methods_facts.impact_ci_coverage_pct (the pipeline bootstrap alpha, outside the app repo)",
+    "low_volume_floor": "lib.charts_compare.LOW_VOLUME_FLOOR, the same value the Compare dynamics low-volume marker uses",
 }
 
 # ------------------------------------------------ Methods page chrome (2B, manager) --
