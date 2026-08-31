@@ -116,6 +116,17 @@ def collab_pair_topics() -> pd.DataFrame:
 
 
 @st.cache_resource
+def collab_pair_fields() -> pd.DataFrame:
+    """Pair x field, uncapped, BESTFIT tree only (2B-R2-12/A3; `pipeline/
+    15_collab_pass.py`). Columns: `a, b, field_id, vol_w1 (2020-2022), vol_w2
+    (2023-2024), vol_2025, vol_total, n_covered, n_top10, mean_citations`
+    (Int32, nullable). 4,375,728 rows, 28.3 MB. Same a<b / floor-5 qualifying-
+    pair convention as `collab_pair_topics()`; feeds Collaborate's field-
+    breakdown chart (bestfit-only -- does not react to the tree toggle)."""
+    return pd.read_parquet(DATA_DIR / "collab_pair_fields.parquet")
+
+
+@st.cache_resource
 def sdg_fields() -> pd.DataFrame:
     """Institution x sdg x field x tree, fractional SDG-tagged mass, full
     2020-2025 run window (2BR P3/2B-R-15/A7; `pipeline/16_crosses.py`).

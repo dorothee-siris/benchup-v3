@@ -51,6 +51,47 @@ def copubs_url(institution_a: str, institution_b: str, *, years: tuple[int, int]
     return f"{WORKS_BASE}?filter={quote(filt, safe=':,-')}"
 
 
+TAXON_FILTER_KEY = {
+    "topic": "primary_topic.id",
+    "subfield": "primary_topic.subfield.id",
+    "field": "primary_topic.field.id",
+}
+TAXON_LEVELS = tuple(TAXON_FILTER_KEY)
+
+
+def copubs_taxon_url(institution_a: str, institution_b: str, level: str, taxon_id,
+                     *, years: tuple[int, int] | None = None, types: list[str] | None = None,
+                     has_doi: bool | None = None) -> str:
+    """CD3 2B-R2-11(e): a pair's co-publications RESTRICTED to one taxon (a
+    topic, subfield or field row of a Collaborate table) -- the same repeated-
+    key AND convention `copubs_url` already verified live (Wind Tunnel 2B #13:
+    OpenAlex ANDs two `authorships.institutions.id:` filters, never a `+`
+    union, #14), with ONE more repeated key added: `primary_topic.id:`,
+    `primary_topic.subfield.id:` or `primary_topic.field.id:` depending on
+    `level` -- OpenAlex's own taxonomy nesting on the work's PRIMARY topic,
+    matching the pair tables' own `topic_id`/`field_id` grain (never the
+    tree-specific `{tree}_subfield_id` BenchUp repairs internally: OpenAlex
+    has no concept of BenchUp's repaired trees, so a SUBFIELD-level link uses
+    the topic's OpenAlex-native subfield, a documented approximation on the
+    conservative/original trees' repaired cells).
+
+    Construct-only (WT 2B-R2 claim #23/24-adjacent 2BR2 A4): no live call is
+    made here or required before shipping -- the shape is verified against
+    `copubs_url`'s own already-live-verified convention, not by a fresh probe."""
+    if level not in TAXON_LEVELS:
+        raise ValueError(f"level must be one of {TAXON_LEVELS}, got {level!r}")
+    y0, y1 = years if years is not None else CFG["window"]
+    type_list = types if types is not None else CFG["corpus_types"]
+    doi = CFG["openalex_filters"]["has_doi"] if has_doi is None else has_doi
+    filt = (f"authorships.institutions.id:{institution_a},"
+           f"authorships.institutions.id:{institution_b},"
+           f"{TAXON_FILTER_KEY[level]}:{taxon_id},"
+           f"publication_year:{y0}-{y1},"
+           f"type:{'|'.join(type_list)},"
+           f"has_doi:{'true' if doi else 'false'}")
+    return f"{WORKS_BASE}?filter={quote(filt, safe=':,-')}"
+
+
 def ror_url(ror_id: str) -> str:
     """Accepts a bare ROR id (e.g. `03xyz1234`) or an already-full
     `https://ror.org/...` URL (index.parquet ships the full URL -- this stays

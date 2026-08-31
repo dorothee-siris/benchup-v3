@@ -3,8 +3,8 @@ app/lib/collab_data.py -- Collaborate-view data frames for exactly ONE pair
 of institutions, A -> B directional (BenchUp v3 Sprint 2 Phase 2B, Stream K;
 BUILD_PLAN_2B.md S2B-7).
 
-Pure functions, no Streamlit import. `shared_topics`/`gaps`/`breadth_jaccard`
-all read `subs["l3"]["share"]` (BUILD_PLAN_2A.md's topic-grain substrate,
+Pure functions, no Streamlit import. `shared_topics`/`breadth_jaccard` both
+read `subs["l3"]["share"]` (BUILD_PLAN_2A.md's topic-grain substrate,
 tree-invariant since topics are the base grain the tree never re-buckets) --
 the SAME matrix `lib/engine/lenses.py`'s L3 lens scores overlap on, so
 `shared_topics`' Sigma(min_share) equals the engine's own L3 score for the
@@ -18,12 +18,15 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from . import links
 from . import profile_data as P
 
 SHARED_TOPICS_COLS = ["topic_id", "topic_name", "subfield_name", "share_a", "share_b",
                       "min_share", "keywords", "top25pct_frontier"]
-GAPS_COLS = ["topic_id", "topic_name", "subfield_name", "share_b", "top25pct_frontier"]
-TOP10_N = 10  # 2B-7 / evals/aspirational_R2/gen.py::build_complement's own top-10-subfields anchor
+# 2B-R2-11(f): the OLD `gaps()`/`GAPS_COLS` "what B publishes that A doesn't"
+# table is DELETED this round (its own loader was `_top10_subfield_ids` below,
+# also removed) -- `untapped()` further down is the ruled replacement: not a
+# footprint gap, an EXPECTED-vs-OBSERVED joint-output gap.
 
 
 def _topic_keywords_map(ctx: dict) -> dict:
@@ -47,19 +50,9 @@ def _topic_subfield_map(ctx: dict, tree: str) -> pd.DataFrame:
     return ctx["topics_dim_df"][["topic_id", tree_col]].rename(columns={tree_col: "subfield_id"})
 
 
-def _top10_subfield_ids(subs: dict, idx: int) -> set:
-    """The institution's own top-10 subfields by L1 share (nonzero only),
-    same recipe as `evals/aspirational_R2/gen.py::build_complement`'s
-    `top10_subfield_ids` (argsort desc on `subs['l1']['share']`)."""
-    l1_cats = subs["l1"]["cats"]
-    l1_row = subs["l1"]["share"][idx]
-    order = np.argsort(-l1_row, kind="stable")
-    return {l1_cats[i] for i in order[:TOP10_N] if l1_row[i] > 0}
-
-
 def _label_topics(ctx: dict, tree: str, df: pd.DataFrame) -> pd.DataFrame:
     """Common topic_id -> (subfield_name, topic_name, top25pct_frontier)
-    join used by both `shared_topics` and `gaps`."""
+    join used by `shared_topics` and `untapped`."""
     dim = ctx["topics_dim_df"][["topic_id", "top25pct_frontier"]].merge(
         _topic_subfield_map(ctx, tree), on="topic_id", how="left")
     out = df.merge(dim, on="topic_id", how="left")
@@ -88,30 +81,6 @@ def shared_topics(ctx: dict, subs: dict, a: str, b: str) -> pd.DataFrame:
     df["keywords"] = df["topic_id"].map(_topic_keywords_map(ctx))
     return df.sort_values("min_share", ascending=False).reset_index(drop=True).reindex(
         columns=SHARED_TOPICS_COLS)
-
-
-def gaps(ctx: dict, subs: dict, a: str, b: str) -> pd.DataFrame:
-    """B's topics inside A's top-10 subfields (by A's own L1 share) that A
-    itself lacks (`share_a == 0` on the L3 matrix) -- the complementarity
-    formula from `evals/aspirational_R2/gen.py::build_complement`, reused
-    for one named pair instead of a full-population scan. The symmetric call
-    is `gaps(ctx, subs, b, a)`."""
-    a_idx, b_idx = ctx["id_pos"][a], ctx["id_pos"][b]
-    top10 = _top10_subfield_ids(subs, a_idx)
-    if not top10:
-        return pd.DataFrame(columns=GAPS_COLS)
-
-    l3 = subs["l3"]
-    share_a = l3["share"][a_idx].astype("float64")
-    share_b = l3["share"][b_idx].astype("float64")
-    cats = np.asarray(l3["cats"], dtype=object)
-    mask = (share_b > 0) & (share_a == 0)
-
-    df = pd.DataFrame({"topic_id": cats[mask], "share_b": share_b[mask]})
-    df = df.merge(_topic_subfield_map(ctx, subs["tree"]), on="topic_id", how="left")
-    df = df[df["subfield_id"].isin(top10)]
-    df = _label_topics(ctx, subs["tree"], df.drop(columns=["subfield_id"]))
-    return df.sort_values("share_b", ascending=False).reset_index(drop=True).reindex(columns=GAPS_COLS)
 
 
 def _topic_membership(ctx: dict, subs: dict, idx: int, min_full: int) -> "np.ndarray":
@@ -149,9 +118,10 @@ def _load_collab_pairs(ctx: dict) -> pd.DataFrame:
 
 
 def _load_collab_pair_topics(ctx: dict) -> pd.DataFrame:
-    """Lazy, ctx-cached (`collab_pair_topics.parquet`, 2B-R-15/A2): top-20
-    joint topics (primary topic only) per pair with `copubs_total >=
-    PAIR_TOPICS_FLOOR`."""
+    """Lazy, ctx-cached (`collab_pair_topics.parquet`, regenerated 2B-R2-12):
+    top-`PAIR_TOPICS_TOP_N` joint topics (primary topic only) per pair with
+    `copubs_total >= PAIR_TOPICS_FLOOR`, plus impact columns (n_top10,
+    n_covered)."""
     if "collab_pair_topics_df" not in ctx:
         ctx["collab_pair_topics_df"] = pd.read_parquet(Path(ctx["data_dir"]) / "collab_pair_topics.parquet")
     return ctx["collab_pair_topics_df"]
@@ -159,6 +129,39 @@ def _load_collab_pair_topics(ctx: dict) -> pd.DataFrame:
 
 PULSE_YEARS = list(range(2020, 2026))  # collab_pairs' own window (2020-2025 incl. the 2025 bonus year)
 PULSE_YEARLY_COLS = ["year", "copubs"]
+
+
+def _num(v) -> float:
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return float("nan")
+    return f
+
+
+ARROW_UP, ARROW_DOWN, ARROW_FLAT = "up", "down", "flat"
+ARROW_DEADBAND = 0.5
+# 2B-R2-11(d): per-row direction arrows compare the MEAN ANNUAL volume of
+# window 1 (2020-2022, /3) against window 2 (2023-2024, /2) -- never the raw
+# window sums, which cover different numbers of years and are not
+# comparable as-is. A change smaller than this deadband (half a joint
+# publication per year) reads "flat" rather than flipping direction on
+# noise -- the windows themselves are named in the caller's tooltip, not
+# here (this module returns the arrow only, never composes the sentence).
+
+
+def _arrow(vol_w1, vol_w2) -> str:
+    w1_annual, w2_annual = _num(vol_w1) / 3.0, _num(vol_w2) / 2.0
+    if not (np.isfinite(w1_annual) and np.isfinite(w2_annual)):
+        return ARROW_FLAT
+    delta = w2_annual - w1_annual
+    if abs(delta) < ARROW_DEADBAND:
+        return ARROW_FLAT
+    return ARROW_UP if delta > 0 else ARROW_DOWN
+
+
+def _taxon_url(a: str, b: str, level: str, taxon_id) -> str:
+    return links.copubs_taxon_url(a, b, level, taxon_id)
 
 
 def pulse(ctx: dict, a: str, b: str) -> dict | None:
@@ -210,27 +213,36 @@ def pulse(ctx: dict, a: str, b: str) -> dict | None:
         "share_of_a": (total / denom_a) if denom_a > 0 else np.nan,
         "share_of_b": (total / denom_b) if denom_b > 0 else np.nan,
         "denominator_a": denom_a, "denominator_b": denom_b,
-        "denominator_note": ("share_of_a/share_of_b = copubs_total / that side's own total full-counted "
-                             "works, 2020-2025 (index.vol_full_by_year_this_run summed over all 6 years -- "
-                             "the SAME window as copubs_total; NOT total_full_2020_2024's 5-year core window)."),
+        "denominator_note": ("Each side's share of co-publications is out of its OWN total full-counted "
+                             "publications, 2020-2025 (the same 6-year window as the co-publication count "
+                             "itself) -- not the shorter 2020-2024 window used for some other Compare figures."),
         "rank_in_a": rank_in_a, "rank_in_b": rank_in_b,
     }
 
 
-PAIR_TOPICS_FLOOR = 3    # WT A2: collab_pair_topics.parquet ships only for pairs with copubs_total >= this
-PAIR_TOPICS_TOP_N = 20   # WT A2: top-20 joint topics per pair by vol_total
+PAIR_TOPICS_FLOOR = 5    # 2B-R2-12: collab_pair_topics/collab_pair_fields ship only for pairs with copubs_total >= this
+PAIR_TOPICS_TOP_N = 100  # 2B-R2-12: top-100 joint topics per pair by vol_total (slider-ready, up to this cap)
 
 JOINT_TOPICS_COLS = ["topic_id", "topic_name", "subfield_id", "subfield_name", "field_id", "field_name",
-                     "domain_id", "domain_name", "vol_w1", "vol_w2", "vol_2025", "vol_total", "sdg_tagged_n"]
-JOINT_ROLLUP_VALUE_COLS = ["vol_w1", "vol_w2", "vol_2025", "vol_total", "sdg_tagged_n"]
+                     "domain_id", "domain_name", "vol_w1", "vol_w2", "vol_2025", "vol_total",
+                     "n_covered", "n_top10", "sdg_tagged_n", "arrow", "url"]
+JOINT_ROLLUP_VALUE_COLS = ["vol_w1", "vol_w2", "vol_2025", "vol_total", "n_covered", "n_top10", "sdg_tagged_n"]
+# n_top10/n_covered are ADDITIVE counts (2B-R2-12) -- summing them over a
+# rollup's shown topics is exact for THOSE topics, same lower-bound caveat
+# as every other rollup column here (see `meta.note`).
+
+MEAN_CITATIONS_NOTE = (
+    "Mean citations is shown at field level only (see the field breakdown) -- the topic-level "
+    "table does not carry it, to keep its file size within budget."
+)
 
 
 def joint_profile(ctx: dict, subs: dict, a: str, b: str) -> dict | None:
-    """2B-R-10 S2 (Joint corpus). From `collab_pair_topics.parquet` (floor
-    `PAIR_TOPICS_FLOOR`, top `PAIR_TOPICS_TOP_N` topics per pair, primary
-    topic only, 2BR A2). Field/subfield/domain names are resolved TREE-AWARE
-    (`subs['tree']`'s own `{tree}_subfield_id`) even though `topic_id` itself
-    never changes -- only which subfield a topic rolls into does.
+    """2B-R2-11(a)/(c) Joint corpus, re-cut on the regenerated top-100/floor-5
+    `collab_pair_topics.parquet` (2B-R2-12). Field/subfield/domain names are
+    resolved TREE-AWARE (`subs['tree']`'s own `{tree}_subfield_id`) even
+    though `topic_id` itself never changes -- only which subfield a topic
+    rolls into does.
 
     Returns `None` when the pair's `copubs_total` is below `PAIR_TOPICS_
     FLOOR` (or the pair never co-published) -- both `PAIR_TOPICS_FLOOR` and
@@ -238,21 +250,31 @@ def joint_profile(ctx: dict, subs: dict, a: str, b: str) -> dict | None:
     'below the floor of {F}' without a second lookup.
 
     On a hit, returns:
-      topics       -- one row per joint topic (<= PAIR_TOPICS_TOP_N rows),
-                      sorted by vol_total descending.
-      fields       -- topics rolled up to field grain (sum of the window/sdg
-                      columns over the SHOWN topics only -- see `meta.note`).
+      topics       -- one row per joint topic (<= PAIR_TOPICS_TOP_N rows,
+                      slider-ready -- a caller may `.head(n)` for n <=
+                      PAIR_TOPICS_TOP_N), sorted by vol_total descending,
+                      each with an `n_top10`/`n_covered` impact pair ("x of
+                      y covered joint works in the world top decile" --
+                      NEVER divide n_top10 by vol_total, only by n_covered),
+                      a w1-vs-w2 `arrow` (`_arrow`, deadband documented
+                      there) and a live OpenAlex `url` restricted to this
+                      topic. `mean_citations` is NOT a column here --
+                      `meta.mean_citations_note` says why.
+      fields       -- topics rolled up to field grain (sum of the window/
+                      impact/sdg columns over the SHOWN topics only -- see
+                      `meta.note`; for the AUTHORITATIVE, uncapped field
+                      numbers with `mean_citations`, use `field_breakdown`).
       subfields    -- topics rolled up to subfield grain, same caveat.
       sdg_tagged_total -- sum of sdg_tagged_n over the shown topics (a LOWER
                       BOUND on the pair's true joint SDG-tagged count,
                       because of the top-N cap).
       erc          -- PAIR-LEVEL dict (erc_top_panel/panel_n/labelled_n) --
-                      the source columns are repeated on every row of
-                      `collab_pair_topics` for this pair, never per-topic
-                      (2BR contract); `denominator_note` states the labelled-
-                      of-89.6%-corpus-coverage convention (2BR A9): NEVER
-                      divide panel_n by copubs_total, only by labelled_n.
-      meta         -- {floor, top_n_cap, n_topics_shown, note}."""
+                      the source columns are repeated on every row of the
+                      shipped table for this pair, never per-topic;
+                      `denominator_note` states the labelled-work
+                      convention: NEVER divide panel_n by copubs_total, only
+                      by labelled_n.
+      meta         -- {floor, top_n_cap, n_topics_shown, note, mean_citations_note}."""
     topics = _load_collab_pair_topics(ctx)
     lo, hi = (a, b) if a < b else (b, a)
     rows = topics[(topics["a"] == lo) & (topics["b"] == hi)]
@@ -267,6 +289,8 @@ def joint_profile(ctx: dict, subs: dict, a: str, b: str) -> dict | None:
     df = rows.merge(dim, on="topic_id", how="left").merge(sfd, on="subfield_id", how="left") \
              .merge(extra, on="topic_id", how="left")
     df = df.sort_values("vol_total", ascending=False).reset_index(drop=True)
+    df["arrow"] = [_arrow(w1, w2) for w1, w2 in zip(df["vol_w1"], df["vol_w2"])]
+    df["url"] = [_taxon_url(a, b, "topic", t) for t in df["topic_id"]]
     topics_out = df.reindex(columns=JOINT_TOPICS_COLS)
 
     fields_out = (df.groupby(["field_id", "field_name"], as_index=False)[JOINT_ROLLUP_VALUE_COLS].sum()
@@ -279,17 +303,64 @@ def joint_profile(ctx: dict, subs: dict, a: str, b: str) -> dict | None:
     erc = {
         "panel_idx": r0["erc_top_panel"], "panel_n": int(r0["erc_top_panel_n"]),
         "labelled_n": int(r0["erc_labelled_n"]),
-        "denominator_note": ("of the labelled ~89.6% of joint works with an erc_probs row "
-                             "(erc_top_panel_n / erc_labelled_n) -- NEVER divide by copubs_total (2BR A9)."),
+        "denominator_note": ("Of the labelled share of joint works with an ERC-panel prediction "
+                             "(panel_n / labelled_n) -- never divide by the total co-publication count."),
     }
     return {
         "a": a, "b": b, "topics": topics_out, "fields": fields_out, "subfields": subfields_out,
         "sdg_tagged_total": int(df["sdg_tagged_n"].sum()), "erc": erc,
         "meta": {"floor": PAIR_TOPICS_FLOOR, "top_n_cap": PAIR_TOPICS_TOP_N, "n_topics_shown": len(topics_out),
-                "note": (f"top {PAIR_TOPICS_TOP_N} joint topics by volume shown (2BR A2) -- the pair's true "
+                "note": (f"The top {PAIR_TOPICS_TOP_N} joint topics by volume are shown -- the pair's true "
                         "topic diversity may exceed this cap; sdg_tagged_total and the field/subfield "
-                        "rollups sum ONLY the shown topics, a lower bound.")},
+                        "rollups sum ONLY the shown topics, a lower bound."),
+                "mean_citations_note": MEAN_CITATIONS_NOTE},
     }
+
+
+FIELD_BREAKDOWN_COLS = ["field_id", "field_name", "domain_id", "domain_name", "vol_w1", "vol_w2",
+                        "vol_2025", "vol_total", "n_covered", "n_top10", "mean_citations", "arrow", "url"]
+FIELD_BREAKDOWN_NOTE = (
+    "Field mix uses the repaired (best-fit) taxonomy only and does not change with the tree toggle."
+)
+
+
+def _load_collab_pair_fields(ctx: dict) -> pd.DataFrame:
+    """Lazy, ctx-cached: `collab_pair_fields.parquet` (2B-R2-12) -- pair x
+    field, UNCAPPED (every field the pair has any joint mass in), bestfit
+    tree only, same a<b/floor-5 qualifying-pair convention as
+    `collab_pair_topics`. The ONE source `field_breakdown` reads; unlike
+    `joint_profile`'s own field rollup (a lower bound over its top-100
+    topics), this table is the AUTHORITATIVE per-field total and the only
+    place `mean_citations` is shipped."""
+    if "collab_pair_fields_df" not in ctx:
+        ctx["collab_pair_fields_df"] = pd.read_parquet(Path(ctx["data_dir"]) / "collab_pair_fields.parquet")
+    return ctx["collab_pair_fields_df"]
+
+
+def field_breakdown(ctx: dict, a: str, b: str) -> pd.DataFrame:
+    """2B-R2-11(a): the field breakdown of the joint corpus -- one row per
+    field the pair has any joint mass in, from `collab_pair_fields.parquet`
+    (UNCAPPED, bestfit-tree-only -- `.attrs['note']` carries that caveat for
+    the caller's caption, and `.attrs['floor']` the qualifying-pair floor).
+    Sorted by `vol_total` descending; empty (with the right columns) when
+    the pair never co-published or falls below `PAIR_TOPICS_FLOOR`. Each row
+    carries `mean_citations` (Int32, nullable -- NA when the field's joint
+    mass is 2025-only), an `arrow` (`_arrow`) and a live OpenAlex `url`
+    restricted to this field."""
+    fields = _load_collab_pair_fields(ctx)
+    lo, hi = (a, b) if a < b else (b, a)
+    rows = fields[(fields["a"] == lo) & (fields["b"] == hi)]
+    name_map = P._field_domain_map(ctx)[["field_id", "field_name", "domain_id", "domain_name"]]
+    out = rows.merge(name_map, on="field_id", how="left")
+    if len(out):
+        out["arrow"] = [_arrow(w1, w2) for w1, w2 in zip(out["vol_w1"], out["vol_w2"])]
+        out["url"] = [_taxon_url(a, b, "field", int(fid)) for fid in out["field_id"]]
+    else:
+        out["arrow"], out["url"] = pd.Series(dtype=object), pd.Series(dtype=object)
+    out = out.sort_values("vol_total", ascending=False).reset_index(drop=True).reindex(columns=FIELD_BREAKDOWN_COLS)
+    out.attrs["note"] = FIELD_BREAKDOWN_NOTE
+    out.attrs["floor"] = PAIR_TOPICS_FLOOR
+    return out
 
 
 def _joint_vol_by_topic(ctx: dict, a: str, b: str) -> dict:
@@ -302,14 +373,17 @@ def _joint_vol_by_topic(ctx: dict, a: str, b: str) -> dict:
 
 
 UNTAPPED_COLS = ["topic_id", "topic_name", "subfield_id", "subfield_name", "vol_a", "vol_b",
-                "joint_observed", "joint_expected", "gap"]
+                "joint_observed", "joint_expected", "gap", "url"]
 SIBLING_COLS = ["subfield_id", "subfield_name", "topic_id", "topic_name", "vol_a", "vol_b"]
 
 
-def untapped(ctx: dict, subs: dict, a: str, b: str, top_n: int = 20) -> dict:
-    """2B-R-10 S3 (Untapped potential). Shared topics (`shared_topics`'s own
-    `min_share > 0` rule, L3 topic grain, tree/basis-aware via `subs`) where
-    the pair's REALISED joint output is below a simple EXPECTED baseline:
+def untapped(ctx: dict, subs: dict, a: str, b: str, top_n: int = 100) -> dict:
+    """2B-R2-11(a)/(f) Untapped potential -- the RULED REPLACEMENT for the
+    deleted "what B publishes that A doesn't" footprint-gap table: this is
+    an EXPECTED-vs-OBSERVED joint-output gap, a different and more useful
+    question. Shared topics (`shared_topics`'s own `min_share > 0` rule, L3
+    topic grain, tree/basis-aware via `subs`) where the pair's REALISED
+    joint output is below a simple EXPECTED baseline:
 
         k = pair_copubs_total / min(a_total, b_total)      (pulse's own
                                                              denominators,
@@ -320,20 +394,19 @@ def untapped(ctx: dict, subs: dict, a: str, b: str, top_n: int = 20) -> dict:
     Reading: 'if this pair collaborated on this topic at the SAME overall
     rate they collaborate institution-wide (k), we would expect this many
     joint works there'. `joint_observed` comes from `collab_pair_topics`
-    (0 for a shared topic outside the pair's shown top-20, or for a pair
+    (0 for a shared topic outside the pair's shown top-100, or for a pair
     entirely below `PAIR_TOPICS_FLOOR` -- both a genuine 'untapped' signal
     here, not a data gap). Rows are kept only where `gap > 0`, sorted
-    descending, capped at `top_n`.
+    descending, capped at `top_n` (2B-R2-11: default 100, slider-ready --
+    pass a smaller `top_n` for the page's slider). Each row carries a live
+    OpenAlex `url` restricted to this topic.
 
     `siblings`: for the subfields appearing in the untapped list, every
     OTHER topic in that subfield (`topics_dim`, tree-aware) that EITHER side
     already holds nonzero volume in but which is NOT itself one of the
     pair's `shared_topics` -- adjacent topics the pair could plausibly
     extend collaboration into, uncapped, sorted by (subfield, vol_a, vol_b)
-    descending.
-
-    The 2B `gaps()`/`shared_topics()` functions above are UNCHANGED and stay
-    in place -- this is an additional, distinct analysis, not a replacement."""
+    descending."""
     shared = shared_topics(ctx, subs, a, b)
     if shared.empty:
         return {"topics": pd.DataFrame(columns=UNTAPPED_COLS), "siblings": pd.DataFrame(columns=SIBLING_COLS),
@@ -364,6 +437,7 @@ def untapped(ctx: dict, subs: dict, a: str, b: str, top_n: int = 20) -> dict:
     df["joint_expected"] = k * np.minimum(df["vol_a"], df["vol_b"])
     df["gap"] = df["joint_expected"] - df["joint_observed"]
     df = df[df["gap"] > 0].sort_values("gap", ascending=False).head(top_n).reset_index(drop=True)
+    df["url"] = [_taxon_url(a, b, "topic", t) for t in df["topic_id"]]
     topics_out = df.reindex(columns=UNTAPPED_COLS)
 
     subfield_ids = set(int(s) for s in topics_out["subfield_id"].dropna().unique())

@@ -92,62 +92,11 @@ def test_shared_topics_basis_full(ctx):
     np.testing.assert_allclose(float(df["min_share"].sum()), l3_direct, rtol=1e-5)
 
 
-# ---------------------------------------------------------------- gaps ------
-
-@pytest.mark.parametrize("a,b,want_rows", [
-    (STRASBOURG, SORBONNE, 156),
-    (SORBONNE, STRASBOURG, 12),
-    (STRASBOURG, GDANSK, 110),
-    (GDANSK, STRASBOURG, 141),
-    (IFPEN, SORBONNE, 58),
-    (SORBONNE, IFPEN, 0),
-])
-def test_gaps_row_count_anchor(ctx, subs_bestfit, a, b, want_rows):
-    df = CL.gaps(ctx, subs_bestfit, a, b)
-    assert list(df.columns) == CL.GAPS_COLS
-    assert len(df) == want_rows
-
-
-def test_gaps_subset_of_b_absent_from_a_and_in_a_top10(ctx, subs_bestfit):
-    """gaps(a, b) subseteq B's topics (share_b > 0) AND NOT IN A (share_a ==
-    0) AND subfield in A's own top-10 (by L1 share)."""
-    a, b = STRASBOURG, SORBONNE
-    df = CL.gaps(ctx, subs_bestfit, a, b)
-    assert len(df)  # non-trivial (S0 "confirmed unchanged": tens of topics)
-
-    a_idx, b_idx = ctx["id_pos"][a], ctx["id_pos"][b]
-    l3 = subs_bestfit["l3"]
-    cats = np.asarray(l3["cats"], dtype=object)
-    share_a = dict(zip(cats, l3["share"][a_idx]))
-    share_b = dict(zip(cats, l3["share"][b_idx]))
-    top10 = CL._top10_subfield_ids(subs_bestfit, a_idx)
-    sub_map = CL._topic_subfield_map(ctx, subs_bestfit["tree"]).set_index("topic_id")["subfield_id"]
-
-    for _, row in df.iterrows():
-        t = row["topic_id"]
-        assert share_b[t] > 0
-        assert share_a[t] == 0
-        assert sub_map.loc[t] in top10
-
-    assert df["share_b"].is_monotonic_decreasing
-
-
-def test_gaps_symmetric_call_differs(ctx, subs_bestfit):
-    """gaps(a, b) and gaps(b, a) are genuinely different sets, not a
-    coincidental mirror -- the two row counts differ for this pair."""
-    fwd = CL.gaps(ctx, subs_bestfit, STRASBOURG, SORBONNE)
-    bwd = CL.gaps(ctx, subs_bestfit, SORBONNE, STRASBOURG)
-    assert len(fwd) != len(bwd)
-    assert set(fwd["topic_id"]).isdisjoint(set(bwd["topic_id"]))  # A-lacks vs B-lacks, disjoint by construction
-
-
-def test_gaps_self_pair_is_empty(ctx, subs_bestfit):
-    """Defensive edge case: a self-pair can never produce a gap (share_b > 0
-    AND share_a == 0 is impossible when a == b) -- must return an empty
-    frame with the right columns, never raise."""
-    df = CL.gaps(ctx, subs_bestfit, STRASBOURG, STRASBOURG)
-    assert list(df.columns) == CL.GAPS_COLS
-    assert len(df) == 0
+# -------------------------------------------------- gaps() DELETED (2B-R2-11f)
+# `collab_data.gaps()` (the "what B publishes that A doesn't" footprint-gap
+# table) and its `GAPS_COLS`/`_top10_subfield_ids` are REMOVED this round --
+# `untapped()` below is the ruled replacement (an expected-vs-observed JOINT
+# gap, not a footprint gap). Its old test suite is deleted with it.
 
 
 # ----------------------------------------------------------- breadth_jaccard-
@@ -269,17 +218,18 @@ def test_joint_profile_anchor_strasbourg_ifpen(ctx, subs_bestfit):
 
 
 def test_joint_profile_below_floor_returns_none(ctx, subs_bestfit):
-    """A pair with copubs_total in {1, 2} (below PAIR_TOPICS_FLOOR=3) has
-    ZERO rows in collab_pair_topics -- independently verified here -- and
-    joint_profile must return None, not an empty-but-present frame."""
+    """A pair with copubs_total in {1..4} (below the regenerated 2B-R2-12
+    PAIR_TOPICS_FLOOR=5) has ZERO rows in collab_pair_topics --
+    independently verified here -- and joint_profile must return None, not
+    an empty-but-present frame."""
     pairs = _load_pairs_raw(ctx)
-    below = pairs[pairs["copubs_total"].between(1, 2)].iloc[0]
+    below = pairs[pairs["copubs_total"].between(1, 4)].iloc[0]
     a, b = below["a"], below["b"]
     topics = _load_topics_raw(ctx)
     assert topics[(topics["a"] == a) & (topics["b"] == b)].empty
     assert CL.joint_profile(ctx, subs_bestfit, a, b) is None
-    assert CL.PAIR_TOPICS_FLOOR == 3
-    assert CL.PAIR_TOPICS_TOP_N == 20
+    assert CL.PAIR_TOPICS_FLOOR == 5
+    assert CL.PAIR_TOPICS_TOP_N == 100
 
 
 def _load_pairs_raw(ctx):
@@ -342,3 +292,132 @@ def test_breadth_jaccard_min_full_floor_shrinks_sets(ctx, subs_bestfit):
     assert one["n_a"] == base["n_a"] and one["n_b"] == base["n_b"]
     assert two["n_a"] <= base["n_a"] and two["n_b"] <= base["n_b"] and two["n_shared"] <= base["n_shared"]
     assert 0.0 <= two["jaccard"] <= 1.0
+
+
+# ============================================================================
+# 2B-R2 (Stream CD3, 2B-R2-11/12) -- collab_pair_topics/fields v3: n_top10/
+# n_covered impact columns, NEW field_breakdown(), per-row arrows + live
+# OpenAlex deep-dive urls, gaps() deletion. Anchors recomputed 2026-08-31 via
+# INDEPENDENT reads of the shipped parquet files (no import of this module's
+# own loaders) -- see V3/progress/2BR2_CD3.md for the scripts.
+# ============================================================================
+
+def _load_raw_pair_topics():
+    return pd.read_parquet(Path(__file__).resolve().parents[1] / "data" / "collab_pair_topics.parquet")
+
+
+def _load_raw_pair_fields():
+    return pd.read_parquet(Path(__file__).resolve().parents[1] / "data" / "collab_pair_fields.parquet")
+
+
+def test_joint_profile_n_top10_n_covered_anchor(ctx, subs_bestfit):
+    """Independent anchor: CNRS x Strasbourg's largest joint topic by
+    volume, read RAW off collab_pair_topics.parquet (topic T10048, vol_total
+    384, n_top10 81, n_covered 327) must match `joint_profile`'s own row
+    exactly, and n_top10 <= n_covered <= vol_total (never divide n_top10 by
+    vol_total -- only by n_covered, per the shipped table's own convention)."""
+    raw = _load_raw_pair_topics()
+    lo, hi = sorted([CNRS, STRASBOURG])
+    raw_row = raw[(raw["a"] == lo) & (raw["b"] == hi)].sort_values("vol_total", ascending=False).iloc[0]
+    assert raw_row["topic_id"] == "T10048"
+    assert int(raw_row["vol_total"]) == 384 and int(raw_row["n_top10"]) == 81 and int(raw_row["n_covered"]) == 327
+
+    got = CL.joint_profile(ctx, subs_bestfit, CNRS, STRASBOURG)
+    assert got is not None
+    row = got["topics"][got["topics"]["topic_id"] == "T10048"].iloc[0]
+    assert int(row["vol_total"]) == 384
+    assert int(row["n_top10"]) == 81
+    assert int(row["n_covered"]) == 327
+    assert (got["topics"]["n_top10"] <= got["topics"]["n_covered"]).all()
+    assert (got["topics"]["n_covered"] <= got["topics"]["vol_total"]).all()
+    assert "n_top10" not in got["erc"]  # impact cols live on topics/fields, never the pair-level erc dict
+
+
+def test_joint_profile_topics_have_no_mean_citations_column_and_meta_says_why(ctx, subs_bestfit):
+    got = CL.joint_profile(ctx, subs_bestfit, CNRS, STRASBOURG)
+    assert "mean_citations" not in got["topics"].columns
+    assert "mean_citations" not in got["fields"].columns  # joint_profile's OWN rollup, not field_breakdown
+    assert got["meta"]["mean_citations_note"] == CL.MEAN_CITATIONS_NOTE
+    for forbidden in ("2B-R", "BUILD_PLAN", "pipeline", "artefact", ".parquet"):
+        assert forbidden not in got["meta"]["note"]
+        assert forbidden not in got["meta"]["mean_citations_note"]
+        assert forbidden not in got["erc"]["denominator_note"]
+
+
+def test_field_breakdown_matches_collab_pair_fields_anchor(ctx):
+    """Independent anchor (P6 progress note, cross-verified here): CNRS x
+    Strasbourg's largest joint field (field_id 31) -- vol_total 1882,
+    n_top10 383, n_covered 1642, mean_citations 33 -- read RAW off
+    collab_pair_fields.parquet and matched exactly against
+    `field_breakdown`'s own row, plus the invariant n_top10 <= n_covered <=
+    vol_total on every row."""
+    raw = _load_raw_pair_fields()
+    lo, hi = sorted([CNRS, STRASBOURG])
+    raw_row = raw[(raw["a"] == lo) & (raw["b"] == hi) & (raw["field_id"] == 31)].iloc[0]
+    assert int(raw_row["vol_total"]) == 1882
+    assert int(raw_row["n_top10"]) == 383
+    assert int(raw_row["n_covered"]) == 1642
+    assert int(raw_row["mean_citations"]) == 33
+
+    df = CL.field_breakdown(ctx, CNRS, STRASBOURG)
+    assert list(df.columns) == CL.FIELD_BREAKDOWN_COLS
+    row = df[df["field_id"] == 31].iloc[0]
+    assert int(row["vol_total"]) == 1882
+    assert int(row["n_top10"]) == 383
+    assert int(row["n_covered"]) == 1642
+    assert int(row["mean_citations"]) == 33
+    assert row["field_name"] == "Physics and Astronomy"
+    assert df.attrs["note"] == CL.FIELD_BREAKDOWN_NOTE
+    assert df.attrs["floor"] == CL.PAIR_TOPICS_FLOOR
+    assert (df["n_top10"] <= df["n_covered"]).all()
+    assert (df["n_covered"] <= df["vol_total"]).all()
+    assert df["vol_total"].is_monotonic_decreasing
+
+
+def test_field_breakdown_empty_below_floor(ctx):
+    """A pair below PAIR_TOPICS_FLOOR (or that never co-published) gets an
+    empty, correctly-columned frame -- never raises."""
+    df = CL.field_breakdown(ctx, "I1305429183", "I1308570094")
+    assert list(df.columns) == CL.FIELD_BREAKDOWN_COLS
+    assert len(df) == 0
+
+
+def test_field_breakdown_arrows_and_urls(ctx):
+    """Every row carries an arrow in the fixed vocabulary and a live
+    OpenAlex url that names both institutions and this field."""
+    df = CL.field_breakdown(ctx, CNRS, STRASBOURG)
+    assert len(df)
+    assert set(df["arrow"]) <= {CL.ARROW_UP, CL.ARROW_DOWN, CL.ARROW_FLAT}
+    row31 = df[df["field_id"] == 31].iloc[0]
+    from urllib.parse import unquote
+    decoded = unquote(row31["url"])
+    assert f"authorships.institutions.id:{CNRS}" in decoded
+    assert f"authorships.institutions.id:{STRASBOURG}" in decoded
+    assert "primary_topic.field.id:31" in decoded
+
+
+def test_arrow_deadband_hand_recomputed():
+    """Independent recompute of `_arrow`'s own formula: mean-annual w2 vs w1
+    (windows of 2 and 3 years respectively), deadband 0.5 works/year."""
+    assert CL._arrow(30, 20) == CL.ARROW_FLAT   # w1=10.0/yr, w2=10.0/yr -> delta 0.0
+    assert CL._arrow(30, 30) == CL.ARROW_UP     # w1=10.0/yr, w2=15.0/yr -> delta +5.0
+    assert CL._arrow(60, 20) == CL.ARROW_DOWN   # w1=20.0/yr, w2=10.0/yr -> delta -10.0
+    assert CL._arrow(3, 1) == CL.ARROW_DOWN     # w1=1.0/yr, w2=0.5/yr -> delta -0.5, AT the deadband (not <, so it counts)
+
+
+def test_untapped_default_top_n_is_100_and_carries_url(ctx, subs_bestfit):
+    got = CL.untapped(ctx, subs_bestfit, STRASBOURG, SORBONNE)
+    assert len(got["topics"]) <= 100
+    assert list(got["topics"].columns) == CL.UNTAPPED_COLS
+    if len(got["topics"]):
+        from urllib.parse import unquote
+        decoded = unquote(got["topics"].iloc[0]["url"])
+        assert f"authorships.institutions.id:{STRASBOURG}" in decoded
+        assert f"authorships.institutions.id:{SORBONNE}" in decoded
+
+
+def test_gaps_and_top10_subfield_ids_are_gone():
+    """2B-R2-11(f): the deleted footprint-gap table leaves no trace."""
+    assert not hasattr(CL, "gaps")
+    assert not hasattr(CL, "GAPS_COLS")
+    assert not hasattr(CL, "_top10_subfield_ids")

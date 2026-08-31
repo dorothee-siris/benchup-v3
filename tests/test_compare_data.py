@@ -522,7 +522,7 @@ def test_frontier_pooled_owner_categories_and_combined_vol(ctx, subs_bestfit):
     a 4th value; combined_vol == the per-id vol columns' row sum."""
     ids3 = [STRASBOURG, IFPEN, GDANSK]
     df = CD.frontier_pooled(ctx, subs_bestfit, ids3, top_n=60)
-    assert set(df.columns) == {"topic_id", "name", "x", "y", "combined_vol", "owner",
+    assert set(df.columns) == {"topic_id", "name", "x", "y", "combined_vol", "owner", "domain_id",
                                f"vol_{STRASBOURG}", f"vol_{IFPEN}", f"vol_{GDANSK}"}
     assert set(df["owner"].unique()) <= set(ids3) | {"shared"}
     vol_cols = [f"vol_{i}" for i in ids3]
@@ -583,3 +583,174 @@ def test_frontier_pooled_empty_for_no_frontier_topics(ctx, subs_bestfit):
     df = CD.frontier_pooled(ctx, subs_bestfit, [IFPEN], top_n=50)
     if len(df):
         assert (df["owner"] == IFPEN).all()
+
+
+# ============================================================================
+# 2B-R2 (Stream CD3, A5/2B-R2-10) -- metric_frame v3 contract: domain_id/
+# domain_order, vol_display, vol_full_annual_mean, ref_value for sdg_share/
+# dynamics, Unclassified excluded from Dynamics, frontier pool="elite".
+# Anchors recomputed 2026-08-31 via INDEPENDENT code paths (raw duckdb/pandas
+# over app/data/*.parquet, no import of lib.compare_data's own helpers) --
+# see V3/progress/2BR2_CD3.md for the scripts.
+# ============================================================================
+
+def test_metric_frame_field_share_domain_and_volume_anchor(ctx, subs_bestfit):
+    """Anchor: Strasbourg field 27 (Medicine, domain_id 4 Health Sciences,
+    OA_DOMAIN_ORDER index 3). `vol_display` follows the CURRENT basis (frac
+    by default, `fields_long`'s own vol_frac); `vol_full_annual_mean` is
+    ALWAYS on the FULL basis (vol_full=5387 / 5 years, 2B-R2-4), regardless
+    of which basis is displayed."""
+    fl = CD.fields_long(ctx, subs_bestfit, [STRASBOURG])
+    fl_row = fl[fl["field_id"] == 27].iloc[0]
+    assert int(fl_row["vol_full"]) == 5387
+
+    mf = CD.metric_frame(ctx, subs_bestfit, [STRASBOURG], "field", "share")
+    row = mf[mf["taxon_id"] == 27].iloc[0]
+    assert int(row["domain_id"]) == 4
+    assert int(row["domain_order"]) == 3  # OA_DOMAIN_ORDER = (1,2,3,4) -> index 3
+    np.testing.assert_allclose(row["vol_display"], float(fl_row["vol_frac"]), rtol=1e-6)  # basis='frac' default
+    np.testing.assert_allclose(row["vol_full_annual_mean"], 5387.0 / 5, rtol=1e-6)
+    assert pd.isna(row["vol_top10"])
+
+
+def test_metric_frame_erc_share_domain_cols(ctx):
+    """ERC domain_id is the panel's own erc_domain code (PE/LS/SH), ordered
+    by `palette.ERC_DOMAIN_ORDER`; Strasbourg panel_idx 0 is LS9 -> LS."""
+    mf = CD.metric_frame(ctx, {"tree": "bestfit"}, [STRASBOURG], "erc", "share")
+    row = mf[mf["taxon_id"] == 0].iloc[0]
+    assert row["domain_id"] == "LS"
+    assert int(row["domain_order"]) == 1  # ERC_DOMAIN_ORDER = ("PE","LS","SH") -> index 1
+
+
+def test_metric_frame_sdg_share_domain_is_constant_and_order_is_numeric(ctx):
+    """SDG carries NO taxonomy domain (2B-R2-5 'SDG numeric') -- every row
+    ships the SAME sentinel `domain_id` (so no domain-boundary rule ever
+    fires between two SDG rows) and `domain_order` is the plain SDG number."""
+    mf = CD.metric_frame(ctx, {"tree": "bestfit"}, [STRASBOURG], "sdg", "share")
+    assert (mf["domain_id"] == CD.SDG_DOMAIN_ID).all()
+    assert mf["domain_id"].nunique() == 1
+    got_order = mf.set_index("taxon_id")["domain_order"]
+    sl = CD.sdg_long(ctx, [STRASBOURG]).set_index("sdg_idx")["sdg_number"]
+    np.testing.assert_array_equal(got_order.reindex(sl.index).to_numpy(dtype="int64"),
+                                  sl.to_numpy(dtype="int64"))
+
+
+def test_metric_frame_field_dynamics_excludes_unclassified(ctx, subs_bestfit):
+    """2B-R2-4: the Unclassified pseudo-field (taxon_id 0) never appears in
+    a Dynamics frame, at field OR subfield grain."""
+    fdyn = CD.metric_frame(ctx, subs_bestfit, IDS6, "field", "dynamics")
+    assert (fdyn["taxon_id"] != 0).all()
+    sdyn = CD.metric_frame(ctx, subs_bestfit, [STRASBOURG], "subfield", "dynamics", field_id=27)
+    assert (sdyn["taxon_id"] != 0).all()
+
+
+def test_metric_frame_field_dynamics_ref_value_hand_duckdb_anchor(ctx, subs_bestfit):
+    """Independent anchor: the population mean Dynamics value for field 11
+    (Agricultural and Biological Sciences, bestfit/frac), hand-recomputed via
+    a SEPARATE duckdb query (own topic->field join, no import of
+    `compare_data._dynamics_population_ref`): 0.818266213962639 over 6,304
+    institutions with nonzero window-1 mass. Also pins the raw-delta gutter
+    string for Strasbourg's own row on this field: '130.0 -> 136.0/yr'."""
+    import duckdb
+    tree = "bestfit"
+    dim = ctx["topics_dim_df"][["topic_id", f"{tree}_subfield_id"]].rename(
+        columns={f"{tree}_subfield_id": "subfield_id"})
+    sfd = P._subfield_field_domain_map(ctx)[["subfield_id", "field_id"]]
+    dim = dim.merge(sfd, on="subfield_id", how="left")
+    dim["field_id"] = dim["field_id"].fillna(0).astype(int)
+    sub = dim[dim["field_id"] == 11][["topic_id"]]
+    con = duckdb.connect()
+    con.register("_m", sub)
+    ta_posix = Path(ctx["topics_all_path"]).as_posix()
+    sql = f"""
+        SELECT ta.inst_key,
+               SUM(vol_frac_2020 + vol_frac_2021 + vol_frac_2022) / 3.0 AS w1,
+               SUM(vol_frac_2023 + vol_frac_2024) / 2.0 AS w2
+        FROM read_parquet('{ta_posix}') ta JOIN _m ON ta.topic_id = _m.topic_id
+        GROUP BY ta.inst_key
+    """
+    hand = con.sql(sql).df()
+    con.close()
+    hand = hand[hand["w1"] > 0]
+    hand_ref = float(((hand["w2"] - hand["w1"]) / hand["w1"]).mean())
+    assert len(hand) == 6304
+
+    mf = CD.metric_frame(ctx, subs_bestfit, [STRASBOURG], "field", "dynamics")
+    row = mf[mf["taxon_id"] == 11].iloc[0]
+    np.testing.assert_allclose(float(row["ref_value"]), hand_ref, rtol=1e-9)
+    np.testing.assert_allclose(hand_ref, 0.818266213962639, rtol=1e-9)
+    assert row["vol_display"] == "130.0 \N{RIGHTWARDS ARROW} 136.0/yr"
+    np.testing.assert_allclose(row["vol_full_annual_mean"], (130.0 * 3 + 136.0 * 2) / 5, rtol=1e-6)
+
+
+def test_metric_frame_sdg_share_ref_value_hand_pandas_anchor(ctx, subs_bestfit):
+    """Independent anchor: the population mean SDG-tagged-share ratio for
+    field 33, hand-recomputed via plain pandas (own groupby, no import of
+    `compare_data._sdg_share_field_ref_means`): 0.44246414."""
+    sdg_fields = pd.read_parquet(Path(ctx["data_dir"]) / "sdg_fields.parquet")
+    fields_raw = pd.read_parquet(Path(ctx["data_dir"]) / "fields.parquet",
+                                 columns=["institution_id", "field_id", "vol_frac"])
+    sub = sdg_fields[(sdg_fields["tree"] == "bestfit") & (sdg_fields["field_id"] == 33)]
+    tagged = sub.groupby("institution_id")["mass"].sum()
+    fm = fields_raw[fields_raw["field_id"] == 33].set_index("institution_id")["vol_frac"]
+    ratio = tagged.reindex(fm.index).fillna(0.0) / fm
+    hand_ref = float(ratio.mean())
+    assert len(fm) == 7402
+
+    mf = CD.metric_frame(ctx, subs_bestfit, [STRASBOURG], "field", "sdg_share")
+    row = mf[mf["taxon_id"] == 33].iloc[0]
+    np.testing.assert_allclose(float(row["ref_value"]), hand_ref, rtol=1e-6)
+    np.testing.assert_allclose(hand_ref, 0.44246414, rtol=1e-6)
+    assert int(row["domain_id"]) == 2
+    np.testing.assert_allclose(row["vol_display"], 878.0426, rtol=1e-4)
+
+
+def test_metric_frame_pp_carries_vol_top10_gutter_data(ctx):
+    """2B-R2-3: vol_top10 is retired as a selector TAB but stays AS DATA --
+    the `pp` frame carries it as an extra column (the PP view's gutter),
+    identical to what the standalone `vol_top10` metric's own `value`
+    reports for the same cell."""
+    pp = CD.metric_frame(ctx, None, [STRASBOURG], "field", "pp", tree="bestfit", floor=30)
+    vol = CD.metric_frame(ctx, None, [STRASBOURG], "field", "vol_top10", tree="bestfit", floor=30)
+    row = pp[pp["taxon_id"] == 35].iloc[0]
+    vrow = vol[vol["taxon_id"] == 35].iloc[0]
+    np.testing.assert_allclose(float(row["vol_top10"]), float(vrow["value"]), rtol=1e-9)
+    assert vol["vol_top10"].isna().all()  # not duplicated on the vol_top10 metric's own frame
+
+
+def test_frontier_pooled_elite_pool_is_subset_of_volume_pool_and_carries_domain(ctx, subs_bestfit):
+    """2B-R2-10: pool='elite' (global top-10% by frontier_score_latest) is a
+    STRICT SUBSET of pool='volume' (top-25% by construction) -- independently
+    verified against a hand-computed global cutoff (own quantile call, no
+    import of `compare_data._elite_frontier_topic_ids`): cutoff 0.359763,
+    371 of 3,706 scored topics qualify."""
+    ids3 = [STRASBOURG, IFPEN, GDANSK]
+    dim = pd.read_parquet(Path(ctx["data_dir"]) / "topics_dim.parquet",
+                          columns=["topic_id", "frontier_score_latest"])
+    scored = dim["frontier_score_latest"].dropna()
+    cutoff = float(scored.quantile(0.90))
+    np.testing.assert_allclose(cutoff, 0.35976293683052063, rtol=1e-6)
+    elite_ids = set(dim.loc[dim["frontier_score_latest"] >= cutoff, "topic_id"])
+    assert len(scored) == 3706 and len(elite_ids) == 371
+
+    pooled_elite = CD.frontier_pooled(ctx, subs_bestfit, ids3, top_n=10_000, pool="elite")
+    pooled_volume = CD.frontier_pooled(ctx, subs_bestfit, ids3, top_n=10_000, pool="volume")
+    assert len(pooled_elite) > 0
+    assert set(pooled_elite["topic_id"]) <= elite_ids
+    assert set(pooled_elite["topic_id"]) <= set(pooled_volume["topic_id"])
+    assert len(pooled_elite) < len(pooled_volume)
+    assert "domain_id" in pooled_elite.columns and pooled_elite["domain_id"].notna().any()
+
+
+def test_frontier_pooled_rejects_unknown_pool(ctx, subs_bestfit):
+    with pytest.raises(AssertionError):
+        CD.frontier_pooled(ctx, subs_bestfit, [STRASBOURG], top_n=10, pool="bogus")
+
+
+def test_unavailable_reason_is_plain_language():
+    """2B-R2-13 plain-language sweep: no plan codes, artefact filenames or
+    the word 'pipeline' in any UNAVAILABLE_REASON string."""
+    forbidden = ("2B-R", "BUILD_PLAN", "pipeline", "artefact", ".parquet")
+    for (metric, level), text in CD.UNAVAILABLE_REASON.items():
+        for token in forbidden:
+            assert token not in text, f"{(metric, level)} reason contains forbidden token {token!r}: {text}"
