@@ -1184,10 +1184,11 @@ def institution_legend_html(names, slots: Mapping) -> str:
     names already in slot order."""
     if hasattr(names, "items"):
         items = sorted(names.items(), key=lambda kv: (_slot_of(slots, kv[0]), str(kv[0])))
-        return C.chip_legend_html([(str(v), P.institution_color(_slot_of(slots, k)))
-                                   for k, v in items])
-    return C.chip_legend_html([(str(v), P.institution_color(i))
-                               for i, v in enumerate(names)])
+        return _chip_strip([(str(v), P.institution_color(_slot_of(slots, k)),
+                             P.institution_ink(_slot_of(slots, k)))
+                            for k, v in items])
+    return _chip_strip([(str(v), P.institution_color(i), P.institution_ink(i))
+                        for i, v in enumerate(names)])
 
 
 # ===========================================================================
@@ -1241,8 +1242,60 @@ SHARED_OWNER = "shared"
 # (contract section 4, `frontier_pooled`). Its colour is `palette.SHARED_FRONTIER`,
 # which is deliberately not an institution slot.
 
-METRICS = ("share", "vol_top10", "pp", "sdg_share", "dynamics", "si")
+METRICS = ("share", "vol_top10", "pp", "sdg_share", "dynamics", "si", "vol")
+# EVERY metric `fig_metric_bars` accepts. `vol` is 2B-R2-1b's fix: the selector
+# offered it, `views_compare.METRIC_LABELS` named it, and this tuple did not --
+# so `vol x erc` and `vol x sdg` raised `ValueError` on a path no test drove
+# (wind tunnel 2BR2 claim #18 enumerated exactly those two crashes out of a
+# 7 x 4 truth table). The lesson is in the test, not in this comment:
+# `test_every_metric_level_renders` drives the WHOLE table.
+#
+# `vol_top10` stays ACCEPTED here although 2B-R2-3 retires it as a TAB -- the
+# builder refusing a metric the page can still ask for is precisely the class of
+# bug above. What the selector offers is `SELECTOR_METRICS`.
+
+SELECTOR_METRICS = ("share", "si", "pp", "sdg_share", "dynamics", "vol")
+# 2B-R2-3's ruled selector ORDER: Share, Specialisation, PP(top10%), SDG-tagged,
+# Dynamics, Volume-where-defined. `vol_top10` is absent by ruling (its mass
+# moved into the PP view's gutter); the page hides the rest per level through
+# its own availability map, and this tuple is what its sweep iterates.
+
 LEVELS = ("field", "subfield", "erc", "sdg")
+
+REF_METRICS = ("pp", "sdg_share", "dynamics")
+# 2B-R2-4: a reference line is drawn for these three ONLY -- the population mean
+# among institutions with nonzero mass, per taxon x tree. Share and Volume get
+# none (there is no "expected share": the shares of a partition sum to one by
+# construction, so a mean share is an artefact of how many taxa exist, not a
+# benchmark). `si` is not in the list because its reference is not data at all
+# (see `_METRIC_DEFAULT_REF`). A frame may carry `ref_value` for any metric; a
+# metric outside this tuple simply does not draw it.
+
+SORT_MODES = ("taxonomy", "value")
+# 2B-R2-5. `taxonomy` (the default) groups the rows under their domains in the
+# taxonomy's own fixed order, so the row order is STABLE across metric tabs --
+# switch from Share to Dynamics and every row stays where it was, which is what
+# makes the tabs comparable at all. `value` is the per-section toggle.
+
+LOW_VOLUME_FLOOR = 10.0
+# 2B-R2-4: a cell whose mean annual FULL volume is below this is drawn HOLLOW
+# and daggered. Not a data filter -- the value is still true, it is just built
+# on so few publications that a reader should not race it against a neighbour.
+
+LOW_VOLUME_GLYPH = "\N{DAGGER}"
+# The visible half of the low-volume marker (the hollow bar is the other half).
+# A DAGGER rather than the warning sign the plan sketches: a dagger is the
+# typographic convention for "see the note", renders as text in every font this
+# app ships, and cannot arrive as a colour emoji -- which would put a hue in the
+# figure that no palette owns.
+
+DOMAIN_RULE_PX = 2          # the separator BETWEEN two taxonomy domains
+NOTE_MAX_CHARS = 160        # `chart_note`'s hard cap -- see its docstring
+DOT_HTML_PX = 10            # the KPI card's best-value dot
+DOT_GAP_PX = 6
+
+POOLS = ("volume", "frontier")
+COLOR_BY = ("owner", "domain")
 
 AX_TOP_DECILE_VOL = "Publications in the world top decile"
 AX_TOP_DECILE_SHARE = "Share of publications in the world top decile"
@@ -1255,7 +1308,10 @@ HOVER_REFERENCE = "index reference"
 HOVER_DENOMINATOR = "denominator"
 HOVER_OWNER = "held by"
 HOVER_COMBINED = "combined volume"
+HOVER_LOW_VOLUME = "few publications a year on average, read with care"
+HOVER_DOMAIN = "domain"
 LABEL_SHARED = "shared"
+NOTE_HELP_GLYPH = "?"
 
 _METRIC_AXIS = {
     "share": C.AX_SHARE,
@@ -1264,9 +1320,16 @@ _METRIC_AXIS = {
     "sdg_share": AX_SDG_TAGGED,
     "dynamics": AX_DYNAMICS,
     "si": C.AX_SI,
+    "vol": C.AX_WORKS,
 }
 _METRIC_KIND = {"share": "pct", "vol_top10": "vol", "pp": "pct",
-                "sdg_share": "pct", "dynamics": "pct", "si": "si"}
+                "sdg_share": "pct", "dynamics": "pct", "si": "si",
+                "vol": "vol"}
+# `vol` takes the INTEGER branch (2B-R2-1b): `charts._fmt_vol` prints a whole
+# number with thin-space thousands separators and no decimal, because a count
+# of publications has none. It is the same branch `vol_top10` has always used --
+# the crash was never about formatting, only about the metric never being
+# admitted to `METRICS`.
 _SIGNED_METRICS = ("dynamics",)
 _METRIC_DEFAULT_REF = {"si": C.SI_NEUTRAL}
 # `si` is the one metric whose reference is a CONSTANT of the indicator itself
@@ -1326,38 +1389,139 @@ def _series_ids(d: pd.DataFrame, slots: Mapping, ids: Sequence | None) -> list:
 
 
 def _accent_ticktext(rows: pd.DataFrame, level: str, label_col: str,
-                     accent_col: str | None) -> tuple[list[str], list[str]]:
-    """`(plain, styled)` tick strings, with the 2B-R-8 taxonomy accent.
+                     accent_col: str | None,
+                     gutter_cells: Sequence[Sequence[tuple[str, str]]] | None = None,
+                     ) -> tuple[list[str], list[str]]:
+    """`(plain, styled)` tick strings, with the 2B-R-8 taxonomy accent and the
+    2B-R2-3 volume gutter.
 
-    `plain` is what `_gutter_margin_px` measures (the glyph and its gap occupy
-    real width, so they are counted); `styled` is what plotly draws. When the
-    level has no official palette, or the frame carries no accent key, the two
-    are the wrapped label and nothing else -- an accent is never invented."""
+    `plain` is what `_gutter_margin_px` measures (the glyph, its gap and every
+    gutter number occupy real width, so they are all counted); `styled` is what
+    plotly draws. When the level has no official palette, or the frame carries
+    no accent key, no accent is invented; when `gutter_cells` is None or a row's
+    entry is empty, no gutter is drawn for that row.
+
+    `gutter_cells[ri]` is a list of `(text, ink)` in slot order -- one entry per
+    drawn institution that HAS a cell in that row. Each is written in its own
+    institution's dark twin, which is the one place in this module where text
+    carries identity: the ordinary rule (dataviz: text wears text tokens) exists
+    because a series colour is usually too light to read, and the twin is
+    precisely the fix for that -- it clears 4.5:1 where its fill sits at 2:1."""
     family = _LEVEL_ACCENT_FAMILY.get(level)
     plain, styled = [], []
-    for _, r in rows.iterrows():
+    for ri, (_, r) in enumerate(rows.iterrows()):
         text_plain, text_styled = C._tick_display(str(r[label_col]), None)
         if family and accent_col and accent_col in rows.index.names + list(rows.columns):
             hexcol = P.label_accent_color(family, r[accent_col])
             text_plain = f"{ACCENT_GLYPH}{ACCENT_GAP}{text_plain}"
             text_styled = (f'<span style="color:{hexcol}">{ACCENT_GLYPH}</span>'
                            f"{ACCENT_GAP}{text_styled}")
+        cells = list(gutter_cells[ri]) if gutter_cells else []
+        if cells:
+            # NO-BREAK spaces, doubled: three numbers in one gutter cell need a
+            # gap wide enough to read as three numbers (the first render ran
+            # them together at a thin space), and an ordinary space would be a
+            # legal line break inside a tick label.
+            gap = ACCENT_GAP + ACCENT_GAP
+            text_plain = (f"{text_plain}{C.TICK_LABEL_GAP}"
+                          + gap.join(t for t, _ in cells))
+            text_styled = (f"{text_styled}{C.TICK_LABEL_GAP}"
+                           + gap.join(
+                               f'<span style="color:{ink};'
+                               f'font-size:{C.GUTTER_FONT_PX}px">{t}</span>'
+                               for t, ink in cells))
         plain.append(text_plain)
         styled.append(text_styled)
     return plain, styled
 
 
-def _row_rules(fig: go.Figure, n_rows: int) -> None:
+def _metric_rows(d: pd.DataFrame, key_col: str, keep: Sequence[str], sort: str,
+                 value_col: str, domain_col: str, domain_order_col: str,
+                 ) -> tuple[pd.DataFrame, list[int]]:
+    """One row per taxon, ordered (2B-R2-5), plus the domain BOUNDARIES.
+
+    `taxonomy` keeps the frame's own arrival order INSIDE each domain and sorts
+    the domains by `domain_order_col` -- the producer owns the taxonomy order,
+    this builder owns only the grouping. A frame with no domain key is left
+    exactly as it arrived, which is what every pre-2B-R2 caller gets for free.
+
+    `value` ranks by the value summed across the compared institutions and
+    returns NO boundaries: a domain separator under a value ranking would draw a
+    grouping the rows no longer have.
+
+    Both sorts are stable (`mergesort`), so two taxa with the same key keep the
+    order the producer gave them rather than an arbitrary one."""
+    rows = d.drop_duplicates(subset=[key_col])[list(keep)].reset_index(drop=True)
+    rows["_arrival"] = range(len(rows))
+    if sort == "value":
+        agg = (d.assign(_v=pd.to_numeric(d[value_col], errors="coerce").fillna(0.0))
+                .groupby(key_col, sort=False)["_v"].sum())
+        rows["_rank"] = [-float(agg.get(k, 0.0)) for k in rows[key_col]]
+        rows = rows.sort_values(["_rank", "_arrival"], kind="mergesort")
+        return rows.drop(columns=["_rank", "_arrival"]).reset_index(drop=True), []
+    if domain_order_col in rows.columns:
+        rows["_dom"] = pd.to_numeric(rows[domain_order_col], errors="coerce")
+        rows["_dom"] = rows["_dom"].fillna(float(len(rows)))
+        rows = rows.sort_values(["_dom", "_arrival"], kind="mergesort").drop(columns="_dom")
+    rows = rows.drop(columns="_arrival").reset_index(drop=True)
+    edge_col = domain_col if domain_col in rows.columns else domain_order_col
+    if edge_col not in rows.columns:
+        return rows, []
+    marks = [str(v) for v in rows[edge_col].tolist()]
+    return rows, [i for i in range(len(marks) - 1) if marks[i] != marks[i + 1]]
+
+
+def _gutter_value(v) -> str:
+    """One gutter cell. A NUMBER is formatted as a volume (thin-space thousands,
+    no decimals); anything else is printed as the producer wrote it, which is
+    how 2B-R2-4's raw-delta gutter ("two point one to nought point four a year")
+    reaches the axis without this module composing a sentence it does not own."""
+    f = _num(v)
+    if np.isfinite(f):
+        return _fmt_vol(f)
+    text = str(v).strip()
+    return text if text and text.lower() != "nan" else P.NA_MARK
+
+
+def _domain_key(v) -> str:
+    """A domain id as a STRING key, tolerant of the float a parquet join leaves
+    behind (`1.0` and `1` must be one group, not two)."""
+    f = _num(v)
+    return str(int(f)) if np.isfinite(f) else str(v)
+
+
+def _is_low_volume(r: pd.Series, low_vol_col: str) -> bool:
+    """2B-R2-4's marker test. A frame with no `low_vol_col`, or a cell with no
+    value in it, is NOT low volume -- an unmeasured thing is never flagged, the
+    same direction as `n/a` never being zero."""
+    if low_vol_col not in getattr(r, "index", []):
+        return False
+    v = _num(r[low_vol_col])
+    return bool(np.isfinite(v) and v < LOW_VOLUME_FLOOR)
+
+
+def _row_rules(fig: go.Figure, n_rows: int, boundaries: Sequence[int] = ()) -> None:
     """A hairline BETWEEN two rows -- not a zebra band.
 
     A grouped row is already a visual block (two or three touching bars); a
     filled band behind it would fight the bars for the same ink, where a rule
     only says where one row stops. `_zebra` stays the right answer for the
-    lane-split dot mirrors, whose rows hold nothing but whitespace."""
+    lane-split dot mirrors, whose rows hold nothing but whitespace.
+
+    `boundaries` (2B-R2-5) names the row indices AFTER which a taxonomy DOMAIN
+    ends. Those get the same line one step heavier and one step darker -- GRID
+    rather than BORDER, `DOMAIN_RULE_PX` rather than `ROW_RULE_PX`. Subtle on
+    purpose: the grouping is already carried by the ORDER, so the rule only has
+    to confirm it. A domain LABEL or a coloured band would be a second identity
+    family in an institution-coloured figure, which the coexistence rule
+    forbids outright."""
+    edges = set(int(b) for b in boundaries)
     for i in range(n_rows - 1):
+        domain_edge = i in edges
         fig.add_shape(type="line", x0=0, x1=1, xref="x domain",
                       y0=i + 0.5, y1=i + 0.5,
-                      line=dict(color=P.BORDER, width=ROW_RULE_PX),
+                      line=dict(color=P.GRID if domain_edge else P.BORDER,
+                                width=DOMAIN_RULE_PX if domain_edge else ROW_RULE_PX),
                       layer="below")
 
 
@@ -1380,6 +1544,7 @@ def fig_metric_bars(
     slots: Mapping,
     names: Mapping | None = None,
     level: str = "field",
+    sort: str = "taxonomy",
     value_col: str = "value",
     label_col: str | None = None,
     key_col: str | None = None,
@@ -1388,6 +1553,11 @@ def fig_metric_bars(
     denominator_col: str = "denominator",
     accent_col: str | None = None,
     metric_label: str | None = None,
+    gutter: bool = True,
+    gutter_col: str = "vol_display",
+    low_vol_col: str = "vol_full_annual_mean",
+    domain_col: str = "domain_id",
+    domain_order_col: str = "domain_order",
 ) -> go.Figure:
     """ONE metric, one taxonomy level, up to three institutions: horizontal
     grouped bars, one row per taxon, the value written on the mark.
@@ -1398,10 +1568,33 @@ def fig_metric_bars(
     to the hover; at k = 3 they fit on the bars, and a comparison the reader can
     read without hovering is a different chart.
 
-    ROW ORDER IS THE CALLER'S. 2B-R-5 removed the sort toggles, so the frame
-    arrives ranked and this builder preserves the order the keys first appear in
-    -- it never re-sorts. Colour still follows the entity, so nothing repaints
-    when the caller changes the ranking.
+    ROW ORDER (2B-R2-5, which reopened 2B-R-5's "the frame arrives ranked").
+    The DEFAULT is `sort="taxonomy"`: rows grouped under their domains, in the
+    taxonomy's own fixed order, with a heavier separator where one domain ends
+    (`domain_order_col` supplies the grouping, `_row_rules` the separator). That
+    order does not move when the reader switches metric tab, which is the whole
+    point -- a row that stays put between Share and Dynamics can be compared
+    across the two. `sort="value"` is the per-section toggle and ranks by the
+    value SUMMED over the compared institutions, the same "large in the set as a
+    whole" rule `_row_order` uses. Colour follows the entity either way, so
+    nothing repaints when the reader flips the toggle.
+
+    THE GUTTER (2B-R2-3: raw volume on EVERY metric, not just the volume tab).
+    `gutter_col` prints each institution's own raw volume, in slot order, at the
+    right edge of the row label -- the profile section's own gutter idiom
+    (`charts._tick_display`), one number per drawn institution, each in that
+    institution's DARK TWIN so the number and the bar it belongs to are visibly
+    the same entity. It answers the question every share chart provokes and no
+    share chart answers: forty per cent of how many? The fills are at 2:1
+    contrast, which is exactly why the twin -- and not the fill -- writes text.
+
+    LOW VOLUME (2B-R2-4). A cell whose `low_vol_col` (mean annual FULL volume)
+    is under `LOW_VOLUME_FLOOR` is drawn HOLLOW -- SURFACE fill, institution
+    outline -- and its value label carries `LOW_VOLUME_GLYPH`, with the reason
+    in the hover. Disclosure, never suppression: the number is real, it is just
+    built on too little to race against its neighbour. This is the same
+    hollow-means-thin idiom `fig_mirror_dots` uses for a below-floor SI cell, so
+    the two sections read as one system.
 
     ENCODING. Bar = institution (`palette.institution_slots`, ascending
     `inst_key`). Row label = the taxon, and for ERC and SDG ONLY it carries a
@@ -1409,11 +1602,14 @@ def fig_metric_bars(
     and routed through `palette.label_accent_color`: taxonomy colour on labels,
     institution colour on marks, never the reverse.
 
-    REFERENCE. `si` defaults to the neutral value; every other reference is data
-    and comes from `ref_col`. A reference that is the SAME for every row is
-    drawn as one dashed rule across the panel; one that VARIES by row is drawn
-    as a short dash inside each row band, because a single line would be a lie
-    about a per-taxon index mean.
+    REFERENCE (2B-R2-4). Only `REF_METRICS` draw one -- PP, SDG-tagged share and
+    Dynamics, whose reference is the population mean among institutions with
+    nonzero mass. `si` defaults to the neutral value, which is a constant of the
+    indicator rather than data. Share and Volume draw none even when the frame
+    carries `ref_col`. A reference that is the SAME for every row is drawn as
+    one dashed rule across the panel; one that VARIES by row is drawn as a short
+    dash inside each row band, because a single line would be a lie about a
+    per-taxon index mean.
 
     EMPTY STATE (n/a never zero, BUILD_PLAN_2A L11). An institution with no row
     for a taxon gets NO bar and NO label. A GENUINE zero gets no visible bar
@@ -1425,6 +1621,8 @@ def fig_metric_bars(
         raise ValueError(f"metric must be one of {METRICS}, got {metric!r}")
     if level not in LEVELS:
         raise ValueError(f"level must be one of {LEVELS}, got {level!r}")
+    if sort not in SORT_MODES:
+        raise ValueError(f"sort must be one of {SORT_MODES}, got {sort!r}")
     if "institution_id" not in frame.columns or value_col not in frame.columns:
         raise ValueError(f"frame needs institution_id and {value_col!r}")
 
@@ -1436,8 +1634,10 @@ def fig_metric_bars(
     accent_col = accent_col or _first_col(d, _ACCENT_COLS.get(level, ()))
     series = _series_ids(d, slots, ids)
 
-    keep = [c for c in (key_col, label_col, ref_col, accent_col) if c and c in d.columns]
-    rows = d.drop_duplicates(subset=[key_col])[keep].reset_index(drop=True)
+    keep = [c for c in (key_col, label_col, ref_col, accent_col, domain_col,
+                        domain_order_col) if c and c in d.columns]
+    rows, boundaries = _metric_rows(d, key_col, keep, sort, value_col,
+                                    domain_col, domain_order_col)
     n = len(rows)
     if n == 0:
         raise ValueError("no rows to draw")
@@ -1448,38 +1648,50 @@ def fig_metric_bars(
     vmin = float(vals.min()) if len(vals) and np.isfinite(vals.min()) else 0.0
     signed = metric in _SIGNED_METRICS or vmin < 0
 
+    keys = rows[key_col].tolist()
+    gutter_cells: list[list[tuple[str, str]]] = [[] for _ in keys]
+
     fig = go.Figure()
-    _row_rules(fig, n)
+    _row_rules(fig, n, boundaries)
     for k, iid in enumerate(series):
         offset, bar_w = C._series_offset_width(len(series), k, BAR_GROUP_SPAN,
                                                BAR_GROUP_FILL)
-        color = P.institution_color(_slot_of(slots, iid))
-        xs, ys, texts, hovers = [], [], [], []
-        for ri, key in enumerate(rows[key_col].tolist()):
+        slot = _slot_of(slots, iid)
+        color = P.institution_color(slot)
+        ink = P.institution_ink(slot)
+        xs, ys, texts, hovers, fills, widths = [], [], [], [], [], []
+        for ri, key in enumerate(keys):
             r = cells.get((key, iid))
             if r is None:
                 continue
+            if gutter and gutter_col in r.index:
+                gutter_cells[ri].append((_gutter_value(r[gutter_col]), ink))
             v = _num(r[value_col])
             if not np.isfinite(v):
                 continue
+            low = _is_low_volume(r, low_vol_col)
             xs.append(v)
             ys.append(ri)
-            texts.append(_fmt_metric(v, metric))
+            texts.append(_fmt_metric(v, metric) + (LOW_VOLUME_GLYPH if low else ""))
+            fills.append(P.SURFACE if low else color)
+            widths.append(P.OUTLINE_WIDTH if low else C.HAIRLINE_PX)
             hovers.append(_metric_hover(r, iid, names, label_col, value_col,
                                         metric, ref_col, denominator_col,
-                                        metric_label))
+                                        metric_label, gutter_col, low))
         fig.add_trace(go.Bar(
             x=xs, y=ys, orientation="h", offset=offset, width=bar_w,
-            marker=dict(color=color, line=dict(color=P.SURFACE, width=C.HAIRLINE_PX)),
+            marker=dict(color=fills, line=dict(color=color, width=widths)),
             text=texts, textposition="outside", cliponaxis=False,
-            textfont=dict(size=C.GUTTER_FONT_PX, color=P.INK_SECONDARY),
+            textfont=dict(size=C.GUTTER_FONT_PX, color=ink),
             customdata=hovers, hovertemplate="%{customdata}<extra></extra>",
             showlegend=False))
 
     fig.update_layout(barmode="overlay", bargap=0)
-    _add_reference(fig, rows, ref_col, ref_value, _METRIC_DEFAULT_REF.get(metric))
+    if metric in REF_METRICS or ref_value is not None or metric in _METRIC_DEFAULT_REF:
+        _add_reference(fig, rows, ref_col, ref_value, _METRIC_DEFAULT_REF.get(metric))
 
-    plain, styled = _accent_ticktext(rows, level, label_col, accent_col)
+    plain, styled = _accent_ticktext(rows, level, label_col, accent_col,
+                                     gutter_cells if gutter else None)
     _y_axis(fig, n, styled)
     n_wrapped = sum(1 for s in styled if "<br>" in s)
     lo = min(vmin, 0.0)
@@ -1501,15 +1713,22 @@ def fig_metric_bars(
 
 
 def _metric_hover(r, iid, names, label_col, value_col, metric, ref_col,
-                  denominator_col, metric_label) -> str:
+                  denominator_col, metric_label, gutter_col: str | None = None,
+                  low: bool = False) -> str:
     title = (metric_label or _METRIC_AXIS[metric]).lower()
     parts = [_name_of(names, iid), str(r[label_col]),
              f"{title}{C.THIN_SPACE}{_fmt_metric(r[value_col], metric)}"]
     index = list(getattr(r, "index", []))
-    if ref_col in index:
+    if gutter_col and gutter_col in index:
+        parts.append(f"{C.AX_WORKS.lower()}{C.THIN_SPACE}{_gutter_value(r[gutter_col])}")
+    if ref_col in index and metric in REF_METRICS:
         parts.append(f"{HOVER_REFERENCE}{C.THIN_SPACE}{_fmt_metric(r[ref_col], metric)}")
     if denominator_col in index:
         parts.append(f"{HOVER_DENOMINATOR}{C.THIN_SPACE}{_fmt_vol(r[denominator_col])}")
+    if low:
+        # the other half of the low-volume marker: the hollow bar says THAT, the
+        # hover says WHY (2B-R2-4). Never a reason to hide the value.
+        parts.append(f"{LOW_VOLUME_GLYPH}{C.THIN_SPACE}{HOVER_LOW_VOLUME}")
     return "<br>".join(parts)
 
 
@@ -1561,6 +1780,11 @@ def fig_frontier_map(
     owner_col: str = "owner",
     label_col: str = "name",
     labels: Mapping | None = None,
+    pool: str = "volume",
+    score_col: str = "frontier_score_latest",
+    color_by: str = "owner",
+    domain_col: str = "domain_id",
+    domain_labels: Mapping | None = None,
 ) -> go.Figure:
     """ONE Expansion x Acceleration plane over the compared institutions' top
     frontier topics, POOLED: each topic appears once, sized by the volume the
@@ -1587,45 +1811,86 @@ def fig_frontier_map(
 
     `top_n` keeps the largest bubbles by combined volume -- the slider 2B-R-9
     puts on the panel. Rows with no frontier score are DROPPED and must be
-    counted in the caller's caption."""
+    counted in the caller's caption.
+
+    POOL (2B-R2-10). `pool="volume"` (the default) is the form above: the
+    compared set's top frontier topics ranked by the volume they put into them,
+    so the map is about where the mass is. `pool="frontier"` ranks by
+    `score_col` instead -- the topics that are most frontier, whatever their
+    volume -- and the two answer genuinely different questions, which is why
+    this is a selector and not a sort. Only the RANKING that `top_n` cuts
+    changes: the bubble AREA is combined volume in both modes, because area
+    means one thing in this app and a pool switch must not silently redefine it.
+    The pool itself (which topics are eligible at all) is the producer's;
+    2B-R2-10 rules that cut GLOBAL, so it does not move when the basket does.
+
+    COLOUR (2B-R2-10). `color_by="owner"` is the ownership reading above.
+    `color_by="domain"` REPLACES it with the OpenAlex domain of each topic --
+    the same question asked of the same picture in the taxonomy's own colours,
+    for a reader who wants to know what KIND of science sits in the expanding
+    quadrant rather than whose it is. The two are mutually exclusive by
+    construction, never blended, and the legend is rebuilt on the swap
+    (`map_legend_strip`): one identity family per figure, the coexistence rule
+    satisfied the same way the Find yearly-breakdown pair satisfies it."""
+    if pool not in POOLS:
+        raise ValueError(f"pool must be one of {POOLS}, got {pool!r}")
+    if color_by not in COLOR_BY:
+        raise ValueError(f"color_by must be one of {COLOR_BY}, got {color_by!r}")
     labels = dict({SHARED_OWNER: LABEL_SHARED}, **(labels or {}))
     d = points.copy()
     for col in (x_col, y_col, owner_col):
         if col not in d.columns:
             raise ValueError(f"missing column {col!r}")
+    if color_by == "domain" and domain_col not in d.columns:
+        raise ValueError(f"missing column {domain_col!r}")
     d = d[np.isfinite(pd.to_numeric(d[x_col], errors="coerce"))
           & np.isfinite(pd.to_numeric(d[y_col], errors="coerce"))].copy()
     d["_m"] = (pd.to_numeric(d[size_col], errors="coerce").fillna(0.0)
                if size_col in d.columns else 1.0)
-    d = d.sort_values("_m", ascending=False, kind="mergesort")
+    rank = ("_m" if pool == "volume" or score_col not in d.columns else "_s")
+    if rank == "_s":
+        d["_s"] = pd.to_numeric(d[score_col], errors="coerce").fillna(-np.inf)
+    d = d.sort_values(rank, ascending=False, kind="mergesort")
     if top_n is not None:
         d = d.head(int(top_n))
-    d = d.reset_index(drop=True)
+    d = d.sort_values("_m", ascending=False, kind="mergesort").reset_index(drop=True)
     if not len(d):
         raise ValueError("no scored topics to draw")
     mmax = float(d["_m"].max()) or 1.0
 
-    exclusive = [o for o in dict.fromkeys(d[owner_col].tolist()) if o != SHARED_OWNER]
-    owners = _series_ids(d, slots, exclusive) if exclusive else []
-    # the shared cloud is drawn LAST, i.e. on top: it is the answer the panel
-    # exists for, and it is the one colour no institution owns.
-    if (d[owner_col] == SHARED_OWNER).any():
-        owners = owners + [SHARED_OWNER]
+    if color_by == "domain":
+        d["_group"] = [_domain_key(v) for v in d[domain_col]]
+        groups = [g for g in (str(k) for k in P.OA_DOMAIN_ORDER) if g in set(d["_group"])]
+        groups += [g for g in dict.fromkeys(d["_group"].tolist()) if g not in groups]
+    else:
+        d["_group"] = d[owner_col]
+        exclusive = [o for o in dict.fromkeys(d[owner_col].tolist()) if o != SHARED_OWNER]
+        groups = _series_ids(d, slots, exclusive) if exclusive else []
+        # the shared cloud is drawn LAST, i.e. on top: it is the answer the panel
+        # exists for, and it is the one colour no institution owns.
+        if (d[owner_col] == SHARED_OWNER).any():
+            groups = groups + [SHARED_OWNER]
 
     fig = go.Figure()
-    for owner in owners:
-        mine = d[d[owner_col] == owner]
+    for owner in groups:
+        mine = d[d["_group"] == owner]
         if not len(mine):
             continue
-        shared = owner == SHARED_OWNER
-        color = P.SHARED_FRONTIER if shared else P.institution_color(_slot_of(slots, owner))
-        who = labels.get(owner, _name_of(names, owner))
+        shared = color_by == "owner" and owner == SHARED_OWNER
+        if color_by == "domain":
+            color = P.domain_color(owner)
+            who = str((domain_labels or {}).get(owner, owner))
+            who_label = HOVER_DOMAIN
+        else:
+            color = P.SHARED_FRONTIER if shared else P.institution_color(_slot_of(slots, owner))
+            who = labels.get(owner, _name_of(names, owner))
+            who_label = HOVER_OWNER
         top = (mine["top25pct_frontier"].fillna(False).to_numpy(dtype=bool)
                if "top25pct_frontier" in mine.columns else np.zeros(len(mine), dtype=bool))
         sizes = MAP_BUBBLE_MIN_PX + (MAP_BUBBLE_MAX_PX - MAP_BUBBLE_MIN_PX) * np.sqrt(
             mine["_m"].to_numpy(dtype=float) / mmax)
         hovers = ["<br>".join([
-            str(r[label_col]), f"{HOVER_OWNER}{C.THIN_SPACE}{who}",
+            str(r[label_col]), f"{who_label}{C.THIN_SPACE}{who}",
             f"{C.HOVER_EXPANSION}{C.THIN_SPACE}{_fmt_frontier(r[x_col])}",
             f"{C.HOVER_ACCELERATION}{C.THIN_SPACE}{_fmt_frontier(r[y_col])}",
             f"{HOVER_COMBINED}{C.THIN_SPACE}{_fmt_vol(r['_m'])}"])
@@ -1872,9 +2137,145 @@ def legend_strip(ids: Sequence, *, slots: Mapping, names: Mapping | None = None,
     hex must still come from `lib.palette`, which the app-wide hex scan enforces
     on every caller anyway."""
     order = sorted(dict.fromkeys(ids), key=lambda i: (_slot_of(slots, i), str(i)))
-    items = [(_name_of(names, i), P.institution_color(_slot_of(slots, i)))
-             for i in order]
+    items = [(_name_of(names, i), P.institution_color(_slot_of(slots, i)),
+              P.institution_ink(_slot_of(slots, i))) for i in order]
     if shared:
-        items.append((shared_label, P.SHARED_FRONTIER))
-    items.extend([(str(a), str(b)) for a, b in (extra or [])])
-    return C.chip_legend_html(items)
+        items.append((shared_label, P.SHARED_FRONTIER, P.SHARED_FRONTIER))
+    items.extend([(str(a), str(b), P.INK_SECONDARY) for a, b in (extra or [])])
+    return _chip_strip(items)
+
+
+def _chip_strip(items: Sequence[tuple[str, str, str]]) -> str:
+    """`charts.chip_legend_html` with a THIRD column: the ink each label is
+    written in (2B-R2-2).
+
+    Everything else is identical -- same markup, same escaping, same one-legend
+    discipline -- and the fork exists for one measured reason: the institution
+    fills now sit at L 0.77 / about 2:1 contrast, so a legend that painted its
+    swatch in the fill and its text in the shared secondary ink would give the
+    reader two things to match up by shape alone. Writing the NAME in that
+    institution's dark twin (4.5:1, same hue) makes the chip and its label one
+    object. `charts.py` keeps its own two-column helper untouched: the Find
+    families have no twins, and nothing there needs one."""
+    def esc(s: str) -> str:
+        return (str(s).replace("&", "&amp;").replace("<", "&lt;")
+                .replace(">", "&gt;").replace('"', "&quot;"))
+
+    chips = "".join(
+        f'<span style="display:inline-flex;align-items:center;'
+        f'margin-right:{C.CHIP_MARGIN_PX}px;">'
+        f'<span style="width:{C.CHIP_PX}px;height:{C.CHIP_PX}px;background:{esc(hexcol)};'
+        f'border-radius:{C.CHIP_RADIUS_PX}px;margin-right:{C.CHIP_GAP_PX}px;"></span>'
+        f'<span style="font-size:{C.FONT_PX}px;color:{esc(ink)};">{esc(label)}</span>'
+        f'</span>'
+        for label, hexcol, ink in items
+    )
+    return (f'<div style="display:flex;flex-wrap:wrap;gap:{C.HAIRLINE_PX}px;'
+            f'margin:{C.CHIP_GAP_PX}px {C.NO_PX}px;">{chips}</div>')
+
+
+def map_legend_strip(ids: Sequence, *, slots: Mapping, names: Mapping | None = None,
+                     color_by: str = "owner", shared: bool = True,
+                     shared_label: str = LABEL_SHARED,
+                     domain_items: Sequence[tuple] = ()) -> str:
+    """The frontier map's legend, REBUILT on the colour-by swap (2B-R2-10).
+
+    `color_by="owner"` returns the institution strip plus the shared chip;
+    `color_by="domain"` returns the OpenAlex domain chips instead and NOTHING
+    else -- not the institution chips, not the shared chip, because in that mode
+    no mark carries either meaning and a legend that named them would be a
+    legend for a figure that is not on screen. That swap is what keeps the
+    coexistence rule true across the toggle.
+
+    `domain_items` is a sequence of `(domain_id, label)` from the caller: the
+    hue is resolved here through `palette.domain_color`, the WORDS stay with the
+    page's copy module, which is the only place allowed to name a domain."""
+    if color_by not in COLOR_BY:
+        raise ValueError(f"color_by must be one of {COLOR_BY}, got {color_by!r}")
+    if color_by == "domain":
+        return _chip_strip([(str(label), P.domain_color(did), P.INK_SECONDARY)
+                            for did, label in domain_items])
+    return legend_strip(ids, slots=slots, names=names, shared=shared,
+                        shared_label=shared_label)
+
+
+# ---------------------------------------------------------------------------
+# 14. Presentation primitives (2B-R2-8) -- the reading line and the KPI dot
+# ---------------------------------------------------------------------------
+def chart_note(reading: str, tooltip: str | None = None) -> str:
+    """ONE short reading line under a chart, with the methodology folded into a
+    `?` the reader can hover.
+
+    THE PROBLEM IT SOLVES (2B-R2-8): every panel had grown a grey paragraph
+    above it and another below -- window definitions, counting bases, floors,
+    caveats -- and a reader who must read four lines of prose before a chart
+    reads neither. The split this helper enforces is: what the chart SAYS stays
+    visible; what the chart IS made of goes behind the `?`.
+
+    IT REFUSES A WALL OF PROSE, on purpose. A `reading` longer than
+    `NOTE_MAX_CHARS`, or one containing a line break, raises `ValueError`. A
+    silent truncation would let the wall back in one release later, and a
+    soft-wrapped three-line "note" is the exact thing 2B-R2-8 deletes. The
+    tooltip has no cap -- it is the place the long text is SUPPOSED to go.
+
+    Returns markup (this module never imports Streamlit); the page hands it to
+    `st.markdown(..., unsafe_allow_html=True)`. The `?` carries its payload in
+    `title=`, so it works with no script and reads out as text to a screen
+    reader, and it is a `<span>` rather than an emoji so it inherits the ink."""
+    text = " ".join(str(reading).split())
+    if not text:
+        raise ValueError("a chart note needs a reading line")
+    if "\n" in str(reading).strip() or len(text) > NOTE_MAX_CHARS:
+        raise ValueError(f"a chart note is ONE short line of at most "
+                         f"{NOTE_MAX_CHARS} characters; put the rest in the "
+                         f"tooltip (got {len(text)})")
+
+    def esc(s: str) -> str:
+        return (str(s).replace("&", "&amp;").replace("<", "&lt;")
+                .replace(">", "&gt;").replace('"', "&quot;"))
+
+    help_span = ""
+    if tooltip:
+        payload = " ".join(str(tooltip).split())
+        help_span = (
+            f'<span title="{esc(payload)}" role="note" '
+            f'style="display:inline-flex;align-items:center;justify-content:center;'
+            f'width:{C.FONT_PX}px;height:{C.FONT_PX}px;margin-left:{DOT_GAP_PX}px;'
+            f'border:{C.HAIRLINE_PX}px solid {P.BORDER};border-radius:{C.FONT_PX}px;'
+            f'font-size:{C.GUTTER_FONT_PX}px;color:{P.INK_SECONDARY};'
+            f'cursor:help;">{NOTE_HELP_GLYPH}</span>')
+    return (f'<div style="display:flex;align-items:center;'
+            f'font-size:{C.FONT_PX}px;color:{P.INK_SECONDARY};'
+            f'margin:{C.CHIP_GAP_PX}px {C.NO_PX}px;">'
+            f'<span>{esc(text)}</span>{help_span}</div>')
+
+
+def best_value_dot(slot, label: str | None = None) -> str:
+    """The Compare overview card's leader mark (2B-R2-9): a small dot in the
+    LEADING institution's colour, optionally followed by that institution's name
+    in its dark twin.
+
+    Why a dot and not a tint. A tinted card would paint a large area in a hue
+    that is 2:1 against the surface -- unreadable as identity, and it would put
+    the institution's colour behind the card's own numbers, which belong to
+    every compared institution rather than to the leader. The dot is a MARK: it
+    sits beside the value, it is the same object the chart below draws, and the
+    card's numbers stay in ink. Measured in A/B `2br2_dot_{a,b}` and read.
+
+    `slot` is the zero-based slot (`palette.institution_slots`), so the dot on a
+    card and the bar in the chart below it cannot disagree. An unknown slot
+    yields COMPARISON grey and INK_SECONDARY text, the module-wide convention."""
+    def esc(s: str) -> str:
+        return (str(s).replace("&", "&amp;").replace("<", "&lt;")
+                .replace(">", "&gt;").replace('"', "&quot;"))
+
+    dot = (f'<span style="display:inline-block;width:{DOT_HTML_PX}px;'
+           f'height:{DOT_HTML_PX}px;border-radius:{DOT_HTML_PX}px;'
+           f'background:{P.institution_color(slot)};'
+           f'border:{P.OUTLINE_WIDTH}px solid {P.SURFACE};"></span>')
+    if not label:
+        return dot
+    return (f'<span style="display:inline-flex;align-items:center;'
+            f'gap:{DOT_GAP_PX}px;font-size:{C.GUTTER_FONT_PX}px;'
+            f'color:{P.institution_ink(slot)};">{dot}'
+            f'<span>{esc(label)}</span></span>')

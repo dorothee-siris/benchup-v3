@@ -247,15 +247,51 @@ def test_hex_scan_actually_covers_the_new_charts_module():
 # ---------------------------------------------------------------------------
 # 2B / stream V -- FAMILY 5 (institution identity) and the ordinal grey ramp
 # ---------------------------------------------------------------------------
-def test_institution_family_is_six_distinct_validated_hexes():
+def test_institution_family_is_three_distinct_validated_hexes():
+    """2B-R2-2 shrank the family from six slots to THREE: 2B-R-4 caps Compare at
+    three institutions and Collaborate is a pair, so slots 4-6 had no consumer
+    and would have been three hues nothing could draw."""
     palette = _palette()
     fam = palette.INSTITUTION_COLORS
-    assert isinstance(fam, list) and len(fam) == 6
-    assert palette.INSTITUTION_SLOT_MAX == 6
+    assert isinstance(fam, list) and len(fam) == 3
+    assert palette.INSTITUTION_SLOT_MAX == 3
     for hexval in fam:
         assert isinstance(hexval, str) and HEX6.match(hexval), hexval
     upper = [h.upper() for h in fam]
     assert len(set(upper)) == len(upper), f"duplicate institution hue: {upper}"
+
+
+def test_institution_dark_twins_are_one_per_slot_darker_and_not_a_second_family():
+    """`INSTITUTION_COLORS_DARK` is the relief the fills' contrast WARN obliges
+    (validator run 18): one TEXT colour per slot, the same hue as its fill and
+    dark enough to read. Pinned here so it can never drift into a second
+    identity set -- same length, disjoint hexes, and strictly darker."""
+    palette = _palette()
+    fills, twins = palette.INSTITUTION_COLORS, palette.INSTITUTION_COLORS_DARK
+    assert isinstance(twins, list) and len(twins) == len(fills)
+    assert len({t.upper() for t in twins}) == len(twins)
+    assert not ({t.upper() for t in twins} & {f.upper() for f in fills})
+    for fill, twin in zip(fills, twins):
+        assert HEX6.match(twin), twin
+        lum = lambda h: 0.2126 * int(h[1:3], 16) + 0.7152 * int(h[3:5], 16) + 0.0722 * int(h[5:7], 16)
+        assert lum(twin) < lum(fill), (fill, twin)
+    # the resolver, and its fallback: an unassignable slot loses the accent
+    for i, twin in enumerate(twins):
+        assert palette.institution_ink(i) == twin
+    for unknown in (len(twins), len(twins) + 5, None, "x"):
+        assert palette.institution_ink(unknown) == palette.INK_SECONDARY
+
+
+def test_erc_mapping_is_the_one_the_ab_chose():
+    """2B-R2-2's A/B (design-system/ab/screen_erc_2br2.mjs) scored all six
+    permutations of the ruled trio and overturned the plan's listing order:
+    LS wears the green that sits 6.0 from OA Life Sciences, PE the violet
+    nearest OA Physical, SH the vermillion. Pinned because the mapping -- not
+    the hexes -- was the open question, and a silent re-permutation would undo
+    a measured result."""
+    palette = _palette()
+    assert palette.ERC_DOMAIN_COLORS == {"PE": "#6A3D9A", "LS": "#009E73",
+                                         "SH": "#D55E00"}
 
 
 def test_no_institution_slot_is_focal_or_comparison():

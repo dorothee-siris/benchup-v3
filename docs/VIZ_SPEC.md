@@ -1802,6 +1802,229 @@ per 2B-R-12) and the legend placement.
 > to read topic NAMES and follow a link — which a scatter can only give through
 > a hover, one at a time.
 
+## 2 quinquies. View specs — the Phase 2B-R2 colour rework and chart mechanics (stream VS3, 2026-08-31)
+
+**Produced by:** stream VS3 in wave 1 of Phase 2B-R2, before `lib/compare_data.py`
+lands the unified frame contract and before the pages are rewritten. Same row
+format as every section above — form / encoding / interaction / empty state /
+export, one NAMED rejected alternative each. Builders: `lib/charts_compare.py`,
+colours: `lib/palette.py`, evidence: `design-system/palette_validation.txt`
+runs 18–25 and `design-system/ab/2br2_*`.
+
+**The A5 amendment governs this section.** The wind tunnel refused the plan's
+four independent acceptances (taxonomy order, volume gutter, low-volume marker,
+reference lines) and made them ONE contract change: `metric_frame` grows
+`domain_id, domain_order, vol_display, vol_full_annual_mean, ref_value`. CD3
+produces it, `fig_metric_bars` consumes it, and every row below cites it. The
+contract is ADDITIVE — a frame without the new columns still renders, with no
+gutter and no separators — which is what keeps CD3's landing from being a flag
+day.
+
+### 5.1 The colour system — three light institution fills and their dark twins
+
+- **Form.** Not a view: the parameter every view below reads.
+  `palette.INSTITUTION_COLORS` (3 fills at OKLCH L = 0.77),
+  `palette.INSTITUTION_COLORS_DARK` (one darker same-hue TEXT twin each),
+  `palette.ERC_DOMAIN_COLORS` reassigned to the trio the institutions vacate.
+- **Encoding.** Fill = the institution, on a MARK only. Twin = the same
+  institution, on TEXT only — the value label, the gutter number, the legend
+  name, the KPI dot's caption. The direction is one-way and has one resolver
+  each (`institution_color` / `institution_ink`), so "colour on a mark" and
+  "colour on text" can never drift into two different meanings.
+- **Why light at all.** The user ruled "much lighter fills so the value labels
+  can be read". Literally that is unbuildable: the validator's lightness gate is
+  L ∈ [0.43, 0.77] at every hue and the wind tunnel's exhaustive search returned
+  ZERO passing triples at L ≥ 0.78. L = 0.77 is the lightest legal rung and it is
+  what ships (run 18).
+- **Why these three hues.** Searched, not inherited: every 6° hue triple at
+  L 0.74–0.77 that passes the validator, clears the dataviz CVD **target** of 8
+  inside the trio, and stays ≥ 15 from the chrome that shares the Compare screen
+  — 11,379 survivors, ranked by distance to OA + SDG (run 18b). Winner
+  `#FF8BA6 / #B4BF07 / #8EB3FF`: in-trio CVD 12.6, normal-vision 20.2.
+- **The coexistence exception, with its numbers.** No triple at any lightness
+  reaches ΔE 15 against the OA domain hues AND the sixteen drawn SDG hues — a
+  measured impossibility, not a shortfall. Shipped distances: OA 9.4, SDG 9.6,
+  doctype 14.4, ERC 18.7, FOCAL 24.2, SHARED_FRONTIER 24.6. Legal for exactly
+  the reason runs 6b and 10 already are: an institution fill never shares a
+  figure with an OA / SDG / doctype fill, and the taxonomy colours reach a
+  Compare figure only as row-label glyphs.
+- **What the rework FIXED.** Run 17 recorded the app's worst same-screen
+  collision (ERC PE `#1F4E9C` vs institution slot 3 `#6A3D9A`, protan ΔE 1.7,
+  normal 10.8) as "descriptive". Moving both families at once turns that exact
+  co-occurrence into ALL CHECKS PASS at normal-vision 18.7 (run 25).
+- **Empty state.** A fourth institution is refused by the builder and greyed by
+  the resolver — never a generated hue, never a cycle.
+- **Export.** Every panel still exports its numbers, which is half the relief the
+  fills' contrast WARN obliges; the twins are the other half.
+
+> **Rejected alternative:** the wind tunnel's own trio `#FC9095 / #28CFB7 /
+> #90B3FC`. It PASSES and it is prettier — but its worst in-trio CVD is 6.1
+> (deutan), inside the band the dataviz non-negotiables call "legal ONLY with
+> secondary encoding", against 12.6 for the shipped trio at the SAME distance to
+> OA and SDG (9.3 vs 9.4). Run 18c, and A/B #10 renders both at the real bar
+> pitch. Every survivor at CVD ≥ 8 contains a yellow-green slot: at L 0.77 the
+> red/green confusion lines collapse and yellow-green is the only region that
+> stays separable, which is why slot 2 is an acid olive rather than a mint.
+
+### 5.2 Metric-selector grouped bars, v2 — taxonomy grouping and the sort toggle
+
+- **Form.** `fig_metric_bars(..., sort="taxonomy"|"value")`, superseding §4.2's
+  "the frame arrives ranked and the builder never re-sorts".
+- **Encoding.** `sort="taxonomy"` (the default) groups the rows under their
+  domains in the taxonomy's own order (`domain_order`), and marks each domain
+  boundary with the row rule one step heavier and one step darker — `GRID` at
+  `DOMAIN_RULE_PX` against `BORDER` at `ROW_RULE_PX`. Subtle on purpose: the
+  grouping is already carried by the ORDER, so the rule only confirms it.
+- **Interaction.** A per-section "sort by value" toggle ranks by the value summed
+  across the compared institutions and DROPS the separators — a domain separator
+  under a value ranking would draw a grouping the rows no longer have. Colour
+  follows the entity in both, so nothing repaints when the toggle flips.
+- **Why taxonomy is the default.** Order stability across metric tabs: a row that
+  stays put between Share and Dynamics can be compared across the two. Pinned by
+  `test_the_order_is_stable_across_every_metric_tab`.
+- **Empty state.** A frame with no `domain_order` keeps the caller's arrival
+  order and draws no separator.
+- **Export.** The CSV carries `domain_id` so the grouping survives the download.
+
+> **Rejected alternative:** a coloured domain BAND behind each group, or a domain
+> name in the axis. Both put a second identity family (the OA domain hues) into a
+> figure whose only identity is the institution — the coexistence rule forbids it
+> outright, and validator run 20 measures what it would cost (institution
+> `#8EB3FF` vs OA Physical `#8190FF`, normal-vision ΔE 9.4, in one figure).
+
+### 5.3 The raw-volume gutter, on every metric
+
+- **Form.** The row label's right edge carries one number per drawn institution,
+  in slot order, right-anchored — `charts._tick_display`'s idiom, extended to
+  three cells (`vol_display`, current basis).
+- **Encoding.** Each number wears its own institution's DARK TWIN. That is the
+  one place in the module where text carries identity, and it is deliberate: the
+  fills sit at 2:1, so three grey numbers in a row would be unreadable as
+  "whose", while three twins are instant.
+- **Why on every metric.** 2B-R2-3: a share chart provokes the question "forty
+  per cent of how many?" and answers it nowhere. The gutter answers it without
+  spending a tab, which is what let `vol_top10` be retired as a tab at all.
+- **Empty state.** An institution with no cell contributes no number (never a
+  zero); a non-numeric `vol_display` is printed verbatim, which is how 2B-R2-4's
+  raw-Δ gutter reaches the axis without this module composing a sentence it does
+  not own. `gutter=False` turns the whole thing off.
+- **Export.** The volumes are frame columns, so every CSV already has them.
+
+> **Rejected alternative:** ONE number per row (the compared set's total), the
+> form A/B #9 assumed when it wrote "three per row is not a gutter, it is a
+> collision". That verdict was about three METRIC VALUES competing with the bars
+> for the same horizontal space; these are short right-anchored integers in three
+> distinct inks, and A/B #10's render at 26 fields × 3 shows them separating
+> cleanly. The row total was rejected because it answers a question nobody asks:
+> the reader wants to know whether THIS institution's share rests on 12 papers or
+> 12,000, and a pooled total hides exactly that.
+
+### 5.4 The low-volume marker
+
+- **Form.** A cell whose `vol_full_annual_mean` is below `LOW_VOLUME_FLOOR` (10)
+  is drawn HOLLOW — SURFACE fill, institution outline at `OUTLINE_WIDTH` — and
+  its value label carries `LOW_VOLUME_GLYPH`.
+- **Encoding.** Shape and glyph, never a hue: a second colour would be a second
+  identity family. The outline stays the institution's, so a hollow bar is still
+  an identity rather than a hole — the same hollow-means-thin idiom
+  `fig_mirror_dots` uses for a below-floor SI cell.
+- **Interaction.** The hover carries the reason in plain words.
+- **Empty state.** No marker column, or no value in it → NOT flagged. An
+  unmeasured thing is never marked, the same direction as "n/a never zero".
+- **Export.** The mean annual volume is a frame column.
+
+> **Rejected alternative:** drop the row below the floor, the way the impact
+> panels drop a below-floor cell. Rejected because a share IS defined at low
+> volume — it is just unstable — so deleting it would answer "how does this
+> institution compare here?" with silence when the honest answer is "it looks
+> strong, on very little". Disclosure beats suppression; the dagger is the
+> disclosure.
+
+### 5.5 Reference lines — three metrics, and why not share
+
+- **Form.** `REF_METRICS = (pp, sdg_share, dynamics)` draw the population mean
+  among institutions with nonzero mass (`ref_value`, computed at runtime by
+  duckdb per 2B-R2-4). `si` draws its own constant neutral. Share and Volume draw
+  NOTHING, even when the frame carries `ref_value`.
+- **Encoding.** Constant across rows → ONE dashed rule across the panel; varying
+  by row → a short dash inside each row band, because a per-taxon index mean is a
+  different number in every row and one line would assert a benchmark that does
+  not exist.
+- **Interaction.** The hover names the reference beside the value, and the
+  section tooltip says what population it is a mean over.
+- **Empty state.** A non-finite reference draws no dash for that row.
+- **Export.** `ref_value` ships in the CSV.
+
+> **Rejected alternative:** a reference on the Share tab too, for symmetry.
+> Rejected on arithmetic: the shares of a partition sum to one, so their mean
+> across institutions is 1/(number of taxa) — an artefact of how many fields the
+> taxonomy has, not a benchmark anyone can be above or below in a meaningful
+> sense. A line there would be read as one anyway.
+
+### 5.6 Frontier map v2 — two pools and the colour-by-domain toggle
+
+- **Form.** `fig_frontier_map(..., pool=, color_by=)`. One pooled
+  Expansion × Acceleration plane, unchanged in geometry.
+- **Encoding.** `pool="volume"` ranks the slider's cut by combined volume (where
+  the mass is); `pool="frontier"` ranks it by `frontier_score_latest` (what is
+  most frontier). Only the RANKING changes — bubble AREA stays combined volume in
+  both, because area means one thing in this app and a pool switch must not
+  silently redefine it. `color_by="domain"` REPLACES the ownership hues with the
+  OpenAlex domain hues and the legend is rebuilt on the swap
+  (`map_legend_strip`), so exactly one identity family is ever on screen.
+- **Interaction.** Two controls, both persisted with the slider. The caption
+  states the pool rule and the shared count in plain words; 2B-R2-10 rules the
+  top-10 % cut GLOBAL, so the pool does not move when the basket does.
+- **Empty state.** Unscored topics are dropped and counted in the caption; a
+  frame with no `domain_id` refuses the domain toggle loudly rather than
+  colouring everything grey.
+- **Export.** Owner, domain, both coordinates and the volume, per topic.
+
+> **Rejected alternative:** colour by domain and outline by owner, so both
+> readings live in one picture. Rejected: it is two identity families in one
+> figure, the thing the coexistence rule exists to prevent — and the outline is
+> already spent on the top-quartile flag, which would then have nowhere to go.
+
+### 5.7 Compare overview cards — the best-value dot
+
+- **Form.** `best_value_dot(slot, label)` — a small dot in the LEADING
+  institution's fill, followed by that institution's name in its twin.
+- **Encoding.** A MARK, sitting beside the value, the same object the chart below
+  draws. The card's own numbers stay in ink because they belong to all three
+  institutions, not to the leader.
+- **Interaction.** The window and basis move into the card's `?` tooltip
+  (2B-R2-9); the bootstrap-interval line is deleted.
+- **Empty state.** An unknown slot yields COMPARISON grey and secondary ink — a
+  card with no leader says so instead of picking one.
+- **Export.** The strip's numbers ride in the Compare xlsx.
+
+> **Rejected alternative:** tint the whole card in the leader's hue. Rendered in
+> A/B #13 and rejected on two measurements: the card's secondary text drops to
+> 1.4–1.9:1 on the L 0.77 tints (below every text floor), and the tint reads as
+> "this card belongs to Lille" when the card's number is a comparison across all
+> three.
+
+### 5.8 The reading line and the ? tooltip
+
+- **Form.** `chart_note(reading, tooltip)` — one short line under a chart, plus a
+  bordered `?` carrying the methodology in `title=`.
+- **Encoding.** Secondary ink, chart font size; the `?` inherits the ink and is a
+  `<span>`, not an emoji, so it cannot arrive as a colour glyph no palette owns.
+- **Interaction.** Hover / focus reveals the payload; it degrades to plain text
+  with no script and reads out to a screen reader.
+- **Empty state.** No tooltip → no `?` at all, rather than an affordance that
+  reveals nothing.
+- **It REFUSES a wall of prose.** A reading longer than `NOTE_MAX_CHARS` or
+  containing a line break raises `ValueError`. 2B-R2-8 is enforced, not
+  requested: a silent truncation would let the grey paragraph back in one
+  release later.
+
+> **Rejected alternative:** a Streamlit expander per chart ("Method"). Rejected
+> because an expander is a heading plus a click plus a layout shift for two
+> sentences, and because the page already scrolls through six panels — six
+> collapsed expanders read as six unfinished sections. The `?` costs one glyph.
+
+
 ## 3. Cross-cutting A/Bs to run on real data (D1)
 
 Named here per this stream's brief item 5; **resolved by Stream D1** against
@@ -2205,3 +2428,107 @@ trio, one page, 1280 × 6,200 px, 6 figures, 350 marks, 230 value labels,
 `V3/progress/2BR_VS.md`. The pulse frame on that page is **synthetic and
 labelled as such** — `collab_pairs.parquet` lands with pipeline stream P2; what
 the render proves there is the builder's geometry, not any number.
+
+## 8. A/B verdicts — Phase 2B-R2 (stream VS3, 2026-08-31)
+
+Renders: `design-system/ab/2br2_ab.py` → `2br2_*_1280.png`, every variant drawn
+through the SHIPPED builders and screenshotted in a real browser (kaleido is not
+installed and is not to be added). Colour distances: the dataviz validator
+itself, logged in `design-system/palette_validation.txt` runs 18–25 and measured
+pairwise in `design-system/ab/screen_inst_2br2.mjs` /
+`screen_erc_2br2.mjs`. Frames are synthetic at the REAL geometry (26 fields × 3
+institutions, 7 ERC panels × 3) — what these A/Bs test is legibility at the
+shipped pitch, not any number.
+
+### A/B #10 — the institution trio. WINNER: the searched trio.
+
+| | A `#FC9095/#28CFB7/#90B3FC` (wind tunnel) | B `#FF8BA6/#B4BF07/#8EB3FF` (search) |
+|---|---|---|
+| worst in-trio CVD ΔE | **6.1** deutan (the 6–8 band) | **12.6** deutan |
+| worst in-trio normal ΔE | 16.5 | 20.2 |
+| min ΔE to OA / SDG | 9.6 / 9.3 | 9.4 / 9.6 |
+| min ΔE to FOCAL / SHARED | 24.2 / 25.1 | 24.2 / 24.6 |
+| contrast on white | 2.20 / 1.96 / 2.09 | 2.21 / 2.02 / 2.09 |
+| validator | ALL CHECKS PASS (run 18c) | ALL CHECKS PASS (run 18) |
+
+Both pass. They tie on the axis the coexistence exception already forgives (OA
+and SDG, unreachable at any lightness) and they differ by 2× on the axis that is
+a requirement: telling the three institutions apart. Read at 1280 px, A is the
+prettier set — salmon, mint and periwinkle are a softer family — and that is
+exactly the problem: its salmon and its mint are the ΔE 6.1 pair, so the two
+bars a reader most often has to separate are the two that collapse under deutan.
+B's acid olive is unlovely beside them and unmistakable, which is what a
+categorical slot is for. Every triple in the search that clears CVD 8 contains a
+yellow-green: at L 0.77 the red/green confusion lines have collapsed and that
+region is the only one left.
+
+**Also read on the same renders:** at 26 rows × 3 the bars are 12.8 px, the
+2 px SURFACE gap holds, no value label collides, and the two low-volume rows
+(hollow + dagger) are distinguishable from the 24 solid ones at a glance —
+including in the pale fills, because the outline keeps the institution's hue.
+
+### A/B #11 — value labels and gutter numbers: twins or secondary ink. WINNER: the twins.
+
+Variant A: labels and gutter in `INK_SECONDARY` (contrast 6.43:1). Variant B:
+each in its institution's dark twin (4.51 / 4.54 / 4.53:1). Both clear the 4.5:1
+body-text floor, so this is not a contrast question — it is an attribution one.
+On the VALUE labels the difference is small (the label sits at its own bar's
+end). On the GUTTER it is decisive: three grey integers in a row
+(`231 268 305`) carry no clue which institution each belongs to, and the render
+shows the ink variant reading as one meaningless run of digits where the twin
+variant reads as three institutions. This is the one deliberate departure from
+the dataviz rule "text wears text tokens, never the series colour", and the
+justification is the same measurement that forced the twins into existence: at
+2:1 the mark alone cannot carry identity, so the text has to help.
+
+**Fixed on the second render:** the first pass joined the three gutter numbers
+with a thin space and they ran together; they are now separated by two no-break
+spaces (an ordinary space would be a legal line break inside a tick label).
+
+### A/B #12 — which ERC domain gets which hue. WINNER: PE violet / LS green / SH vermillion.
+
+The trio's legality was never open (run 13 = run 23, ALL CHECKS PASS, no
+warning); only the assignment was. Scored over all six permutations as
+"close to the OA domain that means the SAME thing, far from the ones that mean
+something else" (`screen_erc_2br2.mjs`):
+
+| permutation | score |
+|---|---|
+| **PE violet · LS green · SH vermillion** | **+32.8** |
+| PE violet · LS vermillion · SH green | −0.0 |
+| PE vermillion · LS green · SH violet *(the plan's listing order)* | −7.1 |
+| PE green · LS violet · SH vermillion | −7.8 |
+| PE vermillion · LS violet · SH green | −21.0 |
+| PE green · LS vermillion · SH violet | −26.7 |
+
+The winner wins by a chasm because of one leg: ERC Life Sciences green sits 6.0
+from OpenAlex Life Sciences green and 28.7 from everything else — the same
+meaning wearing nearly the same colour in both taxonomies. SH is the weak leg in
+every permutation (OA Social Sciences is yellow and none of the three hues is),
+which is why the row label naming the panel in full is load-bearing rather than
+decorative. Read on the renders: with the plan's order the vermillion PE glyph
+sits beside the rose institution bars — the trio's nearest cross-family pair
+(normal ΔE 18.7) — where the winner puts violet there and keeps every glyph
+plainly outside the institution family.
+
+**2B-R2-2 says the mapping is "fixed by a quick A/B". The A/B overturned the
+plan's own listing order. That is what the A/B was for.**
+
+### A/B #13 — the Compare overview card's leader mark. WINNER: the dot.
+
+Variant A: a `DOT_HTML_PX` dot in the leader's fill plus its name in the twin.
+Variant B: the whole card tinted in the leader's fill. Rendered side by side and
+read: the tint puts the card's secondary text (`INK_SECONDARY`) on an L 0.77
+ground, where it measures 1.4–1.9:1 — below every text floor in this app — and
+it makes the card LOOK like it belongs to one institution when its number is a
+comparison across all three. The dot is a mark of the same kind the chart below
+draws, it sits beside the value, and the card's ink is untouched. 2B-R2-9's
+ruling, now measured rather than assumed.
+
+### Render proof
+
+`design-system/ab/2br2_pastel_b_1280.png` — the shipped trio through the shipped
+`fig_metric_bars` at 26 fields × 3 institutions, 1280 px: 78 bars, 78 value
+labels, 78 gutter numbers in three inks, 3 domain separators, 2 hollow
+low-volume rows with daggers, 0 label collisions, no horizontal overflow. Read
+and described in `V3/progress/2BR2_VS3.md`.

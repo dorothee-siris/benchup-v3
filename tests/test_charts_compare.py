@@ -691,10 +691,15 @@ def test_metric_bars_missing_cell_is_absent_and_a_real_zero_is_labelled(cids, cs
 
 
 def test_metric_bars_colour_is_the_institution_and_only_the_institution(cids, cslots):
+    """2B-R2-4 made the FILL per-point (a low-volume cell is hollow), so the
+    invariant is now stated over the points: every fill is either the
+    institution's hue or SURFACE, and the OUTLINE is always the institution --
+    which is what keeps a hollow bar an identity rather than a hole."""
     fig = X.fig_metric_bars(metric_frame(cids), "share", cids, slots=cslots, names=NAMES)
     wanted = {P.institution_color(s) for s in cslots.values()}
-    assert {tr.marker.color for tr in fig.data} == wanted
-    assert all(tr.marker.line.color == P.SURFACE for tr in fig.data)
+    fills = {c for tr in fig.data for c in tr.marker.color}
+    assert fills <= wanted | {P.SURFACE}
+    assert {tr.marker.line.color for tr in fig.data} == wanted
 
 
 def test_metric_bars_never_thinner_than_the_target(cids, cslots, kc):
@@ -744,12 +749,14 @@ def test_label_accent_resolver_is_the_one_entry_point():
 
 # ---------------------------------------------------------- the reference ---
 def test_constant_reference_is_one_rule_and_a_varying_one_is_per_row(cids, cslots):
-    flat = X.fig_metric_bars(metric_frame(cids, ref=0.06), "share", cids,
+    """The metric is `pp` rather than `share` since 2B-R2-4: a reference line is
+    drawn for PP, SDG-tagged share and Dynamics only (`REF_METRICS`)."""
+    flat = X.fig_metric_bars(metric_frame(cids, ref=0.06), "pp", cids,
                              slots=cslots, names=NAMES)
     rules = [s for s in flat.layout.shapes
              if s.type == "line" and getattr(s.line, "dash", None) == "dash"]
     varying = X.fig_metric_bars(metric_frame(cids, ref=lambda m: 0.02 + 0.01 * m),
-                                "share", cids, slots=cslots, names=NAMES)
+                                "pp", cids, slots=cslots, names=NAMES)
     dashes = [s for s in varying.layout.shapes
               if s.type == "line" and getattr(s.line, "dash", None) == "dash"]
     assert len(rules) == 1, "a constant reference is ONE rule across the panel"
@@ -899,6 +906,329 @@ def test_shared_frontier_is_not_an_institution_and_not_chrome():
               + [v.upper() for v in P.GREY_STATE_COLORS.values()])
     assert P.SHARED_FRONTIER.upper() not in others
     assert P.institution_color(P.INSTITUTION_SLOT_MAX) != P.SHARED_FRONTIER
+
+
+# ===========================================================================
+# PHASE 2B-R2 (stream VS3) -- the unified metric_frame contract, the render
+# truth table, the frontier pools and the presentation primitives
+# ===========================================================================
+# The A5 amendment turns four "independent" acceptances into ONE contract
+# change: `metric_frame` grows `domain_id, domain_order, vol_display,
+# vol_full_annual_mean, ref_value`, CD3 produces it and this module consumes it.
+# CD3 lands next wave, so the frames below are SYNTHETIC and they ARE the
+# contract -- the statement of what the builders were promised. The 2B-R
+# fixture `metric_frame` is deliberately left as it was: a frame WITHOUT the new
+# columns must still render (no gutter, no separators), which is what makes the
+# contract additive rather than a flag day.
+LOW_TAXON = 16          # the taxon whose mean annual volume sits under the floor
+
+
+def metric_frame_r2(ids, *, level="field", ref=None, hole=True) -> pd.DataFrame:
+    d = metric_frame(ids, ref=ref, level=level, hole=hole)
+    # `domain_id` already rides on the 2B-R fixture at field level; give every
+    # level the two grouping keys plus the two volume columns.
+    if "domain_id" not in d.columns:
+        d["domain_id"] = (d["taxon_id"] % 4) + 1
+    order = {d: i for i, d in enumerate(sorted(set(d["domain_id"])))}
+    d["domain_order"] = [order[v] for v in d["domain_id"]]
+    d["vol_display"] = [100 + 7 * int(i % 11) for i in range(len(d))]
+    d["vol_full_annual_mean"] = [
+        2.0 if t == LOW_TAXON else 40.0 for t in d["taxon_id"]]
+    return d
+
+
+def test_every_metric_level_renders(cids, cslots):
+    """THE acceptance of 2B-R2-1b, and the exact bug class that survived 2B-R:
+    `vol` was on the selector, in `views_compare.METRIC_LABELS` and absent from
+    `charts_compare.METRICS`, so `vol x erc` and `vol x sdg` raised on a path no
+    test drove. The wind tunnel enumerated the whole 7 x 4 table by hand
+    (`evals/wind_tunnel_2BR2.md` section E, claim #18); this drives it.
+
+    Every metric the SELECTOR can offer, at every level it can offer it at, in
+    both sort modes and with the full contract frame -- no `if available` guard,
+    because the guard is what hid the crash."""
+    drawn = 0
+    for metric in X.SELECTOR_METRICS:
+        for level in X.LEVELS:
+            for sort in X.SORT_MODES:
+                fig = X.fig_metric_bars(metric_frame_r2(cids, level=level), metric,
+                                        cids, slots=cslots, names=NAMES,
+                                        level=level, sort=sort)
+                assert isinstance(fig, go.Figure), (metric, level, sort)
+                assert len(fig.data) == len(cids), (metric, level, sort)
+                assert sum(len(tr.x) for tr in fig.data), (metric, level, sort)
+                assert fig.layout.paper_bgcolor == P.SURFACE
+                drawn += 1
+    assert drawn == len(X.SELECTOR_METRICS) * len(X.LEVELS) * len(X.SORT_MODES)
+    # non-vacuity: the two pairs the wind tunnel measured as RAISING are in it
+    assert "vol" in X.SELECTOR_METRICS and "vol" in X.METRICS
+    assert {"erc", "sdg"} <= set(X.LEVELS)
+
+
+def test_the_retired_tab_is_still_a_renderable_metric():
+    """2B-R2-3 retires `vol_top10` as a TAB, not as a metric: a builder that
+    refuses something a page can still ask for is the bug above, restated."""
+    assert "vol_top10" not in X.SELECTOR_METRICS
+    assert "vol_top10" in X.METRICS
+    ids2 = IDS[:2]
+    fig = X.fig_metric_bars(metric_frame_r2(ids2), "vol_top10", ids2,
+                            slots=slots_for(2), names=NAMES)
+    assert len(fig.data) == 2
+
+
+def test_volume_metric_labels_are_whole_numbers(cids, cslots):
+    """The `vol` branch takes the INTEGER format -- a count of publications has
+    no decimal, and a percentage sign on it would be a different measure."""
+    d = metric_frame_r2(cids)
+    d["value"] = [1200 + 3 * i for i in range(len(d))]
+    fig = X.fig_metric_bars(d, "vol", cids, slots=cslots, names=NAMES)
+    labels = [t for tr in fig.data for t in tr.text]
+    assert labels
+    for t in labels:
+        assert "%" not in t and "." not in t, t
+    assert X.fig_metric_bars(d, "vol", cids, slots=cslots,
+                             names=NAMES).layout.xaxis.tickformat != C._AXIS_PCT_FMT
+
+
+def test_taxonomy_order_groups_domains_and_draws_a_separator(cids, cslots):
+    """2B-R2-5: the default order groups the rows under their domains, and a
+    heavier rule marks where one domain ends. The separator count is exactly the
+    number of domain BOUNDARIES -- not the number of domains, and not the number
+    of rows."""
+    d = metric_frame_r2(cids)
+    fig = X.fig_metric_bars(d, "share", cids, slots=cslots, names=NAMES)
+    heavy = [s for s in fig.layout.shapes
+             if s.type == "line" and s.line.width == X.DOMAIN_RULE_PX
+             and s.line.color == P.GRID]
+    light = [s for s in fig.layout.shapes
+             if s.type == "line" and s.line.width == X.ROW_RULE_PX
+             and s.line.color == P.BORDER]
+    order = (d.drop_duplicates(subset=["taxon_id"])
+              .sort_values("domain_order", kind="mergesort")["domain_id"].tolist())
+    boundaries = sum(1 for a, b in zip(order, order[1:]) if a != b)
+    assert len(heavy) == boundaries > 0
+    assert len(heavy) + len(light) == len(order) - 1
+
+
+def test_a_frame_without_the_domain_keys_keeps_the_callers_order(cids, cslots):
+    """The contract is ADDITIVE: the 2B-R frame renders unchanged, in arrival
+    order, with no separator -- so CD3 landing the new columns is not a flag
+    day for anything that has not been rewritten yet."""
+    d = metric_frame(cids).drop(columns=["domain_id"])
+    fig = X.fig_metric_bars(d, "share", cids, slots=cslots, names=NAMES)
+    heavy = [s for s in fig.layout.shapes if s.line.width == X.DOMAIN_RULE_PX]
+    assert not heavy
+    labels = [str(t) for t in fig.layout.yaxis.ticktext]
+    arrival = d.drop_duplicates(subset=["taxon_id"])["taxon_label"].tolist()
+    for label, expected in zip(labels, arrival):
+        assert expected.split()[0] in label
+
+
+def test_sort_by_value_reranks_the_rows_and_drops_the_domain_separators(cids, cslots):
+    """The per-section toggle. Ranking by value and grouping by taxonomy are two
+    different statements about the same rows, so the separator goes with the
+    grouping rather than staying behind as decoration."""
+    d = metric_frame_r2(cids)
+    by_tax = X.fig_metric_bars(d, "share", cids, slots=cslots, names=NAMES,
+                               sort="taxonomy")
+    by_val = X.fig_metric_bars(d, "share", cids, slots=cslots, names=NAMES,
+                               sort="value")
+    assert list(by_tax.layout.yaxis.ticktext) != list(by_val.layout.yaxis.ticktext)
+    assert not [s for s in by_val.layout.shapes if s.line.width == X.DOMAIN_RULE_PX]
+    # colour follows the entity, never the rank: the same institution keeps its
+    # hue in both orders
+    assert ([tr.marker.line.color for tr in by_tax.data]
+            == [tr.marker.line.color for tr in by_val.data])
+    with pytest.raises(ValueError):
+        X.fig_metric_bars(d, "share", cids, slots=cslots, sort="alphabetical")
+
+
+def test_the_order_is_stable_across_every_metric_tab(cids, cslots):
+    """The reason the default is taxonomy and not value (2B-R2-5): a row that
+    stays put between Share and Dynamics can be compared across the two."""
+    orders = set()
+    for metric in X.SELECTOR_METRICS:
+        fig = X.fig_metric_bars(metric_frame_r2(cids), metric, cids, slots=cslots,
+                                names=NAMES)
+        orders.add(tuple(str(t) for t in fig.layout.yaxis.ticktext))
+    assert len(orders) == 1
+
+
+def test_every_metric_carries_the_raw_volume_gutter_in_the_twins(cids, cslots, kc):
+    """2B-R2-3: the gutter is on EVERY metric, not just the volume tab, and each
+    institution's number wears that institution's DARK TWIN -- the relief the
+    fills' contrast WARN obliges (palette_validation.txt run 18)."""
+    inks = [P.institution_ink(s) for s in cslots.values()]
+    for metric in X.SELECTOR_METRICS:
+        fig = X.fig_metric_bars(metric_frame_r2(cids), metric, cids, slots=cslots,
+                                names=NAMES)
+        ticks = "".join(fig.layout.yaxis.ticktext)
+        for ink in inks:
+            assert ink in ticks, (metric, ink)
+        # a fill never writes text, and a value label never wears the fill
+        for fill in (P.institution_color(s) for s in cslots.values()):
+            assert fill not in ticks
+        assert {tr.textfont.color for tr in fig.data} == set(inks)
+    off = X.fig_metric_bars(metric_frame_r2(cids), "share", cids, slots=cslots,
+                            names=NAMES, gutter=False)
+    assert not any(ink in "".join(off.layout.yaxis.ticktext) for ink in inks)
+
+
+def test_the_gutter_prints_a_producer_string_verbatim(cids, cslots):
+    """2B-R2-4's raw delta ("2.1 -> 0.4/yr") is composed by the producer, never
+    by this module: a non-numeric gutter value reaches the axis as written."""
+    d = metric_frame_r2(cids)
+    d["vol_display"] = "up then flat"
+    fig = X.fig_metric_bars(d, "dynamics", cids, slots=cslots, names=NAMES)
+    assert "up then flat" in "".join(fig.layout.yaxis.ticktext)
+
+
+def test_low_volume_cells_are_hollow_daggered_and_explained(cids, cslots):
+    """2B-R2-4. Disclosure, never suppression: the value is still drawn and
+    still labelled -- it is the MARK that says "read me with care"."""
+    d = metric_frame_r2(cids)
+    fig = X.fig_metric_bars(d, "share", cids, slots=cslots, names=NAMES)
+    hollow = sum(1 for tr in fig.data for c in tr.marker.color if c == P.SURFACE)
+    daggered = sum(1 for tr in fig.data for t in tr.text if X.LOW_VOLUME_GLYPH in t)
+    expected = int((d["vol_full_annual_mean"] < X.LOW_VOLUME_FLOOR).sum())
+    assert hollow == daggered == expected > 0
+    # ...and the hollow bar keeps its institution outline, thicker so it reads
+    for tr in fig.data:
+        widths = list(tr.marker.line.width)
+        assert P.OUTLINE_WIDTH in widths and C.HAIRLINE_PX in widths
+    assert X.HOVER_LOW_VOLUME in "".join(
+        c for tr in fig.data for c in tr.customdata)
+    # no marker column -> no flag at all (an unmeasured thing is never flagged)
+    bare = X.fig_metric_bars(d.drop(columns=["vol_full_annual_mean"]), "share",
+                             cids, slots=cslots, names=NAMES)
+    assert not [c for tr in bare.data for c in tr.marker.color if c == P.SURFACE]
+
+
+def test_reference_lines_are_drawn_for_exactly_the_three_ruled_metrics(cids, cslots):
+    """2B-R2-4: PP, SDG-tagged share and Dynamics get the population reference;
+    Share and Volume get none EVEN WHEN the frame carries `ref_value`, because
+    a mean share is an artefact of how many taxa exist, not a benchmark."""
+    d = metric_frame_r2(cids, ref=0.06)
+    for metric in X.SELECTOR_METRICS:
+        fig = X.fig_metric_bars(d, metric, cids, slots=cslots, names=NAMES)
+        dashes = [s for s in fig.layout.shapes
+                  if getattr(s.line, "dash", None) == "dash"]
+        drawn = bool(dashes) or any(
+            getattr(sh.line, "dash", None) == "dash" for sh in fig.layout.shapes)
+        assert drawn == (metric in X.REF_METRICS or metric == "si"), metric
+    assert set(X.REF_METRICS) == {"pp", "sdg_share", "dynamics"}
+
+
+# ------------------------------------------------- the frontier map, v2 -----
+def test_frontier_pool_changes_which_topics_the_slider_keeps(cids, cslots):
+    """2B-R2-10: the two pools rank by different things, so the same `top_n`
+    keeps different topics -- which is what makes it a selector rather than a
+    sort. Area stays combined volume in both."""
+    d = pooled_points(cids)
+    d["frontier_score_latest"] = [0.9 - 0.03 * i for i in range(len(d))]
+    by_vol = X.fig_frontier_map(d, 8, slots=cslots, names=NAMES, pool="volume")
+    by_front = X.fig_frontier_map(d, 8, slots=cslots, names=NAMES, pool="frontier")
+    names_vol = {h.split("<br>")[0] for tr in by_vol.data for h in tr.customdata}
+    names_front = {h.split("<br>")[0] for tr in by_front.data for h in tr.customdata}
+    assert len(names_vol) == len(names_front) == 8
+    assert names_vol != names_front
+    with pytest.raises(ValueError):
+        X.fig_frontier_map(d, slots=cslots, pool="alphabetical")
+
+
+def test_frontier_colour_by_domain_replaces_the_ownership_hues(cids, cslots):
+    """The toggle REPLACES; it never blends. One identity family per figure."""
+    d = pooled_points(cids)
+    d["domain_id"] = [(i % 4) + 1 for i in range(len(d))]
+    owned = X.fig_frontier_map(d, slots=cslots, names=NAMES)
+    domained = X.fig_frontier_map(d, slots=cslots, names=NAMES, color_by="domain")
+    inst = {P.institution_color(s) for s in cslots.values()} | {P.SHARED_FRONTIER}
+    assert {tr.marker.color for tr in owned.data} <= inst
+    assert {tr.marker.color for tr in domained.data} <= set(P.OA_DOMAIN_COLORS.values())
+    assert not ({tr.marker.color for tr in domained.data} & inst)
+    # every topic is still drawn exactly once, whichever way it is coloured
+    assert (sum(len(tr.x) for tr in domained.data)
+            == sum(len(tr.x) for tr in owned.data) == len(d) - 1)
+    assert X.HOVER_DOMAIN in domained.data[0].customdata[0]
+    with pytest.raises(ValueError):
+        X.fig_frontier_map(d.drop(columns=["domain_id"]), slots=cslots,
+                           color_by="domain")
+
+
+def test_the_map_legend_switches_with_the_colour_toggle(cids, cslots):
+    owner = X.map_legend_strip(cids, slots=cslots, names=NAMES)
+    items = [(d, f"Domain {d}") for d in P.OA_DOMAIN_ORDER]
+    domain = X.map_legend_strip(cids, slots=cslots, names=NAMES,
+                                color_by="domain", domain_items=items)
+    assert P.SHARED_FRONTIER in owner and NAMES[cids[0]] in owner
+    for d in P.OA_DOMAIN_ORDER:
+        assert P.OA_DOMAIN_COLORS[d] in domain
+    # the domain legend names NO institution and NOT the shared hue: no mark in
+    # that mode carries either meaning
+    assert P.SHARED_FRONTIER not in domain
+    assert NAMES[cids[0]] not in domain
+    assert not any(P.institution_color(s) in domain for s in cslots.values())
+
+
+# ------------------------------------------- the presentation primitives -----
+def test_chart_note_is_one_line_with_the_method_behind_the_question_mark():
+    html = X.chart_note("Bordeaux leads on every field but one.",
+                        "Shares are computed on the fractional counting basis "
+                        "over the five complete years.")
+    assert "Bordeaux leads" in html
+    assert X.NOTE_HELP_GLYPH in html
+    assert "fractional counting" in html
+    assert P.INK_SECONDARY in html
+    bare = X.chart_note("A one-line reading.")
+    assert X.NOTE_HELP_GLYPH not in bare
+
+
+def test_chart_note_refuses_a_wall_of_prose():
+    """2B-R2-8 is enforced, not requested: a silent truncation would let the
+    grey wall back in one release later."""
+    with pytest.raises(ValueError):
+        X.chart_note("x" * (X.NOTE_MAX_CHARS + 1))
+    with pytest.raises(ValueError):
+        X.chart_note("first line\nsecond line")
+    with pytest.raises(ValueError):
+        X.chart_note("   ")
+    # the tooltip is where the long text is SUPPOSED to go, so it has no cap
+    assert X.chart_note("short", "y" * (X.NOTE_MAX_CHARS * 3))
+
+
+def test_chart_note_escapes_what_it_is_given():
+    html = X.chart_note("A & B <lead>", 'the "index" mean & more')
+    assert "&amp;" in html and "&lt;lead&gt;" in html and "&quot;" in html
+
+
+def test_best_value_dot_wears_the_leaders_colour_and_its_twin(cids, cslots):
+    slot = min(cslots.values())
+    dot = X.best_value_dot(slot)
+    assert P.institution_color(slot) in dot
+    named = X.best_value_dot(slot, NAMES[cids[0]])
+    assert P.institution_ink(slot) in named and NAMES[cids[0]] in named
+    # an unknown slot degrades to the neutrals instead of inventing a hue
+    grey = X.best_value_dot(P.INSTITUTION_SLOT_MAX, "nobody")
+    assert P.COMPARISON in grey and P.INK_SECONDARY in grey
+
+
+def test_legend_strip_writes_each_name_in_its_own_twin(cids, cslots):
+    html = X.legend_strip(cids, slots=cslots, names=NAMES)
+    for iid, slot in cslots.items():
+        assert P.institution_color(slot) in html
+        assert P.institution_ink(slot) in html
+
+
+def test_viz_spec_has_rejected_alternative_per_2br2_view_row():
+    """Section 2 quinquies carries the same obligation as every section before
+    it: one NAMED rejected alternative per view row."""
+    spec = (APP_DIR / "docs" / "VIZ_SPEC.md").read_text(encoding="utf-8")
+    rows = re.findall(r"^### 5\.\d+", spec, flags=re.MULTILINE)
+    assert len(rows) >= 6, f"expected the 2B-R2 view rows in VIZ_SPEC, found {len(rows)}"
+    parts = spec.split("## 2 quinquies", 1)
+    assert len(parts) == 2, "VIZ_SPEC has no section 2 quinquies"
+    section = re.split(r"^## ", parts[1], flags=re.MULTILINE)[0]
+    assert section.count("Rejected alternative:") >= len(rows)
 
 
 def test_viz_spec_has_rejected_alternative_per_2br_view_row():
