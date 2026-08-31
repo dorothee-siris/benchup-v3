@@ -56,6 +56,18 @@ measures them live off the actual tables instead of a hand-typed fact.
 `window_conventions` block in `docs/data_contract.yaml` already carries the
 exact label, read verbatim by `_window_conventions()` below (the same
 read-the-contract-prose pattern `_index_floors()` above already uses).
+
+`momentum_band`/`momentum_alpha` (2BR3 MT) follow the SAME live-measurement
+route as `collab_topic_floor`/`collab_topic_cap`: `data/collab_facts.json`
+IS shipped to `app/data/` (unlike the pipeline module that computed it), so
+`_momentum_facts()` below reads it directly rather than going through
+`config.yaml: methods_facts`. One momentum constant deliberately stays
+UNSTATED in the Methods prose rather than typed or fact-plumbed: the FWCI
+fallback ladder's own minimum-stratum-size floor lives in
+`V3/pipeline/17_fwci.py`'s `MIN_N` module constant, outside the app repo
+and with no shipped artefact carrying its value either -- the FWCI section
+describes the ladder in words instead of a number, the same disposition
+`_fact()`'s docstring below applies to the seven CFG-sourced facts.
 """
 from __future__ import annotations
 
@@ -140,21 +152,28 @@ def _sdg_numbers() -> tuple[int, object]:
 
 COLLAB_PAIRS_PATH = DATA_DIR / "collab_pairs.parquet"
 COLLAB_PAIR_TOPICS_PATH = DATA_DIR / "collab_pair_topics.parquet"
+COLLAB_FACTS_PATH = DATA_DIR / "collab_facts.json"
 
 
 @st.cache_resource(show_spinner=False)
 def _collab_pair_topic_facts() -> dict:
-    """2BR stream MU: the co-publication floor and topic cap the copub
+    """2BR3 stream MT: the co-publication floor and topic cap the copub
     Methods section states are MEASURED off the shipped tables, not typed in
-    -- P2 (`V3/pipeline/15_collab_pass.py`) sits outside the app repo, so
+    -- P7 (`V3/pipeline/15_collab_pass.py`) sits outside the app repo, so
     unlike a CFG key these numbers have no config home of their own. The
-    floor is the smallest `copubs_total` among pairs that made it into
-    `collab_pair_topics.parquet`; the cap is the largest number of topic rows
-    shipped for any one pair.
+    floor is the smallest `core_total` (2BR3 ruling 3: CORE-AR, articles and
+    reviews, the current core window, full counting -- the SAME population
+    the topic/field breakdown and every other Collaborate table number now
+    reads) among pairs that made it into `collab_pair_topics.parquet`; the
+    cap is the largest number of topic rows shipped for any one pair.
+    CHANGED 2026-08-31 from v1's `copubs_total` (all doc types, the wider
+    six-year population): reading the old column would describe the floor
+    on a population the shipped table no longer actually uses, even though
+    the two happen to measure equal (5) on this snapshot.
 
     Reads through `lib.data_cache.collab_pairs()`/`collab_pair_topics()`
     (stream CD's own `@st.cache_resource` loaders) rather than a second
-    `pd.read_parquet` of the same 26/58 MB files: those two frames are
+    `pd.read_parquet` of the same 58/66 MB files: those two frames are
     already resident once any other page touches them, so this only ever
     pays a groupby/merge, never a duplicate load. `st.cache_resource` here
     (not `cache_data`, per the rest of this module's process-wide pattern)
@@ -162,18 +181,39 @@ def _collab_pair_topic_facts() -> dict:
     if not COLLAB_PAIRS_PATH.is_file() or not COLLAB_PAIR_TOPICS_PATH.is_file():
         return {"collab_topic_floor": NA_MARK, "collab_topic_cap": NA_MARK}
     try:
-        pairs = collab_pairs()[["a", "b", "copubs_total"]]
+        pairs = collab_pairs()[["a", "b", "core_total"]]
         topics = collab_pair_topics()[["a", "b"]]
         n_topics = topics.groupby(["a", "b"], observed=True).size().reset_index(name="n_topics")
         merged = pairs.merge(n_topics, on=["a", "b"], how="inner")
         if merged.empty:
             return {"collab_topic_floor": NA_MARK, "collab_topic_cap": NA_MARK}
         return {
-            "collab_topic_floor": int(merged["copubs_total"].min()),
+            "collab_topic_floor": int(merged["core_total"].min()),
             "collab_topic_cap": int(merged["n_topics"].max()),
         }
     except Exception:
         return {"collab_topic_floor": NA_MARK, "collab_topic_cap": NA_MARK}
+
+
+def _momentum_facts() -> dict:
+    """2BR3 MT: the momentum band and significance level the Methods page
+    states are MEASURED off `data/collab_facts.json` (shipped, unlike
+    pipeline/17_fwci.py's own MIN_N constant, which sits outside the app
+    repo and is therefore left undescribed in prose rather than guessed --
+    see the FWCI section's own wording, which names the fallback ladder
+    without a typed floor). `band` (0.25) and `alpha` (0.05) are stored as
+    fractions; formatted here as whole-number percent strings ('25%',
+    '5%') via `:g` so a future recalibration that is not a clean whole
+    percent still renders sanely rather than being silently truncated."""
+    if not COLLAB_FACTS_PATH.is_file():
+        return {"momentum_band": NA_MARK, "momentum_alpha": NA_MARK}
+    try:
+        facts = json.loads(COLLAB_FACTS_PATH.read_text(encoding="utf-8"))
+        band = float(facts["band"]) * 100.0
+        alpha = float(facts["alpha"]) * 100.0
+        return {"momentum_band": f"{band:g}%", "momentum_alpha": f"{alpha:g}%"}
+    except Exception:
+        return {"momentum_band": NA_MARK, "momentum_alpha": NA_MARK}
 
 
 def _window_conventions() -> dict:
@@ -227,6 +267,7 @@ def methods_values() -> dict:
     n_from_manifest = mf.get("files", {}).get("index.parquet", {}).get("n_rows")
     collab_facts = _collab_pair_topic_facts()
     window_facts = _window_conventions()
+    momentum_facts = _momentum_facts()
 
     return {
         "n_countries": len(CFG["perimeter_countries"]),
@@ -264,6 +305,8 @@ def methods_values() -> dict:
         "dynamics_window_2": window_facts["dynamics_window_2"],
         "ci_coverage": _fact("impact_ci_coverage_pct"),
         "low_volume_floor": int(LOW_VOLUME_FLOOR),
+        "momentum_band": momentum_facts["momentum_band"],
+        "momentum_alpha": momentum_facts["momentum_alpha"],
     }
 
 

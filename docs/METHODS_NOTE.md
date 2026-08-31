@@ -45,25 +45,54 @@ OpenAlex list endpoints truncate `authorships` at 100 entries without saying so,
 returning exactly 100 authorships is re-fetched singly (about 9,325 EU27 works, the
 mega-collaborations); `DESIGN.md` §2.2, R1.1.
 
+## Which figures follow the counting-basis setting
+
+One setting, full or fractional counting, reaches every volume figure in the tool: the chart
+value, the gutter beside it and the number a hover names as the denominator all move together
+(`app/docs/data_contract.yaml`, "metric_frame v4", `denom_value` note; `progress/2BR3_CD4.md`).
+
+Three figures sit outside that setting on purpose. PP(top10%) is always read on the
+institution's fractional mass of articles and reviews: its bootstrap interval is built on that
+one basis and ships no full-counted twin (`app/data/index.parquet`, `pp_top10_frac`). The
+per-goal SDG share (`sdg.parquet`) is likewise always fractional, over its own six-year window.
+The SDG tagging crossed with a field or with a year (`sdg_fields.parquet`/`sdg_year.parquet`, v2,
+2026-08-31) no longer belongs on that list: both now ship a fractional and a full column
+(`mass_any_frac`/`mass_any_full`, `mass_frac`/`mass_full`) on the same window the field and year
+figures around them use, so the setting reaches them like everything else.
+
 ## How co-publication is counted
 
 A co-publication is a work naming both institutions directly, counted in full: a single
 heavily co-authored paper still adds one to the pair's total (`app/docs/data_contract.yaml`,
-`collab_pairs.parquet`). Every pair of indexed institutions sharing at least one work is
-counted, over the exact corpus union the rest of the tool uses, `openalex_eu27_aug` UNION
-`openalex_supplement` per year, eu27_aug canonical on id overlap
-(`pipeline/agg/enriched_corpus.py::load_year_corpus`; `progress/2BR_P2.md`). Ranks are computed
-in both directions before any floor is applied: `rank_in_a` and `rank_in_b` are two different
-dense ranks over the same pair (`app/docs/data_contract.yaml`, `collab_pairs.parquet`).
+`collab_pairs.parquet`). Every pair of indexed institutions sharing at least one work, any
+document type, over the whole run window, is counted at all, over the exact corpus union the
+rest of the tool uses, `openalex_eu27_aug` UNION `openalex_supplement` per year, eu27_aug
+canonical on id overlap (`pipeline/agg/enriched_corpus.py::load_year_corpus`;
+`progress/2BR_P2.md`). That widest population is also what the year-by-year relationship chart
+draws, 2020 to 2025, the 2025 bar drawn hollow as a partial year.
 
-`collab_pairs.parquet` itself carries no floor: all 3,581,332 a<b pairs with at least one shared
-work ship (WT A1). The topic-level breakdown in `collab_pair_topics.parquet` needs a floor to
-stay meaningful: pairs with at least 3 co-published works get up to the top 20 shared topics by
-joint volume, read off each work's primary topic only, never every topic it touches, so one
-paper is never counted into more than one row (WT A2; `progress/2BR_P2.md`, the primary-topic
-fix that took the invariant from 97.8% violations to zero). 1,582,463 pairs clear the floor on
-the shipped snapshot; a pair below it keeps its total and a link to every shared publication, and
-loses the topic, SDG and ERC breakdown (`copy.COLLAB["TOPIC_BELOW_FLOOR_NOTICE"]`).
+Every other Collaborate number reads a narrower, matched population instead, ruling 3 of the
+2026-08-31 refinement round: articles and reviews only, 2020 to 2024, still full counting (the
+CORE-AR basis, `app/docs/data_contract.yaml`, `window_conventions.core_ar_window`). That
+population is what `collab_pairs.parquet`'s `core_total`/`c1`/`c2`, the topic and field
+breakdown, the goal-tagged count, the median citation-impact figure and the momentum reading are
+all built on, and it is the exact filter (`type:article|review,publication_year:2020-2024`)
+carried on every OpenAlex link at pair and topic grain, so the number on the page and the count
+the link opens on agree there. Ranks are computed in both directions on this same narrower
+population, before any floor is applied: `rank_in_a` and `rank_in_b` are two different dense
+ranks over the same pair, RECOMPUTED on `core_total` rather than the old `copubs_total`
+(`app/docs/data_contract.yaml`, `collab_pairs.parquet` v2).
+
+`collab_pairs.parquet` itself still carries no floor on the wide, all-document-type population:
+all 3,581,332 a<b pairs with at least one shared work ship (WT A1, unchanged at v2). The
+topic-level breakdown in `collab_pair_topics.parquet` needs a floor to stay meaningful, now
+measured on the narrower CORE-AR population: pairs with at least 5 shared articles and reviews
+get up to the top 100 shared topics by joint volume, read off each work's primary topic only,
+never every topic it touches, so one paper is never counted into more than one row
+(`lib.views_methods._collab_pair_topic_facts`, measured live off the shipped v2 tables,
+2026-08-31). 913,512 pairs clear the floor on the shipped snapshot (`progress/2BR3_P7.md`); a
+pair below it keeps its total and a link to every shared publication, and loses the topic, SDG
+and ERC breakdown (`copy.COLLAB["TOPIC_BELOW_FLOOR_NOTICE"]`).
 
 ## Reading a pair's shared subjects
 
@@ -90,29 +119,91 @@ read under the best-fit taxonomy only: no tree-neutral subfield column exists on
 dictionary, and shipping all three trees on this table would triple its size for a secondary fact
 (WT claim #8).
 
-A field-normalised score across the whole joint corpus (FWCI) is not shipped: building one would
-need a citation count for every publication worldwide in every field the pair shares, well beyond
-what the harvest holds, and FWCI's own world mean is not one to begin with (SIRIS `CLAUDE.md`,
-OpenAlex gotchas). The covered and top-decile figures above are offered instead.
+A field-weighted citation index (FWCI) ships as of the 2026-08-31 refinement round: each
+publication's own citation count, set against the average a publication of the same best-fit
+subfield, the same publication year and the same document type collects across the tool's own
+European reference corpus, articles and reviews, 2020 to 2024, the same 31-country population
+the rest of the tool draws on (`pipeline/17_fwci.py`; `app/docs/data_contract.yaml`,
+`fwci_ref.parquet`). A (subfield, year, type) stratum with fewer than 50 works falls back to
+(field, year, type), and if that is still under 50, to (year, type) alone; 709 of 2,327 strata
+(30.5%) needed a fallback on the shipped build (`progress/2BR3_P7.md`). Every topic and field row
+carries the median FWCI across its own CORE-AR joint works with a value, left null under 3 such
+works (`app/docs/data_contract.yaml`, `collab_pair_topics.fwci_median`/`collab_pair_fields.
+fwci_median`). The reference is Europe, not the world: the citation-weighted mean FWCI is
+verified equal to 1 (max deviation 5.960e-08) on every non-fallback stratum, by construction, but
+that is a Europe-only 1, not the ≈1.22 world-mean convention SIRIS `CLAUDE.md`'s OpenAlex
+gotchas describes for a world-referenced FWCI, and the two are never comparable
+(`progress/2BR3_P7.md`, invariant suite). The mean-citations column this table once carried
+(`collab_pair_fields.parquet` v1) is dropped; FWCI supersedes it, and the field table no longer
+needs the size trade-off that column once forced (`app/docs/data_contract.yaml`,
+`collab_pair_fields.parquet` v2, `dropped_column` note).
 
-A mean-citations figure ships on the field-level table only, as a nullable integer, never on the
-topic-level table: at the topic table's row count, even a two-byte integer column pushed the file
-past the size the tool can serve (96.6 MB against a 95 MB cap, `progress/2BR2_P6.md`), so it is
-dropped there and kept on the much smaller, uncapped field table instead, where a real citation
-tail past a 16-bit integer's range is stored exactly as a 32-bit one.
+One caveat applies at field grain only, never at pair or topic grain: the taxonomy repair this
+tool reads field membership through can place a publication in a different field from the one
+OpenAlex's own record names as primary. Golden-sample checks against live OpenAlex found
+pair-grain CORE-AR counts within 0.03% of the live count (Strasbourg × CNRS: 10,587 here, 10,584
+live), while 5 of 6 field-grain checks differed by 5.2% to 20.5%, entirely explained by that
+taxonomy difference rather than a counting error (`progress/2BR3_P7.md`, golden JSON; the same
+approximation `lib/links.py::copubs_taxon_url`'s own docstring already names for every other
+field-grain link in the tool). A field row's OpenAlex link can therefore open a nearby but not
+always identical count to the figure beside it; a topic-level link, and the pair's own overall
+link, both open the exact count shown.
 
 Every topic row, every field row and the pair as a whole carries a link to OpenAlex, filtered live
 to exactly the joint publications behind that row. There is no offline browsing mode for this
 detail: the deep dive is always the live OpenAlex list, and it can drift a little from the
 snapshot the way every OpenAlex link in the tool does (`copy.FIND["LINK_OPENALEX_HELP"]`).
 
+## Reading momentum
+
+Momentum reads whether a pair's CORE-AR output is speeding up or slowing down, on the same two
+windows Dynamics reads elsewhere, 2020-2022 against 2023-2024
+(`app/docs/data_contract.yaml`, `window_conventions.dynamics_window_1`/`_2`). The raw ratio
+`r = (c2/d2) / (c1/d1)` (the pair's later-window co-publication share of the two institutions'
+combined output, over the same share in the earlier window) is recentred against `MED`, the
+median of that same ratio over every eligible pair (`c1 > 0`, `c2 > 0`, `c1 + c2 ≥ 10`), so
+corpus-wide growth over the same years does not read as partnership-specific growth; `MED` is
+verified to sit inside a sane [0.8, 1.3] band on the shipped build, at 1.0431
+(`app/data/collab_facts.json`; `progress/2BR3_P7.md`, invariant suite). The recentred ratio `rr =
+r / MED` classifies up at `rr ≥ 1.25`, down at `rr ≤ 0.80`, else stable; an up or down verdict is
+demoted to not significant when a pooled two-proportion z-test on `c1`/`c2` returns `p ≥ 0.05`
+(`app/docs/data_contract.yaml`, `collab_pairs.parquet` v2, `mom_class`/`mom_rr`/`mom_p`;
+`app/data/collab_facts.json`, `band`/`alpha`). Four further states need no ratio at all: `new`
+(`c1 == 0`, `c2 ≥ 5`), `dormant` (`c2 == 0`, `c1 ≥ 5`), `weak` (`0 < c1 < 5`, "weak base", no
+percentage shown), and pairs below even that floor carry no momentum reading. On the shipped
+build the class distribution is dominated by `weak` and `ns` (1,807,729 and 1,450,358 of
+3,581,332 pairs), `stable` a further 185,538, with `up`/`down`/`dormant`/`new` in the tens of
+thousands each (`progress/2BR3_P7.md`, invariant suite). Field and topic rows share the pair's
+own `d1`/`d2`/`MED` (one drift correction per run) and carry the class label only, no percentage,
+shown only where the cell's own `c1 + c2 ≥ 10`. Colour never carries the reading alone: text and
+a glyph (↗/↘/→) accompany every state (`lib/palette.py`, `MOMENTUM_COLORS`/`MOMENTUM_GLYPHS`;
+WT_2BR3.md task 2.8).
+
+## Strategic reciprocity, read
+
+Ported from `Client Project/Lorraine/Phase 2/Streamlit/pages/9_🔍_Zoom_partenaire.py`, in the
+honest both-sides form: for every field the pair has any joint CORE-AR volume in, one axis is
+that field's share of one institution's own portfolio and the other axis is the same field's
+share of the other institution's own portfolio, both read from `fields.parquet` on the current
+tree and basis, never from the joint corpus itself; bubble area is the pair's own joint volume in
+that field, from `collab_pair_fields.parquet`'s `vol` (`lib/collab_data.py::reciprocity_frame`).
+The chart is symmetric by construction: swapping which institution is "A" swaps the two axes and
+leaves every bubble's area unchanged. A bubble on the dotted 45° diagonal marks a field weighted
+about equally by both institutions' own portfolios; one off the diagonal marks a field central to
+one side and marginal to the other, separating a structural partnership (both sides already
+invest in the shared ground) from a volume partnership (joint output is large mainly because one
+side is large).
+
 ## How colour is used
 
 One colour system runs through every page. An institution keeps one colour for as long as it
-stays in a comparison or a pair: three pastel hues, each with a darker same-hue twin used for
-value labels and legend text, validated against the tool's own accessibility bar in light mode
-and kept distinct from the OpenAlex-domain, SDG and ERC palettes (`evals/wind_tunnel_2BR2.md` A1;
-`palette.INSTITUTION_COLORS`).
+stays in a comparison or a pair: three colours from one monochrome navy family (`#192C41`,
+`#5A6883`, `#B5C0D4`, darkest first), each with a same-family twin used for value labels and
+legend text, kept distinct from the OpenAlex-domain, SDG and ERC palettes and from the
+shared-frontier red used for pooled Collaborate charts (`evals/wind_tunnel_2BR3/WT_2BR3.md` task
+2; `palette.INSTITUTION_COLORS`, `SHARED_FRONTIER_COLOR`, 2026-08-31). A bar below its own
+citation-impact floor is drawn hatched rather than solid or hollow, the same rule across every
+chart that carries the floor.
 
 A taxonomy carries its own official colour too: the OpenAlex domain, the ERC panel (mapped to
 PE/LS/SH's own vermillion, green and violet) or the Sustainable Development Goal, none of them
@@ -357,6 +448,23 @@ window (`app/docs/data_contract.yaml`, `window_conventions.sdg_mass_window`). Su
 the same cells, not all of it (verified 2026-08-30, `app/docs/data_contract.yaml`,
 `sdg_year.parquet`); the two windows are named on both sides of every SDG share and are never
 meant to be summed together.
+
+The comparison page's field cross reads a different, narrower population again, distinct-tagged
+rather than per-goal and matched to the field figures beside it: see "The SDG-tagged share, by
+field" below.
+
+## The SDG-tagged share, by field
+
+The comparison page's SDG-share metric reads `sdg_fields.parquet` v2, DISTINCT-tagged at
+institution × field × tree grain: a work counts at most once toward a field regardless of how
+many Sustainable Development Goals it carries (`app/docs/data_contract.yaml`,
+`sdg_fields.parquet`, 2026-08-31 rebuild). Numerator (`mass_any_frac`/`mass_any_full`) and
+denominator (`fields.parquet`'s own `vol_frac`/`vol_full`) are read over the identical
+population, all document types, 2020 to 2024 (the core window, not the six-year SDG-mass window
+above), on the same counting basis the page's toggle selects, so the share is asserted no greater
+than 1 plus a float32 tolerance at build time (`lib/compare_data.py::_sdg_share_field_frame`,
+`SDG_SHARE_EPS`), verified with 0 violations over 22,668 sampled institution × tree cells
+(`progress/2BR3_P7.md`, invariant suite).
 
 ## Grey accounting: what happened to every publication
 

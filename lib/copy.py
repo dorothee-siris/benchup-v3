@@ -1583,10 +1583,32 @@ METHODS = {
             "splits that part across the institutions the author declares, so a paper written with "
             "many partners counts for a fraction. Neither is more correct; they answer different "
             "questions, and the setting that governs them is stated on every page that uses it.\n\n"
-            "The ERC, SDG and impact figures are fractional whatever that setting says, and the "
-            "views that carry them say so on the view itself. Records whose author list is "
-            "truncated by the OpenAlex list endpoint are re-fetched one at a time, so that large "
-            "collaborations keep their full author list and their fractional weights stay right."),
+            "A share or a specialisation index built from the ERC classifier or the Sustainable "
+            "Development Goals stays fractional whatever that setting says, because a share can "
+            "only mean one thing at a time; a raw count from either classifier follows the setting "
+            "like any other volume, named beside the figure it produced. The counting-basis section "
+            "below carries the full list of figures that sit outside the setting entirely, the "
+            "impact figure among them. Records whose author list is truncated by the OpenAlex list "
+            "endpoint are re-fetched one at a time, so that large collaborations keep their full "
+            "author list and their fractional weights stay right."),
+    },
+    "counting_bases": {
+        "title": "Which figures follow the counting-basis setting",
+        "body": (
+            "One setting, full or fractional counting, reaches every volume the tool displays, on "
+            "every page: the number in a chart, the number in its gutter and the number a hover "
+            "names as the denominator all move together when that setting changes, so a reader is "
+            "never shown two figures computed on two different bases side by side. A change over "
+            "time follows the same rule: the value and the raw counts behind it are read on "
+            "whichever basis is in force, never a mix of the two.\n\n"
+            "A handful of figures sit outside that setting by design, and each says so where it "
+            "appears. The impact figure, PP(top10%), is always read on the institution's fractional "
+            "mass of articles and reviews: the citation-threshold work behind it is built on that "
+            "basis and has no full-counted equivalent. The goal-tagged share this tool reports for "
+            "each Sustainable Development Goal on its own, one row per goal, is likewise always "
+            "fractional, over its own six-year window. The same tagging crossed with a field or a "
+            "year, by contrast, now offers full counting as well as fractional, on the same window "
+            "the field and year figures around it use, so the setting reaches those readings too."),
     },
     "copub": {
         "title": "How co-publication is counted",
@@ -1594,19 +1616,30 @@ METHODS = {
             "A co-publication between two institutions is a work naming both of them directly, "
             "counted in full: a single heavily co-authored paper still adds one to the pair's "
             "total, the same way it adds one to each institution's own output under full "
-            "counting. Every pair of indexed institutions with at least one shared work is "
-            "counted, over the same combined set of harvested records every other figure in the "
-            "tool draws on. Each institution's rank among the other's collaborators, and the "
-            "other's rank among its own, are two different numbers, kept side by side rather "
-            "than averaged into one.\n\n"
+            "counting. Every pair of indexed institutions with at least one shared work anywhere "
+            "in the run enters the tool at all, over the same combined set of harvested records "
+            "every other figure draws on; that widest count is what decides whether a pair "
+            "appears, and it is also what the year-by-year relationship chart draws, one bar per "
+            "year, {bonus_year} included and marked as a partial year because the snapshot was "
+            "taken inside it.\n\n"
+            "Every other number a partnership carries reads a narrower, matched population "
+            "instead: articles and reviews only, {y0} to {y1}, still full counting. That "
+            "population sits behind the joint total on a pair's own page, the topic and field "
+            "breakdown, the goal-tagged share, the citation-impact figure and the momentum "
+            "reading alike, and it is also the population every 'read on OpenAlex' link is "
+            "filtered to, so the number on the page and the count the link opens on agree, at "
+            "the level of the pair and at the level of a single topic. Each institution's rank "
+            "among the other's collaborators, and the other's rank among its own, are two "
+            "different numbers on this same narrower population, kept side by side rather than "
+            "averaged into one.\n\n"
             "Below a pair's topic-level detail sits a floor: a breakdown by topic only means "
-            "something once a pair has enough shared output to support it. Pairs with at least "
-            "{collab_topic_floor} shared works get up to {collab_topic_cap} of their "
-            "most-published shared topics, ranked by joint volume and read off the work's own "
-            "primary topic rather than every topic it touches, so a single paper is never "
-            "counted into more than one row. A pair below that floor still shows its total and a "
-            "link to every shared publication; the topic-level breakdown is left out rather than "
-            "served too thin to read."),
+            "something once a pair has enough shared output, on that narrower population, to "
+            "support it. Pairs with at least {collab_topic_floor} shared articles and reviews "
+            "get up to {collab_topic_cap} of their most-published shared topics, ranked by joint "
+            "volume and read off the work's own primary topic rather than every topic it "
+            "touches, so a single paper is never counted into more than one row. A pair below "
+            "that floor still shows its total and a link to every shared publication; the "
+            "topic-level breakdown is left out rather than served too thin to read."),
     },
     "collab_detail": {
         "title": "Reading a pair's shared subjects",
@@ -1624,15 +1657,73 @@ METHODS = {
             "still counts in the row's own total, so the top-decile figure should always be read "
             "against covered, never against the total. The subfield behind a covered cell is "
             "always read under the best-fit taxonomy, whatever the taxonomy setting elsewhere on "
-            "the page shows.\n\n" + FWCI_NOT_AVAILABLE_LINE + "\n\n"
-            "A mean citation figure is shown at field level only, never at topic level: keeping "
-            "it on the far larger topic table would have pushed the file past what the tool can "
-            "ship, so it is dropped there and kept where the table is small enough to carry "
-            "it.\n\n"
+            "the page shows.\n\n"
+            "A citation-impact figure sits beside them too, the field-weighted citation index "
+            "(FWCI): each publication's own citation count, set against the average a "
+            "publication of the same subfield, the same year and the same document type "
+            "collects across the tool's own European reference corpus, the same "
+            "{n_countries}-country {y0}-to-{y1} population, articles and reviews only, "
+            "everywhere else in the tool draws on. A stratum too thin to support its own average "
+            "falls back to the wider field, and if that is still too thin, to the year and "
+            "document type alone, so every publication still receives a reading. Every topic or "
+            "field row shows the median across its own covered joint publications with a valid "
+            "figure, left blank under three such publications. The reference is Europe, not the "
+            "world: a figure here does not compare with one built against a worldwide reference, "
+            "and the usual rule that a world-referenced score averages to one does not hold for a "
+            "Europe-only one. The mean-citation column this table once carried is gone; the "
+            "figure above replaces it.\n\n"
+            "One caveat applies at field grain only, never at topic grain. The taxonomy repair "
+            "this tool reads field membership through can place a publication in a different "
+            "field from the one OpenAlex's own record names as primary, so a field row's "
+            "OpenAlex link can open a nearby but not always identical count to the figure beside "
+            "it; a topic-level link, and the pair's own overall link, both open the exact count "
+            "shown.\n\n"
             "Every topic row, every field row and the pair as a whole carries a link to "
             "OpenAlex, live, filtered to exactly the joint publications behind that row; there "
             "is no offline browsing mode for them, and the live count can drift a little from "
             "the snapshot's own, the same gap every OpenAlex link in the tool carries."),
+    },
+    "momentum": {
+        "title": "Reading momentum",
+        "body": (
+            "Momentum reads whether a partnership's output is speeding up or slowing down, on "
+            "the same two windows Dynamics uses elsewhere in the tool, {dynamics_window_1} "
+            "against {dynamics_window_2}: the pair's own co-published output, as a share of the "
+            "two institutions' combined output in each window, compared across the two.\n\n"
+            "A raw comparison of those two shares would read as growth for almost every "
+            "partnership, because the whole corpus is itself growing over the same years; "
+            "before anything is classified, every eligible pair's ratio of the two windows is "
+            "corrected against the middle of that same ratio across every other eligible "
+            "partnership, so what is left over is the partnership's own change relative to the "
+            "pace collaboration is moving at generally, not the corpus's own drift dressed up as "
+            "a partnership finding. A partnership whose corrected ratio still moves by at least "
+            "{momentum_band} either way reads as up or down; anything closer to flat than that "
+            "reads as stable. An up or a down reading is checked once more, with a statistical "
+            "test at the {momentum_alpha} level: a move that could plausibly be noise on that "
+            "pair's own volume is relabelled not significant rather than shown as a trend.\n\n"
+            "Four further states cover the partnerships a ratio cannot classify honestly: new, "
+            "for a partnership with nothing in the earlier window and enough in the later one to "
+            "read as a start; dormant, the same shape run backwards; weak base, for a "
+            "partnership with too little in the earlier window for a ratio to mean anything; and "
+            "not applicable, below the volume a comparison needs at all. None of these four "
+            "carries a percentage, only the label, because none of them is a rate that can be "
+            "read against the band."),
+    },
+    "reciprocity": {
+        "title": "Strategic reciprocity, read",
+        "body": (
+            "Strategic reciprocity plots a pair's shared fields against how central that field "
+            "is to each institution's own portfolio, not to the partnership. For each field the "
+            "two publish in together, one position is that field's share of one institution's "
+            "own output and the other position is the same field's share of the other's, each "
+            "read against everything that institution publishes on its own, never against the "
+            "joint corpus; the size of the mark is how much the two have actually published "
+            "together in that field.\n\n"
+            "A field sitting on the diagonal matters about as much to both sides; one far off it "
+            "is central to one partner's own portfolio and marginal to the other's. The reading "
+            "separates two different kinds of partnership that a joint total alone cannot tell "
+            "apart: one where both sides already invest heavily in the shared ground, and one "
+            "where the joint output is large mainly because one side is large."),
     },
     "colour": {
         "title": "How colour is used",
@@ -1835,7 +1926,27 @@ METHODS = {
             "to {bonus_year} for SDG, the {y0} to {y1} window everywhere else in the tool that "
             "counts volumes. Adding up the SDG figures over the shorter window recovers only part "
             "of the six-year total, not all of it, so the two are never meant to be summed "
-            "together."),
+            "together.\n\n"
+            "The comparison page crosses this same tagging with a field instead of showing it on "
+            "its own, and reads a different, narrower population again: see 'The SDG-tagged "
+            "share, by field' below."),
+    },
+    "sdg_field_share": {
+        "title": "The SDG-tagged share, by field",
+        "body": (
+            "Beside the field and subfield figures on the comparison page sits a further "
+            "reading: the share of each field's own output that carries at least one "
+            "Sustainable Development Goal. A publication counts once toward that share no "
+            "matter how many goals it carries, so, unlike the per-goal shares above, this one "
+            "cannot run past the whole. Numerator and denominator are read over the exact same "
+            "population, the {y0}-to-{y1} window, every document type, and whichever counting "
+            "basis is set on the page, so the share is provably no more than the field's own "
+            "total.\n\n"
+            "This is a different reading from the per-goal shares above: those are read over the "
+            "wider six-year snapshot and can add up past the whole because a work with several "
+            "goals counts toward each of them; this one is read at field grain, over the "
+            "narrower window shared with the rest of the comparison page, and counts a work "
+            "once."),
     },
     "grey": {
         "title": "Grey accounting: what happened to every publication",
@@ -1949,6 +2060,8 @@ METHODS_SOURCES = {
     "dynamics_window_2": "docs/data_contract.yaml window_conventions block, the later dynamics window, verbatim",
     "ci_coverage": "config.yaml methods_facts.impact_ci_coverage_pct (the pipeline bootstrap alpha, outside the app repo)",
     "low_volume_floor": "lib.charts_compare.LOW_VOLUME_FLOOR, the same value the Compare dynamics low-volume marker uses",
+    "momentum_band": "measured live: data/collab_facts.json band value, formatted as a percent",
+    "momentum_alpha": "measured live: data/collab_facts.json alpha value, formatted as a percent",
 }
 
 # ------------------------------------------------ Methods page chrome (2B, manager) --
