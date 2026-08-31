@@ -14,7 +14,15 @@ independent recomputation from source):
     impact                        9                      12
     trends                        0                      12
     coverage                      2                      12
-    gaps                          6                       7
+    gaps (2B) / pair_topics       6                       9   -- RE-PINNED 2B-R2-G2:
+                                                               `collab_data.gaps` was
+                                                               deleted (2B-R2-11f); this
+                                                               family slot now anchors
+                                                               `collab_data.joint_profile`
+                                                               off the shipped, regenerated
+                                                               `collab_pair_topics.parquet`
+                                                               (floor 5/top-100, 2B-R2-12)
+                                                               instead.
 
 Two more families (ERC/SDG, frontier mix) land close enough to the floor in
 tests/test_compare_data.py (11-12 and 9-10 respectively, depending on
@@ -293,68 +301,91 @@ def test_trends_anchors_recomputed_independently_from_the_parquet_directly():
 
 
 # --------------------------------------------------------------------- gaps -
-# Recomputation: the same topics_all+topics_dim join; A's top-10 subfields by
-# SUMMED share_frac (hand groupby), B's topics filtered to
-# (share_frac > 0, subfield in that top-10, absent from A). Two pairs beyond
-# tests/test_collab_data.py's own six row-count-only anchors, WITH named
-# topic-level values this time.
+# RE-PINNED 2B-R2-G2: `collab_data.gaps` ("what B does not publish in that
+# A's top-10 subfields cover") was DELETED per the 2B-R2-11(f) ruling -- the
+# "what X does not publish in" gap tables are gone from the product BY
+# DESIGN, not by regression (BUILD_PLAN_2BR2.md decisions log / §1 item 11).
+# Nothing in `collab_data` is left to anchor for the old function.
+#
+# What replaced it on the Collaborate page's own render path is the
+# 2B-R2-11(a) "top shared topics" section: `collab_data.joint_profile`, off
+# the REGENERATED `collab_pair_topics.parquet` (2B-R2-12: floor 5 co-pubs,
+# top-100 topics by `vol_total`, joint-corpus volume -- P6's new table, not
+# an old floor-3/top-20 shape). This section tops up the SAME family slot
+# with anchors on that new table: a row-count pin per pair, plus named
+# topic-level value pins, each checked against `collab_data.joint_profile`
+# (the app path) and independently recomputed with a fresh
+# `pd.read_parquet` of the shipped file directly (not `collab_data`'s own
+# ctx-cached loader) -- the same two-tier idiom as the impact/coverage
+# anchors above.
+#
+#   old anchor (2B)                        new anchor (2B-R2)                      why
+#   GAPS_ROW_COUNT_ANCHORS[(GDANSK,ISCTE)]  PAIR_TOPICS_ROW_COUNT_ANCHORS on        gaps() deleted
+#     = 105 gap rows (topics_all/            collab_pair_topics.parquet: 11         (2B-R2-11f);
+#     topics_dim hand-join)                  joint topics for GDANSK x ISCTE        P6's regen
+#   GAPS_TOPIC_ANCHORS: 3 IFPEN x           PAIR_TOPICS_VALUE_ANCHORS: 3            replaced the
+#     SORBONNE + 3 GDANSK x ISCTE            IFPEN x SORBONNE (of 55 shown) +       family's table
+#     `share_b` values off the OLD           3 GDANSK x ISCTE (of 11 shown)         entirely
+#     gap join                               vol/impact rows off the NEW table
 
-GAPS_ROW_COUNT_ANCHORS = {
-    (GDANSK, ISCTE): 105,   # NEW pair, not in tests/test_collab_data.py
+PAIR_TOPICS_ROW_COUNT_ANCHORS = {
+    (IFPEN, SORBONNE): 55,   # co-published joint topics shown, floor 5 / top-100 cap (2B-R2-12)
+    (GDANSK, ISCTE): 11,
 }
-GAPS_TOPIC_ANCHORS = [
-    # (a, b, topic_id, share_b, subfield_id)
-    (IFPEN, SORBONNE, "T11177", 0.001636, 1606),
-    (IFPEN, SORBONNE, "T11434", 0.000890, 1602),
-    (IFPEN, SORBONNE, "T11582", 0.000623, 1507),
-    (GDANSK, ISCTE, "T13513", 0.004645, 3322),
-    (GDANSK, ISCTE, "T14226", 0.004292, 3312),
-    (GDANSK, ISCTE, "T11858", 0.004125, 3322),
+PAIR_TOPICS_VALUE_ANCHORS = [
+    # (a, b, topic_id, vol_w1, vol_w2, vol_2025, vol_total, n_covered, n_top10, sdg_tagged_n)
+    (IFPEN, SORBONNE, "T10399", 4, 5, 0, 9, 8, 0, 1),
+    (IFPEN, SORBONNE, "T10965", 4, 2, 1, 7, 6, 0, 0),
+    (IFPEN, SORBONNE, "T11351", 3, 2, 1, 6, 5, 0, 1),
+    (GDANSK, ISCTE, "T10314", 1, 1, 0, 2, 2, 1, 2),
+    (GDANSK, ISCTE, "T11040", 1, 1, 0, 2, 2, 1, 1),
+    (GDANSK, ISCTE, "T10006", 0, 1, 0, 1, 1, 1, 1),
 ]
+PAIR_TOPICS_VALUE_COLS = ["vol_w1", "vol_w2", "vol_2025", "vol_total", "n_covered", "n_top10", "sdg_tagged_n"]
 
 
-@pytest.mark.parametrize("pair,want_rows", list(GAPS_ROW_COUNT_ANCHORS.items()))
-def test_gaps_row_count_anchor_new_pair(ctx, subs_bestfit, pair, want_rows):
+@pytest.mark.parametrize("pair,want_rows", list(PAIR_TOPICS_ROW_COUNT_ANCHORS.items()))
+def test_pair_topics_row_count_anchor(ctx, subs_bestfit, pair, want_rows):
     a, b = pair
-    df = CL.gaps(ctx, subs_bestfit, a, b)
-    assert len(df) == want_rows, (a, b, len(df))
+    frame = CL.joint_profile(ctx, subs_bestfit, a, b)
+    assert frame is not None, (a, b)
+    assert frame["meta"]["n_topics_shown"] == want_rows, (a, b, frame["meta"]["n_topics_shown"])
+    assert len(frame["topics"]) == want_rows, (a, b, len(frame["topics"]))
 
 
-@pytest.mark.parametrize("a,b,topic_id,want_share_b,want_subfield", GAPS_TOPIC_ANCHORS)
-def test_gaps_topic_level_anchor(ctx, subs_bestfit, a, b, topic_id, want_share_b, want_subfield):
-    df = CL.gaps(ctx, subs_bestfit, a, b).set_index("topic_id")
-    row = df.loc[topic_id]
-    np.testing.assert_allclose(float(row["share_b"]), want_share_b, atol=1e-5)
+@pytest.mark.parametrize("a,b,topic_id,vol_w1,vol_w2,vol_2025,vol_total,n_covered,n_top10,sdg_tagged_n",
+                         PAIR_TOPICS_VALUE_ANCHORS)
+def test_pair_topics_topic_level_anchor(ctx, subs_bestfit, a, b, topic_id, vol_w1, vol_w2, vol_2025,
+                                        vol_total, n_covered, n_top10, sdg_tagged_n):
+    frame = CL.joint_profile(ctx, subs_bestfit, a, b)
+    row = frame["topics"].set_index("topic_id").loc[topic_id]
+    want = dict(vol_w1=vol_w1, vol_w2=vol_w2, vol_2025=vol_2025, vol_total=vol_total,
+               n_covered=n_covered, n_top10=n_top10, sdg_tagged_n=sdg_tagged_n)
+    for col, val in want.items():
+        assert int(row[col]) == val, (a, b, topic_id, col, int(row[col]), val)
 
 
-def test_gaps_anchors_recomputed_independently_from_the_parquet_directly():
-    """Re-derives the row count and the six named topic shares from the raw
-    topics_all + topics_dim join, with A's top-10 subfields computed by hand
-    -- not by calling collab_data.gaps or reading subs['l3']."""
+def test_pair_topics_anchors_recomputed_independently_from_the_parquet_directly():
+    """Re-reads `collab_pair_topics.parquet` fresh with plain pandas (not
+    `collab_data`'s ctx-cached loader, not through `joint_profile`'s tree
+    joins) and re-derives both the row counts and the six named topic rows
+    -- the independent recomputation the pins above were taken from."""
     import pandas as pd
 
-    topics_all = pd.read_parquet(DATA_DIR / "topics_all.parquet")
-    topics_dim = pd.read_parquet(DATA_DIR / "topics_dim.parquet",
-                                 columns=["topic_id", "bestfit_subfield_id"])
-    merged = topics_all.merge(topics_dim, on="topic_id", how="left")
+    raw = pd.read_parquet(DATA_DIR / "collab_pair_topics.parquet")
 
-    def hand_gaps(a, b):
-        a_rows = merged[merged["institution_id"] == a][["topic_id", "share_frac", "bestfit_subfield_id"]]
-        b_rows = merged[merged["institution_id"] == b][["topic_id", "share_frac", "bestfit_subfield_id"]]
-        a_by_topic = dict(zip(a_rows["topic_id"], a_rows["share_frac"]))
-        top10 = set(a_rows.groupby("bestfit_subfield_id")["share_frac"].sum()
-                    .sort_values(ascending=False).head(10).index)
-        in_a = b_rows["topic_id"].map(lambda t: a_by_topic.get(t, 0.0))
-        cond = b_rows["bestfit_subfield_id"].isin(top10) & (b_rows["share_frac"] > 0) & (in_a == 0)
-        return b_rows[cond].set_index("topic_id")["share_frac"]
+    def pair_rows(a, b):
+        lo, hi = (a, b) if a < b else (b, a)
+        return raw[(raw["a"] == lo) & (raw["b"] == hi)]
 
-    for (a, b), want_rows in GAPS_ROW_COUNT_ANCHORS.items():
-        got = hand_gaps(a, b)
+    for (a, b), want_rows in PAIR_TOPICS_ROW_COUNT_ANCHORS.items():
+        got = pair_rows(a, b)
         assert len(got) == want_rows, (a, b, len(got), want_rows)
 
-    for a, b, topic_id, want_share_b, _ in GAPS_TOPIC_ANCHORS:
-        got = hand_gaps(a, b)
-        np.testing.assert_allclose(float(got.loc[topic_id]), want_share_b, atol=1e-5)
+    for a, b, topic_id, *want_vals in PAIR_TOPICS_VALUE_ANCHORS:
+        row = pair_rows(a, b).set_index("topic_id").loc[str(topic_id)]
+        for col, want in zip(PAIR_TOPICS_VALUE_COLS, want_vals):
+            assert int(row[col]) == want, (a, b, topic_id, col, int(row[col]), want)
 
 
 # ------------------------------------------------------------------ summary --
@@ -368,7 +399,9 @@ def test_every_padded_family_now_clears_ten_anchors():
         "impact": len(IMPACT_ANCHORS) * 3,          # pp, ci_low, ci_high each
         "coverage": sum(len(v) for v in COVERAGE_ANCHORS.values()),
         "trends": len(TRENDS_ANCHORS) * 2,           # vol_full, vol_frac each
-        "gaps": len(GAPS_ROW_COUNT_ANCHORS) + len(GAPS_TOPIC_ANCHORS),
+        # "gaps" (2B) retired 2B-R2-11(f) -- the family slot is now filled by
+        # PAIR_TOPICS_* (2B-R2-12's shipped collab_pair_topics.parquet).
+        "pair_topics": len(PAIR_TOPICS_ROW_COUNT_ANCHORS) + len(PAIR_TOPICS_VALUE_ANCHORS) * len(PAIR_TOPICS_VALUE_COLS),
         "erc": len(ERC_ANCHORS) * 4,                 # share, mass, si, status each
         "sdg": len(SDG_ANCHORS) * 4,                 # share, mass, esi, status each
         "frontier_mix": sum(len(v) for v in FRONTIER_MIX_ANCHORS.values()),

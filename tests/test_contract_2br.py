@@ -22,6 +22,7 @@ CONTRACT_PATH = ROOT / "docs" / "data_contract.yaml"
 NEW_TABLES = [
     "collab_pairs.parquet",
     "collab_pair_topics.parquet",
+    "collab_pair_fields.parquet",   # 2B-R2-12: pair x field, uncapped, bestfit-only
     "sdg_fields.parquet",
     "sdg_year.parquet",
     "impact_fields.parquet",
@@ -62,8 +63,11 @@ def test_new_table_exists_with_exact_columns(contract: dict, fname: str) -> None
     )
 
 
-def test_contract_declares_17_files(contract: dict) -> None:
-    assert len(contract["files"]) == 17, sorted(contract["files"])
+def test_contract_declares_18_files(contract: dict) -> None:
+    # 17 (2B-R) -> 18 (2B-R2-12): NEW `collab_pair_fields.parquet` (pair x
+    # field, uncapped, bestfit-only -- feeds the 2B-R2-11(a) field-breakdown
+    # chart). `collab_pair_topics.parquet` itself is a REGEN, not a new file.
+    assert len(contract["files"]) == 18, sorted(contract["files"])
 
 
 # ---------------------------------------------------------------------------
@@ -112,21 +116,53 @@ def test_collab_pairs_a_lt_b_and_unique() -> None:
 
 
 def test_collab_pair_topics_within_floor_and_cap() -> None:
-    """WT A2: floor 3 total co-pubs, top-20 topics/pair -- sampled structural check."""
+    """2B-R2-12 re-pin: floor 5 total co-pubs, top-100 topics/pair (was floor
+    3 / top-20 at 2B-R, WT 2BR2 A3's rung-2 size-ladder outcome, 78.7 MB --
+    see docs/data_contract.yaml's collab_pair_topics.parquet grain note) --
+    sampled structural check."""
     pairs = _read("collab_pairs.parquet").set_index(["a", "b"])
     topics = _read("collab_pair_topics.parquet")
     per_pair_n = topics.groupby(["a", "b"], observed=True).size()
     print(f"collab_pair_topics: {len(per_pair_n):,} distinct pairs, max rows/pair="
           f"{per_pair_n.max()}")
-    assert per_pair_n.max() <= 20, "top-20-per-pair cap violated"
+    assert per_pair_n.max() <= 100, "top-100-per-pair cap violated"
 
     sample_pairs = per_pair_n.sample(n=min(2_000, len(per_pair_n)), random_state=42).index
     below_floor = 0
     for a, b in sample_pairs:
         total = pairs.loc[(a, b), "copubs_total"]
-        if total < 3:
+        if total < 5:
             below_floor += 1
-    print(f"floor-3 sample check: {below_floor} of {len(sample_pairs)} sampled pairs below floor")
+    print(f"floor-5 sample check: {below_floor} of {len(sample_pairs)} sampled pairs below floor")
+    assert below_floor == 0
+
+
+def test_collab_pair_fields_uncapped_and_same_floor() -> None:
+    """2B-R2-12: `collab_pair_fields.parquet` shares `collab_pair_topics`'
+    floor-5 qualifying-pair set but carries NO per-pair cap (every field the
+    pair has any joint mass in ships) -- a pair spans a mean of ~4 fields
+    (WT #13), so uncapped never approaches the 100-topic cap's order of
+    magnitude; this is a structural guard against that ratio drifting, not a
+    hardcoded row-count pin."""
+    pairs = _read("collab_pairs.parquet").set_index(["a", "b"])
+    fields = _read("collab_pair_fields.parquet")
+    per_pair_n = fields.groupby(["a", "b"], observed=True).size()
+    print(f"collab_pair_fields: {len(per_pair_n):,} distinct pairs, "
+          f"mean fields/pair={per_pair_n.mean():.2f}, max={per_pair_n.max()}")
+    # Uncapped, but a "field" is a coarse taxon -- OA has 26 -- so it can
+    # never exceed that no matter how large the pair's joint corpus is.
+    assert per_pair_n.max() <= 26, "collab_pair_fields must never exceed the field taxonomy's own size"
+
+    # Same qualifying-pair SET as collab_pair_topics (2B-R2-12: "same floor
+    # and qualifying-pair set as collab_pair_topics.parquet", contract text).
+    topic_pairs = set(map(tuple, _read("collab_pair_topics.parquet")[["a", "b"]].drop_duplicates().to_numpy()))
+    field_pairs = set(map(tuple, fields[["a", "b"]].drop_duplicates().to_numpy()))
+    assert field_pairs == topic_pairs, (
+        "collab_pair_fields and collab_pair_topics must ship the identical qualifying-pair set")
+
+    sample_pairs = per_pair_n.sample(n=min(2_000, len(per_pair_n)), random_state=42).index
+    below_floor = sum(1 for a, b in sample_pairs if pairs.loc[(a, b), "copubs_total"] < 5)
+    print(f"floor-5 sample check (fields): {below_floor} of {len(sample_pairs)} sampled pairs below floor")
     assert below_floor == 0
 
 

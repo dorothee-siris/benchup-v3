@@ -54,12 +54,22 @@ this one proves the WIDGET itself survives the switch, the same idiom
 tests/test_pages_compare.py uses for its own single-scenario coverage.
 
 Then the Collaborate page x {bestfit, original, conservative} x {frac, full}
-for one pair (6 cells): renders with no exception, and the shared-topics
-table's Sigma(min_share) equals the engine's own L3 lens score for the pair
-under that SAME scenario -- the identity tests/test_pages_collab.py already
-pins at the default scenario, generalised here across all six. `collab_data.
-shared_topics` is untouched by the 2B-R Compare re-cut, so this half of the
-file carries over unchanged from 2B (only TREES widened from 2 to 3).
+for one pair (6 cells): renders with no exception. 2B-R2-12 RETIRED this
+half's original cross-check -- the page's top-shared-topics section used to
+be `views_collab._shared_frame`, ranked by `min_share` (the engine's own L3
+lens score, an each-institution's-own-portfolio-share quantity); it is now
+`views_collab._joint_frame` -> `collab_data.joint_profile`, ranked by
+`vol_total` off the shipped, floor-5/top-100 `collab_pair_topics.parquet`
+(the pair's ACTUAL joint-corpus volume per topic -- a different quantity
+entirely, so a Sigma(min_share) == L3-score identity no longer holds for
+what the page renders). `collab_data.shared_topics` itself is untouched and
+still equals L3 (test_collab_data.py keeps that pin) -- it is simply not on
+this page's render path any more. What DOES generalise across the six cells:
+`collab_pair_topics.parquet` carries no tree or basis dimension at all, so
+every per-topic value column the page shows must be IDENTICAL to the raw
+shipped table, in every one of the six cells -- checked here against a
+fresh, independent `pd.read_parquet` of that file, not through `collab_data`'s
+own cached loader.
 
 Run from cwd `app/`:  python -m pytest tests/test_matrix_compare.py -q
 """
@@ -69,12 +79,13 @@ import itertools
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 import pytest
 from streamlit.testing.v1 import AppTest
 
-from lib import charts_compare, compare_data as K, copy, selection, views_compare, views_collab
+from lib import charts_compare, collab_data as CL, compare_data as K, copy, selection, views_compare, views_collab
 from lib.data_cache import DATA_DIR
-from lib.engine import load_context, rank_all
+from lib.engine import load_context
 from lib.views_find import _subs
 
 APP_DIR = Path(__file__).resolve().parents[1]
@@ -100,9 +111,19 @@ COLLAB_MATRIX = list(itertools.product(TREES, BASES))            # 6 cells
 # the 12-cell run, at the DATA layer (cheap: no extra AppTest rerun), rather
 # than repeating "share" 12 times.
 SUBJECT_METRICS = views_compare.SUBJECT_METRICS
-# The selector vocabulary and the data layer's METRICS must be the same set --
-# a hardcoded length here broke the day a seventh metric (vol) landed.
-assert set(SUBJECT_METRICS) == set(K.METRICS)
+# 2B-R2-3: the selector vocabulary (`charts_compare.SELECTOR_METRICS`, what
+# the "Compare by" radio offers) and the data layer's `K.METRICS` are NO
+# LONGER the same set BY DESIGN -- `vol_top10` is DATA ONLY (it feeds the PP
+# view's volume gutter, 2B-R2-3) and was deliberately retired as a pickable
+# tab; `vol` is the opposite direction, a metric CD3 added to both. So the
+# live contract is: every selector option must have a data path (subset,
+# not equality), and the ONLY data-layer extra is the one named exception.
+# A hardcoded length/equality here is exactly what broke the day `vol_top10`
+# was retired as a selector option while staying in `K.METRICS` as data.
+assert set(SUBJECT_METRICS) <= set(K.METRICS), (SUBJECT_METRICS, K.METRICS)
+assert set(K.METRICS) - set(SUBJECT_METRICS) == {"vol_top10"}, (
+    "the only data-only, non-selectable metric should be vol_top10 (2B-R2-3); "
+    f"got {set(K.METRICS) - set(SUBJECT_METRICS)}")
 
 # Every section's subheader must render, in every cell, proving the whole
 # page -- including the two 2B-R-9 frontier charts -- survives the full
@@ -162,10 +183,14 @@ def _assert_metric_state(ctx_, subs, ids, metric) -> None:
     # each of these in full detail at one scenario.
 
 
-def _assert_frontier(ctx_, subs, ids) -> None:
-    """2B-R-9's two charts, at the data layer, for every cell."""
-    pooled = K.frontier_pooled(ctx_, subs, list(ids), 60)
-    shared = K.shared_frontier(ctx_, subs, list(ids))
+def _assert_frontier(ctx_, subs, ids, pool: str) -> None:
+    """2B-R-9's two charts, at the data layer, for every cell -- cycled over
+    `K.FRONTIER_POOLS` (2B-R2-10's pool selector: "volume" = top-25%-frontier
+    ranked by combined volume, "elite" = global top-10% most frontier) so
+    both modes get exercised somewhere across the matrix, the same
+    round-robin idiom as SUBJECT_METRICS above."""
+    pooled = K.frontier_pooled(ctx_, subs, list(ids), 60, pool)
+    shared = K.shared_frontier(ctx_, subs, list(ids), pool)
     if pooled.empty:
         assert shared.empty
         return
@@ -177,9 +202,14 @@ def _assert_frontier(ctx_, subs, ids) -> None:
     # shared_frontier is UNCAPPED (2B-R-9): it can hold topics outside the
     # top_n=60 slice `pooled` was capped to, so it is compared against the
     # FULL (uncapped) pool frame, not `pooled` itself.
-    full_pool = K._frontier_pool_frame(ctx_, subs, list(ids))
+    full_pool = K._frontier_pool_frame(ctx_, subs, list(ids), pool)
     assert set(shared["topic_id"]) == set(full_pool.loc[full_pool["owner"] == "shared", "topic_id"])
     assert set(pooled.loc[pooled["owner"] == "shared", "topic_id"]) <= set(shared["topic_id"])
+    if pool == "elite":
+        # 2B-R2-10: "elite" restricts to the global top-10% most-frontier
+        # topics -- every pooled topic must be in that fixed set.
+        elite_ids = K._elite_frontier_topic_ids(ctx_)
+        assert set(pooled["topic_id"]) <= elite_ids, (pool, "elite pool leaked a non-elite topic")
 
 
 # --------------------------------------------------------- Compare matrix --
@@ -209,13 +239,18 @@ def test_compare_matrix_cell(size, tree, basis, ctx):
     rendered = [m.value for m in at.markdown]
     assert legend_html in rendered, (size, tree, basis, "legend markup missing from the page")
 
-    # -- basis == "full": the ERC and SDG captions carry FRACTIONAL_ONLY_PANEL;
-    # basis == "frac": neither does.
-    captions = [c.value for c in at.caption]
+    # -- basis == "full": the ERC/SDG chart notes carry FRACTIONAL_ONLY_PANEL;
+    # basis == "frac": neither does. 2B-R2-8 moved this from a bare
+    # `st.caption` (checked via `at.caption`) into the `?` tooltip of
+    # `charts_compare.chart_note` (views_compare._taxon_tip), rendered as an
+    # HTML `title=` attribute inside `st.markdown(..., unsafe_allow_html=True)`
+    # -- so it now has to be found as a substring of the rendered markdown,
+    # not as an exact `at.caption` element.
+    rendered_md = "\n".join(rendered)
     if basis == "full":
-        assert copy.FIND["FRACTIONAL_ONLY_PANEL"] in captions, (size, tree, basis, captions)
+        assert copy.FIND["FRACTIONAL_ONLY_PANEL"] in rendered_md, (size, tree, basis)
     else:
-        assert copy.FIND["FRACTIONAL_ONLY_PANEL"] not in captions, (size, tree, basis, captions)
+        assert copy.FIND["FRACTIONAL_ONLY_PANEL"] not in rendered_md, (size, tree, basis)
 
     # -- overview: one row per compared institution (2B-R-7 KPI row).
     overview = K.overview(ctx, ids)
@@ -228,8 +263,10 @@ def test_compare_matrix_cell(size, tree, basis, ctx):
     metric = SUBJECT_METRICS[cell_index % len(SUBJECT_METRICS)]
     _assert_metric_state(ctx, subs, ids, metric)
 
-    # -- the two 2B-R-9 frontier charts.
-    _assert_frontier(ctx, subs, ids)
+    # -- the two 2B-R-9 frontier charts, cycled over the 2B-R2-10 pool
+    # selector (both "volume" and "elite" get exercised across the matrix).
+    pool = K.FRONTIER_POOLS[cell_index % len(K.FRONTIER_POOLS)]
+    _assert_frontier(ctx, subs, ids, pool)
 
     # -- impact floor toggle 30 -> 10 never REDUCES the union row count (A1: a
     # lower floor only ADDS subfields to the union, never removes one).
@@ -270,39 +307,51 @@ def test_switching_the_subject_metric_widget_survives_across_the_matrix_scenario
         views_compare.METRIC_LABELS["si"]).run()
     assert not at.exception
     assert at.session_state["cmp_metric_subject"] == views_compare.METRIC_LABELS["si"]
-    captions = [c.value for c in at.caption]
-    assert copy.FIND["CAPTION_SI"] in captions   # only drawn when metric == "si"
+    # 2B-R2-8 folded this into the `?` tooltip of `charts_compare.chart_note`
+    # (views_compare._metric_tip), an HTML `title=` attribute inside
+    # `st.markdown(..., unsafe_allow_html=True)` -- no longer a bare
+    # `st.caption`, so it is found in the rendered markdown, not `at.caption`.
+    rendered_md = "\n".join(m.value for m in at.markdown)
+    assert copy.FIND["CAPTION_SI"] in rendered_md   # only drawn when metric == "si"
 
 
 # ------------------------------------------------------- Collaborate matrix --
 
 @pytest.mark.parametrize(
     "tree,basis", COLLAB_MATRIX, ids=[f"{t}_{b}" for t, b in COLLAB_MATRIX])
-def test_collab_matrix_cell_shared_topics_matches_engine_l3(tree, basis, ctx):
+def test_collab_matrix_cell_joint_topics_match_the_shipped_pair_table(tree, basis, ctx):
+    """2B-R2-12 re-cut (`views_collab._shared_frame` is gone -- see the module
+    docstring): the page's top-shared-topics section reads `collab_pair_
+    topics.parquet` through `collab_data.joint_profile`, a table with NO tree
+    or basis dimension. So every cell of this matrix must show the exact same
+    per-topic values, independently recomputed here with a fresh
+    `pd.read_parquet` of the shipped file (not `collab_data`'s cached
+    loader)."""
     a, b = STRASBOURG, GDANSK
     at = _collab_app((a, b), tree, basis)
     assert not at.exception, (tree, basis, [str(e) for e in at.exception])
 
-    df = views_collab._shared_frame(a, b, tree, basis)
-    page_score = float(df["min_share"].sum())
+    frame = views_collab._joint_frame(a, b, tree, basis)
+    assert frame is not None, (tree, basis, "Strasbourg x Gdansk must clear PAIR_TOPICS_FLOOR")
+    topics = frame["topics"].set_index("topic_id").sort_index()
+    assert len(topics) <= CL.PAIR_TOPICS_TOP_N
+    assert frame["meta"]["floor"] == CL.PAIR_TOPICS_FLOOR
 
-    subs = _subs(tree, basis)
-    l3 = rank_all(ctx, subs, a)["L3"]
-    engine_score = float(l3["scores"][ctx["id_pos"][b]])
+    value_cols = CL.JOINT_ROLLUP_VALUE_COLS   # vol_w1/vol_w2/vol_2025/vol_total/n_covered/n_top10/sdg_tagged_n
+    sorted_by_vol = frame["topics"]["vol_total"].to_numpy()
+    assert np.all(sorted_by_vol[:-1] >= sorted_by_vol[1:]), "joint topics must be sorted by vol_total, descending"
+    assert (topics["n_top10"] <= topics["n_covered"]).all(), (tree, basis, "n_top10 must never exceed n_covered")
 
-    # tests/test_collab_data.py's OWN tolerance convention: atol=1e-6 (its
-    # tighter check) on the frac/bestfit default, rtol=1e-5 wherever basis
-    # or tree departs from that default (test_shared_topics_tree_invariant,
-    # test_shared_topics_basis_full) -- basis="full" resums float32 vol_full-
-    # normalised shares in a different order than the frac path, which moves
-    # the last ULPs (same class of drift as the numpy-float32-sum-memory-
-    # order lesson: bit-identical inputs, different accumulation order, ~1e-6
-    # noise). A fixed abs=1e-6 is exactly what trips on that noise at full
-    # basis while staying valid at frac -- so match K's own two-tier rule
-    # instead of tightening past what the float32 path can deliver.
-    tol = dict(rel=0, abs=1e-6) if (tree, basis) == ("bestfit", "frac") else dict(rel=1e-5, abs=1e-6)
-    assert page_score == pytest.approx(engine_score, **tol), (
-        tree, basis, page_score, engine_score)
+    raw = pd.read_parquet(DATA_DIR / "collab_pair_topics.parquet")
+    lo, hi = (a, b) if a < b else (b, a)
+    raw_rows = raw[(raw["a"] == lo) & (raw["b"] == hi)].copy()
+    raw_rows["topic_id"] = raw_rows["topic_id"].astype(str)
+    raw_rows = raw_rows.set_index("topic_id").sort_index()
+    assert set(topics.index) == set(raw_rows.index), (tree, basis, "topic set must not move with tree/basis")
+    got = topics[value_cols].astype(float).sort_index()
+    want = raw_rows.loc[got.index, value_cols].astype(float)
+    np.testing.assert_allclose(got.to_numpy(), want.to_numpy(), rtol=0, atol=1e-9,
+                               err_msg=f"{tree},{basis}: joint-topic values must match the shipped table exactly")
 
 
 def test_collab_matrix_covers_the_full_cross_product():
