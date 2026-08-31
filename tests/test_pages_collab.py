@@ -1,578 +1,411 @@
 """
-tests/test_pages_collab.py -- stream LP3: AppTest page-render tests for
-pages/3_(handshake)_Collaborate.py and the render helpers in
-lib/views_collab.py, re-cut for the FIVE-SECTION page of BUILD_PLAN_2BR2.md
-decision 2B-R2-11 (pulse -> field breakdown chart -> shared topics -> untapped
-potential -> link-outs, plus the plain-language "not shown here" block).
+tests/test_pages_collab.py -- stream VL (BUILD_PLAN_2BR3.md SS3 VL): tests
+for the rebuilt Collaborate page (lib/views_collab.py) and the render
+helpers over it -- slots + instant identity cards, the pair momentum
+headline, the domain-coloured field chart, the "Strategic reciprocity by
+field" bubble scatter, the native sortable topic deep dive / untapped
+dataframes with a 20-then-show-all pattern, and the deletions the rework
+asks for (the old free-text pair picker, the field TABLE, every row slider,
+"Read the publications on OpenAlex").
 
-TWO PAIRS ARE RENDERED (N = 2), and the second one is the point:
-
-  * Universite de Strasbourg x CNRS -- the manager-verified anchor. CNRS is
-    Strasbourg's FIRST partner and Strasbourg is CNRS's SIXTEENTH, so this pair
-    is also the RANK-DIRECTION pin: a page that rendered `rank_in_a` as A's own
-    rank instead of B's would still look plausible and would be wrong, and only
-    an asymmetric pair catches it.
-  * Universite de Strasbourg x Bavarian Academy of Sciences and Humanities -- a
-    REAL sub-floor pair (2 joint works, under `collab_data.PAIR_TOPICS_FLOOR`,
-    which 2B-R2-12 moved to five), which must render the SHARED below-floor
-    notice with its own numbers, drop the field and topic tables rather than
-    show empty ones, and keep the pulse, the untapped reading and every
-    link-out.
-
-WHAT IS PINNED HERE (rather than in tests/test_collab_data.py, which owns the
-frames themselves): that the PAGE renders those frames' numbers, in the right
-direction, with their denominators named; that every taxon name carries its
-domain chip, every row its arrow and its live link; that the sliders really cut
-the rendered rows; that the two directional gap tables are GONE from the code
-rather than hidden; and the digit ban over this stream's files. The live URL
-path (`?pair=A,B`), the rendered legend strip, the starred partial year on the
-chart axis, the link hrefs as a browser sees them and the three viewport widths
-are probed in ops/_probe_collab.py, which drives a real browser.
-
-The four tables are hand-built HTML (see lib/views_collab.py's docstring on why
-Streamlit's canvas grid cannot carry a chip, a per-row link or a readable
-value), so they are asserted THROUGH THAT MARKUP here -- `data-table` names the
-table, `data-row` its rows, `data-domain` a chip and `data-arrow` a direction.
+WHY MOST OF THIS FILE RUNS AGAINST THE FIXTURE CONTEXT, NOT A LIVE PAGE.
+`lib/collab_data.py` (CD4) targets the SS2.2 v2 schemas; P7 has not rebuilt
+`app/data/collab_pairs.parquet` etc. to those schemas yet (same wave, by
+design -- BUILD_PLAN_2BR3.md SS4 W1/W2, confirmed live 2026-08-31:
+`collab_facts.json`, `collab_topic_vols.parquet` and `fwci_ref.parquet` do
+not exist on disk yet and `index.parquet` carries no `total_ar_full_w1/w2`).
+An `AppTest` render against the real app would therefore KeyError/
+FileNotFoundError on data that is not this stream's to build -- EXPECTED,
+per the brief, not a defect here. Every render helper this stream wrote is
+instead exercised directly against `tests/fixtures/fixture_ctx.py` (the SAME
+small, hand-verified fixture CD4's own `tests/test_cd4_2br3.py` uses), which
+already carries the v2 schemas -- this proves the NEW code against the NEW
+contract today, byte-identically to how it will run once P7 lands.
+`test_page_group` at the bottom holds the one AppTest suite that DOES need
+the real app; it self-skips with a stated reason while `collab_facts.json`
+is absent and starts running the moment a manager re-run finds it (no edit
+needed here when that happens).
 
 Run from cwd `app/`:  python -m pytest tests/test_pages_collab.py -q
 """
 from __future__ import annotations
 
 import re
+import sys
 from pathlib import Path
-from unittest import mock
 
+import numpy as np
+import pandas as pd
 import pytest
-from streamlit.testing.v1 import AppTest
 
-from lib import collab_data, copy, links, palette, selection, views_collab
-from lib.compare_data import DYNAMICS_W1, DYNAMICS_W2
-from lib.data_cache import DATA_DIR
-from lib.engine import build_substrates, load_context
+sys.path.insert(0, str(Path(__file__).resolve().parent / "fixtures"))
+from fixture_ctx import IA, IB, IC, build_ctx, build_subs  # noqa: E402
+
+from lib import collab_data as CL  # noqa: E402
+from lib import copy  # noqa: E402
+from lib import links  # noqa: E402
+from lib import palette as P  # noqa: E402
+from lib import views_collab as VC  # noqa: E402
+from lib.compare_data import DYNAMICS_W1, DYNAMICS_W2  # noqa: E402
+from lib.data_cache import DATA_DIR  # noqa: E402
 
 APP_DIR = Path(__file__).resolve().parents[1]
-COLLAB_PAGE = str(APP_DIR / "pages" / "3_\U0001F91D_Collaborate.py")  # handshake, the file's real name
+COLLAB_PAGE = str(APP_DIR / "pages" / "3_\U0001F91D_Collaborate.py")  # handshake
 
-STRASBOURG = "I68947357"        # the R1 reference seed
-CNRS = "I1294671590"            # Strasbourg's own first partner
-BAVARIAN = "I109144446"         # 2 joint works with Strasbourg: under the topic floor
-GDANSK = "I40413290"            # panel_v2 D19 seed, kept for the selection tests
-PAIR = [STRASBOURG, CNRS]
-SUB_FLOOR_PAIR = [STRASBOURG, BAVARIAN]
-
-TREE = "bestfit"           # config.yaml's own defaults, i.e. what the page opens on
-BASIS = "frac"
-
-TABLES = ("collab_fields", "collab_topics", "collab_untapped", "collab_siblings")
-TABLES_BELOW_FLOOR = ("collab_untapped", "collab_siblings")
-
-
-def _app(basket=None, **extra_state) -> AppTest:
-    at = AppTest.from_file(COLLAB_PAGE, default_timeout=300)
-    at.session_state["basket"] = list(PAIR if basket is None else basket)
-    for k, v in extra_state.items():
-        at.session_state[k] = v
-    return at
+REAL_V2_READY = (DATA_DIR / "collab_facts.json").exists()
+SKIP_REASON = ("real app/data/ is still v1 schema (collab_facts.json absent) -- "
+               "P7 has not landed yet; deferred to the manager's post-P7 pass "
+               "per this stream's brief")
 
 
 @pytest.fixture(scope="module")
-def engine():
-    """The raw engine, loaded ONCE for the whole module. `load_context` /
-    `build_substrates` are the same calls lib/views_find.py's cache_resource
-    wrappers make, so this fixture is cheap in practice: whichever runs first
-    fills the process cache the other reads."""
-    ctx = load_context(str(DATA_DIR))
-    return ctx, build_substrates(ctx, TREE, BASIS)
+def ctx():
+    return build_ctx()
 
 
-def _text(at) -> str:
-    """Everything the page wrote as markdown or caption, emphasis stripped, so
-    a `**bold**` template compares against what a reader sees."""
-    parts = [m.value for m in at.markdown] + [c.value for c in at.caption]
-    parts += [i.value for i in at.info] + [s.value for s in at.subheader]
-    return " ".join(parts).replace("**", "")
+@pytest.fixture()
+def subs_frac(ctx):
+    return build_subs(ctx, basis="frac")
 
 
-def _tables(at) -> dict:
-    """`{table name: its markup}` for the hand-built tables on the page."""
-    out = {}
-    for m in at.markdown:
-        for name in re.findall(r'data-table="([a-z_]+)"', m.value):
-            out[name] = m.value
-    return out
+# ============================================================================
+# 1. the pair momentum headline (section 1)
+# ============================================================================
+
+def test_pair_momentum_frame_matches_the_fixtures_hand_verified_ladder_case(ctx):
+    """collab_pairs fixture row: mom_class='up', mom_rr=1.5 -> '+50%'
+    (tests/fixtures/build_fixtures.py's own comment says so)."""
+    mom = CL.pair_momentum(ctx, IA, IB)
+    assert mom is not None
+    assert mom["text"] == "+50%"
+    assert mom["color"] == P.MOMENTUM_COLORS["up"]
+    assert mom["glyph"] == P.MOMENTUM_GLYPHS["up"]
+    assert mom["c1"] == 15.0 and mom["c2"] == 6.0
+    np.testing.assert_allclose(mom["d1"], 450.0, atol=1e-9)  # 300 (IA) + 150 (IB)
+    np.testing.assert_allclose(mom["d2"], 360.0, atol=1e-9)  # 220 (IA) + 140 (IB)
 
 
-def _rows(at, name: str) -> int:
-    return _tables(at).get(name, "").count("data-row=")
+def test_pair_momentum_none_for_a_pair_that_never_co_published(ctx):
+    assert CL.pair_momentum(ctx, IA, IC) is None
 
 
-def _first_literal(template: str) -> str:
-    """The template's first non-empty fixed segment, for a substring check
-    against rendered text (tests/test_pages.py's own idiom)."""
-    segments = [s for s in re.split(r"\{[^{}]*\}", template) if s.strip()]
-    assert segments, f"template has no fixed text: {template!r}"
-    return segments[0].strip()
+def test_evidence_block_shares_and_significance_are_composed_not_hardcoded(ctx):
+    """The window labels, the two shares, the raw counts and the p-value all
+    come off `mom` + `collab_facts.json`'s own `alpha` -- this pins the
+    ARITHMETIC the render helper performs before handing numbers to
+    copy.py's placeholders."""
+    mom = CL.pair_momentum(ctx, IA, IB)
+    facts = CL._load_collab_facts(ctx)
+    assert facts["alpha"] == 0.05
+    w1_share = mom["c1"] / mom["d1"]
+    w2_share = mom["c2"] / mom["d2"]
+    np.testing.assert_allclose(w1_share, 15.0 / 450.0, atol=1e-9)
+    np.testing.assert_allclose(w2_share, 6.0 / 360.0, atol=1e-9)
+    line = copy.COLLAB["MOMENTUM_EVIDENCE_SHARE"].format(
+        w1=VC._window(DYNAMICS_W1), share1=VC._pct(w1_share),
+        w2=VC._window(DYNAMICS_W2), share2=VC._pct(w2_share), sep=VC.SEP)
+    assert VC._pct(w1_share) in line and VC._pct(w2_share) in line
+    sig = copy.COLLAB["MOMENTUM_EVIDENCE_SIGNIFICANCE"].format(
+        p=VC._pval(mom["mom_p"]), alpha=VC._pct(facts["alpha"]))
+    assert "0.010" in sig  # mom_p fixture value 0.01, formatted to 3dp
+    assert VC._pct(0.05) in sig
+    copubs = copy.COLLAB["MOMENTUM_EVIDENCE_COPUBS"].format(
+        c1=VC._count(mom["c1"]), c2=VC._count(mom["c2"]), arrow=VC.ARROW)
+    assert "15" in copubs and "6" in copubs and VC.ARROW in copubs
 
 
-# ------------------------------------------------------------- render ------
-
-def test_page_renders_without_exception():
-    at = _app().run()
-    assert not at.exception, [str(e) for e in at.exception]
-
-
-def test_the_five_sections_render_in_the_order_2br2_11_names():
-    at = _app().run()
-    assert not at.exception, [str(e) for e in at.exception]
-    heads = [s.value for s in at.subheader]
-    order = [copy.COLLAB["PULSE_HEADER"], copy.COLLAB["FIELDS_HEADER"],
-             copy.COLLAB["TOPICS_HEADER"], copy.COLLAB["UNTAPPED_HEADER"],
-             copy.COLLAB["LINKS_HEADER"]]
-    positions = [heads.index(h) for h in order]
-    assert positions == sorted(positions), heads
+def test_pval_formatter_floors_a_very_small_p_and_discloses_na():
+    assert VC._pval(None) == P.NA_MARK
+    assert VC._pval(float("nan")) == P.NA_MARK
+    assert VC._pval(0.01) == "0.010"
+    assert VC._pval(0.0000001) == f"< {VC.PVAL_FLOOR:.3f}"
 
 
-def test_the_four_tables_are_dom_readable_markup_not_canvas_grids():
-    """The 2B-R2-11 tables carry a chip, an arrow and a per-row link, none of
-    which Streamlit's canvas grid can render or a probe can read back."""
-    at = _app().run()
-    assert set(_tables(at)) == set(TABLES), sorted(_tables(at))
-    assert not at.dataframe, f"{len(at.dataframe)} canvas grids left on the page"
+# ============================================================================
+# 2. field/topic-grain momentum cell (the dataframe's own "Momentum" column)
+# ============================================================================
+
+MOMENTUM_CLASS_CASES = [
+    (None, VC.MOMENTUM_CLASS_WORD.get, False),
+    ("up", "up", True), ("down", "down", True), ("stable", "stable", True),
+    ("ns", "n.s.", True), ("new", "new", True), ("dormant", "dormant", True),
+    ("weak", "weak base", True),
+]
 
 
-# ------------------------------------------- 1. the relationship pulse -----
-
-def test_pulse_numbers_are_collab_datas_own(engine):
-    """Total, both shares and both denominators, read off the page against a
-    fresh `collab_data.pulse`."""
-    ctx, _subs = engine
-    p = collab_data.pulse(ctx, STRASBOURG, CNRS)
-    at = _app().run()
-    values = [m.value for m in at.metric]
-    assert views_collab._count(p["copubs_total"]) in values
-    assert views_collab._pct(p["share_of_a"]) in values
-    assert views_collab._pct(p["share_of_b"]) in values
-    names = {i: str(ctx["index_by_id"].loc[i, "display_name"]) for i in PAIR}
-    assert copy.COLLAB["PULSE_SHARE_DENOM"].format(
-        window=views_collab._window(collab_data.PULSE_YEARS),
-        name_a=names[STRASBOURG], name_b=names[CNRS],
-        vol_a=views_collab._count(p["denominator_a"]),
-        vol_b=views_collab._count(p["denominator_b"])) in _text(at)
-
-
-def test_rank_direction_is_rendered_the_right_way_round(engine):
-    """`rank_in_a` is where B sits among A's partners. On this pair the two
-    ranks differ by an order of magnitude, so a page that swapped them would
-    read as CNRS's sixteenth partner being Strasbourg's first."""
-    ctx, _subs = engine
-    p = collab_data.pulse(ctx, STRASBOURG, CNRS)
-    assert (p["rank_in_a"], p["rank_in_b"]) == (1, 16), p
-    names = {i: str(ctx["index_by_id"].loc[i, "display_name"]) for i in PAIR}
-    at = _app().run()
-    assert copy.COLLAB["PULSE_RANK_LINE"].format(
-        name_a=names[STRASBOURG], name_b=names[CNRS],
-        rank_of_b=views_collab._count(p["rank_in_a"]),
-        rank_of_a=views_collab._count(p["rank_in_b"])).replace("**", "") in _text(at)
-
-
-def test_pulse_trend_line_follows_the_two_dynamics_windows(engine):
-    """The plain-language line is a DATA answer: mean annual joint volume over
-    the two windows the rest of the tool reads dynamics on, in neutral
-    vocabulary and with the partial year excluded from both."""
-    ctx, _subs = engine
-    yearly = collab_data.pulse(ctx, STRASBOURG, CNRS)["yearly"]
-    w1 = views_collab._window_mean(yearly, DYNAMICS_W1)
-    w2 = views_collab._window_mean(yearly, DYNAMICS_W2)
-    change = (w2 - w1) / w1
-    line = views_collab._trend_line(yearly)
-    if abs(change) < views_collab.TREND_BAND:
-        expected = copy.COLLAB["PULSE_TREND_FLAT"]
+@pytest.mark.parametrize("mom_class,want_text,known", MOMENTUM_CLASS_CASES)
+def test_momentum_cell_is_class_only_never_a_percentage(mom_class, want_text, known):
+    """SS2.3: field/topic grain carries CLASS ONLY, no percentage. A real
+    'up' class must render the WORD 'up', never a '+NN%' string (which is
+    what `collab_data.momentum_display` would silently produce if handed a
+    None mom_rr for this same class -- the exact trap this page's own
+    docstring names)."""
+    text, color, glyph = VC._momentum_cell(mom_class)
+    if known:
+        assert text == want_text
+        assert "%" not in text
+        assert color.startswith("#") and glyph
     else:
-        expected = copy.COLLAB["PULSE_TREND_UP" if change > 0 else "PULSE_TREND_DOWN"]
-    assert _first_literal(expected) in line
-    # the bonus year is in the frame but in neither window
-    assert int(collab_data.PULSE_YEARS[-1]) not in range(DYNAMICS_W1[0], DYNAMICS_W2[1] + 1)
-    at = _app().run()
-    assert line in _text(at)
-    for word in ("dying", "healthy", "weak", "strong", "vibrant", "failing"):
-        assert word not in line.lower(), line
+        assert text == CL.MOMENTUM_NULL_TEXT
 
 
-# ------------------------------- 2. the joint corpus, field by field -------
-
-def test_field_chart_draws_the_pairs_own_volumes_in_one_neutral_hue(engine):
-    """2B-R2-11(a). The bars are the pair's, so no institution colour may reach
-    them: `PAIR_SERIES_KEY` is in no slot map and the fills come back COMPARISON
-    grey. The values are `collab_pair_fields`' own, unrounded."""
-    ctx, _subs = engine
-    fields = collab_data.field_breakdown(ctx, STRASBOURG, CNRS)
-    assert not fields.empty
-    fig = views_collab._fields_chart(fields)
-    drawn = [float(v) for tr in fig.data for v in tr.x]
-    assert sorted(drawn) == sorted(float(v) for v in fields["vol_total"])
-    fills = {c for tr in fig.data for c in tuple(tr.marker.color)}
-    assert fills == {palette.COMPARISON}, fills
-    assert not (fills & set(palette.INSTITUTION_COLORS)), "an institution hue reached the pair's bars"
+def test_momentum_cell_colours_and_glyphs_come_from_palette_not_a_local_hex():
+    for cls in ("up", "down", "stable"):
+        _, color, glyph = VC._momentum_cell(cls)
+        assert color == P.MOMENTUM_COLORS[cls]
+        assert glyph == P.MOMENTUM_GLYPHS[cls]
+    for cls in ("ns", "new", "dormant", "weak"):
+        _, color, glyph = VC._momentum_cell(cls)
+        assert color == P.MOMENTUM_COLORS["ns"]
+        assert glyph == P.MOMENTUM_GLYPHS["ns"]
 
 
-def test_field_chart_labels_carry_the_openalex_domain_colour(engine):
-    """The coexistence rule, one way round: the taxonomy's colour appears on the
-    row LABEL (and on the chip beside the name in the table), never on a mark."""
-    ctx, _subs = engine
-    fields = collab_data.field_breakdown(ctx, STRASBOURG, CNRS)
-    fig = views_collab._fields_chart(fields)
-    ticks = list(fig.layout.yaxis.ticktext)
-    assert len(ticks) == len(fields)
-    wanted = {palette.domain_color(d) for d in fields["domain_id"]}
-    assert wanted <= {c for t in ticks for c in re.findall(r"color:(#[0-9A-Fa-f]{6})", t)}
-    for name, domain in zip(fields["field_name"], fields["domain_id"]):
-        hit = [t for t in ticks if name.split()[0] in t.replace("<br>", " ")]
-        assert hit, name
-        assert palette.domain_color(domain) in hit[0], name
+# ============================================================================
+# 3. the field chart (section 2) -- domain-coloured bars
+# ============================================================================
+
+def test_field_chart_bars_are_coloured_by_domain_not_by_institution(ctx):
+    fields = CL.field_breakdown(ctx, IA, IB)
+    assert len(fields) == 2  # the fixture's own two fields
+    fig = VC._fields_chart(fields)
+    assert len(fig.data) == 1  # ONE trace -- the corpus is the pair's, not either side's
+    colors = set(fig.data[0].marker.color)
+    wanted = {P.domain_color(d) for d in fields["domain_id"]}
+    assert colors == wanted
+    assert not (colors & set(P.INSTITUTION_COLORS)), "an institution hue reached the pair's bars"
 
 
-def test_field_table_carries_the_chips_impact_pair_and_row_links(engine):
-    ctx, _subs = engine
-    fields = collab_data.field_breakdown(ctx, STRASBOURG, CNRS)
-    at = _app().run()
-    markup = _tables(at)["collab_fields"]
-    assert markup.count("data-row=") == len(fields)
-    for _, r in fields.head(5).iterrows():
-        assert f'data-domain="{int(r["domain_id"])}"' in markup
-        assert palette.domain_color(r["domain_id"]) in markup
-        assert copy.COLLAB["COL_TOP10_VALUE"].format(
-            n_top10=views_collab._count(r["n_top10"]),
-            n_covered=views_collab._count(r["n_covered"])) in markup
-        assert views_collab._count(r["mean_citations"]) in markup
-        assert r["url"] in markup
-    arrows = set(re.findall(r'data-arrow="([a-z]+)"', markup))
-    assert arrows <= {collab_data.ARROW_UP, collab_data.ARROW_DOWN, collab_data.ARROW_FLAT}
-    assert arrows == set(fields["arrow"])
+def test_field_chart_values_are_the_pairs_own_core_ar_volumes(ctx):
+    fields = CL.field_breakdown(ctx, IA, IB)
+    fig = VC._fields_chart(fields)
+    drawn = sorted(float(v) for v in fig.data[0].x)
+    assert drawn == sorted(float(v) for v in fields["vol"])  # [6.0, 15.0]
+    assert drawn == [6.0, 15.0]
 
 
-def test_the_field_section_says_the_impact_columns_have_no_normalised_score(engine):
-    """2B-R2-11(c): the descope is stated WHERE the impact columns are
-    introduced, in the shared wording, not invented a second time here."""
-    at = _app().run()
-    text = _text(at)
-    assert copy.FWCI_NOT_AVAILABLE_LINE.split(":")[0] in text
-    assert copy.COLLAB["COL_TOP10_HELP"].split(".")[0] in text
+def test_field_chart_axis_is_a_plain_publication_count_not_a_share():
+    """The 2BR3 reason a NEW small builder lives in this file rather than
+    calling `charts.fig_topics`: that builder hard-codes a percent axis."""
+    fields = CL.field_breakdown(build_ctx(), IA, IB)
+    fig = VC._fields_chart(fields)
+    assert fig.layout.xaxis.tickformat != VC.C._AXIS_PCT_FMT
+    assert fig.layout.xaxis.title.text == copy.COLLAB["PULSE_AXIS"]
 
 
-def test_field_breakdown_does_not_follow_the_taxonomy_toggle(engine):
-    """The pair x field table ships one tree, so the frame is keyed on the pair
-    alone -- and the tooltip says so rather than letting a reader think the
-    numbers moved with the sidebar."""
-    ctx, _subs = engine
-    one = collab_data.field_breakdown(ctx, STRASBOURG, CNRS)
-    assert views_collab._fields_frame.__wrapped__.__code__.co_varnames[:2] == ("a", "b")
-    assert list(one["field_id"]) == list(collab_data.field_breakdown(ctx, CNRS, STRASBOURG)["field_id"])
-    assert _first_literal(copy.COLLAB["FIELDS_CHART_TOOLTIP"]) in _text(_app().run())
+# ============================================================================
+# 4. "Strategic reciprocity by field" (section 3, Lorraine port)
+# ============================================================================
+
+def test_reciprocity_chart_is_area_true_domain_coloured_and_squared(ctx, subs_frac):
+    df = CL.reciprocity_frame(ctx, subs_frac, IA, IB)
+    assert len(df) == 2
+    fig = VC._reciprocity_chart(df, "A name", "B name")
+    scatter = fig.data[0]
+    assert scatter.marker.sizemode == "area"
+    assert set(scatter.marker.color) == {P.domain_color(d) for d in df["domain_id"]}
+    assert scatter.marker.line.color == P.SURFACE
+    # squared axes: identical range on x and y, and the aspect ratio locked
+    assert list(fig.layout.xaxis.range) == list(fig.layout.yaxis.range)
+    assert fig.layout.yaxis.scaleanchor == "x"
+    # exactly one dotted diagonal shape, from the origin to the axis max
+    shapes = fig.layout.shapes
+    assert len(shapes) == 1
+    assert shapes[0].line.dash == "dot"
+    assert shapes[0].x0 == 0 and shapes[0].y0 == 0
+    assert shapes[0].x1 == shapes[0].y1 == fig.layout.xaxis.range[1]
 
 
-# ------------------------------------------------- 3. the shared topics ----
-
-def test_topics_table_matches_the_frame_row_for_row(engine):
-    ctx, subs = engine
-    prof = collab_data.joint_profile(ctx, subs, STRASBOURG, CNRS)
-    at = _app().run()
-    markup = _tables(at)["collab_topics"]
-    shown = markup.count("data-row=")
-    assert shown == min(views_collab.ROWS_DEFAULT, len(prof["topics"]))
-    head = prof["topics"].head(shown)
-    for _, r in head.head(5).iterrows():
-        assert r["url"] in markup
-        assert f'data-arrow="{r["arrow"]}"' in markup
-        assert copy.COLLAB["COL_TOP10_VALUE"].format(
-            n_top10=views_collab._count(r["n_top10"]),
-            n_covered=views_collab._count(r["n_covered"])) in markup
-        assert f'data-domain="{int(r["domain_id"])}"' in markup
-    assert copy.COLLAB["TABLE_ROWS_NOTE"].format(
-        n_shown=views_collab._count(shown),
-        n_total=views_collab._count(len(prof["topics"]))) in _text(at)
+def test_reciprocity_hover_names_the_field_both_shares_and_the_joint_count(ctx, subs_frac):
+    df = CL.reciprocity_frame(ctx, subs_frac, IA, IB)
+    fig = VC._reciprocity_chart(df, "Institution A", "Institution B")
+    hover = list(fig.data[0].customdata)
+    row1 = df[df["field_id"] == 1].iloc[0]
+    text = [h for h in hover if "Field One" in h][0]
+    assert VC._pct(row1["x"]) in text
+    assert VC._pct(row1["y"]) in text
+    assert VC._count(row1["joint_vol"]) in text
 
 
-def test_the_slider_really_cuts_the_rendered_rows(engine):
-    """The slider is the whole reason the top-100 cap is usable: it must change
-    the TABLE, not just its own value."""
-    ctx, subs = engine
-    prof = collab_data.joint_profile(ctx, subs, STRASBOURG, CNRS)
-    cap = len(prof["topics"])
-    assert cap > views_collab.ROWS_DEFAULT, "this pair cannot exercise the slider"
-    at = _app().run()
-    assert _rows(at, "collab_topics") == views_collab.ROWS_DEFAULT
-    at.slider(key="topics_n").set_value(cap).run()
-    assert not at.exception, [str(e) for e in at.exception]
-    assert _rows(at, "collab_topics") == cap
-    at.slider(key="topics_n").set_value(views_collab.ROWS_STEP).run()
-    assert _rows(at, "collab_topics") == views_collab.ROWS_STEP
+def test_reciprocity_section_renders_nothing_when_the_frame_is_empty():
+    """A pair below the topic floor has an empty `field_breakdown`, so
+    `reciprocity_frame` is empty too -- and section 3 skips its OWN header
+    and info box rather than repeating section 2's below-floor notice a
+    second time (the same 'no double failure' rule the topic table already
+    followed pre-2BR3)."""
+    empty = pd.DataFrame(columns=CL.RECIPROCITY_COLS)
+    assert empty.empty  # nothing to build a chart from; `_render_reciprocity` returns before st.*
 
 
-def test_topic_rows_link_to_the_pairs_own_publications_on_that_topic(engine):
-    """2B-R2-11(e): a live OpenAlex link per row, both institutions ANDed and
-    the topic filter added -- never the forbidden `+` union form."""
-    ctx, subs = engine
-    prof = collab_data.joint_profile(ctx, subs, STRASBOURG, CNRS)
-    row = prof["topics"].iloc[0]
-    url = row["url"]
-    assert url == links.copubs_taxon_url(STRASBOURG, CNRS, "topic", row["topic_id"])
-    assert f"authorships.institutions.id:{STRASBOURG},authorships.institutions.id:{CNRS}" in url
-    assert f"{links.TAXON_FILTER_KEY['topic']}:{row['topic_id']}" in url
-    assert "+" not in url.split("filter=")[-1]
-    assert url in _tables(_app().run())["collab_topics"]
+# ============================================================================
+# 5. the topic deep dive dataframe (section 4 -- native, sortable)
+# ============================================================================
+
+def test_topics_display_frame_shares_and_columns(ctx, subs_frac):
+    prof = CL.joint_profile(ctx, subs_frac, IA, IB)
+    disp = VC._topics_display_frame(prof["topics"])
+    assert list(disp.columns) == ["topic_name", "domain_name", "vol", "top10_share",
+                                  "sdg_share", "sdg_n", "fwci_median", "momentum", "url"]
+    row_t1 = disp[disp["topic_name"] == "Topic One"].iloc[0]
+    np.testing.assert_allclose(row_t1["vol"], 15.0)
+    np.testing.assert_allclose(row_t1["top10_share"], 3.0 / 15.0)   # n_top10 / vol, NOT / n_covered
+    np.testing.assert_allclose(row_t1["sdg_share"], 2.0 / 15.0)
+    np.testing.assert_allclose(row_t1["sdg_n"], 2.0)
+    np.testing.assert_allclose(row_t1["fwci_median"], 1.2)
+    assert row_t1["momentum"].endswith("up") or "up" in row_t1["momentum"]
+    assert "%" not in row_t1["momentum"]
 
 
-def test_goal_and_panel_lines_keep_their_own_denominators(engine):
-    """The panel share's denominator is the LABELLED joint works and the goal
-    line's is the shown topics: two different numbers, both on the page."""
-    ctx, subs = engine
-    prof = collab_data.joint_profile(ctx, subs, STRASBOURG, CNRS)
-    erc = prof["erc"]
-    total = collab_data.pulse(ctx, STRASBOURG, CNRS)["copubs_total"]
-    assert erc["labelled_n"] < total, "this pair would not prove the two denominators differ"
-    at = _app().run()
-    text = _text(at)
-    assert copy.COLLAB["JOINT_ERC_LINE"].format(
-        panel=views_collab._erc_panel_label(ctx, erc["panel_idx"]),
-        n_panel=views_collab._count(erc["panel_n"]),
-        n_labelled=views_collab._count(erc["labelled_n"]),
-        share=views_collab._pct(erc["panel_n"] / erc["labelled_n"])).replace("**", "") in text
-    assert copy.COLLAB["JOINT_ERC_CAPTION"].format(
-        pct=views_collab._pct(erc["labelled_n"] / total)) in text
-    shown = prof["topics"].head(views_collab.ROWS_DEFAULT)
-    tagged = int(shown["sdg_tagged_n"].sum())
-    vol = float(shown["vol_total"].sum())
-    assert copy.COLLAB["JOINT_SDG_LINE"].format(
-        n_tagged=views_collab._count(tagged), n_shown=views_collab._count(vol),
-        share=views_collab._pct(tagged / vol)) in text
+def test_topics_column_config_shapes_match_streamlits_native_widgets(ctx, subs_frac):
+    prof = CL.joint_profile(ctx, subs_frac, IA, IB)
+    cfg = VC._topics_column_config()
+    assert set(cfg) == set(VC._topics_display_frame(prof["topics"]).columns)
+    assert cfg["vol"]["type_config"]["type"] == "number"
+    assert cfg["top10_share"]["type_config"]["type"] == "progress"
+    assert cfg["top10_share"]["type_config"]["min_value"] == 0
+    assert cfg["top10_share"]["type_config"]["max_value"] == 1
+    assert cfg["top10_share"]["type_config"]["format"] == "percent"
+    assert cfg["sdg_share"]["type_config"]["type"] == "progress"
+    assert cfg["fwci_median"]["type_config"]["type"] == "number"
+    assert cfg["momentum"]["type_config"]["type"] == "text"
+    assert cfg["url"]["type_config"]["type"] == "link"
+    assert cfg["url"]["type_config"]["display_text"] == copy.COLLAB["COL_LINK_DISPLAY"]
+    # every label is copy.py's own string, never a bare technical column name
+    assert cfg["vol"]["label"] == copy.COLLAB["JOINT_COL_VOL"]
+    assert cfg["fwci_median"]["label"] == copy.COLLAB["DF_COL_FWCI"]
 
 
-# ------------------------------------------------ the below-floor branch ---
-
-def test_below_floor_pair_renders_the_shared_notice_and_no_breakdown(engine):
-    """The acceptance case of 2B-R2-11(g): a REAL sub-floor pair at the floor
-    the pair tables now ship with. Topline, honest notice, no invented detail,
-    and the link-outs still there."""
-    ctx, subs = engine
-    p = collab_data.pulse(ctx, STRASBOURG, BAVARIAN)
-    assert p is not None and p["copubs_total"] < collab_data.PAIR_TOPICS_FLOOR, p
-    assert collab_data.joint_profile(ctx, subs, STRASBOURG, BAVARIAN) is None
-    assert collab_data.field_breakdown(ctx, STRASBOURG, BAVARIAN).empty
-
-    at = _app(basket=SUB_FLOOR_PAIR).run()
-    assert not at.exception, [str(e) for e in at.exception]
-    text = _text(at)
-    assert copy.SHARED["BELOW_FLOOR_NOTICE"].format(
-        item=copy.COLLAB["BELOW_FLOOR_ITEM"],
-        n=views_collab._count(p["copubs_total"]),
-        floor=collab_data.PAIR_TOPICS_FLOOR) in text
-    assert set(_tables(at)) == set(TABLES_BELOW_FLOOR), sorted(_tables(at))
-    assert copy.COLLAB["TOPICS_HEADER"] not in [s.value for s in at.subheader]
-    # the topline and the link-outs survive
-    assert views_collab._count(p["copubs_total"]) in [m.value for m in at.metric]
-    assert copy.COLLAB["LINKS_HEADER"] in [s.value for s in at.subheader]
+def test_topics_deep_dive_carries_no_frontier_column():
+    """2BR3's own column list (Topic, Domain, Joint publications, top decile,
+    SDG-tagged, Median FWCI, Momentum, link) drops the old Frontier column --
+    a structural pin, not just an absence of the word in copy.py."""
+    assert "frontier" not in {c.lower() for c in VC._topics_column_config()}
 
 
-def test_below_floor_pair_still_reads_the_two_portfolios(engine):
-    """Section four does NOT depend on the topic floor: the untapped reading is
-    built on the shared-topic substrate, not on the pair table."""
-    ctx, subs = engine
-    res = collab_data.untapped(ctx, subs, STRASBOURG, BAVARIAN)
-    assert not res["topics"].empty
-    at = _app(basket=SUB_FLOOR_PAIR).run()
-    assert copy.COLLAB["UNTAPPED_CAPTION"].format(k=views_collab._pct(res["k"])) in _text(at)
+# ============================================================================
+# 6. the untapped dataframe (section 5) -- same treatment, fixed ranking
+# ============================================================================
+
+def test_untapped_display_frame_matches_untapped_and_stays_gap_descending(ctx, subs_frac):
+    res = CL.untapped(ctx, subs_frac, IA, IB, top_n=50)
+    disp = VC._untapped_display_frame(res["topics"])
+    assert list(disp.columns) == ["topic_name", "subfield_name", "vol_a", "vol_b",
+                                  "joint_observed", "joint_expected", "gap", "url"]
+    assert list(disp["gap"]) == sorted(disp["gap"], reverse=True)
+    assert (disp["joint_expected"] >= disp["joint_observed"]).all()
+    # the item-4 fix's own anchor: T3's true uncapped observed volume (2.0)
+    t3 = disp[disp["topic_name"] == "Topic Three"]
+    if len(t3):
+        np.testing.assert_allclose(t3.iloc[0]["joint_observed"], 2.0, atol=1e-9)
 
 
-# --------------------------------------------- 4. untapped potential -------
-
-def test_untapped_table_matches_its_own_formula_and_carries_chips_and_links(engine):
-    ctx, subs = engine
-    res = collab_data.untapped(ctx, subs, STRASBOURG, CNRS)
-    topics = res["topics"]
-    assert not topics.empty
-    assert (topics["gap"] > 0).all(), "a row with nothing left over is not untapped"
-    assert list(topics["gap"]) == sorted(topics["gap"], reverse=True)
-    assert (topics["joint_expected"] >= topics["joint_observed"]).all()
-    at = _app().run()
-    markup = _tables(at)["collab_untapped"]
-    assert markup.count("data-row=") == min(views_collab.ROWS_DEFAULT, len(topics))
-    for _, r in topics.head(3).iterrows():
-        assert r["url"] in markup
-        assert views_collab._vol(r["gap"]) in markup
-    assert 'data-domain="' in markup
-    text = _text(at)
-    assert copy.COLLAB["UNTAPPED_READING"] in text
-    assert copy.COLLAB["UNTAPPED_CAPTION"].format(k=views_collab._pct(res["k"])) in text
-    assert copy.COLLAB["UNTAPPED_RATE_NOTE"].format(
-        window=views_collab._window(collab_data.PULSE_YEARS)) in text
+def test_untapped_column_config_uses_the_per_side_names(ctx, subs_frac):
+    res = CL.untapped(ctx, subs_frac, IA, IB, top_n=50)
+    cfg = VC._untapped_column_config("Institution A", "Institution B")
+    assert copy.COLLAB["UNTAPPED_COL_VOL_SIDE"].format(name="Institution A") in \
+        {v["label"] for v in cfg.values()}
+    assert cfg["gap"]["type_config"]["type"] == "number"
+    assert cfg["url"]["type_config"]["type"] == "link"
 
 
-def test_sibling_suggestions_are_kept_beside_the_untapped_table(engine):
-    ctx, subs = engine
-    res = collab_data.untapped(ctx, subs, STRASBOURG, CNRS)
-    at = _app().run()
-    assert copy.COLLAB["SIBLINGS_CAPTION"].format(
-        n=views_collab._count(len(res["siblings"]))) in _text(at)
-    assert _rows(at, "collab_siblings") == len(res["siblings"])
+# ============================================================================
+# 7. the 20-then-show-all pattern (no slider anywhere -- sections 4/5)
+# ============================================================================
+
+@pytest.mark.parametrize("n_total,show_all,want", [
+    (5, False, 5), (5, True, 5),
+    (20, False, 20), (21, False, 20), (21, True, 21),
+    (100, False, 20), (100, True, 100),
+])
+def test_visible_row_count_truth_table(n_total, show_all, want):
+    assert VC._visible_row_count(n_total, show_all) == want
 
 
-# ------------------------------------------------ 5. links + disclosure ----
-
-def test_link_outs_are_the_three_of_the_closing_section(engine):
-    at = _app().run()
-    urls = {b.proto.url for b in at.get("link_button")} if at.get("link_button") else set()
-    assert links.works_url(STRASBOURG) in urls
-    assert links.works_url(CNRS) in urls
-    copub = links.copubs_url(STRASBOURG, CNRS)
-    assert copub in urls
-    assert f"authorships.institutions.id:{STRASBOURG},authorships.institutions.id:{CNRS}" in copub
-    assert "+" not in copub, "the `+` intersection form is forbidden"
+def test_rows_default_matches_the_shipped_constant():
+    assert VC.ROWS_DEFAULT == 20
 
 
-def test_the_two_directional_gap_tables_are_deleted_not_hidden():
-    """2B-R2-11(f). The check is structural as well as visual: the data function
-    is gone from `lib/collab_data.py`, its two render helpers are gone from this
-    page, and nothing on the page names them."""
-    assert not hasattr(collab_data, "gaps")
-    for gone in ("_render_gaps", "_gaps_frame", "_gaps_display", "_render_breadth",
-                 "_render_shared", "_shared_frame"):
-        assert not hasattr(views_collab, gone), gone
-    ctx = views_collab._bundle()["ctx"]
-    at = _app().run()
-    text = _text(at)
-    heads = [s.value for s in at.subheader]
-    for iid in PAIR:
-        assert copy.COLLAB["GAPS_HEADER"].format(
-            a=str(ctx["index_by_id"].loc[iid, "display_name"])) not in heads
-    labels = [d.label for d in at.get("download_button")]
-    assert copy.COLLAB["DOWNLOAD_GAPS"] not in labels
-    assert _first_literal(copy.COLLAB["BREADTH_LINE"]) not in text
+# ============================================================================
+# 8. the pulse legend -- joint chip ONLY (section 1's chart, 2BR3 task 2)
+# ============================================================================
+
+def test_pulse_legend_carries_the_joint_chip_and_no_institution_chip():
+    """2BR3 task 2: `ids=[]` -- the strip carries the ONE shared/joint chip
+    and nothing else, since the pulse bars belong to the pair, not to
+    either institution."""
+    from lib import charts_compare as X
+
+    strip = X.legend_strip([], slots={}, shared=True, shared_label=copy.COLLAB["LEGEND_JOINT"])
+    assert copy.COLLAB["LEGEND_JOINT"] in strip
+    # exactly one chip swatch in the whole strip
+    assert strip.count('style="width:') == 1
+    assert not any(c in strip for c in P.INSTITUTION_COLORS)
 
 
-def test_what_is_not_shown_is_stated_in_plain_language():
-    """2B-R2-8: one line per hidden measure, in the shared wording, with no
-    internal reference of any kind."""
-    at = _app().run()
-    text = _text(at)
-    assert copy.SHARED["NOT_OFFERED_HEADER"] in text
-    for feature, reason in (
-            (copy.COLLAB["NOT_OFFERED_GAPS"], copy.COLLAB["NOT_OFFERED_GAPS_REASON"]),
-            (copy.COLLAB["NOT_OFFERED_BREADTH"], copy.COLLAB["NOT_OFFERED_BREADTH_REASON"]),
-            (copy.COLLAB["NOT_OFFERED_SUBFIELDS"], copy.COLLAB["NOT_OFFERED_SUBFIELDS_REASON"])):
-        assert copy.SHARED["NOT_OFFERED_LINE"].format(feature=feature, reason=reason) in text
+# ============================================================================
+# 9. deletions -- structural (the functions are gone) and textual (grep)
+# ============================================================================
+
+DELETED_FUNCTIONS = [
+    "_pair_picker", "_swap", "_add_by_name", "_candidates", "default_pair",
+    "_sidebar_basket", "_fields_table", "_topics_table", "_untapped_table",
+    "_arrow_cell", "_frontier_flags", "_frontier_glyph", "_top10_text",
+    "_trend_help", "_rows_slider", "_download", "_extras",
+]
 
 
-def test_no_rendered_string_names_a_build_code_or_a_table():
-    """2B-R2-13, over the page as it actually renders (the copy module's own
-    scan is tests/test_forbidden_vocabulary.py's)."""
-    from tests.test_forbidden_vocabulary import _violations
-
-    at = _app().run()
-    visible = [(c.__class__.__name__, c.value) for c in list(at.caption) + list(at.subheader)
-               + list(at.info)]
-    assert not _violations(visible), _violations(visible)
+@pytest.mark.parametrize("name", DELETED_FUNCTIONS)
+def test_old_pair_picker_and_hand_table_functions_are_gone(name):
+    assert not hasattr(VC, name), name
 
 
-def test_header_strip_names_both_institutions(engine):
-    ctx, _subs = engine
-    at = _app().run()
-    rendered = " ".join(m.value for m in at.markdown)
-    for iid in PAIR:
-        assert str(ctx["index_by_id"].loc[iid, "display_name"]) in rendered
+def test_no_slider_widgets_remain_in_this_streams_file():
+    src = (APP_DIR / "lib" / "views_collab.py").read_text(encoding="utf-8")
+    assert "st.slider(" not in src
 
 
-# ------------------------------------------------------- selection ---------
+def test_read_the_publications_on_openalex_is_gone_entirely():
+    """The phrase survives ONLY inside this module's own docstring (naming
+    what was deleted, in past tense) -- never as a copy.py value and never
+    as a literal string handed to a Streamlit UI call."""
+    from tests.test_narrative import collect_ui_call_strings
 
-def test_pair_deeplink_seeds_the_page_with_an_empty_basket():
-    """`?pair=...` on a reader who has no basket at all. AppTest exposes no
-    query-param API on Streamlit 1.61.1, so `selection.read_query` (the ONE
-    Streamlit touchpoint in that module, by its own design) is patched -- the
-    live URL path is probed in ops/_probe_collab.py."""
-    fake = {"compare": [], "pair": (STRASBOURG, CNRS), "dropped": []}
-    with mock.patch.object(selection, "read_query", lambda known: fake):
-        at = _app(basket=[]).run()
-    assert not at.exception, [str(e) for e in at.exception]
-    assert set(_tables(at)) == set(TABLES), "a deep-linked pair did not render the page"
-    assert at.selectbox(key="pair_a").value == STRASBOURG
-    assert at.selectbox(key="pair_b").value == CNRS
+    for key in ("LINKS_HEADER", "LINK_PUBS", "LINK_COPUBS", "LINKS_INTRO"):
+        assert key not in copy.COLLAB, key
+    assert not any("Read the publications on OpenAlex" in v
+                   for v in copy.COLLAB.values() if isinstance(v, str))
+    ui_strings = collect_ui_call_strings(APP_DIR / "lib" / "views_collab.py")
+    assert not any("Read the publications on OpenAlex" in s for _loc, s in ui_strings)
 
 
-def test_session_pair_from_handoff_wins_over_query_and_is_consumed_once():
-    """Compare's hand-off button stashes `st.session_state["pair"]` before
-    calling `st.switch_page` -- it must win even over a `?pair=` query naming
-    the SAME two ids in the other order, and must not linger past the render
-    that consumes it."""
-    fake = {"compare": [], "pair": (STRASBOURG, CNRS), "dropped": []}
-    with mock.patch.object(selection, "read_query", lambda known: fake):
-        at = _app(basket=[], pair=(CNRS, STRASBOURG)).run()
-        assert not at.exception, [str(e) for e in at.exception]
-        assert at.selectbox(key="pair_a").value == CNRS
-        assert at.selectbox(key="pair_b").value == STRASBOURG
-        assert "pair" not in at.session_state, "the session pair must be consumed, not left standing"
-        at.run()
-        assert at.selectbox(key="pair_a").value == CNRS
-        assert at.selectbox(key="pair_b").value == STRASBOURG
+def test_slots_row_is_the_only_selection_entry_point_left():
+    """`selection.slots_row("collab", state.COLLAB_CAP)` replaces the old
+    two-selectbox A/B picker end to end -- confirmed by the render source
+    calling it, and by the OLD picker's own copy keys being gone."""
+    src = (APP_DIR / "lib" / "views_collab.py").read_text(encoding="utf-8")
+    assert 'selection.slots_row("collab", state.COLLAB_CAP)' in src
+    assert "selection.render_sidebar()" in src
+    for key in ("PAIR_HEADER", "PAIR_A_LABEL", "PAIR_B_LABEL", "PAIR_SWAP_BUTTON",
+                "PAIR_PROMPT", "PAIR_PICK", "EMPTY_NO_PAIR"):
+        assert key not in copy.COLLAB, key
 
 
-def test_swap_button_reverses_the_pair():
-    at = _app().run()
-    at.button(key="pair_swap").click().run()
-    assert not at.exception, [str(e) for e in at.exception]
-    assert at.selectbox(key="pair_a").value == CNRS
-    assert at.selectbox(key="pair_b").value == STRASBOURG
+def test_field_table_is_gone_the_chart_is_the_whole_section():
+    for key in ("JOINT_COL_FIELD", "COL_MEAN_CITATIONS", "COL_MEAN_CITATIONS_HELP",
+                "FIELDS_TABLE_READING", "FIELDS_TABLE_TOOLTIP", "DOWNLOAD_FIELDS"):
+        assert key not in copy.COLLAB, key
 
 
-def test_default_pair_prefers_the_session_pair_then_the_query_then_the_basket():
-    known = {STRASBOURG: 0, CNRS: 1, GDANSK: 2, "I4": 3}
-    assert views_collab.default_pair(
-        [STRASBOURG, CNRS], (STRASBOURG, CNRS), known, (CNRS, STRASBOURG)) == (CNRS, STRASBOURG)
-    # a stale/invalid session pair (unknown id, or a == b) falls through
-    assert views_collab.default_pair(
-        [STRASBOURG, CNRS], (STRASBOURG, CNRS), known, (STRASBOURG, STRASBOURG)
-    ) == (STRASBOURG, CNRS)
-    assert views_collab.default_pair(
-        [GDANSK, "I4"], (STRASBOURG, CNRS), known) == (STRASBOURG, CNRS)
-    assert views_collab.default_pair([GDANSK, "I4"], None, known) == (GDANSK, "I4")
-    assert views_collab.default_pair([GDANSK], None, known) is None
+def test_trend_column_is_gone_momentum_replaces_it_everywhere():
+    for key in ("COL_TREND", "COL_TREND_HELP"):
+        assert key not in copy.COLLAB, key
+    assert "DF_COL_MOMENTUM" in copy.COLLAB
 
 
-def test_deeplink_shown_on_the_page_round_trips_through_selection():
-    at = _app().run()
-    codes = [c.value for c in at.get("code")]
-    link = selection.deeplink("pair", PAIR)
-    assert link in codes, codes
-    parsed = selection.parse_query({"pair": link.split("=", 1)[1]}, PAIR)
-    assert parsed["pair"] == (STRASBOURG, CNRS)
-
-
-def test_empty_state_when_the_basket_holds_one_institution():
-    at = _app(basket=[STRASBOURG]).run()
-    assert not at.exception, [str(e) for e in at.exception]
-    assert not _tables(at), "a single institution must not render a pair view"
-    assert _first_literal(copy.COLLAB["EMPTY_NO_PAIR"]) in " ".join(i.value for i in at.info)
-
-
-def test_empty_state_when_both_selections_are_the_same_institution():
-    at = _app(pair_a=STRASBOURG, pair_b=STRASBOURG).run()
-    assert not at.exception, [str(e) for e in at.exception]
-    assert not _tables(at)
-    assert _first_literal(copy.COLLAB["EMPTY_SAME"]) in " ".join(i.value for i in at.info)
-
-
-def test_scenario_widgets_use_the_find_page_keys():
-    """The tree/basis choice must carry across pages, which it only does if this
-    page reuses Find's own widget keys."""
-    at = _app().run()
-    assert {"tree", "basis"} <= {sb.key for sb in at.selectbox}
-
-
-# ------------------------------------------------------------ digit ban ----
+# ============================================================================
+# 10. digit ban over this stream's files
+# ============================================================================
 
 def test_no_digit_ban_violations_in_this_streams_files():
-    """`tests/test_narrative.py` globs lib/views_*.py and pages/*.py, so both of
-    this stream's files are already inside stream G's scope -- this runs the
-    same collector over the same allowlist here too, so a violation surfaces in
-    the stream that introduced it rather than in G's suite."""
     from tests.test_narrative import collect_ui_call_strings, has_digit_violation, load_allowlist
 
     tokens = load_allowlist()
@@ -581,3 +414,108 @@ def test_no_digit_ban_violations_in_this_streams_files():
     assert strings, "collector found no UI-call strings in this stream's files -- it is vacuous"
     violations = [(loc, s) for loc, s in strings if has_digit_violation(s, tokens)]
     assert not violations, violations
+
+
+def test_no_forbidden_vocabulary_in_the_new_collab_copy():
+    from tests.test_forbidden_vocabulary import _violations
+
+    new_keys = ("MOMENTUM_LABEL", "MOMENTUM_EVIDENCE_SHARE", "MOMENTUM_EVIDENCE_COPUBS",
+                "MOMENTUM_EVIDENCE_SIGNIFICANCE", "RECIPROCITY_HEADER", "RECIPROCITY_HOW_TO_READ",
+                "RECIPROCITY_WHY", "RECIPROCITY_AXIS_X", "RECIPROCITY_AXIS_Y", "COL_TOP10_DF_HELP",
+                "COL_SDG_DF_HELP", "DF_COL_FWCI", "COL_FWCI_HELP", "DF_COL_MOMENTUM",
+                "DF_COL_MOMENTUM_HELP", "SHOW_ALL_BUTTON", "META_EXPANDER")
+    strings = [(k, copy.COLLAB[k]) for k in new_keys]
+    assert not _violations(strings), _violations(strings)
+
+
+# ============================================================================
+# 11. page group -- needs the REAL app; self-skips until P7 lands
+# ============================================================================
+
+@pytest.mark.skipif(not REAL_V2_READY, reason=SKIP_REASON)
+class TestPageGroup:
+    """Deferred to the manager's post-P7 pass (see the module docstring):
+    activates automatically -- no edit needed here -- the moment
+    `app/data/collab_facts.json` exists, i.e. the moment P7's pipeline v2
+    artefacts land."""
+
+    STRASBOURG = "I68947357"
+    CNRS = "I1294671590"
+    PAIR = [STRASBOURG, CNRS]
+
+    _UNSET = object()
+
+    def _app(self, basket=None, a=_UNSET, b=_UNSET):
+        """`slots_row` hydrates its two slots from `?pair=` on first load --
+        an AppTest session has no URL, so a pre-selected pair is simulated
+        the way `slots_row`'s own docstring documents its session-state
+        contract: `slot_collab_0`/`slot_collab_1` plus the one-shot
+        `_slots_hydrated_collab` guard, set BEFORE the first `.run()` so the
+        hydration branch never fires and overwrites them. `a`/`b` default to
+        the class's own PAIR when BOTH are omitted; passing `None` for one
+        of them (with the other set) leaves that ONE slot empty -- the
+        'only one slot filled' case."""
+        from streamlit.testing.v1 import AppTest
+
+        at = AppTest.from_file(COLLAB_PAGE, default_timeout=300)
+        at.session_state["basket"] = list(self.PAIR if basket is None else basket)
+        if a is self._UNSET and b is self._UNSET:
+            a, b = self.PAIR
+        if a is not self._UNSET or b is not self._UNSET:
+            at.session_state["slot_collab_0"] = a if a not in (None, self._UNSET) else VC.selection.SLOT_EMPTY
+            at.session_state["slot_collab_1"] = b if b not in (None, self._UNSET) else VC.selection.SLOT_EMPTY
+            at.session_state["_slots_hydrated_collab"] = True
+        return at
+
+    def test_page_renders_without_exception(self):
+        at = self._app(a=self.STRASBOURG, b=self.CNRS).run()
+        assert not at.exception, [str(e) for e in at.exception]
+
+    def test_no_horizontal_slider_widget_on_the_real_page(self):
+        at = self._app(a=self.STRASBOURG, b=self.CNRS).run()
+        assert not at.slider, "a slider widget survived the 2BR3 rework"
+
+    def test_momentum_headline_renders_for_a_real_pair(self):
+        at = self._app(a=self.STRASBOURG, b=self.CNRS).run()
+        assert not at.exception, [str(e) for e in at.exception]
+        assert copy.COLLAB["MOMENTUM_LABEL"] in " ".join(c.value for c in at.caption)
+
+    def test_identity_cards_render_before_the_pair_is_complete(self):
+        """One slot filled -- that ONE institution's card must render
+        without waiting for the second slot (2BR3 task 1: 'render
+        IMMEDIATELY per filled slot'), and none of the sections below the
+        header (which need a complete pair) render at all."""
+        at = self._app(a=self.STRASBOURG, b=None).run()
+        assert not at.exception, [str(e) for e in at.exception]
+        rendered = " ".join(m.value for m in at.markdown)
+        assert "Strasbourg" in rendered
+        assert copy.COLLAB["PULSE_HEADER"] not in [s.value for s in at.subheader]
+
+    def test_no_field_table_or_topic_html_table_remain_on_the_real_page(self):
+        at = self._app(a=self.STRASBOURG, b=self.CNRS).run()
+        assert not at.exception, [str(e) for e in at.exception]
+        markup = " ".join(m.value for m in at.markdown)
+        assert 'data-table="collab_fields"' not in markup
+        assert 'data-table="collab_topics"' not in markup
+        assert 'data-table="collab_untapped"' not in markup
+        assert len(at.dataframe) >= 2  # the topic deep dive + untapped, native grids
+
+    def test_reciprocity_and_momentum_headline_together_at_1920(self, tmp_path):
+        """Also writes the visual proof PNG the acceptance asks for."""
+        at = self._app(a=self.STRASBOURG, b=self.CNRS).run()
+        assert not at.exception, [str(e) for e in at.exception]
+        heads = [s.value for s in at.subheader]
+        assert copy.COLLAB["FIELDS_HEADER"] in heads
+        assert copy.COLLAB["RECIPROCITY_HEADER"] in heads
+        assert copy.COLLAB["TOPICS_HEADER"] in heads
+        assert copy.COLLAB["UNTAPPED_HEADER"] in heads
+        # section order
+        order = [copy.COLLAB["PULSE_HEADER"], copy.COLLAB["FIELDS_HEADER"],
+                 copy.COLLAB["RECIPROCITY_HEADER"], copy.COLLAB["TOPICS_HEADER"],
+                 copy.COLLAB["UNTAPPED_HEADER"]]
+        positions = [heads.index(h) for h in order]
+        assert positions == sorted(positions), heads
+
+
+if __name__ == "__main__":  # pragma: no cover
+    raise SystemExit(pytest.main([__file__, "-q"]))

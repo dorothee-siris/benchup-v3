@@ -1,71 +1,106 @@
 """
-app/lib/views_collab.py -- render functions for the Collaborate page (Sprint 2
-Phase 2B-R2, stream LP3; decisions 2B-R2-11 (a) to (g), 2B-R2-8 presentation and
-2B-R2-13 plain language, over the pair frames stream CD3 publishes in
-`lib/collab_data.py`).
+app/lib/views_collab.py -- render functions for the Collaborate page
+(BUILD_PLAN_2BR3.md, Phase 2B-R3, stream VL; rulings 3/4/6 and the
+ruled-without-grill Collaborate list in
+SIRIS/brainstorms/2026-08-31-benchup-gate2br3-refinement.md).
 
 COMPOSITION ONLY, same rule as lib/views_find.py: every frame comes from
-`lib/collab_data.py`, every id/pair rule from `lib/selection.py`, every URL from
-`lib/links.py`, every string from `lib/copy.py`, every colour from
-`lib/palette.py`. Nothing here recomputes a number and nothing here types one
-into a rendered string (BUILD_PLAN_2A.md L10, enforced by
-tests/test_narrative.py, which globs lib/views_*.py).
+`lib/collab_data.py`, every id/pair/basket rule from `lib/selection.py` and
+`lib/state.py`, every URL from `lib/links.py`, every string from
+`lib/copy.py`, every colour from `lib/palette.py`. Nothing here recomputes a
+number and nothing here types one into a rendered string (BUILD_PLAN_2A.md
+L10, enforced by tests/test_narrative.py, which globs lib/views_*.py).
 
-PAGE SHAPE (2B-R2-11a), five sections over the pair A <-> B:
+PAGE SHAPE (2BR3 VL), a reader meets the pair immediately, not after a
+multi-step picker:
 
-  1. the relationship pulse -- joint publications per year, each side's joint
-     share of its OWN output with both denominators named, the two ranks in
-     their two directions, one plain-language movement line (unchanged from
-     2B-R, except that a pair under the topic floor now meets the SHARED
-     below-floor wording at the floor the pair tables actually ship with);
-  2. NEW: the joint corpus FIELD BY FIELD, as a chart -- horizontal bars, one
-     row per field, grouped under the four OpenAlex domains, drawn in ONE
-     neutral hue because the corpus belongs to the pair rather than to either
-     institution, with the domain's own colour on the field LABEL and on the
-     chip beside every field name in the table under it (the coexistence rule
-     runs one way: taxonomy colour on labels and chips, never on a mark that
-     could be read as an institution). Volumes, the world-top-decile pair and
-     mean citations come from the uncapped pair x field table, which is
-     best-fit only and says so in its tooltip;
-  3. the shared topics the pair publishes most on, up to the shipped cap with a
-     slider, each row carrying its domain chips, its "x of y covered" impact
-     pair, a direction arrow and a live OpenAlex link restricted to that topic;
-  4. untapped potential -- shared topics where the pair's own overall
-     collaboration rate predicts more joint work than there is, same chips and
-     links, with the adjacent-topic list kept beside it;
-  5. the link-outs, and then one plain-language block naming what this page
-     does NOT show and why (2B-R2-8) -- the two directional "what X does not
-     publish in" tables are DELETED this round (2B-R2-11f), not hidden.
+  0. title + one-line promise -> the shared sidebar search/basket
+     (`selection.render_sidebar()`) -> `selection.slots_row("collab", 2)`,
+     the ONE picker this page owns (two selectboxes over the basket, no
+     free-text search of its own -- SEL's fence).
+  1. the TWO institution identity cards, each rendered the moment ITS OWN
+     slot is filled (never gated on the pair being complete), with the pair
+     MOMENTUM headline above them once BOTH slots are filled: a big
+     coloured glyph+text from `collab_data.momentum_display` (via
+     `collab_data.pair_momentum`), then the evidence block in small grey
+     type -- both window shares, the raw co-publication counts and the
+     significance test, every number and every window off `collab_pairs.
+     parquet` v2 / `collab_facts.json` / `compare_data.DYNAMICS_W1`/`W2`,
+     never hardcoded here;
+  2. "The relationship, year by year" -- the pulse chart, legend = the
+     JOINT chip ONLY (2BR3 task 2: the bars are the pair's, not either
+     side's, so the strip no longer carries the two institution chips that
+     used to sit beside a joint-only series);
+  3. "The joint corpus, field by field" -- ONE domain-coloured bar chart
+     (the Find idiom: a mark's colour names its OpenAlex domain, same as
+     `charts.fig_topics`/`fig_share_si(family="oa")`); the field TABLE is
+     gone, the chart IS the field-level view (`collab_data.field_breakdown`
+     the DATA function is unchanged, only this page's table renderer died);
+  4. "Strategic reciprocity by field" -- a bubble scatter, ported from the
+     Lorraine "Zoom partenaire" page (see the brainstorm file above): x =
+     a field's share of B's OWN portfolio, y = the same field's share of
+     A's OWN portfolio (both `collab_data.reciprocity_frame`, the HONEST
+     both-sides variant), area = the pair's joint volume in that field,
+     colour = OpenAlex domain, squared axes, one dotted equal-weight
+     diagonal;
+  5. the topic deep dive -- a native, sortable `st.dataframe` (Topic,
+     Domain, Joint publications, In the world top decile, SDG-tagged,
+     Median FWCI, Momentum, a link to OpenAlex per row), 20 rows by default
+     with a "Show all" button (no slider -- a slider was a performance
+     device, not a control the reader meant to turn);
+  6. untapped potential -- the same 20-then-show-all dataframe treatment,
+     same fixed gap-descending ranking, with the adjacent-subfield siblings
+     kept beside it (unchanged, still a hand-built HTML table: see the note
+     below);
+  7. bottom meta, collapsed by default: the page's own method note, the
+     "not shown here, and why" block, and the shareable link
+     (`lib.links.share_link_block`).
 
-WHY THE THREE TABLES ARE HAND-BUILT HTML AND NOT `st.dataframe`. Three things
-2B-R2-11 asks for are impossible in Streamlit's grid: a coloured domain chip
-beside a taxon name (the grid paints cells on a CANVAS, so no per-cell markup),
-a per-row link (the grid's LinkColumn takes ONE fixed label for a whole column,
-Wind Tunnel A10) and a read-back-able value for the acceptance probe (canvas
-text is not in the DOM at all -- ops/_probe_collab.py used to have to check
-those tables through their CSV instead of through what a reader sees). One
-scrollable HTML table gives all three, keeps the page body from ever scrolling
-sideways (each table scrolls inside its OWN wrapper) and is verified end to end
-in the probe. The CSV download stays beside every table, unchanged.
+DELETED THIS ROUND (2BR3 VL, all binding user asks): the old free-text
+"add a comparator" flow and the two-selectbox A/B picker with its swap
+button (replaced end to end by `selection.slots_row`); the field TABLE
+(the chart is now the whole of section 3); every row slider (replaced by
+the 20-then-show-all pattern); the "Read the publications on OpenAlex"
+closing section (per-row OpenAlex links already sit on every topic and
+gap row; the two whole-corpus and one co-publication link buttons this
+section used to carry are gone with it).
 
-The pair picker, the swap button, the `?pair=` deep link and the hand-off from
-Compare are UNCHANGED from 2B.
+WHY THE SIBLINGS TABLE ALONE STAYS HAND-BUILT HTML. Nothing in this round's
+brief touches it, and it still needs what `st.dataframe` cannot give: a
+domain chip beside a taxon name (the grid paints cells on a canvas, no
+per-cell markup). The topic deep dive and untapped tables do NOT keep this
+form: neither needs a coloured chip inline with its label texts (the topic
+table's domain rides in its own plain column instead), and both need
+click-to-sort, which the canvas table never had.
 
-SIDEBAR: counting & taxonomy (the SAME widget keys `tree` / `basis` the Find
-page uses, so the scenario carries across pages) + a READ-ONLY basket with a
-link back to Find (the add/remove affordances stay on Find, which owns them).
+WHY A SMALL NEW CHART BUILDER LIVES HERE, TWICE, RATHER THAN IN
+`lib/charts.py`. `charts.fig_topics`/`fig_share_si` colour marks by OpenAlex
+domain exactly the way section 3's chart needs -- but both hard-code a SHARE
+axis (a percent tick format, a "Share of output" title): this page's field
+chart is a raw joint-publication COUNT, not a share, so neither builder fits
+without editing `charts.py` (outside this stream's fence). Section 4's
+reciprocity scatter has no analogue anywhere in the app at all (squared
+axes, an equal-weight diagonal, two independent share axes). Both builders
+below are small, reuse `charts.py`'s own layout/margin/height helpers for a
+consistent look, and touch no other file.
+
+SIDEBAR: counting & taxonomy (the SAME widget keys `tree`/`basis` the Find
+page uses, so the scenario carries across pages) + the ONE shared
+sidebar search/basket (`selection.render_sidebar()`) every page now calls.
 
 PERFORMANCE (2B-14: warm rerun < 1.5 s)
-  `views_find._bundle` / `views_find._subs` are reused BY IMPORT, not copied, so
-  the engine context and each (tree, basis) substrate load once per process and
+  `views_find._bundle`/`_subs` are reused BY IMPORT, not copied, so the
+  engine context and each (tree, basis) substrate load once per process and
   are shared with the Find page rather than paid again here. The frames are
-  `@st.cache_data` keyed on (a, b, tree, basis) -- ctx/subs are unhashable and
-  are never cache_data arguments -- so moving either slider re-renders the
-  tables without recomputing anything.
+  `@st.cache_data` keyed on (a, b, tree, basis) -- ctx/subs are unhashable
+  and are never cache_data arguments -- so moving either toggle re-renders
+  the tables without recomputing anything.
 """
 from __future__ import annotations
 
+import numpy as np
 import pandas as pd
+import plotly.graph_objects as go
 import streamlit as st
 
 from lib import charts as C
@@ -75,86 +110,107 @@ from lib import palette as P
 from lib.app_config import CFG
 from lib.compare_data import DYNAMICS_W1, DYNAMICS_W2
 from lib.palette import NA_MARK
-from lib.search import search
-from lib.views_find import BONUS_STAR, SEP, _bundle, _hit_label, _sidebar_scenario, _subs
+from lib.views_find import BONUS_STAR, SEP, _bundle, _sidebar_scenario, _subs
 
-# The en dash between the two ends of a window label ("2020-2025" rendered with
-# a real dash). The YEARS themselves are never typed here: they come from
-# `collab_data.PULSE_YEARS`, `lib.compare_data`'s dynamics windows and CFG.
+# The en dash between the two ends of a window label ("2020-2025" rendered
+# with a real dash) and the rightwards arrow the momentum evidence line
+# draws between its two co-publication counts -- module constants, composed
+# at render time, never baked into a copy.py string (the same idiom `SEP`,
+# imported above, already follows).
 DASH = "\N{EN DASH}"
+ARROW = "\N{RIGHTWARDS ARROW}"
 
-# A pulse difference smaller than this reads as "the same annual rate" rather
-# than as a direction: the two windows are 3 and 2 years long, so a few papers
-# of noise on a small pair would otherwise be rendered as a trend. Stated on the
-# page through `COLLAB["PULSE_TREND_NOTE"]`, never typed into a caption.
+# A pulse difference smaller than this reads as "the same annual rate"
+# rather than as a direction: the two windows are 3 and 2 years long, so a
+# few papers of noise on a small pair would otherwise be rendered as a
+# trend. Stated on the page through `COLLAB["PULSE_TREND_NOTE"]`, never
+# typed into a caption.
 TREND_BAND = 0.10
 
-# Frontier flag rendering: a glyph, its absence, or n/a for a topic that carries
-# no frontier score at all (BUILD_PLAN_2A.md L11 -- n/a is never 0 and never a
-# silent False).
-FRONTIER_MARK = "▲"      # black up-pointing triangle
-FRONTIER_BLANK = ""
+# --- the pair momentum headline (section 1) ---------------------------------
+MOMENTUM_TEXT_PX = 28     # the "big coloured text" the brief asks for
+MOMENTUM_WEIGHT = 700
+PVAL_FLOOR = 0.001        # below this, the significance line reads "< 0.001"
+                          # rather than a rounded-to-zero p
 
-# The institution-identity swatch (2B-1 / A8), shown only when the palette's
-# institution additions exist at runtime -- see `_swatches`.
-SWATCH_MARK = "●"        # black circle, tinted by the palette colour
+# Field/topic-grain momentum carries CLASS ONLY, never a percentage (SS2.3:
+# "class only (no % chip)" -- `collab_pair_fields`/`collab_pair_topics` v2
+# carry no mom_rr/mom_p at this grain, only `mom_class`). This is why the
+# per-row cell below is its OWN small word map rather than a call into
+# `collab_data.momentum_display` (the PAIR-grain 9-case ladder): that
+# function's up/down/stable branch needs a real `mom_rr` to format a
+# percentage, and with none supplied it would silently read a genuine "up"
+# row as the null case. Colour and glyph still come from `lib.palette`, the
+# one source for both.
+MOMENTUM_CLASS_WORD = {
+    "up": "up", "down": "down", "stable": "stable", "ns": "n.s.",
+    "new": "new", "dormant": "dormant", "weak": "weak base",
+}
 
-# The plain (non-widget) session key holding institutions added by name on THIS
-# page: the basket belongs to Find (2A L-basket rule), and a Collaborate reader
-# must be able to pull in a second institution without editing it.
-EXTRA_KEY = "collab_extra"
+# --- the field chart (section 3) --------------------------------------------
+AXIS_PAD_MULT = 1.02      # a little headroom past the longest bar
 
-FIND_PAGE = "pages/1_\U0001F50E_Find.py"
+# --- the reciprocity scatter (section 4) ------------------------------------
+RECIP_AXIS_PAD_MULT = 1.1   # squared axes [0, max * 1.1] both, per the brief
+RECIP_DIAGONAL_DASH = "dot"
+BUBBLE_OUTLINE_PX = 0.5     # the white outline the brief asks for
 
-# --- the hand-built tables (see the module docstring) ------------------------
-CHIP_PX = 10             # the domain chip beside a taxon name
-TABLE_MAX_PX = 520       # a table's body height before it scrolls in its own box
+# --- the topic deep dive / untapped tables (sections 5-6) -------------------
+ROWS_DEFAULT = 20           # rows shown before a reader asks for the rest
+VOL_FORMAT = "%d"           # a whole joint-publication count
+FRAC_VOL_FORMAT = "%.1f"    # untapped's own fractional-volume grain
+FWCI_FORMAT = "%.2f"
+PROGRESS_FORMAT = "percent"  # Streamlit's own 0-1-fraction keyword -- NOT a
+                              # printf spec, which prints a 0-1 value as "0%"
+                              # or "1%" (measured and fixed once already in
+                              # lib/ranked.py's own score column)
+PROGRESS_MIN, PROGRESS_MAX = 0, 1
+
+# --- the hand-built siblings table (see the module docstring) --------------
+CHIP_PX = 10
+TABLE_MAX_PX = 520
 CELL_PAD_PX = 6
-ARROW_GLYPHS = {collab_data.ARROW_UP: "\N{UPWARDS ARROW}",
-                collab_data.ARROW_DOWN: "\N{DOWNWARDS ARROW}",
-                collab_data.ARROW_FLAT: "\N{RIGHTWARDS ARROW}"}
-LINK_GLYPH = "\N{NORTH EAST ARROW}"
 ALIGN_LEFT, ALIGN_RIGHT, ALIGN_CENTER = "left", "right", "center"
-
-# The one "institution" the field chart draws: a co-publication belongs to the
-# pair, not to either side, so this key is deliberately absent from every
-# palette slot map -- `palette.institution_color` answers an unknown slot with
-# COMPARISON grey and `institution_ink` with the secondary ink, which is exactly
-# the neutral single hue 2B-R2-11(a) asks the bars to wear.
-PAIR_SERIES_KEY = "pair"
-
-# How many rows each slider opens on. The cap is the shipped table's own
-# (`collab_data.PAIR_TOPICS_TOP_N`) and the step keeps the control coarse enough
-# to drag: both are module constants, never digits inside a rendered string.
-ROWS_DEFAULT = 20
-ROWS_STEP = 10
 
 
 # ------------------------------------------------------------- frames -------
 # One @st.cache_data per table, keyed on the HASHABLE scenario identity
-# (a, b, tree, basis). `st.expander` bodies execute even when collapsed and every
-# widget touch reruns the whole script, so an uncached frame would be recomputed
-# on every keystroke in the search box and on every drag of a slider.
+# (a, b, tree, basis) -- ctx/subs are never cache_data arguments. `st.dataframe`
+# and every widget touch reruns the whole script, so an uncached frame would
+# be recomputed on every click.
 
 @st.cache_data(show_spinner=False, max_entries=48)
 def _pulse_frame(a: str, b: str) -> dict | None:
-    """`pulse` needs no substrate (it reads one row of `collab_pairs` plus the
-    index), so it is keyed on the pair alone and survives a tree/basis flip."""
+    """`pulse` needs no substrate (it reads one row of `collab_pairs` plus
+    the index), so it is keyed on the pair alone and survives a tree/basis
+    flip."""
     return collab_data.pulse(_bundle()["ctx"], a, b)
 
 
 @st.cache_data(show_spinner=False, max_entries=48)
+def _momentum_frame(a: str, b: str) -> dict | None:
+    """Same reasoning as `_pulse_frame`: momentum reads `collab_pairs` and
+    `index` alone, no substrate."""
+    return collab_data.pair_momentum(_bundle()["ctx"], a, b)
+
+
+@st.cache_data(show_spinner=False, max_entries=48)
 def _fields_frame(a: str, b: str) -> pd.DataFrame:
-    """2B-R2-11(a): the pair x field breakdown. Best-fit only by construction
-    (the shipped table carries one tree), so this frame -- alone on the page --
+    """The pair x field breakdown. Best-fit only by construction (the
+    shipped table carries one tree), so this frame -- alone on the page --
     is NOT keyed on the tree, and the section's tooltip says so."""
     return collab_data.field_breakdown(_bundle()["ctx"], a, b)
 
 
 @st.cache_data(show_spinner=False, max_entries=24)
+def _reciprocity_frame(a: str, b: str, tree: str, basis: str) -> pd.DataFrame:
+    return collab_data.reciprocity_frame(_bundle()["ctx"], _subs(tree, basis), a, b)
+
+
+@st.cache_data(show_spinner=False, max_entries=24)
 def _joint_frame(a: str, b: str, tree: str, basis: str) -> dict | None:
-    """`None` means BELOW THE TOPIC FLOOR (or never co-published) -- the page
-    renders the honest notice rather than an empty table."""
+    """`None` means BELOW THE TOPIC FLOOR (or never co-published) -- the
+    page renders the honest notice rather than an empty table."""
     return collab_data.joint_profile(_bundle()["ctx"], _subs(tree, basis), a, b)
 
 
@@ -178,25 +234,23 @@ def _count(value) -> str:
 
 
 def _vol(value) -> str:
-    """A FRACTIONAL volume keeps one decimal (the untapped table's own grain);
-    `_count` stays the integer form for whole publications."""
+    """A FRACTIONAL volume keeps one decimal (the siblings table's own
+    grain); `_count` stays the integer form for whole publications."""
     if value is None or pd.isna(value):
         return NA_MARK
     return f"{float(value):,.1f}"
 
 
 def _band(value) -> str:
-    """The arrow deadband as a plain number for the column tooltip."""
+    """The arrow deadband as a plain number for a caption."""
     return f"{float(value):g}"
 
 
-def _frontier_glyph(value) -> str:
-    """True -> glyph, False -> blank, missing -> n/a. `top25pct_frontier` is a
-    pandas BooleanDtype column, so `pd.NA` reaches here as a real third state
-    (the topic carries no frontier score), never as False."""
+def _pval(value) -> str:
     if value is None or pd.isna(value):
         return NA_MARK
-    return FRONTIER_MARK if bool(value) else FRONTIER_BLANK
+    v = float(value)
+    return f"{v:.3f}" if v >= PVAL_FLOOR else f"< {PVAL_FLOOR:.3f}"
 
 
 def _name(ctx: dict, iid: str) -> str:
@@ -204,9 +258,10 @@ def _name(ctx: dict, iid: str) -> str:
 
 
 def _window(years) -> str:
-    """"first{dash}last" for a window handed in as a (start, end) pair or as a
-    list of years. The years come from `collab_data.PULSE_YEARS` and
-    `lib.compare_data`'s dynamics constants, so no window is ever typed here."""
+    """"first{dash}last" for a window handed in as a (start, end) pair or as
+    a list of years. The years come from `collab_data.PULSE_YEARS` and
+    `lib.compare_data`'s dynamics constants, so no window is ever typed
+    here."""
     ys = list(years)
     return f"{ys[0]}{DASH}{ys[-1]}"
 
@@ -220,11 +275,11 @@ def _window_mean(yearly: pd.DataFrame, window) -> float:
 
 
 def _trend_line(yearly: pd.DataFrame) -> str:
-    """The one plain-language pulse sentence. It is a DATA question, answered by
-    comparing the two dynamics windows the rest of the tool already uses
-    (`compare_data.DYNAMICS_W1`/`W2`, partial year excluded), and phrased in
-    neutral vocabulary: a direction and a size, never a judgement about the
-    relationship."""
+    """The one plain-language pulse sentence. It is a DATA question,
+    answered by comparing the two dynamics windows the rest of the tool
+    already uses (`compare_data.DYNAMICS_W1`/`W2`, partial year excluded),
+    and phrased in neutral vocabulary: a direction and a size, never a
+    judgement about the relationship."""
     w1 = _window_mean(yearly, DYNAMICS_W1)
     w2 = _window_mean(yearly, DYNAMICS_W2)
     words = {"w1": _window(DYNAMICS_W1), "w2": _window(DYNAMICS_W2)}
@@ -238,19 +293,37 @@ def _trend_line(yearly: pd.DataFrame) -> str:
     return copy.COLLAB[key].format(pct=_pct(abs(change)), **words)
 
 
-def _slots(ctx: dict, ids: list[str]) -> dict:
-    """`{institution_id: slot}` by ascending `inst_key` (A8), the same
-    assignment `_swatches` and the Compare page use, so the legend chip and the
-    identity dot of an institution are the same colour on both pages."""
-    return P.institution_slots({iid: ctx["index_by_id"].loc[iid, "inst_key"] for iid in ids})
+def _momentum_cell(mom_class) -> tuple[str, str, str]:
+    """Field/topic-grain momentum: CLASS ONLY, never a percentage (see the
+    MOMENTUM_CLASS_WORD note above). Returns (text, hex, glyph)."""
+    if mom_class is None or (isinstance(mom_class, float) and pd.isna(mom_class)):
+        return collab_data.MOMENTUM_NULL_TEXT, P.momentum_color(None), P.momentum_glyph(None)
+    word = MOMENTUM_CLASS_WORD.get(str(mom_class), collab_data.MOMENTUM_NULL_TEXT)
+    return word, P.momentum_color(mom_class), P.momentum_glyph(mom_class)
 
 
-def _frontier_flags(ctx: dict) -> dict:
-    """topic_id -> `top25pct_frontier`, a LOOKUP on the dimension table the
-    engine context already holds. Nothing is computed: the pair table simply
-    does not carry the flag, and the joint-topic table needs it."""
-    dim = ctx["topics_dim_df"]
-    return dict(zip(dim["topic_id"], dim["top25pct_frontier"]))
+def _domain_order(domain_id) -> int:
+    """The taxonomy's OWN fixed domain order (`palette.OA_DOMAIN_ORDER`),
+    which is what the field chart and the reciprocity legend group by. An
+    unknown or unclassified domain sorts last rather than first."""
+    order = list(P.OA_DOMAIN_ORDER)
+    try:
+        return order.index(int(domain_id))
+    except (TypeError, ValueError):
+        return len(order)
+
+
+def _domain_items(frame: pd.DataFrame) -> list[tuple]:
+    """`(domain_id, domain_name)` for the domains a frame actually carries,
+    in the taxonomy's own order -- the legend the field chart and the
+    reciprocity scatter are both read against. The WORDS are the
+    taxonomy's own, off the frame."""
+    seen = {}
+    for did, dname in zip(frame["domain_id"], frame["domain_name"]):
+        if pd.isna(did):
+            continue
+        seen.setdefault(int(did), str(dname))
+    return [(d, seen[d]) for d in P.OA_DOMAIN_ORDER if d in seen]
 
 
 def _erc_panel_label(ctx: dict, panel_code) -> str:
@@ -266,25 +339,11 @@ def _erc_panel_label(ctx: dict, panel_code) -> str:
     return f"{panel_code} {SEP} {hit.iloc[0]['panel_label']}"
 
 
-def _domain_order(domain_id) -> int:
-    """The taxonomy's OWN fixed domain order (`palette.OA_DOMAIN_ORDER`), which
-    is what `charts_compare.fig_metric_bars`' taxonomy sort groups rows by. An
-    unknown or unclassified domain sorts last rather than first."""
-    order = list(P.OA_DOMAIN_ORDER)
-    try:
-        return order.index(int(domain_id))
-    except (TypeError, ValueError):
-        return len(order)
-
-
-# ------------------------------------------------- the hand-built tables ----
-# HTML, because a domain chip, a per-row link and a DOM-readable value are all
-# impossible in Streamlit's canvas grid (module docstring). Nothing here writes
-# a colour of its own: every hue is `lib/palette.py`'s, and every word is
-# `lib/copy.py`'s. These builders return markup; the page hands it to
-# `st.markdown(..., unsafe_allow_html=True)`, so no literal string in this
-# section is ever a Streamlit call argument (the digit ban's own scope).
-
+# ---------------------------------------------- the hand-built siblings table
+# HTML, because a domain chip beside a taxon name is impossible in
+# Streamlit's canvas grid (module docstring). Nothing here writes a colour
+# of its own: every hue is `lib/palette.py`'s, and every word is
+# `lib/copy.py`'s.
 
 def _esc(value) -> str:
     return (str(value).replace("&", "&amp;").replace("<", "&lt;")
@@ -292,9 +351,6 @@ def _esc(value) -> str:
 
 
 def _chip(domain_id) -> str:
-    """The taxonomy chip: the OpenAlex domain's own colour, beside a name and
-    never inside a mark that carries any other identity (2B-R2-11b). `data-
-    domain` is what the acceptance probe reads the chip back by."""
     return (f'<span class="bu-chip" data-domain="{_esc(domain_id)}" '
             f'style="display:inline-block;flex:none;width:{CHIP_PX}px;height:{CHIP_PX}px;'
             f'border-radius:{CHIP_PX}px;background:{P.domain_color(domain_id)};'
@@ -304,17 +360,6 @@ def _chip(domain_id) -> str:
 def _taxon_cell(name, domain_id) -> str:
     return (f'<span style="display:inline-flex;align-items:center;">{_chip(domain_id)}'
             f'<span>{_esc(name)}</span></span>')
-
-
-def _arrow_cell(arrow, help_text: str) -> str:
-    glyph = ARROW_GLYPHS.get(str(arrow), NA_MARK)
-    return (f'<span class="bu-arrow" data-arrow="{_esc(arrow)}" title="{_esc(help_text)}" '
-            f'style="cursor:help;">{glyph}</span>')
-
-
-def _link_cell(url, help_text: str) -> str:
-    return (f'<a class="bu-link" href="{_esc(url)}" target="_blank" rel="noopener noreferrer" '
-            f'title="{_esc(help_text)}" style="text-decoration:none;">{LINK_GLYPH}</a>')
 
 
 def _header_cell(label: str, help_text: str | None, align: str) -> str:
@@ -330,12 +375,12 @@ def _header_cell(label: str, help_text: str | None, align: str) -> str:
 
 
 def _table(name: str, columns, rows) -> str:
-    """ONE scrollable table. `columns` is a sequence of `(label, help, align)`
-    and `rows` a sequence of already-built cell markup, in the same order.
+    """ONE scrollable table. `columns` is a sequence of `(label, help,
+    align)` and `rows` a sequence of already-built cell markup, in the same
+    order.
 
-    The wrapper scrolls in BOTH directions and the page body therefore never
-    does: the SIRIS house rule for a wide table, checked at three widths by the
-    acceptance probe."""
+    The wrapper scrolls in BOTH directions and the page body therefore
+    never does: the SIRIS house rule for a wide table."""
     head = "".join(_header_cell(label, help_text, align) for label, help_text, align in columns)
     body = []
     for i, cells in enumerate(rows):
@@ -352,21 +397,23 @@ def _table(name: str, columns, rows) -> str:
             f'<thead><tr>{head}</tr></thead><tbody>{"".join(body)}</tbody></table></div>')
 
 
+def _siblings_table(name_a: str, name_b: str, siblings: pd.DataFrame) -> str:
+    columns = [
+        (copy.COLLAB["SIBLINGS_COL_TOPIC"], None, ALIGN_LEFT),
+        (copy.COLLAB["SIBLINGS_COL_SUBFIELD"], None, ALIGN_LEFT),
+        (copy.COLLAB["UNTAPPED_COL_VOL_SIDE"].format(name=name_a), None, ALIGN_RIGHT),
+        (copy.COLLAB["UNTAPPED_COL_VOL_SIDE"].format(name=name_b), None, ALIGN_RIGHT),
+    ]
+    rows = [[_taxon_cell(r["topic_name"], r["domain_id"]),
+             _taxon_cell(r["subfield_name"], r["domain_id"]),
+             _vol(r["vol_a"]), _vol(r["vol_b"])]
+            for _, r in siblings.iterrows()]
+    return _table("collab_siblings", columns, rows)
+
+
 def _note(reading: str, tooltip: str | None = None) -> None:
-    """2B-R2-8: ONE short reading line, the methodology behind its `?`."""
+    """ONE short reading line, the methodology behind its `?`."""
     st.markdown(X.chart_note(reading, tooltip), unsafe_allow_html=True)
-
-
-def _top10_text(n_top10, n_covered) -> str:
-    if pd.isna(n_top10) or pd.isna(n_covered):
-        return NA_MARK
-    return copy.COLLAB["COL_TOP10_VALUE"].format(n_top10=_count(n_top10), n_covered=_count(n_covered))
-
-
-def _trend_help() -> str:
-    return copy.COLLAB["COL_TREND_HELP"].format(
-        w1=_window(DYNAMICS_W1), w2=_window(DYNAMICS_W2),
-        band=_band(collab_data.ARROW_DEADBAND))
 
 
 def _rows_note(n_shown: int, n_total: int) -> None:
@@ -374,188 +421,75 @@ def _rows_note(n_shown: int, n_total: int) -> None:
         n_shown=_count(n_shown), n_total=_count(n_total)))
 
 
-def _rows_slider(n_total: int, *, key: str, label: str, help_text: str) -> int:
-    """The row slider (2B-R2-11a). It is offered only when there is something to
-    choose between: a pair with fewer rows than the default shows them all
-    rather than a control with one stop."""
+def _visible_row_count(n_total: int, show_all: bool) -> int:
+    """Pure: how many of `n_total` rows to show. Split out from the
+    Streamlit-touching functions below so the 20-default/show-all RULE is
+    unit-testable with no Streamlit runtime (the same split
+    `selection.resolve_slot_hydration` uses against `slots_row`)."""
+    return n_total if (show_all or n_total <= ROWS_DEFAULT) else ROWS_DEFAULT
+
+
+def _show_all_flag(n_total: int, key: str) -> bool:
+    """Read-only: has this table already been expanded this session? A
+    table with nothing to hide behind the default is always 'expanded'."""
     if n_total <= ROWS_DEFAULT:
-        return n_total
-    return st.slider(label, min_value=ROWS_STEP, max_value=int(n_total),
-                     value=min(ROWS_DEFAULT, int(n_total)), step=ROWS_STEP,
-                     key=key, help=help_text, **state.PERSIST)
+        return True
+    st.session_state.setdefault(key, False)
+    return bool(st.session_state[key])
 
 
-# ------------------------------------------------------------- sidebar ------
-
-def _sidebar_basket(bundle: dict) -> None:
-    """READ-ONLY here: the basket is built on Find, which owns its add/remove
-    controls. This page shows what is in it, because it is where the pair
-    picker's options come from, and links back to the page that can change
-    it."""
-    sb, names = st.sidebar, bundle["ctx"]["index_by_id"]
-    sb.header(copy.FIND["BASKET_HEADER"])
-    items = state.items()
-    sb.caption(copy.FIND["BASKET_COUNT"].format(n=len(items), cap=state.BASKET_CAP))
-    if not items:
-        sb.caption(copy.FIND["BASKET_EMPTY"])
-    else:
-        for iid in items:
-            sb.write(str(names.loc[iid, "display_name"]))
-    # `st.page_link` needs the multi-page registry, which only exists when the
-    # app is entered through Menu.py. Run this ONE page on its own (AppTest,
-    # `streamlit run pages/3_...py`, the acceptance probe) and Streamlit raises
-    # a KeyError on its own page table -- so the link degrades to its label
-    # rather than taking the whole page down with it.
-    try:
-        sb.page_link(FIND_PAGE, label=copy.NAV["FIND_LABEL"])
-    except Exception:
-        sb.caption(copy.NAV["FIND_LABEL"])
-
-
-# ------------------------------------------------------- header + pair ------
-
-def _header(bundle: dict) -> None:
-    """Title and lead from `copy.NAV`, the standing verdict line, and the
-    index-size caption."""
-    st.title(copy.NAV["COLLAB_LABEL"])
-    st.subheader(copy.NAV["COLLAB_LEAD"])
-    st.caption(copy.COLLAB["PAGE_INTRO_PAIR"])
-    st.markdown(f"**{copy.VERDICT_LINE}**")
-    st.caption(copy.FIND["SNAPSHOT_CAPTION"].format(
-        n_institutions=f"{len(bundle['index_df']):,}"))
-
-
-def _extras() -> list[str]:
-    st.session_state.setdefault(EXTRA_KEY, [])
-    return st.session_state[EXTRA_KEY]
-
-
-def _candidates(bundle: dict) -> list[str]:
-    """Everything the pair picker may choose from, in a stable order: the
-    basket (its own user order), then whatever a deep link named, then whatever
-    Compare's hand-off button just stashed in `st.session_state["pair"]` (read
-    here, NOT popped -- `_pair_picker` below is the one place that consumes it,
-    after this function has already folded its ids into the option list
-    `st.selectbox` needs them in), then whatever was added by name on this page.
-    De-duplicated, and filtered to ids the index really carries."""
-    known = bundle["ctx"]["id_pos"]
-    query = selection.read_query(known)
-    session_pair = st.session_state.get("pair") or ()
-    out: list[str] = []
-    seen: set[str] = set()
-    pair = query["pair"] or ()
-    for iid in (*state.items(), *pair, *session_pair, *_extras()):
-        if iid in known and iid not in seen:
-            seen.add(iid)
-            out.append(iid)
-    return out
-
-
-def _add_by_name(bundle: dict) -> None:
-    """The "add a comparator" affordance, same shape as Find's: a free-text box,
-    a selectbox over the hits, and the pick lands in this page's own extras list
-    (never in the basket -- that would silently spend one of its slots)."""
-    query = st.text_input(copy.COMPARE["ADD_LABEL"], key="collab_query", **state.PERSIST)
-    hits = search(query, bundle["search_idx"]) if query else []
-    if query and not hits:
-        st.caption(copy.SEARCH_EMPTY_TEMPLATE.format(query=query))
-    if not hits:
+def _show_all_button(n_total: int, key: str) -> None:
+    """The ONE 'Show all N' button (2BR3 tasks 5/6: sliders retired -- a
+    performance device, not a control). Renders nothing once expanded, or
+    when there is nothing to expand into."""
+    if n_total <= ROWS_DEFAULT or st.session_state.get(key):
         return
-    pick = st.selectbox(copy.COLLAB["PAIR_PICK"], [h["id"] for h in hits],
-                        format_func=lambda i: _hit_label(hits, i), key="collab_pick")
-    extras = _extras()
-    if pick and pick not in extras and pick not in state.items():
-        extras.append(pick)
+    if st.button(copy.COLLAB["SHOW_ALL_BUTTON"].format(n=_count(n_total)), key=f"{key}_btn"):
+        st.session_state[key] = True
         st.rerun()
 
 
-def _swap() -> None:
-    """`on_click` callback: writing a widget key is legal inside a callback and
-    illegal after the widget has been instantiated, which is why the swap is a
-    callback rather than a button body plus `st.rerun()`."""
-    a, b = st.session_state.get("pair_a"), st.session_state.get("pair_b")
-    st.session_state["pair_a"], st.session_state["pair_b"] = b, a
+# ------------------------------------------------------------- sidebar ------
+# `selection.render_sidebar()` (called from `render()` below) is the ONE
+# shared sidebar search + basket every page now calls -- this page adds
+# nothing of its own.
 
 
-def default_pair(candidates: list[str], query_pair, known, session_pair=None) -> tuple | None:
-    """Pure: the pair the page opens on. `session_pair` -- Compare's hand-off
-    button's `st.session_state["pair"]`, already popped by the caller -- wins
-    FIRST when both its ids are known: it is the reader's own most recent
-    in-session action. Next a `?pair=` deep link wins (a shared link should show
-    what it names), then the first two candidates in their own order. `None`
-    when fewer than two are available."""
-    for pair in (session_pair, query_pair):
-        if pair and len(pair) >= 2:
-            a, b = pair[0], pair[1]
-            if a != b and a in known and b in known:
-                return (a, b)
-    return selection.pair_from(candidates)
+# ---------------------------------------------------------- 0. header -------
+
+def _header() -> None:
+    """Title and one-line promise -- nothing else. The dataset line, the
+    method notes and the share link move to the bottom meta section
+    (`_render_meta`, 2BR3 layout ruling: 'title + slots/content
+    IMMEDIATELY')."""
+    st.title(copy.NAV["COLLAB_LABEL"])
+    st.caption(copy.NAV["COLLAB_LEAD"])
 
 
-def _pair_picker(bundle: dict, candidates: list[str]) -> tuple | None:
-    """The directional A -> B picker. Returns `(a, b)`, or None when the page
-    has nothing to read yet."""
-    ctx = bundle["ctx"]
-    st.subheader(copy.COLLAB["PAIR_HEADER"])
-    st.caption(copy.COLLAB["PAIR_PROMPT"])
-    _add_by_name(bundle)
-    if len(candidates) < 2:
-        st.info(copy.COLLAB["EMPTY_NO_PAIR"])
-        return None
-
-    query = selection.read_query(ctx["id_pos"])
-    # Popped HERE, once: a hand-off is a one-time seed for the render right
-    # after the hop, never a standing override that would keep fighting a
-    # reader's own later edit to the selectboxes below.
-    session_pair = st.session_state.pop("pair", None)
-    default = default_pair(candidates, query["pair"], ctx["id_pos"], session_pair)
-    # A stored selection that is no longer among the options would make
-    # st.selectbox raise, so it is dropped rather than defended against later.
-    for key, fallback in (("pair_a", default[0]), ("pair_b", default[1])):
-        if session_pair or st.session_state.get(key) not in candidates:
-            st.session_state[key] = fallback
-
-    cols = st.columns([2, 2, 1])
-    label = lambda i: _name(ctx, i)  # noqa: E731  (one-line format_func, both boxes)
-    a = cols[0].selectbox(copy.COLLAB["PAIR_A_LABEL"], candidates, format_func=label,
-                          key="pair_a", **state.PERSIST)
-    b = cols[1].selectbox(copy.COLLAB["PAIR_B_LABEL"], candidates, format_func=label,
-                          key="pair_b", **state.PERSIST)
-    cols[2].button(copy.COLLAB["PAIR_SWAP_BUTTON"], help=copy.COLLAB["PAIR_SWAP_HELP_PAIR"],
-                   on_click=_swap, key="pair_swap")
-    if a == b:
-        st.info(copy.COLLAB["EMPTY_SAME"])
-        return None
-    st.caption(copy.COLLAB["DEEPLINK_LABEL"])
-    st.code(selection.deeplink("pair", [a, b]), language=None)
-    return (a, b)
-
-
-# -------------------------------------------------------- header strip ------
+# ------------------------------------------------- 1. identity + momentum ---
 
 def _swatches(ctx: dict, ids: list[str]) -> dict:
-    """`{institution_id: css colour}` from the identity family, or `{}` when the
-    palette's institution additions are not present at runtime. Slots are
-    assigned by ascending `inst_key` inside `palette.institution_slots`, never
-    by the order this page holds the pair in -- so the swatch of an institution
-    does not change when the reader swaps A and B."""
-    if not (hasattr(P, "INSTITUTION_COLORS") and hasattr(P, "institution_slots")
-            and hasattr(P, "institution_color")):
+    """`{institution_id: css colour}` by SLOT position (2BR3 plan item 6,
+    manager merge fix, same rule as Compare's `_slots`): slot 1 = the darkest
+    navy, the order the reader's own slot pickers show on screen -- never an
+    internal key. `ids` arrives in picker order."""
+    if not (hasattr(P, "INSTITUTION_COLORS") and hasattr(P, "institution_color")):
         return {}
     try:
-        keys = {i: ctx["index_by_id"].loc[i, "inst_key"] for i in ids}
-        slots = P.institution_slots(keys)
-        return {i: P.institution_color(slots[i]) for i in ids}
+        return {i: P.institution_color(pos) for pos, i in enumerate(ids)}
     except Exception:  # a palette shape this page does not know: show no swatch
         return {}
 
 
+SWATCH_MARK = "\N{BLACK CIRCLE}"
+
+
 def _identity(col, ctx: dict, iid: str, colour: str | None) -> None:
     row = ctx["index_by_id"].loc[iid]
-    # A coloured GLYPH, not a styled box: an inline box would need pixel/percent
-    # lengths, i.e. typed digits inside a string a Streamlit call renders, which
-    # is exactly what the digit-ban forbids (BUILD_PLAN_2A.md L10). The only
-    # value interpolated here is the palette's own colour.
+    # A coloured GLYPH, not a styled box: an inline box would need pixel
+    # lengths, i.e. typed digits inside a string a Streamlit call renders,
+    # which is exactly what the digit-ban forbids. The only value
+    # interpolated here is the palette's own colour.
     dot = f'<span style="color:{colour}">{SWATCH_MARK}</span> ' if colour else ""
     col.markdown(f"{dot}**{_name(ctx, iid)}**", unsafe_allow_html=True)
     col.caption(f"{str(row['type'])} {SEP} {countries.name(str(row['country_code']))}")
@@ -563,41 +497,77 @@ def _identity(col, ctx: dict, iid: str, colour: str | None) -> None:
                 f"{copy.FIND['COL_SIZE_FRAC']}: {_count(row['total_frac_2020_2024'])}")
 
 
-def _header_strip(bundle: dict, a: str, b: str) -> None:
-    """Both institutions side by side: who they are, where they are, how big
-    they are."""
+def _momentum_block(ctx: dict, mom: dict) -> None:
+    """The pair momentum headline (2BR3 task 1): a big coloured glyph+text
+    from `collab_data.pair_momentum`, then the Lorraine evidence block in
+    small grey type -- both window shares (with their window labels), the
+    raw co-publication counts and the significance test. Every number and
+    every window comes from `mom` (itself `collab_pairs` v2 + `index`'s own
+    CORE-AR window totals) or `collab_facts.json`'s own `alpha` -- nothing
+    here is hardcoded."""
+    facts = collab_data._load_collab_facts(ctx)
+    with st.container(key="collab_momentum"):
+        st.caption(copy.COLLAB["MOMENTUM_LABEL"])
+        st.markdown(
+            f'<div style="font-size:{MOMENTUM_TEXT_PX}px;font-weight:{MOMENTUM_WEIGHT};'
+            f'color:{mom["color"]};">{_esc(mom["glyph"])} {_esc(mom["text"])}</div>',
+            unsafe_allow_html=True)
+        w1_share = (mom["c1"] / mom["d1"]) if mom["d1"] else float("nan")
+        w2_share = (mom["c2"] / mom["d2"]) if mom["d2"] else float("nan")
+        st.caption(copy.COLLAB["MOMENTUM_EVIDENCE_SHARE"].format(
+            w1=_window(DYNAMICS_W1), share1=_pct(w1_share),
+            w2=_window(DYNAMICS_W2), share2=_pct(w2_share), sep=SEP))
+        # Annual means (windows are 3y vs 2y -- raw totals always read as a
+        # drop); year counts derived from the window tuples, never typed.
+        n1 = DYNAMICS_W1[1] - DYNAMICS_W1[0] + 1
+        n2 = DYNAMICS_W2[1] - DYNAMICS_W2[0] + 1
+        st.caption(copy.COLLAB["MOMENTUM_EVIDENCE_COPUBS"].format(
+            c1=_count(mom["c1"] / n1), c2=_count(mom["c2"] / n2), arrow=ARROW))
+        st.caption(copy.COLLAB["MOMENTUM_EVIDENCE_SIGNIFICANCE"].format(
+            p=_pval(mom["mom_p"]), alpha=_pct(facts["alpha"])))
+
+
+def _render_header_block(bundle: dict, a: str | None, b: str | None) -> None:
+    """Section 1: each identity card renders the moment ITS OWN slot is
+    filled, never gated on the pair being complete; the momentum headline
+    sits above the two cards and appears only once both are."""
     ctx = bundle["ctx"]
+    present = [i for i in (a, b) if i]
+    if a and b:
+        mom = _momentum_frame(a, b)
+        if mom is not None:
+            _momentum_block(ctx, mom)
     with st.container(key="collab_header", border=True):
-        colours = _swatches(ctx, [a, b])
+        colours = _swatches(ctx, present) if present else {}
         cols = st.columns(2)
-        _identity(cols[0], ctx, a, colours.get(a))
-        _identity(cols[1], ctx, b, colours.get(b))
-
-
-def _download(df: pd.DataFrame, *, label: str, name: str, key: str) -> None:
-    """Streamlit 1.61 accepts a zero-arg callable for `data`, so the CSV is
-    encoded only when someone actually clicks. The RAW frame goes out."""
-    st.download_button(label, lambda: df.to_csv(index=False).encode("utf-8"),
-                       mime="text/csv", file_name=name, key=key)
+        if a:
+            _identity(cols[0], ctx, a, colours.get(a))
+        if b:
+            _identity(cols[1], ctx, b, colours.get(b))
 
 
 def _below_floor_notice(n_copubs) -> None:
-    """2B-R2-11(g): the shared below-floor wording, at the floor the pair tables
-    actually ship with (`collab_data.PAIR_TOPICS_FLOOR`), never a floor typed
-    here or in copy.py."""
+    """The shared below-floor wording, at the floor the pair tables actually
+    ship with (`collab_data.PAIR_TOPICS_FLOOR`), never a floor typed here or
+    in copy.py."""
     st.info(copy.SHARED["BELOW_FLOOR_NOTICE"].format(
         item=copy.COLLAB["BELOW_FLOOR_ITEM"], n=_count(n_copubs),
         floor=collab_data.PAIR_TOPICS_FLOOR))
 
 
-# ------------------------------------------- 1. the relationship pulse ------
+# ------------------------------------------- 2. the relationship pulse ------
 
 def _render_pulse(bundle: dict, a: str, b: str) -> dict | None:
-    """Section one: the pair's joint publications per year, each side's joint
+    """Section 2: the pair's joint publications per year, each side's joint
     share of its OWN output with both denominators named, the two ranks in
     their two directions, and one plain-language line about the movement.
     Returns the pulse frame so the sections below can reuse the joint total
-    rather than read the same row twice."""
+    rather than read the same row twice.
+
+    LEGEND (2BR3 task 2): the joint chip ONLY. The bars are the pair's, not
+    either side's, so a strip that also carried both institution chips beside
+    a joint-only series was reading as a contradiction -- `legend_strip([],
+    ...)` with `shared=True` returns exactly the one chip."""
     ctx = bundle["ctx"]
     st.subheader(copy.COLLAB["PULSE_HEADER"])
     row = _pulse_frame(a, b)
@@ -605,13 +575,9 @@ def _render_pulse(bundle: dict, a: str, b: str) -> dict | None:
         st.info(copy.COLLAB["EMPTY_PULSE"].format(a=_name(ctx, a), b=_name(ctx, b)))
         return None
 
-    names = {a: _name(ctx, a), b: _name(ctx, b)}
-    # The pulse bar belongs to NEITHER institution (a co-publication is the
-    # pair's), so the strip carries both identity chips AND the shared chip the
-    # bars are actually drawn in.
     with st.container(key="collab_legend"):
-        st.markdown(X.legend_strip([a, b], slots=_slots(ctx, [a, b]), names=names,
-                                   shared=True, shared_label=copy.COLLAB["LEGEND_JOINT"]),
+        st.markdown(X.legend_strip([], slots={}, shared=True,
+                                   shared_label=copy.COLLAB["LEGEND_JOINT"]),
                     unsafe_allow_html=True)
     st.plotly_chart(X.fig_pulse(row["yearly"], value_col="copubs",
                                 bonus_year=str(CFG["bonus_year"]),
@@ -621,6 +587,7 @@ def _render_pulse(bundle: dict, a: str, b: str) -> dict | None:
           copy.COLLAB["PULSE_CHART_CAPTION"].format(bonus_year=CFG["bonus_year"],
                                                     star=BONUS_STAR))
 
+    names = {a: _name(ctx, a), b: _name(ctx, b)}
     cols = st.columns(3)
     cols[0].metric(copy.COLLAB["PULSE_TOTAL_LABEL"], _count(row["copubs_total"]))
     cols[1].metric(copy.COLLAB["PULSE_SHARE_LABEL"].format(name=names[a]), _pct(row["share_of_a"]))
@@ -640,78 +607,47 @@ def _render_pulse(bundle: dict, a: str, b: str) -> dict | None:
     return row
 
 
-# --------------------------------- 2. the joint corpus, field by field ------
-
-def _domain_items(fields: pd.DataFrame) -> list[tuple]:
-    """`(domain_id, domain_name)` for the domains this pair actually publishes
-    in, in the taxonomy's own order -- the legend the field chart's labels are
-    read against. The WORDS are the taxonomy's own, off the frame."""
-    seen = {}
-    for did, dname in zip(fields["domain_id"], fields["domain_name"]):
-        if pd.isna(did):
-            continue
-        seen.setdefault(int(did), str(dname))
-    return [(d, seen[d]) for d in P.OA_DOMAIN_ORDER if d in seen]
-
+# --------------------------------- 3. the joint corpus, field by field ------
 
 def _fields_chart(fields: pd.DataFrame):
-    """One horizontal bar per field, in ONE neutral hue (2B-R2-11a).
-
-    `PAIR_SERIES_KEY` is in no slot map, so `fig_metric_bars` draws the bars in
-    COMPARISON grey and writes their labels in the secondary ink: the corpus is
-    the pair's, and no institution may appear to own it.
-
-    The DOMAIN colour then goes on the row LABELS -- the same one-way rule, and
-    literally the same mechanism `charts_compare._accent_ticktext` applies to
-    ERC panels and SDG goals (a coloured glyph plus a no-break gap, verified to
-    render on the pinned plotly). That mechanism's own family map has no entry
-    for fields and widening it belongs to the chart module's stream, so the
-    already-wrapped tick strings the builder produced are re-labelled here, in
-    the SAME row order the frame was handed over in (the taxonomy sort is
-    stable, and the frame arrives pre-sorted on the same key)."""
+    """One horizontal bar per field, coloured by its OpenAlex DOMAIN -- the
+    Find idiom (module docstring: no builder in `charts.py` fits a raw
+    joint-publication COUNT, so this small one lives here). Rows are
+    grouped under their domain in the taxonomy's own fixed order, largest
+    first inside each domain."""
     d = fields.copy()
-    d["institution_id"] = PAIR_SERIES_KEY
-    d["value"] = pd.to_numeric(d["vol_total"], errors="coerce")
     d["domain_order"] = [_domain_order(v) for v in d["domain_id"]]
-    d = d.sort_values("domain_order", kind="mergesort").reset_index(drop=True)
-    fig = X.fig_metric_bars(
-        d, "vol", [PAIR_SERIES_KEY], slots={},
-        names={PAIR_SERIES_KEY: copy.COLLAB["LEGEND_JOINT"]},
-        level="field", sort="taxonomy", value_col="value",
-        label_col="field_name", key_col="field_id",
-        metric_label=copy.COLLAB["PULSE_AXIS"], gutter=False)
-    ticks = list(fig.layout.yaxis.ticktext or [])
-    if len(ticks) == len(d):
-        fig.update_yaxes(ticktext=[
-            f'<span style="color:{P.domain_color(dom)}">{X.ACCENT_GLYPH}</span>'
-            f'{X.ACCENT_GAP}{tick}'
-            for dom, tick in zip(d["domain_id"], ticks)])
-    return fig
+    d = d.sort_values(["domain_order", "vol"], ascending=[True, False],
+                      kind="mergesort").reset_index(drop=True)
+    n = len(d)
+    names = [str(v) for v in d["field_name"]]
+    colors = [P.domain_color(v) for v in d["domain_id"]]
+    vals = pd.to_numeric(d["vol"], errors="coerce").to_numpy(dtype=float)
+    axis_label = copy.COLLAB["PULSE_AXIS"].lower()
+    hover = [f"{names[i]}<br>{axis_label}{C.THIN_SPACE}{_count(vals[i])}" for i in range(n)]
 
-
-def _fields_table(fields: pd.DataFrame) -> str:
-    columns = [
-        (copy.COLLAB["JOINT_COL_FIELD"], None, ALIGN_LEFT),
-        (copy.COLLAB["JOINT_COL_VOL"], None, ALIGN_RIGHT),
-        (copy.COLLAB["COL_TOP10"], copy.COLLAB["COL_TOP10_HELP"], ALIGN_RIGHT),
-        (copy.COLLAB["COL_MEAN_CITATIONS"], copy.COLLAB["COL_MEAN_CITATIONS_HELP"], ALIGN_RIGHT),
-        (copy.COLLAB["COL_TREND"], _trend_help(), ALIGN_CENTER),
-        (copy.COLLAB["COL_LINK"], copy.COLLAB["COL_LINK_HELP"], ALIGN_CENTER),
-    ]
-    rows = [[_taxon_cell(r["field_name"], r["domain_id"]),
-             _count(r["vol_total"]),
-             _top10_text(r["n_top10"], r["n_covered"]),
-             _count(r["mean_citations"]),
-             _arrow_cell(r["arrow"], _trend_help()),
-             _link_cell(r["url"], copy.COLLAB["COL_LINK_HELP"])]
-            for _, r in fields.iterrows()]
-    return _table("collab_fields", columns, rows)
+    fig = go.Figure(go.Bar(
+        x=vals, y=names, orientation="h",
+        marker=dict(color=colors, line=dict(color=P.SURFACE, width=C.HAIRLINE_PX)),
+        text=[_count(v) for v in vals], textposition="outside", cliponaxis=False,
+        textfont=dict(size=C.GUTTER_FONT_PX, color=P.INK_SECONDARY),
+        customdata=hover, hovertemplate="%{customdata}<extra></extra>", showlegend=False))
+    fig.update_yaxes(tickmode="array", tickvals=names, ticktext=names,
+                     autorange="reversed", showgrid=False, automargin=True)
+    xmax = float(np.nanmax(vals)) if n and np.isfinite(vals).any() else 1.0
+    xmax = xmax if xmax > 0 else 1.0
+    fig.update_xaxes(range=[0, xmax * AXIS_PAD_MULT], title_text=copy.COLLAB["PULSE_AXIS"],
+                     gridcolor=P.GRID, zerolinecolor=P.GRID, linecolor=P.BORDER)
+    margin_l = C._gutter_margin_px(names)
+    return C._base_layout(fig, C.row_height(n),
+                          margin=dict(t=C.BASE_PX // 2, l=margin_l, r=16, b=C.BASE_PX))
 
 
 def _render_fields(bundle: dict, a: str, b: str, pulse_row: dict | None) -> None:
-    """Section two (2B-R2-11a): the field breakdown of the joint corpus, as a
-    chart and then as the numbers behind it. Below the topic floor the section
-    is the honest notice and nothing else -- no empty chart, no zero."""
+    """Section 3 (2BR3 task 3): the field breakdown of the joint corpus, as
+    ONE domain-coloured chart -- the field TABLE is gone, the chart is the
+    whole of this section. Below the topic floor the section is the honest
+    notice and nothing else -- no empty chart, no zero."""
     st.subheader(copy.COLLAB["FIELDS_HEADER"])
     fields = _fields_frame(a, b)
     if fields.empty:
@@ -724,73 +660,158 @@ def _render_fields(bundle: dict, a: str, b: str, pulse_row: dict | None) -> None
     st.plotly_chart(_fields_chart(fields), width="stretch", key="fig_fields")
     _note(copy.COLLAB["FIELDS_CHART_READING"], copy.COLLAB["FIELDS_CHART_TOOLTIP"])
 
-    st.markdown(_fields_table(fields), unsafe_allow_html=True)
-    _note(copy.COLLAB["FIELDS_TABLE_READING"],
-          f"{copy.COLLAB['FIELDS_TABLE_TOOLTIP']} {copy.FWCI_NOT_AVAILABLE_LINE}")
-    _rows_note(len(fields), len(fields))
-    _download(fields, label=copy.COLLAB["DOWNLOAD_FIELDS"],
-              name=f"benchup_collab_fields_{a}_{b}.csv", key="dl_fields")
 
+# -------------------------------------- 4. strategic reciprocity by field ---
 
-# ------------------------------------------------- 3. the shared topics -----
+def _reciprocity_chart(df: pd.DataFrame, name_a: str, name_b: str):
+    """Bubble scatter, ported from the Lorraine "Zoom partenaire" reciprocity
+    chart (see the module docstring): x = a field's share of B's OWN
+    portfolio, y = the same field's share of A's OWN portfolio, area = the
+    pair's joint volume in that field (area-true: `sizemode="area"`, one
+    `sizeref` shared by every bubble), colour = OpenAlex domain, one dotted
+    45-degree "equal weight" diagonal, squared axes (same [0, max] range on
+    both, `scaleanchor` locking the aspect ratio so the square is real, not
+    just numerically equal ranges)."""
+    x = df["x"].to_numpy(dtype=float)
+    y = df["y"].to_numpy(dtype=float)
+    vol = df["joint_vol"].to_numpy(dtype=float)
+    n = len(df)
+    colors = [P.domain_color(v) for v in df["domain_id"]]
+    names = df["field_name"].astype(str).tolist()
+    vmax = float(vol.max()) if n and vol.max() > 0 else 1.0
 
-def _topics_table(topics: pd.DataFrame, flags: dict) -> str:
-    columns = [
-        (copy.COLLAB["JOINT_COL_TOPIC"], None, ALIGN_LEFT),
-        (copy.COLLAB["JOINT_COL_SUBFIELD"], None, ALIGN_LEFT),
-        (copy.COLLAB["JOINT_COL_VOL"], None, ALIGN_RIGHT),
-        (copy.COLLAB["COL_TOP10"], copy.COLLAB["COL_TOP10_HELP"], ALIGN_RIGHT),
-        (copy.COLLAB["JOINT_COL_SDG"], None, ALIGN_RIGHT),
-        (copy.COLLAB["COL_TREND"], _trend_help(), ALIGN_CENTER),
-        (copy.COLLAB["JOINT_COL_FRONTIER"], copy.COLLAB["GAPS_FRONTIER_HELP"], ALIGN_CENTER),
-        (copy.COLLAB["COL_LINK"], copy.COLLAB["COL_LINK_HELP"], ALIGN_CENTER),
+    hover = [
+        f"{names[i]}<br>"
+        f"{copy.COLLAB['RECIPROCITY_HOVER_X'].format(name=name_b)}{C.THIN_SPACE}{_pct(x[i])}<br>"
+        f"{copy.COLLAB['RECIPROCITY_HOVER_Y'].format(name=name_a)}{C.THIN_SPACE}{_pct(y[i])}<br>"
+        f"{copy.COLLAB['RECIPROCITY_HOVER_JOINT']}{C.THIN_SPACE}{_count(vol[i])}"
+        for i in range(n)
     ]
-    rows = [[_taxon_cell(r["topic_name"], r["domain_id"]),
-             _taxon_cell(r["subfield_name"], r["domain_id"]),
-             _count(r["vol_total"]),
-             _top10_text(r["n_top10"], r["n_covered"]),
-             _count(r["sdg_tagged_n"]),
-             _arrow_cell(r["arrow"], _trend_help()),
-             _frontier_glyph(flags.get(r["topic_id"])),
-             _link_cell(r["url"], copy.COLLAB["COL_LINK_HELP"])]
-            for _, r in topics.iterrows()]
-    return _table("collab_topics", columns, rows)
+    fig = go.Figure(go.Scatter(
+        x=x, y=y, mode="markers",
+        marker=dict(color=colors, size=vol, sizemode="area",
+                    sizeref=(2.0 * vmax / (C.BUBBLE_MAX_PX ** 2)),
+                    sizemin=C.BUBBLE_MIN_PX,
+                    line=dict(color=P.SURFACE, width=BUBBLE_OUTLINE_PX)),
+        customdata=hover, hovertemplate="%{customdata}<extra></extra>", showlegend=False))
+
+    axis_max = max(float(np.nanmax(x)) if n else 0.0, float(np.nanmax(y)) if n else 0.0)
+    axis_max = (axis_max or 1.0) * RECIP_AXIS_PAD_MULT
+    fig.add_shape(type="line", x0=0, y0=0, x1=axis_max, y1=axis_max,
+                 line=dict(color=P.INK_SECONDARY, width=C.HAIRLINE_PX, dash=RECIP_DIAGONAL_DASH))
+    fig.update_xaxes(range=[0, axis_max], tickformat=C._AXIS_PCT_FMT,
+                     title_text=copy.COLLAB["RECIPROCITY_AXIS_X"].format(name=name_b),
+                     gridcolor=P.GRID, zerolinecolor=P.GRID, linecolor=P.BORDER,
+                     constrain="domain")
+    fig.update_yaxes(range=[0, axis_max], tickformat=C._AXIS_PCT_FMT,
+                     title_text=copy.COLLAB["RECIPROCITY_AXIS_Y"].format(name=name_a),
+                     gridcolor=P.GRID, zerolinecolor=P.GRID, linecolor=P.BORDER,
+                     # `constrain="domain"` (not the "range" default): the PLOT
+                     # AREA shrinks to a visual square within the wider figure
+                     # canvas, leaving the explicit [0, axis_max] range on BOTH
+                     # axes untouched. Without it plotly's default behaviour
+                     # EXPANDS the shorter axis's range to fill the (much
+                     # wider than tall) canvas at 1:1 scale -- measured on the
+                     # real render: the x-axis grew a large, meaningless
+                     # negative extent to match the y-axis's pixel height.
+                     scaleanchor="x", scaleratio=1, constrain="domain")
+    return C._base_layout(fig, C.SCATTER_HEIGHT,
+                          margin=dict(t=C.BASE_PX // 2, l=C.BASE_PX, r=16, b=C.BASE_PX))
+
+
+def _render_reciprocity(bundle: dict, a: str, b: str, scenario: dict) -> None:
+    """Section 4 (2BR3 task 4): renders nothing at all when the frame is
+    empty -- section 3 already carries the one below-floor notice, and this
+    frame is empty for exactly the same pairs (both read `field_breakdown`),
+    so repeating the notice would read as two failures."""
+    ctx = bundle["ctx"]
+    df = _reciprocity_frame(a, b, scenario["tree"], scenario["basis"])
+    if df.empty:
+        return
+    name_a, name_b = _name(ctx, a), _name(ctx, b)
+    st.subheader(copy.COLLAB["RECIPROCITY_HEADER"])
+    st.caption(copy.COLLAB["RECIPROCITY_HOW_TO_READ"].format(name_a=name_a, name_b=name_b))
+    st.plotly_chart(_reciprocity_chart(df, name_a, name_b), width="stretch", key="fig_reciprocity")
+    st.markdown(X.map_legend_strip([], slots={}, color_by="domain",
+                                   domain_items=_domain_items(df)),
+                unsafe_allow_html=True)
+    st.caption(copy.COLLAB["RECIPROCITY_WHY"])
+
+
+# ------------------------------------------------- 5. the topic deep dive ---
+
+def _topics_display_frame(topics: pd.DataFrame) -> pd.DataFrame:
+    """Technical column names (the `st.dataframe`/`column_config` idiom
+    `lib/ranked.py`/`lib/views_find.py` already use): the DISPLAYED header
+    text is `column_config`'s own `label=`, sourced from copy.py at the call
+    site below, never from these keys."""
+    vol = pd.to_numeric(topics["vol"], errors="coerce")
+    safe_vol = vol.replace(0.0, np.nan)
+    mom = [_momentum_cell(c) for c in topics["mom_class"]]
+    return pd.DataFrame({
+        "topic_name": topics["topic_name"].astype(str).to_numpy(),
+        "domain_name": topics["domain_name"].astype(str).to_numpy(),
+        "vol": vol.to_numpy(),
+        "top10_share": (pd.to_numeric(topics["n_top10"], errors="coerce") / safe_vol).to_numpy(),
+        "sdg_share": (pd.to_numeric(topics["n_sdg"], errors="coerce") / safe_vol).to_numpy(),
+        "sdg_n": pd.to_numeric(topics["n_sdg"], errors="coerce").to_numpy(),
+        "fwci_median": pd.to_numeric(topics["fwci_median"], errors="coerce").to_numpy(),
+        "momentum": [f"{glyph} {text}" for text, _color, glyph in mom],
+        "url": topics["url"].astype(str).to_numpy(),
+    })
+
+
+def _topics_column_config() -> dict:
+    return {
+        "topic_name": st.column_config.TextColumn(copy.COLLAB["JOINT_COL_TOPIC"]),
+        "domain_name": st.column_config.TextColumn(copy.COLLAB["DF_COL_DOMAIN"]),
+        "vol": st.column_config.NumberColumn(copy.COLLAB["JOINT_COL_VOL"], format=VOL_FORMAT),
+        "top10_share": st.column_config.ProgressColumn(
+            copy.COLLAB["COL_TOP10"], help=copy.COLLAB["COL_TOP10_DF_HELP"],
+            min_value=PROGRESS_MIN, max_value=PROGRESS_MAX, format=PROGRESS_FORMAT),
+        "sdg_share": st.column_config.ProgressColumn(
+            copy.COLLAB["JOINT_COL_SDG"], help=copy.COLLAB["COL_SDG_DF_HELP"],
+            min_value=PROGRESS_MIN, max_value=PROGRESS_MAX, format=PROGRESS_FORMAT),
+        "sdg_n": st.column_config.NumberColumn(copy.COLLAB["JOINT_COL_SDG_RAW"], format=VOL_FORMAT),
+        "fwci_median": st.column_config.NumberColumn(
+            copy.COLLAB["DF_COL_FWCI"], help=copy.COLLAB["COL_FWCI_HELP"], format=FWCI_FORMAT),
+        "momentum": st.column_config.TextColumn(
+            copy.COLLAB["DF_COL_MOMENTUM"], help=copy.COLLAB["DF_COL_MOMENTUM_HELP"]),
+        "url": st.column_config.LinkColumn(
+            copy.COLLAB["COL_LINK"], help=copy.COLLAB["COL_LINK_HELP"],
+            display_text=copy.COLLAB["COL_LINK_DISPLAY"]),
+    }
 
 
 def _render_topics(bundle: dict, a: str, b: str, scenario: dict, pulse_row: dict | None) -> None:
-    """Section three (2B-R2-11a to e): what the pair's shared publications are
-    about, topic by topic, up to the shipped cap with a slider over it. Below
-    the floor this section renders nothing at all -- section two already carries
-    the one honest notice, and repeating it would read as two failures."""
+    """Section 5 (2BR3 task 5): a native, sortable `st.dataframe`, 20 rows
+    by default with a "Show all N" button (no slider). Below the floor this
+    section renders nothing at all -- section 3 already carries the one
+    honest notice, and repeating it would read as two failures."""
     ctx = bundle["ctx"]
     prof = _joint_frame(a, b, scenario["tree"], scenario["basis"])
     if prof is None:
         return
     st.subheader(copy.COLLAB["TOPICS_HEADER"])
-    meta, all_topics = prof["meta"], prof["topics"]
-    n = _rows_slider(len(all_topics), key="topics_n", label=copy.COLLAB["TOPICS_SLIDER"],
-                     help_text=copy.COLLAB["TOPICS_SLIDER_HELP"])
+    all_topics = prof["topics"]
+    key = "topics_show_all"
+    show_all = _show_all_flag(len(all_topics), key)
+    n = _visible_row_count(len(all_topics), show_all)
     topics = all_topics.head(n)
-    flags = _frontier_flags(ctx)
-    st.markdown(_topics_table(topics, flags), unsafe_allow_html=True)
+    st.dataframe(_topics_display_frame(topics), hide_index=True, width="stretch",
+                column_config=_topics_column_config(), key="df_topics")
+    _show_all_button(len(all_topics), key)
     _note(copy.COLLAB["TOPICS_READING"],
-          copy.COLLAB["TOPICS_TOOLTIP"].format(cap=meta["top_n_cap"], floor=meta["floor"]))
+          copy.COLLAB["TOPICS_TOOLTIP"].format(cap=prof["meta"]["top_n_cap"],
+                                               floor=prof["meta"]["floor"]))
     _rows_note(len(topics), len(all_topics))
-    _download(all_topics, label=copy.COLLAB["DOWNLOAD_SHARED"],
-              name=f"benchup_collab_topics_{a}_{b}_{scenario['tree']}_{scenario['basis']}.csv",
-              key="dl_topics")
 
-    shown = float(pd.to_numeric(topics["vol_total"], errors="coerce").sum())
-    tagged = int(pd.to_numeric(topics["sdg_tagged_n"], errors="coerce").sum())
-    st.markdown(copy.COLLAB["JOINT_SDG_LINE"].format(
+    shown = float(pd.to_numeric(topics["vol"], errors="coerce").sum())
+    tagged = int(pd.to_numeric(topics["n_sdg"], errors="coerce").sum())
+    st.caption(copy.COLLAB["JOINT_SDG_LINE"].format(
         n_tagged=_count(tagged), n_shown=_count(shown),
         share=_pct(tagged / shown if shown > 0 else None)))
-    n_frontier = int(topics["topic_id"].map(flags).eq(True).sum())
-    st.markdown(copy.COLLAB["JOINT_FRONTIER_LINE"].format(n_frontier=_count(n_frontier)))
 
-    # ERC: the panel share is read of the LABELLED works only; the caption names
-    # what fraction of the joint corpus carries a label at all, so the two
-    # denominators are never confused for one another.
     erc = prof["erc"]
     labelled, panel_n = erc["labelled_n"], erc["panel_n"]
     if labelled > 0:
@@ -804,79 +825,80 @@ def _render_topics(bundle: dict, a: str, b: str, scenario: dict, pulse_row: dict
         st.caption(copy.COLLAB["EMPTY_JOINT_ERC"])
 
 
-# ------------------------------------------- 4. untapped potential ----------
+# ------------------------------------------------- 6. untapped potential ----
+
+def _untapped_display_frame(topics: pd.DataFrame) -> pd.DataFrame:
+    return pd.DataFrame({
+        "topic_name": topics["topic_name"].astype(str).to_numpy(),
+        "subfield_name": topics["subfield_name"].astype(str).to_numpy(),
+        "vol_a": pd.to_numeric(topics["vol_a"], errors="coerce").to_numpy(),
+        "vol_b": pd.to_numeric(topics["vol_b"], errors="coerce").to_numpy(),
+        "joint_observed": pd.to_numeric(topics["joint_observed"], errors="coerce").to_numpy(),
+        "joint_expected": pd.to_numeric(topics["joint_expected"], errors="coerce").to_numpy(),
+        "gap": pd.to_numeric(topics["gap"], errors="coerce").to_numpy(),
+        "url": topics["url"].astype(str).to_numpy(),
+    })
+
+
+def _untapped_column_config(name_a: str, name_b: str) -> dict:
+    return {
+        "topic_name": st.column_config.TextColumn(copy.COLLAB["UNTAPPED_COL_TOPIC"]),
+        "subfield_name": st.column_config.TextColumn(copy.COLLAB["UNTAPPED_COL_SUBFIELD"]),
+        "vol_a": st.column_config.NumberColumn(
+            copy.COLLAB["UNTAPPED_COL_VOL_SIDE"].format(name=name_a), format=FRAC_VOL_FORMAT),
+        "vol_b": st.column_config.NumberColumn(
+            copy.COLLAB["UNTAPPED_COL_VOL_SIDE"].format(name=name_b), format=FRAC_VOL_FORMAT),
+        "joint_observed": st.column_config.NumberColumn(
+            copy.COLLAB["UNTAPPED_COL_OBSERVED"], format=FRAC_VOL_FORMAT),
+        "joint_expected": st.column_config.NumberColumn(
+            copy.COLLAB["UNTAPPED_COL_EXPECTED"], format=FRAC_VOL_FORMAT),
+        "gap": st.column_config.NumberColumn(copy.COLLAB["UNTAPPED_COL_GAP"], format=FRAC_VOL_FORMAT),
+        "url": st.column_config.LinkColumn(
+            copy.COLLAB["COL_LINK"], help=copy.COLLAB["COL_LINK_HELP"],
+            display_text=copy.COLLAB["COL_LINK_DISPLAY"]),
+    }
+
 
 def _with_domains(ctx: dict, df: pd.DataFrame) -> pd.DataFrame:
-    """`domain_id` for a frame that carries `subfield_id` only -- the fixed
-    subfield -> field -> domain map the profile page already reads, joined here
-    so every taxon name in these tables can carry its chip."""
+    """`domain_id` for the siblings frame, which carries `subfield_id`
+    only -- the fixed subfield -> field -> domain map the profile page
+    already reads, joined here so every taxon name in that table can carry
+    its chip."""
     names = profile_data._subfield_field_domain_map(ctx)[["subfield_id", "domain_id"]]
     return df.merge(names, on="subfield_id", how="left")
 
 
-def _untapped_table(name_a: str, name_b: str, topics: pd.DataFrame) -> str:
-    columns = [
-        (copy.COLLAB["UNTAPPED_COL_TOPIC"], None, ALIGN_LEFT),
-        (copy.COLLAB["UNTAPPED_COL_SUBFIELD"], None, ALIGN_LEFT),
-        (copy.COLLAB["UNTAPPED_COL_VOL_SIDE"].format(name=name_a), None, ALIGN_RIGHT),
-        (copy.COLLAB["UNTAPPED_COL_VOL_SIDE"].format(name=name_b), None, ALIGN_RIGHT),
-        (copy.COLLAB["UNTAPPED_COL_OBSERVED"], None, ALIGN_RIGHT),
-        (copy.COLLAB["UNTAPPED_COL_EXPECTED"], None, ALIGN_RIGHT),
-        (copy.COLLAB["UNTAPPED_COL_GAP"], None, ALIGN_RIGHT),
-        (copy.COLLAB["COL_LINK"], copy.COLLAB["COL_LINK_HELP"], ALIGN_CENTER),
-    ]
-    rows = [[_taxon_cell(r["topic_name"], r["domain_id"]),
-             _taxon_cell(r["subfield_name"], r["domain_id"]),
-             _vol(r["vol_a"]), _vol(r["vol_b"]), _vol(r["joint_observed"]),
-             _vol(r["joint_expected"]), _vol(r["gap"]),
-             _link_cell(r["url"], copy.COLLAB["COL_LINK_HELP"])]
-            for _, r in topics.iterrows()]
-    return _table("collab_untapped", columns, rows)
-
-
-def _siblings_table(name_a: str, name_b: str, siblings: pd.DataFrame) -> str:
-    columns = [
-        (copy.COLLAB["SIBLINGS_COL_TOPIC"], None, ALIGN_LEFT),
-        (copy.COLLAB["SIBLINGS_COL_SUBFIELD"], None, ALIGN_LEFT),
-        (copy.COLLAB["UNTAPPED_COL_VOL_SIDE"].format(name=name_a), None, ALIGN_RIGHT),
-        (copy.COLLAB["UNTAPPED_COL_VOL_SIDE"].format(name=name_b), None, ALIGN_RIGHT),
-    ]
-    rows = [[_taxon_cell(r["topic_name"], r["domain_id"]),
-             _taxon_cell(r["subfield_name"], r["domain_id"]),
-             _vol(r["vol_a"]), _vol(r["vol_b"])]
-            for _, r in siblings.iterrows()]
-    return _table("collab_siblings", columns, rows)
-
-
 def _render_untapped(bundle: dict, a: str, b: str, scenario: dict) -> None:
-    """Section four: topics both institutions hold where the joint output is
-    below what the pair's OWN overall collaboration rate would predict, with the
-    adjacent topics kept beside them. This section does NOT depend on the topic
-    floor -- it is built on the shared-topic substrate."""
+    """Section 6: topics both institutions hold where the joint output is
+    below what the pair's OWN overall collaboration rate would predict, with
+    the adjacent topics kept beside them. This section does NOT depend on
+    the topic floor -- it is built on the shared-topic substrate. Ranking is
+    fixed in the data (gap descending on the TRUE, uncapped observed
+    volume, `collab_data.untapped`'s own `collab_topic_vols` fix) -- this
+    page adds no ranking control of its own."""
     ctx = bundle["ctx"]
     name_a, name_b = _name(ctx, a), _name(ctx, b)
     st.subheader(copy.COLLAB["UNTAPPED_HEADER"])
     res = _untapped_frame(a, b, scenario["tree"], scenario["basis"])
-    all_topics = _with_domains(ctx, res["topics"])
+    all_topics = res["topics"]
     if all_topics.empty:
         st.info(copy.COLLAB["EMPTY_UNTAPPED"])
     else:
-        n = _rows_slider(len(all_topics), key="untapped_n",
-                         label=copy.COLLAB["TOPICS_SLIDER"],
-                         help_text=copy.COLLAB["TOPICS_SLIDER_HELP"])
+        key = "untapped_show_all"
+        show_all = _show_all_flag(len(all_topics), key)
+        n = _visible_row_count(len(all_topics), show_all)
         topics = all_topics.head(n)
-        st.markdown(_untapped_table(name_a, name_b, topics), unsafe_allow_html=True)
-        # The formula itself is the METHOD, so it goes behind the mark with the
-        # window the rate is measured over; what stays visible is the one line
-        # that says what the table is (2B-R2-8).
+        st.dataframe(_untapped_display_frame(topics), hide_index=True, width="stretch",
+                    column_config=_untapped_column_config(name_a, name_b), key="df_untapped")
+        _show_all_button(len(all_topics), key)
+        # The formula itself is the METHOD, so it goes behind the mark with
+        # the window the rate is measured over; what stays visible is the
+        # one line that says what the table is.
         _note(copy.COLLAB["UNTAPPED_READING"],
               copy.COLLAB["UNTAPPED_CAPTION"].format(k=_pct(res["k"])) + " "
               + copy.COLLAB["UNTAPPED_RATE_NOTE"].format(
                   window=_window(collab_data.PULSE_YEARS)))
         _rows_note(len(topics), len(all_topics))
-        _download(res["topics"], label=copy.COLLAB["DOWNLOAD_UNTAPPED"],
-                  name=f"benchup_collab_untapped_{a}_{b}_{scenario['tree']}_{scenario['basis']}.csv",
-                  key="dl_untapped")
 
     siblings = _with_domains(ctx, res["siblings"])
     if not siblings.empty:
@@ -885,32 +907,11 @@ def _render_untapped(bundle: dict, a: str, b: str, scenario: dict) -> None:
             st.markdown(_siblings_table(name_a, name_b, siblings), unsafe_allow_html=True)
 
 
-# ------------------------------------------------ 5. links + disclosure -----
-
-def _render_links(bundle: dict, a: str, b: str) -> None:
-    """Section five: the two per-institution works links and the ONE
-    co-publication link (the comma-joined repeated
-    `authorships.institutions.id` filter, which OpenAlex ANDs; the `+` form is
-    forbidden and `lib/links.py` never builds it). This section renders for
-    every pair, below-floor ones included -- it is the whole answer when the
-    topic detail cannot be shown."""
-    ctx = bundle["ctx"]
-    st.subheader(copy.COLLAB["LINKS_HEADER"])
-    st.caption(copy.COLLAB["LINKS_INTRO"])
-    with st.container(key="collab_links"):
-        link_cols = st.columns(3)
-        for col, iid in zip(link_cols, (a, b)):
-            col.link_button(copy.COLLAB["LINK_PUBS"].format(name=_name(ctx, iid)),
-                            links.works_url(iid), help=copy.FIND["LINK_OPENALEX_HELP"])
-        link_cols[2].link_button(copy.COLLAB["LINK_COPUBS"], links.copubs_url(a, b),
-                                 help=copy.FIND["LINK_OPENALEX_HELP"])
-
+# ------------------------------------------------------- 7. bottom meta -----
 
 def _render_not_offered() -> None:
-    """2B-R2-8/13: what this page does NOT show, in plain language, one line per
-    measure and no internal reference of any kind. The two directional gap
-    tables are gone from the code, not hidden behind a toggle, so the reader is
-    told once, here, what replaced them."""
+    """What this page does NOT show, in plain language, one line per measure
+    and no internal reference of any kind."""
     with st.container(key="collab_not_offered"):
         st.markdown(f"**{copy.SHARED['NOT_OFFERED_HEADER']}**")
         for feature, reason in (
@@ -920,31 +921,47 @@ def _render_not_offered() -> None:
             st.caption(copy.SHARED["NOT_OFFERED_LINE"].format(feature=feature, reason=reason))
 
 
+def _render_meta(bundle: dict, a: str, b: str) -> None:
+    """Bottom meta, collapsed by default (2BR3 layout ruling): the dataset
+    line and method note, what this page does not show and why, and the
+    shareable link -- moved down here from where a picker used to sit."""
+    with st.expander(copy.COLLAB["META_EXPANDER"], expanded=False):
+        st.caption(copy.COLLAB["PAGE_INTRO_PAIR"])
+        st.caption(copy.FIND["SNAPSHOT_CAPTION"].format(
+            n_institutions=f"{len(bundle['index_df']):,}"))
+        _render_not_offered()
+        selection.share_link_block("pair", [a, b], caption=copy.COLLAB["DEEPLINK_LABEL"])
+
+
 # -------------------------------------------------------------- render ------
 
 def render() -> None:
-    """The whole Collaborate page. Computation order: sidebar scenario (so the
-    tree/basis a reader carried from Find is read before anything is built) ->
-    header -> pair picker -> substrates (behind the spinner) -> the five
-    sections of 2B-R2-11, in the order a reader meets the partnership: how much,
-    about what, in which topics, what is missing, where to read it."""
+    """The whole Collaborate page (2BR3 VL). Order: sidebar scenario + the
+    shared search/basket -> title + promise -> the two slots -> identity
+    cards + momentum headline -> the relationship pulse -> the joint corpus
+    field by field -> strategic reciprocity by field -> the topic deep dive
+    -> untapped potential -> bottom meta."""
     bundle = _bundle()
     scenario = _sidebar_scenario()
-    _sidebar_basket(bundle)
-    _header(bundle)
-    pair = _pair_picker(bundle, _candidates(bundle))
-    if pair is None:
+    selection.render_sidebar()
+    _header()
+
+    a, b = selection.slots_row("collab", state.COLLAB_CAP)
+    if a and b and a == b:
+        st.info(copy.COLLAB["EMPTY_SAME"])
         return
-    a, b = pair
+    _render_header_block(bundle, a, b)
+    if not (a and b):
+        return
+
     # A tree/basis flip pays build_substrates ONCE (cached, at most three
-    # scenarios live); every other rerun finds it warm. The spinner's copy says
-    # exactly that instead of leaving the page blank.
+    # scenarios live); every other rerun finds it warm.
     with st.spinner(copy.COMPARE["SPINNER_SCENARIO"]):
         _subs(scenario["tree"], scenario["basis"])
-    _header_strip(bundle, a, b)
+
     pulse_row = _render_pulse(bundle, a, b)
     _render_fields(bundle, a, b, pulse_row)
+    _render_reciprocity(bundle, a, b, scenario)
     _render_topics(bundle, a, b, scenario, pulse_row)
     _render_untapped(bundle, a, b, scenario)
-    _render_links(bundle, a, b)
-    _render_not_offered()
+    _render_meta(bundle, a, b)
