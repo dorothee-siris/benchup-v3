@@ -100,29 +100,6 @@ def ror_url(ror_id: str) -> str:
     return ror_id if ror_id.startswith("http") else f"https://ror.org/{ror_id}"
 
 
-def share_link_block(kind: str, ids, *, caption: str | None = None) -> None:
-    """2BR3 SEL (plan §1.4): the share-link UI element, factored out so it can
-    move to the FOOT of a page instead of sitting inline where the selection
-    is made (`lib/views_compare.py::_selection` and
-    `lib/views_collab.py::_pair_picker` today each render their own
-    `st.code(selection.deeplink(...))` line right next to their old add-flow
-    -- WT_2BR3.md §5.7). VC/VL call this once, at the bottom of their own
-    page, with `ids` = their OWN resolved slot picks (`selection.slots_row`'s
-    return, `None` entries included -- this function drops them) and `kind`
-    = "compare" / "pair" (unchanged `selection.deeplink` convention).
-
-    `caption` is the CALLER's own copy string (`copy.COMPARE["DEEPLINK_LABEL"]`
-    / `copy.COLLAB["DEEPLINK_LABEL"]` today, unchanged) -- this module owns no
-    page's copy, so the label travels in as an argument rather than adding a
-    new cross-page key. Renders nothing when fewer than one id survives (an
-    empty selection has no link worth sharing)."""
-    import streamlit as st
-
-    from lib.selection import deeplink
-
-    filled = [i for i in ids if i]
-    if not filled:
-        return
-    if caption:
-        st.caption(caption)
-    st.code(deeplink(kind, filled), language=None)
+# share_link_block moved to lib/selection.py (manager merge, 2BR3): it is a
+# Streamlit UI element, and this module is on test_narrative's pure-module
+# list (no streamlit import, checked over the whole AST).

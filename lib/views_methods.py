@@ -73,7 +73,7 @@ from lib.charts_compare import LOW_VOLUME_FLOOR
 from lib.data_cache import DATA_DIR, collab_pair_topics, collab_pairs, erc, index, manifest, sdg, topics_dim
 from lib.palette import NA_MARK
 from lib.profile_data import SI_FLOOR_SOLID, SI_FLOOR_THIN
-from lib.views_collab import _sidebar_basket
+from lib.selection import render_sidebar
 from lib.views_find import CORE_TOP_N, _bundle, _sidebar_scenario
 
 DOCS_DIR = Path(__file__).resolve().parent.parent / "docs"
@@ -302,7 +302,7 @@ def render() -> None:
     carry no unresolved figure, so they satisfy the digit-ban as written."""
     bundle = _bundle()
     _sidebar_scenario()
-    _sidebar_basket(bundle)
+    render_sidebar()
     values = methods_values()
 
     st.title(copy.NAV["METHODS_LABEL"])

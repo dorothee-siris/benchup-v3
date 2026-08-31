@@ -794,18 +794,12 @@ COMPARE = {
                    "colour across every chart on the page, so a colour names an institution and the "
                    "axis names the subject."),
 
-    # ---- selection ------------------------------------------------------
-    "SELECTION_HEADER": "Institutions compared",
-    "SELECTION_HELP": ("The comparison starts from the basket built on the Find page, and can be "
-                       "edited here."),
-    "ADD_LABEL": "Add an institution by name",
-    "ADD_PICK": "Matching institutions",
-    "ADD_BUTTON": "Add to the comparison",
-    "REMOVE_BUTTON": "Remove",
-    "CLEAR_BUTTON": "Clear the comparison",
-    "CAP_REACHED": ("The comparison holds {cap} institutions at a time, which is what keeps the "
-                    "charts readable. Remove one before adding another."),
-    "CAP_HELP": "Two institutions at least, {cap} at most.",
+    # ---- selection ---------------------------------------------------------
+    # 2BR3 VC (plan SS1 items 1/8): the add-by-name flow, the basket-vs-
+    # comparison cap message and the inline share link are GONE from here --
+    # the sidebar owns search now (`selection.render_sidebar`) and the three
+    # slots (`selection.slots_row("compare", 3)`) own the pick; the share
+    # link moved to the bottom meta block (`links.share_link_block`).
 
     # ---- the institution strip ------------------------------------------
     "STRIP_HEADER": "Who is in the comparison",
@@ -825,7 +819,6 @@ COMPARE = {
     "VIEW_FRONTIER_MIX": "Frontier positioning",
     "VIEW_FRONTIER_POINTS": "Frontier topics",
     "VIEW_IMPACT": "Impact",
-    "VIEW_TRENDS": "Trends",
     "VIEW_COVERAGE": "Coverage",
 
     # ---- captions: denominator and basis, one per view -------------------
@@ -883,12 +876,6 @@ COMPARE = {
     "IMPACT_BONUS_NOTE": ("{bonus_year} is a bonus year and stays out of every impact figure on this "
                           "page."),
 
-    # ---- trends ----------------------------------------------------------
-    "TRENDS_HEADER": "Trends in the {n} subfields this set publishes most in",
-    "TRENDS_SELECTION_HELP": ("The subfields are chosen by the publication mass the whole compared "
-                              "set holds in them, so a subfield that matters to one institution "
-                              "alone can still appear."),
-
     # ---- coverage: the six states plus the total -------------------------
     "STATE_CLASSIFIED": "Classified",
     "STATE_CLASSIFIED_HELP": ("Publications that cleared every exclusion and were read by the subject "
@@ -934,16 +921,12 @@ COMPARE = {
     "XLSX_ROW_READING": "Reading",
 
     # ---- empty states -----------------------------------------------------
-    "EMPTY_TOO_FEW": ("Comparing needs at least two institutions. Add one from the search above, or "
-                      "build a basket on the Find page."),
     "EMPTY_NO_ERC": ("{institution} has no ERC-classified publications in this snapshot, so it holds "
                      "no bar in this view."),
     "EMPTY_NO_SDG": ("{institution} has no SDG-tagged publications in this snapshot, so it holds no "
                      "bar in this view."),
     "EMPTY_IMPACT_FLOOR": ("No subfield is cleared by any of the compared institutions at this floor. "
                            "Lower the floor, or read the figure for the whole output above."),
-    "EMPTY_TRENDS": ("None of the compared institutions carries a per-year subfield breakdown in this "
-                     "snapshot."),
     "EMPTY_FRONTIER_POINTS": ("None of the compared institutions holds publications in topics that "
                               "carry a frontier score."),
 
@@ -969,20 +952,10 @@ COMPARE = {
                                 "clouds can be compared as shapes."),
     "CAPTION_IMPACT_SHOWN": ("Showing the {n} of the {n_union} subfields in the union that this set "
                              "holds the most publications in."),
-    "CAPTION_TRENDS_SHARE": ("Each line is the share of that institution's own publications of the "
-                             "year that sits in the subfield of its panel, on the {basis} basis and "
-                             "the {tree} taxonomy. Every panel shares one vertical scale, so a line "
-                             "can be read against any other line on the grid."),
     "CAPTION_CLASSIFIED_SHARES": ("Share of each institution's output behind these bars, in the "
                                   "order of the legend: {shares}."),
     "DOWNLOAD_VIEW": "Download the figures behind this view",
     "STRIP_LINK_PUBS": "Publications",
-    "HANDOFF_HEADER": "Take one pair further",
-    "HANDOFF_HELP": ("Two institutions at a time can be read as a possible collaboration: what they "
-                     "already share, and what each one publishes in that the other does not."),
-    "HANDOFF_A_LABEL": "First institution",
-    "HANDOFF_B_LABEL": "Second institution",
-    "HANDOFF_LINK": "Open this pair",
     "XLSX_SHEET_IMPACT_INDEX": "Impact overall",
     "XLSX_SHEET_IMPACT_SUBFIELDS": "Impact by subfield",
     "XLSX_ROW_FLOORS": "Floors in force",
@@ -996,11 +969,6 @@ COMPARE = {
     # the empty states, the workbook chrome), and a deleted key is a crash in
     # another stream's file rather than a cleanup.
     # ======================================================================
-
-    # 2B-R-4: the comparison's own cap, separate from the basket's.
-    "CAP_TRUNCATED": ("The basket holds more institutions than a comparison can show at once. The "
-                      "first {cap} are compared here, leaving {n} out; remove one below to swap "
-                      "another in."),
 
     # 2B-R-12: the chip the shared-frontier colour carries in every legend.
     "LEGEND_SHARED": "held by more than one",
@@ -1069,6 +1037,11 @@ COMPARE = {
                               "one attention to the topic is expanding, above the horizontal one "
                               "that expansion is itself speeding up."),
     "VIEW_SHARED_FRONTIER": "Who holds the shared frontier",
+    # 2BR3 VC item 4: top twenty by combined volume by default, a button
+    # (never a slider) swaps in the rest -- independent of the pooled map's
+    # own "topics plotted" control just above it.
+    "SHARED_FRONTIER_SHOW_ALL": "Show all {n}",
+    "SHARED_FRONTIER_SHOW_TOP": "Show the top {n} only",
     "CAPTION_SHARED_FRONTIER": ("The topics more than one of them holds, ranked by the publications "
                                 "they hold between them on the {basis} basis, with each "
                                 "institution's own volume drawn. At two institutions the bars "
@@ -1180,18 +1153,16 @@ COMPARE = {
     "TIP_IMPACT": ("Counted over the {y0} to {y1} window, against the world distribution for the "
                    "publication's own subject, year and document type; fractional counting "
                    "throughout, and {bonus_year} is left out. {ci}"),
-    "NOTE_IMPACT_SUBFIELDS": "Showing the {n} of the {n_union} subfields this set publishes most in.",
+    # 2BR3 VC item 3: the selection rule stated in plain words, not "showing
+    # {n} of {n_union}" alone -- the rule is `compare_data.impact_subfields`'s
+    # own floor-clearing union, read out here rather than left implicit.
+    "NOTE_IMPACT_SUBFIELDS": ("Showing the {n} of {n_union} subfields where at least one institution "
+                              "holds {floor} or more fractional publications."),
     "TIP_IMPACT_SUBFIELDS": ("Every subfield at least one of the compared institutions clears at "
                              "the chosen floor is in the frame. Where an institution does not "
                              "clear it the cell reads n/a: it publishes too little there to "
                              "measure, which is a different thing from a low figure. Lowering the "
                              "floor brings in more subfields and widens every interval. {ci}"),
-    "NOTE_TRENDS": "Each line is the share of that institution's own publications of the year in one subfield.",
-    "TIP_TRENDS": ("Read on the {basis} basis and the {tree} taxonomy. Every panel shares one "
-                   "vertical scale, so any line can be read against any other. The subfields are "
-                   "the ones the whole compared set publishes most in, so a subfield that matters "
-                   "to one institution alone can still appear. {bonus_year} is marked on the axis "
-                   "and reported for volume only."),
     "NOTE_COVERAGE": "Share of each institution's whole output in each state; the states cover everything.",
     "TIP_COVERAGE": ("The states are exclusive and sum to the institution's whole fractional "
                      "output, so the classified share is what the subject, ERC and SDG views above "
@@ -1201,6 +1172,14 @@ COMPARE = {
     "XLSX_ROW_POOL": "Frontier topics shown",
     "XLSX_ROW_COLOUR": "Frontier colours",
     "XLSX_ROW_SORT": "Row order",
+
+    # ======================================================================
+    # 2BR3 VC (plan SS1 item 1 / SS3 "VC"). The bottom meta block: the page's
+    # own method sentence and the index-size/data-date line move here from
+    # the header, inside one collapsible, so the first chart is visible
+    # without scrolling past prose (plan SS1.5). ADDITIVE ONLY.
+    # ======================================================================
+    "ABOUT_HEADER": "About these figures",
 }
 
 # ----------------------------------------------------- Collaborate page ----
@@ -1210,17 +1189,6 @@ COLLAB = {
     "PAGE_TITLE": "Collaborate",
     "PAGE_INTRO": ("Two institutions read against each other: the topics both already publish in, "
                    "and the topics each one is absent from inside its own strongest subfields."),
-
-    # ---- the pair picker --------------------------------------------------
-    "PAIR_HEADER": "The pair",
-    "PAIR_A_LABEL": "Institution A",
-    "PAIR_B_LABEL": "Institution B",
-    "PAIR_SWAP_BUTTON": "Swap A and B",
-    "PAIR_SWAP_HELP": ("The gap tables read in one direction, so swapping changes which institution "
-                       "the gaps are listed for."),
-    "PAIR_PROMPT": ("Pick two institutions, from the basket or by name, to read what they share and "
-                    "what each one lacks."),
-    "PAIR_PICK": "Matching institutions",
 
     # ---- shared topics ----------------------------------------------------
     "SHARED_HEADER": "What both already work on",
@@ -1256,14 +1224,7 @@ COLLAB = {
                      "whatever mass sits on it, so it answers a different question from the shared "
                      "table above, which weighs every topic by the publications behind it."),
 
-    # ---- link-outs --------------------------------------------------------
-    "LINKS_HEADER": "Read the publications on OpenAlex",
-    "LINK_PUBS": "{name}: publications",
-    "LINK_COPUBS": "Publications the two have signed together",
-
     # ---- empty states -----------------------------------------------------
-    "EMPTY_NO_PAIR": ("Two institutions are needed here. Pick them above, or open this page from a "
-                      "pair in the comparison."),
     "EMPTY_SAME": "The two selections are the same institution. Pick a second one.",
     "EMPTY_SHARED": ("{a} and {b} publish in no topic in common in this snapshot, which is itself a "
                      "finding: their portfolios do not meet at topic grain."),
@@ -1348,7 +1309,6 @@ COLLAB = {
     "JOINT_FIELDS_HEADER": "Fields of the joint corpus",
     "JOINT_SUBFIELDS_HEADER": "The same corpus by subfield",
     "JOINT_TOPICS_HEADER": "The most-published shared topics",
-    "JOINT_COL_FIELD": "Field",
     "JOINT_COL_SUBFIELD": "Subfield",
     "JOINT_COL_TOPIC": "Topic",
     "JOINT_COL_VOL": "Joint publications",
@@ -1356,16 +1316,12 @@ COLLAB = {
     "JOINT_COL_W2": "{w2}",
     "JOINT_COL_BONUS": "{bonus_year}{star}",
     "JOINT_COL_SDG": "Tagged to a goal",
-    "JOINT_COL_FRONTIER": "Frontier",
     "JOINT_WINDOW_NOTE": (
         "The two window columns are {w1} and {w2}, the windows dynamics is read on everywhere else in "
         "the tool; the starred column is the partial year and is not comparable with either."),
     "JOINT_SDG_LINE": (
         "{n_tagged} of the {n_shown} joint publications on the topics shown, {share}, carry at least "
         "one sustainable development goal."),
-    "JOINT_FRONTIER_LINE": (
-        "{n_frontier} of the shared topics shown sit in the global top quartile of emergence, "
-        "flagged in the table above."),
     "JOINT_ERC_LINE": (
         "**{panel}** is the panel most of the pair's labelled joint work lands on: {n_panel} of "
         "{n_labelled} labelled joint publications, {share}."),
@@ -1401,13 +1357,6 @@ COLLAB = {
         "shared by neither: the nearest ground the partnership has not yet covered. {n} of them."),
     "SIBLINGS_COL_TOPIC": "Topic",
     "SIBLINGS_COL_SUBFIELD": "Subfield",
-    "SHARED_EXPANDER": "The full topic overlap, weighted by publications",
-    "DOWNLOAD_UNTAPPED": "Download the untapped topics (CSV)",
-
-    # ---- section four: the link-outs --------------------------------------
-    "LINKS_INTRO": (
-        "Every figure on this page is computed offline from the snapshot. These three links open the "
-        "same filters live on OpenAlex, where the publications themselves can be read."),
 
     # ======================================================================
     # 2B-R2-11 / stream LP3: the re-cut Collaborate page (field breakdown as
@@ -1425,10 +1374,18 @@ COLLAB = {
     "PULSE_CHART_READING": (
         "Publications signed by both institutions, counted in full, one bar per year."),
 
-    # ---- the swap control, once the directional gap tables are gone -------
-    "PAIR_SWAP_HELP_PAIR": (
-        "Swapping changes which institution is read first. Every figure below covers the pair as a "
-        "pair, so the readings themselves do not change."),
+    # ---- the pair momentum headline (2BR3 task 1) --------------------------
+    # Windows, shares, counts and the significance threshold all come from
+    # `collab_data.pair_momentum` / `collab_facts.json` at render time -- no
+    # window and no number is typed into any of these three.
+    "MOMENTUM_LABEL": "Momentum",
+    "MOMENTUM_EVIDENCE_SHARE": (
+        "{w1}: co-publications made up {share1} of the pair's combined output {sep} {w2}: {share2}"),
+    # Annual means, not raw window totals: the two windows are unequal (three
+    # years vs two), so raw counts always read as a drop (manager merge fix
+    # after the first live render did exactly that).
+    "MOMENTUM_EVIDENCE_COPUBS": "Co-publications per year: {c1} {arrow} {c2}",
+    "MOMENTUM_EVIDENCE_SIGNIFICANCE": "Significance: p = {p} (threshold {alpha})",
 
     # ---- section two: the joint corpus, field by field --------------------
     "FIELDS_HEADER": "The joint corpus, field by field",
@@ -1436,19 +1393,30 @@ COLLAB = {
         "Publications signed by both institutions, by field, grouped under the four broad domains."),
     "FIELDS_CHART_TOOLTIP": (
         "Each joint publication is counted once, under the field its main subject belongs to, and "
-        "counted in full for both sides. The colour beside a field name is its domain. Field mix "
+        "counted in full for both sides. Every bar is coloured by its OpenAlex domain. Field mix "
         "reads the repaired subject taxonomy and does not follow the taxonomy choice in the sidebar, "
         "so it stays the same as that choice moves; the topic table below does follow it."),
-    "FIELDS_TABLE_READING": "The same fields as numbers, with how the joint work has been received.",
-    # The page appends `FWCI_NOT_AVAILABLE_LINE` (defined BELOW this dict, so
-    # it cannot be concatenated here) to this tooltip: the impact columns are
-    # introduced in this table, and that is where the descope has to be said.
-    "FIELDS_TABLE_TOOLTIP": (
-        "Volumes count every joint publication in the field, not only the ones behind the topic "
-        "table below. The two impact columns are described in their own column headings."),
-    "DOWNLOAD_FIELDS": "Download the field breakdown (CSV)",
 
-    # ---- section three: the shared topics ---------------------------------
+    # ---- "Strategic reciprocity by field" (2BR3 task 4, Lorraine port) -----
+    "RECIPROCITY_HEADER": "Strategic reciprocity by field",
+    "RECIPROCITY_HOW_TO_READ": (
+        "How to read: each bubble is a field the pair has published in together. Its horizontal "
+        "position is that field's share of {name_b}'s own portfolio; its vertical position is the "
+        "same field's share of {name_a}'s own portfolio. A bubble close to the dotted line carries a "
+        "similar weight on both sides; one further from it matters more to one side than the other. "
+        "Bubble area is the pair's own joint publications in that field."),
+    "RECIPROCITY_WHY": (
+        "Why this figure: a field can be central to one partner's portfolio and only marginal to the "
+        "other's. Crossing the two shares this way separates a structural partnership, where both "
+        "sides already invest heavily, from a volume partnership, where the joint output is large "
+        "mainly because one side is large."),
+    "RECIPROCITY_AXIS_X": "Share of {name}'s own portfolio",
+    "RECIPROCITY_AXIS_Y": "Share of {name}'s own portfolio",
+    "RECIPROCITY_HOVER_X": "share of {name}'s portfolio",
+    "RECIPROCITY_HOVER_Y": "share of {name}'s portfolio",
+    "RECIPROCITY_HOVER_JOINT": "joint publications",
+
+    # ---- section three (2BR3): the topic deep dive -------------------------
     "TOPICS_HEADER": "The topics the two publish on together",
     "TOPICS_READING": "The shared topics carrying the most joint publications, largest first.",
     "TOPICS_TOOLTIP": (
@@ -1461,31 +1429,35 @@ COLLAB = {
     "UNTAPPED_READING": (
         "Shared topics where the two publish less together than their own overall rate predicts."),
 
-    "TOPICS_SLIDER": "Topics shown",
-    "TOPICS_SLIDER_HELP": (
-        "How many of the pair's most-published shared topics to list. The ones left out are the "
-        "smallest."),
+    "SHOW_ALL_BUTTON": "Show all {n} topics",
 
-    # ---- the table columns shared by the three tables ---------------------
+    # ---- the table columns shared by the topic and untapped tables --------
     "COL_TOP10": "In the world top decile",
-    "COL_TOP10_VALUE": "{n_top10} of {n_covered}",
-    "COL_TOP10_HELP": (
-        "How many joint publications sit among the most cited tenth of the world's publications on "
-        "the same subject, in the same year and of the same kind, out of the joint publications a "
-        "world comparison can be made for at all. Read the first number against the second, never "
-        "against the total beside it: the two counts have different denominators on purpose."),
-    "COL_MEAN_CITATIONS": "Mean citations",
-    "COL_MEAN_CITATIONS_HELP": (
-        "The average number of citations a joint publication in this field has collected so far, "
-        "exactly as counted, with no adjustment for subject or for how long ago it appeared. Older "
-        "work has had more time to be cited than recent work, so fields are not strictly comparable "
-        "on this column alone."),
-    "COL_TREND": "Trend",
-    "COL_TREND_HELP": (
-        "Mean joint publications a year over {w1}, against the same rate over {w2}. A difference "
-        "smaller than {band} of a publication a year is shown as steady rather than as a direction, "
-        "and the partial year is in neither window."),
+    "COL_TOP10_DF_HELP": (
+        "Share of this topic's joint publications that sit among the most-cited tenth of the world's "
+        "publications on the same subject, in the same year and of the same kind. Only publications "
+        "with enough citation data can be placed in that world comparison at all, so this share reads "
+        "against every joint publication in the topic, not only the ones a world comparison exists "
+        "for."),
+    "COL_SDG_DF_HELP": (
+        "Share of this topic's joint publications tagged to at least one Sustainable Development "
+        "Goal."),
+    "DF_COL_DOMAIN": "Domain",
+    "DF_COL_FWCI": "Median FWCI",
+    "COL_FWCI_HELP": (
+        "Citations a joint publication in this topic has collected, relative to a European reference "
+        "of the same subfield, year and document type; a value above the reference reads as more "
+        "cited than that European average, one below as less. The figure shown is the median across "
+        "the topic's joint publications with enough citation data. See Methods for the reference "
+        "corpus and its known limits."),
+    "JOINT_COL_SDG_RAW": "Tagged, count",
+    "DF_COL_MOMENTUM": "Momentum",
+    "DF_COL_MOMENTUM_HELP": (
+        "Whether joint output in this topic is growing, shrinking or steady between the two windows "
+        "the tool reads momentum on, at class grain only. See the pair's own momentum figure above "
+        "for the full reading, with its percentage and its significance test."),
     "COL_LINK": "Read",
+    "COL_LINK_DISPLAY": "Open",
     "COL_LINK_HELP": (
         "Opens the publications the two institutions signed together on this row's subject, live on "
         "OpenAlex, with the same filters this page counts on."),
@@ -1505,6 +1477,9 @@ COLLAB = {
     "NOT_OFFERED_SUBFIELDS_REASON": (
         "the field breakdown and the topic table sit either side of it and are both complete on "
         "their own terms"),
+
+    # ---- bottom meta, collapsed by default (2BR3 layout ruling) -----------
+    "META_EXPANDER": "About these figures",
 }
 
 # --------------------------------------------------------- Methods page ----

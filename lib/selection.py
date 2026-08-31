@@ -165,6 +165,23 @@ def deeplink(kind: str, ids) -> str:
     return f"?{kind}=" + ",".join(ids)
 
 
+def share_link_block(kind: str, ids, *, caption: str | None = None) -> None:
+    """The share-link UI element at the FOOT of a page (plan §1.4). VC/VL call
+    it once with `ids` = their own resolved slot picks (`slots_row`'s return,
+    `None` entries included -- dropped here) and `kind` = "compare" / "pair".
+    `caption` is the caller's own copy string. Renders nothing when no id
+    survives. Lives HERE (not lib/links.py) because it is a Streamlit element
+    and links.py is on test_narrative's pure-module list (manager merge, 2BR3)."""
+    import streamlit as st  # function-local by this module's own convention
+
+    filled = [i for i in ids if i]
+    if not filled:
+        return
+    if caption:
+        st.caption(caption)
+    st.code(deeplink(kind, filled), language=None)
+
+
 # ============================================================================
 # 2BR3 SEL (plan §3 SEL / ruling 1): the shared sidebar search + basket, and
 # the slots API. See the module docstring for the Streamlit-import note.
