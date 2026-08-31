@@ -225,10 +225,39 @@ DEFAULT_GROUP_FILL = 0.9
 
 SI_NEUTRAL = 1.0            # SI/ESI reference: at the neutral value the institution's
                             # share equals the reference population's share
-SI_LABEL_PAD_FRAC = 0.18    # 2B-R-13: extra headroom (as a fraction of the SI
+SI_LABEL_PAD_FRAC = 0.26    # 2B-R-13: extra headroom (as a fraction of the SI
                             # panel's own value span) reserved on BOTH ends of
-                            # the SI x-axis so the new outer-end value label
-                            # never clips against the plot border
+                            # the SI x-axis so the outer-end value label does
+                            # not clip against the plot border.
+                            # 2B-R2-7: 0.18 -> 0.26, and see SI_LABEL_MARGIN_PX
+                            # below -- the pad ALONE cannot do this job. It is a
+                            # fraction of the value SPAN, while the label it has
+                            # to clear is a fixed ~30 px, so the clearance it
+                            # buys collapses exactly where the span is widest.
+                            # Measured on the worst case in the index (Ifremer's
+                            # top-30 subfields at 1280 px: SI 0.17 to 21.35, and
+                            # a 430 px name gutter that leaves the SI panel just
+                            # 113 px wide): clearing "21.35" by padding alone
+                            # needs a pad the size of the whole span, i.e. the
+                            # data compressed into a third of the panel. 0.26 is
+                            # what keeps the INNER labels off each other's ends
+                            # without deforming the figure.
+SI_LABEL_MARGIN_PX = 24     # 2B-R2-7: and this is what actually stops the
+                            # OUTERMOST label clipping -- the SI trace draws
+                            # with `cliponaxis=False`, so its text may run past
+                            # the axis end, and the figure reserves a right
+                            # margin wide enough to hold one label (~5 glyphs at
+                            # GUTTER_FONT_PX plus the marker gap) instead of the
+                            # 16 px of chrome every other figure uses. 24 rather
+                            # than the 44 and 32 first tried, both MEASURED on the
+                            # two worst panels: every px of right margin also
+                            # narrows the plot region, and on the ERC panel (name
+                            # gutter ~510 px) 44 and 32 pushed the two axis TITLES
+                            # into each other. At 24 the worst-case label clears
+                            # the paper edge by ~14 px AND the titles keep the
+                            # separation they had. Nothing else in the layout
+                            # moves: same heights, same column widths, same left
+                            # gutter, same ranges.
 FRONTIER_ORIGIN = 0.0       # the quadrant split on BOTH frontier axes (verified on
                             # topics_dim: `quadrant` flips sign at zero on expansion
                             # and on acceleration)
@@ -659,6 +688,12 @@ def fig_share_si(
             textfont=dict(color=P.INK_SECONDARY, size=GUTTER_FONT_PX),
             customdata=[h for h, k in zip(bar_hover, ok) if k],
             hovertemplate="%{customdata}<extra></extra>", showlegend=False,
+            # 2B-R2-7: the label may run PAST the axis end rather than losing
+            # its last glyphs to the plot border. The right margin below is
+            # sized to hold it (`SI_LABEL_MARGIN_PX`); on the inner side the
+            # label runs into the gap between the two panels, which is blank
+            # (the share bars nearest the SI panel are the shortest rows).
+            cliponaxis=False,
         ), row=si_row, col=si_col)
         fig.add_vline(x=SI_NEUTRAL, row=si_row, col=si_col,
                       line=dict(color=P.INK_SECONDARY, width=HAIRLINE_PX, dash="dash"))
@@ -679,7 +714,9 @@ def fig_share_si(
     fig.update_xaxes(title_text=AX_SHARE, tickformat=_AXIS_PCT_FMT, row=1, col=1)
     height = row_height(n, n_wrapped=n_wrapped) * (2 if (has_si and stacked) else 1)
     margin_l = _gutter_margin_px(plain_display)
-    return _base_layout(fig, height, margin=dict(t=BASE_PX // 2, l=margin_l, r=16, b=BASE_PX))
+    margin_r = SI_LABEL_MARGIN_PX if has_si else 16
+    return _base_layout(fig, height, margin=dict(t=BASE_PX // 2, l=margin_l, r=margin_r,
+                                                 b=BASE_PX))
 
 
 # ---------------------------------------------------------------------------

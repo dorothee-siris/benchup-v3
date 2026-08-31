@@ -235,10 +235,12 @@ CONTROLS_ROW_KEYS = ("depth", "c1_on", "l7_on")
 POST_FILTER_KEYS = ("f_types", "f_countries", "f_excl_own", "f_size", "f_guard", "f_family")
 
 
-def test_find_profile_section_renders_header_and_four_cards():
-    """2B-R-2 (edited by stream FA, which replaced the eight tiles): the profile
-    section holds the seed's name and exactly FOUR KPI cards, each carrying ONE
-    subline -- the index baseline. AppTest exposes no container element type
+def test_find_profile_section_renders_header_and_six_cards():
+    """2B-R2-6 (edited by stream FA3, which took 2B-R-2's four cards to six):
+    the profile section holds the seed's name and exactly SIX KPI cards, each
+    carrying ONE small line -- the index baseline on five of them, the
+    fractional-counting note on the publications card. AppTest exposes no
+    container element type
     (see test_menu_has_at_least_three_nav_cards), so the cards are counted by
     lib/tiles.py's own stable class hooks, never by a user-facing string.
 
@@ -251,20 +253,26 @@ def test_find_profile_section_renders_header_and_four_cards():
     assert copy.FIND["PROFILE_HEADER"] in headers, headers
     assert copy.FIND["BENCHMARK_HEADER"] in headers, headers
     rendered = [m.value for m in at.markdown if tiles.TILE_CLASS in m.value]
-    assert len(rendered) == views_find.N_CARDS == 4, len(rendered)
+    assert len(rendered) == views_find.N_CARDS == 6, len(rendered)
     for html in rendered:
         assert html.count(tiles.SUBLINE_CLASS) == 1, html
-    for label_key in ("KPI_PUBS_LABEL", "KPI_SDG_LABEL", "KPI_FRONTIER_LABEL", "KPI_PP_LABEL"):
+    for label_key in ("KPI_PUBS_LABEL", "KPI_SDG_LABEL", "KPI_FRONTIER_LABEL", "KPI_PP_LABEL",
+                      "KPI_INTL_LABEL", "KPI_COMPANY_LABEL"):
         assert any(copy.FIND[label_key] in html for html in rendered), label_key
     from lib.app_config import CFG
     dropped = [copy.FIND["TILE_HHI"], copy.FIND["TILE_BREADTH"],
                copy.FIND["TILE_BONUS_YEAR"].format(year=CFG["bonus_year"])]
     for label in dropped:
         assert not any(label in html for html in rendered), label
-    # ...and every card's subline is the index baseline itself.
+    # ...and every card's small line is the index baseline itself, EXCEPT the
+    # publications card, whose small line is the same measure on the fractional
+    # basis (2B-R2-6) -- asserted here rather than skipped, so a card that
+    # quietly lost its reference line still fails.
     baseline_fixed = _template_literal_segment(copy.FIND["TILE_BASELINE_SUB"])
-    for html in rendered:
-        assert baseline_fixed in html, html
+    with_baseline = [h for h in rendered if baseline_fixed in h]
+    assert len(with_baseline) == views_find.N_CARDS - 1, len(with_baseline)
+    pubs = [h for h in rendered if copy.FIND["KPI_PUBS_LABEL"] in h]
+    assert len(pubs) == 1 and tiles.VALUE2_CLASS in pubs[0], pubs
 
 
 def test_find_profile_has_no_coverage_line():

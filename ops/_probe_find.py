@@ -56,7 +56,10 @@ TALL_SHOT_PX = 5600     # inspection I-4: match _probe_compare so full pages shi
 N_DEFAULT_TABS = 10   # Overview + the 8 default lenses + Aspirational
 N_TOGGLED_TABS = 12   # ... + C1 + L7
 N_PANELS = 6          # Fields, Top subfields, Top topics, Frontier, SDG, ERC
-N_TILES = 4           # 2B-R-2: 2 x 2 card grid (size, SDG, frontier, PPtop10)
+N_TILES = 6           # 2B-R2-6: 2 x 3 card grid (publications, SDG, frontier,
+                      # PPtop10, international co-pubs, industrial co-pubs)
+CRASH_SEED = "I154202486"   # Ifremer -- umbrella AND type-corrected, the profile
+                            # that crashed at gate 2B-R (2B-R2-1a)
 GOLD_RANK1 = ("I34250744", 0.793119)
 
 PORT = DEFAULT_PORT
@@ -175,14 +178,20 @@ def _probe_profile(page) -> None:
     check(page.locator(".st-key-profile").count() == 1,
           "the profile container renders exactly once")
     cols = _row1_columns(page)
-    check(cols == 2, f"the profile's row 1 is two columns — identity+cloud | cards (found {cols})")
+    check(cols == 2, f"the profile's row 1 is two columns - cards | identity+cloud (found {cols})")
     imgs = _row1_images(page)
     check(imgs >= 1, f"the wordcloud <img> sits inside that row-1 block (found {imgs})")
     tiles = page.locator(".st-key-profile .benchup-kpi").count()
-    check(tiles == N_TILES, f"the profile carries {N_TILES} KPI tiles (found {tiles})")
+    check(tiles == N_TILES, f"the profile carries {N_TILES} KPI cards (found {tiles})")
     subs = page.locator(".st-key-profile .benchup-kpi-sub").count()
     check(subs == N_TILES,
-          f"every card carries its baseline subline (found {subs} for {N_TILES} cards)")
+          f"every card carries exactly one small line (found {subs} for {N_TILES} cards)")
+    # 2B-R2-6: FIVE of the six small lines are the index baseline; the sixth is
+    # the publications card's fractional-counting note, which carries its own
+    # hook inside that same line.
+    notes = page.locator(".st-key-profile .benchup-kpi-value2").count()
+    check(notes == 1,
+          f"exactly one card (publications) carries the fractional note (found {notes})")
     check(_captions(page).find(ui_copy.FIND["COVERAGE_LINE"].split("{")[0].strip()) == -1,
           "the retired coverage line is nowhere on the page")
 
@@ -294,6 +303,45 @@ def _probe_controls(page) -> None:
           "no Streamlit exception after applying a type post-filter")
 
 
+def _probe_crash_seed(browser) -> None:
+    """2B-R2-1a: the profile that took the app down at gate 2B-R (Ifremer is
+    both an umbrella and type-corrected). Rendered at all three widths, with
+    the type correction asserted in its INLINE form -- the badge that used to
+    carry it is gone, so a page that merely renders is not enough: the
+    information has to still be there.
+
+    The expected string is COMPOSED from `lib/copy.py` and the index's own two
+    type columns, never typed here."""
+    import pandas as pd
+
+    row = pd.read_parquet(APP_DIR / "data" / "index.parquet",
+                          columns=["institution_id", "type", "type_openalex"])
+    row = row.loc[row["institution_id"] == CRASH_SEED].iloc[0]
+    expected = ui_copy.FIND["IDENTITY_TYPE_CORRECTED"].format(
+        kind=str(row["type"]), star="*", was=str(row["type_openalex"]))
+    SHOT_DIR.mkdir(parents=True, exist_ok=True)
+    for width in WIDTHS:
+        page = browser.new_page(viewport={"width": width,
+                                          "height": TALL_SHOT_PX if width >= 1280 else SHOT_HEIGHT_PX})
+        _load(page, CRASH_SEED)
+        check(page.locator('[data-testid="stException"]').count() == 0,
+              f"{width} px: the formerly crashing profile renders with no exception")
+        text = page.locator('[data-testid="stMain"]').inner_text()
+        check(expected in text,
+              f"{width} px: the type correction renders inline ({expected})")
+        check(page.locator(".st-key-profile .benchup-kpi").count() == N_TILES,
+              f"{width} px: the crash seed carries {N_TILES} cards")
+        scroll = page.evaluate("document.documentElement.scrollWidth")
+        inner = page.evaluate("window.innerWidth")
+        check(scroll <= inner + 2,
+              f"{width} px (crash seed): scrollWidth {scroll} <= innerWidth+2 {inner + 2}")
+        path = SHOT_DIR / f"fa3_find_ifremer_{width}.png"
+        page.screenshot(path=str(path), full_page=True)
+        print("Saved screenshot:", path)
+        check(path.is_file(), f"{width} px: crash-seed screenshot written")
+        page.close()
+
+
 def _probe_widths(browser) -> None:
     # A TALL viewport, not `full_page=True`: Streamlit's content scrolls inside
     # `[data-testid="stMain"]` rather than `document.body`, so Playwright's
@@ -309,7 +357,7 @@ def _probe_widths(browser) -> None:
         inner = page.evaluate("window.innerWidth")
         check(scroll <= inner + 2,
               f"{width} px: scrollWidth {scroll} <= innerWidth+2 {inner + 2}")
-        path = SHOT_DIR / f"e3_find_{width}.png"
+        path = SHOT_DIR / f"fa3_find_{width}.png"
         page.screenshot(path=str(path), full_page=True)
         print("Saved screenshot:", path)
         check(path.is_file(), f"{width} px: screenshot written")
@@ -379,6 +427,7 @@ def main() -> int:
             _probe_controls(page)
             page.close()
             _probe_widths(browser)
+            _probe_crash_seed(browser)
             browser.close()
     finally:
         server.terminate()

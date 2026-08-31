@@ -618,6 +618,68 @@ FIND = {
         "C1": "L8 · Core-shape overlap",
         "L7": "L9 · SDG specialisation (experimental)",
     },
+
+    # ======================================================================
+    # Sprint 2 Phase 2B-R2, stream FA3 (2B-R2-1a / 2B-R2-6 / 2B-R2-8, Find
+    # scope). ADDITIVE ONLY -- every key below is new, and the keys the cards
+    # stop using (KPI_PUBS_HELP, KPI_PP_HELP, IDENTITY_FACTS_HELP,
+    # PUBLICATIONS_LINK_LABEL) are left exactly as they stand for stream MU3's
+    # own plain-language sweep to dispose of. Deleting one here would be a
+    # crash in another stream's file, never a cleanup.
+    # ======================================================================
+
+    # 2B-R2-1a: the type correction is no longer a badge. It renders INLINE in
+    # the identity line -- "government* (was: facility) · Brest, France" -- with
+    # the star, and only the star, in red, and the whole line's tooltip saying
+    # what the star means. Ten institutions carry it (Ifremer, TNO, CNR,
+    # SINTEF, DLR, Ikerbasque and the four German centres); every one of them
+    # crashed the profile while the correction and the umbrella badge were
+    # asserted mutually exclusive.
+    "IDENTITY_TYPE_CORRECTED": "{kind}{star} (was: {was})",
+    "IDENTITY_TYPE_HELP": (
+        "The type marked with a star is a SIRIS correction: OpenAlex records this institution "
+        "under the type in brackets, which misdescribes what it is and would place it against the "
+        "wrong comparison group. The corrected type is what every filter, median and comparison on "
+        "this page uses."),
+
+    # 2B-R2-6: the institution NAME is the link to its publications in
+    # OpenAlex, so the row of links carries only the two links that point
+    # somewhere else. What a publication IS moved into the publications card's
+    # own tooltip, where the figure it qualifies is.
+    "IDENTITY_NAME_HELP": (
+        "The institution name opens its publications in OpenAlex, filtered exactly as this "
+        "analysis filters them. The live count differs slightly from the figure shown here: "
+        "OpenAlex keeps changing, this analysis reads a fixed extract."),
+
+    # 2B-R2-6: SIX cards, name first. The publications card carries the
+    # fractional count as its small line instead of an index position; the
+    # other five carry the index baseline.
+    "KPI_PUBS_FRAC_NOTE": "({n} in fractional counting)",
+    "KPI_PUBS_HELP_FULL": (
+        "The large figure counts every publication the institution is named on. The figure under "
+        "it credits only the author share it holds, which is the fairer basis for comparing "
+        "institutions of different sizes and the basis most of this page uses."),
+    "KPI_PP_HELP_R2": (
+        "Share of the institution's fractional output that sits in the world top decile of its "
+        "own citation distribution. Articles and reviews only; the bonus year is excluded. The "
+        "figure rests on the publications the world reference covers, so two institutions whose "
+        "positions are close are not separated by this measure."),
+    "KPI_INTL_LABEL": "International co-publications",
+    "KPI_COMPANY_LABEL": "Industrial co-publications",
+    "KPI_INTL_HELP": (
+        "Share of the institution's publications from {y0} to {y1}, full counting, carrying at "
+        "least one other institution named on the record and based in another country. "
+        "Institutions OpenAlex cannot place in a country are counted in the denominator and never "
+        "treated as domestic."),
+    "KPI_COMPANY_HELP": (
+        "Share of the institution's publications from {y0} to {y1}, full counting, carrying at "
+        "least one company named on the record. The type is the one OpenAlex records for the "
+        "partner, so an institute a company owns but OpenAlex types otherwise is not counted."),
+
+    # 2B-R2-8 (Find scope) needs NO new string: what stays visible under a
+    # chart is ONE reading line, and the second and third grey lines move --
+    # verbatim, same keys -- into that line's own `?` tooltip. A relocation is
+    # not a rewrite; rewriting these sentences is stream MU3's pass.
 }
 
 # 2B-R-11a: the two dicts above, hoisted to module level so `lib/ranked.py`

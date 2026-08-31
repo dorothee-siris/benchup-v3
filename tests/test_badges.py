@@ -45,21 +45,34 @@ def test_umbrella_flags_zero_education_and_covers_most_supplement(index_df):
     assert len(hits) >= 20, f"only {len(hits)}/{len(supplement)} supplement names flagged"
 
 
-def test_type_corrected_badge_sciences_po(index_df):
+def test_corrected_from_returns_the_original_type_sciences_po(index_df):
+    """2B-R2-1a: the function returns the BARE original type -- the "was:" half
+    of the inline identity form -- not a badge sentence."""
     row = index_df.loc[index_df["institution_id"] == "I205092303"].iloc[0]
-    assert badges.type_corrected_badge(row) == "type corrected by SIRIS (was: facility)"
+    assert badges.corrected_from(row) == "facility"
 
 
-def test_type_corrected_badge_none_when_types_match(index_df):
+def test_corrected_from_none_when_types_match(index_df):
     row = index_df.loc[index_df["institution_id"] == "I39804081"].iloc[0]  # Sorbonne: type == type_openalex
-    assert badges.type_corrected_badge(row) is None
+    assert badges.corrected_from(row) is None
 
 
-def test_badges_for_raises_on_both_badges_synthetic_row():
-    row = {"institution_id": "SYN1", "type": "education", "type_openalex": "facility"}
+def test_an_umbrella_that_is_also_type_corrected_renders_one_badge_not_a_crash():
+    """2B-R2-1a, the crash class itself: under 2A this row raised an
+    AssertionError ("mutually exclusive"), which is what took the Ifremer
+    profile down. The row is legitimate -- ten real institutions are both --
+    so it now yields the umbrella badge and nothing else, the type correction
+    having moved into the identity line."""
+    row = {"institution_id": "SYN1", "type": "government", "type_openalex": "facility"}
     flags = pd.Series([True], index=["SYN1"])
-    with pytest.raises(AssertionError):
-        badges.badges_for(row, flags, {})
+    assert badges.badges_for(row, flags, {}) == [copy.UMBRELLA_BADGE_LABEL]
+    assert badges.corrected_from(row) == "facility"
+
+
+def test_no_badge_at_all_when_only_the_type_was_corrected():
+    """The other half: a correction on its own puts NOTHING in the badge row."""
+    row = {"institution_id": "SYN3", "type": "education", "type_openalex": "facility"}
+    assert badges.badges_for(row, pd.Series(dtype=bool), {}) == []
 
 
 def test_badges_for_single_badge_ok():

@@ -3,12 +3,23 @@ app/lib/badges.py -- umbrella/aggregate, type-corrected and catch-all badges
 (Sprint 2 Phase 2A, Stream F). Pure functions over the institution index /
 engine row dicts -- no Streamlit import.
 
-Umbrella and type-corrected are asserted MUTUALLY EXCLUSIVE on any one row
-(BUILD_PLAN_2A.md L7, WT #14): the umbrella rule reads the PATCHED `type`
-column (config.yaml umbrella_badge.basis_column), never `type_openalex`,
-specifically because the `type_openalex` basis would flag Sciences Po,
-CentraleSupelec and EHESS -- all three type-corrected TO education -- as
-umbrellas at the same time their own badge says "this is really education".
+The umbrella rule reads the PATCHED `type` column (config.yaml
+umbrella_badge.basis_column), never `type_openalex`, specifically because the
+`type_openalex` basis would flag Sciences Po, CentraleSupelec and EHESS -- all
+three type-corrected TO education -- as umbrellas at the same time their own
+correction says "this is really education".
+
+2B-R2-1a RETIRES the 2A L7 "umbrella and type-corrected are mutually exclusive"
+invariant, and with it the assertion that enforced it. The invariant held while
+the two flags were drawn from disjoint populations; the 2B-R / R2 type overrides
+made ten institutions (Ifremer, TNO, CNR, SINTEF, DLR, Ikerbasque, DZHK, DZNE,
+DZL, DZIF) legitimately BOTH -- an umbrella by volume against its country-type
+median AND corrected away from the type OpenAlex records. Every one of them
+crashed the profile on an AssertionError. The fix is not to suppress one flag
+(that hides true information): the type correction is no longer a BADGE at all.
+It renders INLINE in the identity line -- "government* (was: facility)" --
+built by `corrected_from` below and composed in `lib/views_find.py`; the
+umbrella badge is the only badge this module still emits.
 """
 from __future__ import annotations
 
@@ -57,18 +68,25 @@ def umbrella_medians(index_df: pd.DataFrame) -> dict:
     return {key: float(v) for key, v in med.items()}
 
 
-def type_corrected_badge(row) -> str | None:
-    """CFG type_overrides.ui_badge formatted with the ORIGINAL type, whenever
-    `type != type_openalex` (both compared as str). Works on either a raw
-    index_df row (type_openalex always populated) or an engine evidence dict
-    (type_openalex already None-clamped when equal to type)."""
+def corrected_from(row) -> str | None:
+    """The ORIGINAL (OpenAlex) type whenever the shipped `type` differs from it
+    -- the "was: ..." half of the 2B-R2-1a inline identity form -- and `None`
+    when the two agree. Works on either a raw index_df row (type_openalex always
+    populated) or an engine evidence dict (type_openalex already None-clamped
+    when equal to type).
+
+    Returns the bare type, not a sentence: this module knows WHICH institutions
+    were corrected, `lib/copy.py` knows how to say it and `lib/views_find.py`
+    composes the two. Under 2A this function returned the whole badge string
+    (`CFG type_overrides.ui_badge`), which is exactly the badge 2B-R2-1a
+    removed."""
     type_oa = row["type_openalex"]
     if type_oa is None or pd.isna(type_oa):
         return None
     t, t_oa = str(row["type"]), str(type_oa)
     if t == t_oa:
         return None
-    return CFG["type_overrides"]["ui_badge"].format(type_openalex=t_oa)
+    return t_oa
 
 
 def catchall_tooltip(share) -> str:
@@ -80,18 +98,11 @@ def catchall_tooltip(share) -> str:
 
 
 def badges_for(row, flags: pd.Series, medians: dict) -> list[str]:
-    """Text labels for one row's badge cell. Raises if the row would carry
-    BOTH an umbrella and a type-corrected badge (BUILD_PLAN_2A.md L7 hard
-    invariant, never a styling preference)."""
-    iid = row["institution_id"]
-    is_umbrella = bool(flags.get(iid, False))
-    corrected = type_corrected_badge(row)
-    assert not (is_umbrella and corrected), (
-        f"{iid}: umbrella and type-corrected badges both apply to one row -- "
-        f"BUILD_PLAN_2A.md L7 forbids this (WT #14)")
-    out = []
-    if is_umbrella:
-        out.append(copy.UMBRELLA_BADGE_LABEL)
-    if corrected:
-        out.append(corrected)
-    return out
+    """Text labels for one row's badge cell -- since 2B-R2-1a, the umbrella
+    badge and nothing else. The list shape is kept (rather than a bool) because
+    every caller joins it, and because a second badge family may yet earn a
+    place here; a type correction never will -- it renders inline in the
+    identity line, off `corrected_from`."""
+    if bool(flags.get(row["institution_id"], False)):
+        return [copy.UMBRELLA_BADGE_LABEL]
+    return []

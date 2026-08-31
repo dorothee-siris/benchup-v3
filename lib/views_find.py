@@ -15,9 +15,11 @@ PAGE ORDER (L16/L17, re-laid by R2/L30, re-laid again by Phase 2B-R decision
   2B-R-12 removed the snapshot label and its generated timestamp), with the
   "Filtered by..." strip slot right under it -> seed search, which loads
   NOTHING until the reader picks a match (2B-R-12: the results selectbox opens
-  on `index=None`) -> PROFILE section: row 1 in two halves (identity + the
-  subfield wordcloud under it | FOUR KPI cards in a 2 x 2 grid, each carrying
-  its index baseline on the surface and all of its methodology in a `?`), row 2
+  on `index=None`) -> PROFILE section: row 1 in two halves (2B-R2-6: SIX KPI
+  cards in a 2 x 3 grid, name first and all methodology in a `?` | the identity
+  block with the subfield wordcloud under it, the institution NAME itself
+  linking to its publications in OpenAlex and a corrected type rendered inline
+  with a red star), row 2
   full width (a titled section, one segmented control and one chip legend above
   a height-matched global + yearly breakdown pair whose bonus year is starred
   on the axis), then six collapsed chart panels -> BENCHMARK section, headed by
@@ -71,7 +73,9 @@ import streamlit as st
 from lib import baselines, charts, copy, countries, links, profile_data, state, tiles
 from lib import palette as P
 from lib.app_config import CFG
-from lib.badges import badges_for, catchall_tooltip, umbrella_flags, umbrella_medians
+from lib.badges import (
+    badges_for, catchall_tooltip, corrected_from, umbrella_flags, umbrella_medians,
+)
 from lib.data_cache import DATA_DIR, doctype_by_year, index, manifest, topics_dim
 from lib.engine import (
     ALL_LENSES, CONCORDANCE_N, aspirational, aspirational_frontier, build_rows, build_substrates,
@@ -132,9 +136,16 @@ DEPTH_OPTIONS = [CFG["depth"]["default"], CFG["depth"]["max"]]
 # 1280 px, ~340 px at 1920 px -- comfortably past the ~118 px at which R2
 # measured labels breaking mid-word, which is what made the eight-tile grid
 # need transposing in the first place.
-N_CARDS = 4
-CARD_GRID_COLS = 2                     # 2 rows x 2 cards (2B-R-2)
-PROFILE_ROW1_WIDTHS = [1, 1]           # identity + wordcloud | the four cards
+#
+# 2B-R2-6 goes to SIX cards in a 2 x 3 grid and SWAPS the two halves: the cards
+# now fill the LEFT half (columns 1-2) and the identity block with the
+# wordcloud under it fills the right (columns 3-4) -- the user's own framing,
+# "cards on the left, wordcloud on the right". Card width is unchanged by the
+# swap (still half of half the content box), so the 2B-R-2 measurement above
+# still holds; only the third row is new.
+N_CARDS = 6
+CARD_GRID_COLS = 2                     # 3 rows x 2 cards (2B-R2-6)
+PROFILE_ROW1_WIDTHS = [1, 1]           # the six cards | identity + wordcloud
 PROFILE_ROW2_WIDTHS = [1, 1]           # global breakdown | yearly breakdown
 CONTROLS_ROW_WIDTHS = [1, 1, 1, 2]     # depth | C1 | L7 | post-filters expander
 
@@ -143,16 +154,48 @@ CONTROLS_ROW_WIDTHS = [1, 1, 1, 2]     # depth | C1 | L7 | post-filters expander
 # (copy.FIND["BREAKDOWN_SECTION_HELP"]).
 BONUS_STAR = "*"
 
-# 2B-R-7: the two identity-column facts. Stream P2 lands these columns on
-# `index.parquet` later this phase; `_identity_fact` reads n/a until they exist,
-# so this file needs no edit the day they do.
+# 2B-R-7: the two co-publication measures. Stream P2 landed these columns on
+# `index.parquet`; `_identity_fact` still reads n/a for an institution whose
+# value is null, and for the whole column should a rebuild ever drop it.
+# 2B-R2-6 promotes both from identity facts to CARDS, so each is now measured
+# against the index like every other card -- see `_extra_baselines`.
 INTL_COLUMN = "intl_share"
 COMPANY_COLUMN = "company_share"
+
+# The one card whose small line is NOT the index baseline (2B-R2-6): it carries
+# the same measure on the fractional basis instead. Named here so `_card_specs`
+# and `_profile_cards` agree on which card that is without either of them
+# counting positions in a list.
+KPI_PUBS_KEY = "total_full_2020_2024"
 
 SORT_VOLUME, SORT_TAXONOMY = "volume", "taxonomy"
 
 
 # ------------------------------------------------------------- caches -------
+
+def _extra_baselines(bl: dict, index_df: pd.DataFrame) -> dict:
+    """2B-R2-6: the two promoted co-publication measures, given the SAME
+    baseline entry shape `lib/baselines.py` builds for its own eight -- sorted
+    non-null values, median, n -- so `baselines.stats`/`baselines.percentile`
+    read them through their public interface without knowing they came from
+    here.
+
+    They are added HERE rather than to `baselines.KPI_COLUMNS` because that
+    module is another stream's file this wave, and because the entry shape is
+    the contract `stats`/`percentile` actually depend on (both are plain dict
+    lookups; neither validates against KPI_COLUMNS). A column that is missing
+    from a rebuilt index simply gets an empty population -- `percentile`
+    already returns None at `n == 0`, which renders as `n/a`, never as a
+    zeroth percentile."""
+    for column in (INTL_COLUMN, COMPANY_COLUMN):
+        values = (index_df[column].astype("float64").dropna()
+                  if column in index_df.columns
+                  else pd.Series(dtype="float64"))
+        bl[column] = {"sorted": np.sort(values.to_numpy()),
+                      "median": float(values.median()) if len(values) else float("nan"),
+                      "n": int(len(values))}
+    return bl
+
 
 @st.cache_resource
 def _bundle() -> dict:
@@ -177,7 +220,7 @@ def _bundle() -> dict:
     bonus_spec = baselines.KPI_COLUMNS["bonus_year_full"]
     bonus = bonus_spec(idx) if callable(bonus_spec) else idx[bonus_spec]
     return {"ctx": ctx, "index_df": idx, "lite": lite,
-            "baselines": baselines.build(idx),
+            "baselines": _extra_baselines(baselines.build(idx), idx),
             "bonus_year_full": dict(zip(idx["institution_id"], bonus)),
             "search_idx": build_search_index(idx),
             "flags": umbrella_flags(idx), "medians": umbrella_medians(idx),
@@ -429,37 +472,79 @@ def _count(value) -> str:
     return f"{float(value):,.0f}"
 
 
-def _identity_fact(row, column: str) -> str:
-    """2B-R-7: one of the two co-publication shares, as a formatted percent.
+def _identity_value(row, column: str):
+    """2B-R-7 / 2B-R2-6: one of the two co-publication shares as a RAW value
+    (the card formats it and positions it against the index), or `None` when
+    the column is absent from the index altogether.
 
-    Stream P2 adds `intl_share` / `company_share` to `index.parquet` LATER this
-    phase. Until then the column simply is not on the row, and the honest render
-    is `n/a` -- never 0, which would claim the institution co-publishes with
-    nobody abroad. `pandas.Series.get` returns None for a missing label, so the
-    presence check and the null check are the same branch; the explicit
-    `column not in row.index` test is kept so the intent survives a future
-    pandas that starts raising instead."""
+    Stream P2 landed `intl_share` / `company_share` on `index.parquet`, but the
+    absent-column branch is kept and tested: a rebuilt index that drops one
+    must render `n/a` -- never 0, which would claim the institution
+    co-publishes with nobody abroad. `pandas.Series.get` returns None for a
+    missing label, so the presence check and the null check are the same
+    branch; the explicit `column not in row.index` test is kept so the intent
+    survives a future pandas that starts raising instead."""
     if column not in row.index:
-        return NA_MARK
-    return _pct(row.get(column))
+        return None
+    return row.get(column)
 
 
 # ------------------------------------------------------------- profile ------
 
+def _identity_kind(card: dict, row) -> tuple[str, str | None]:
+    """2B-R2-1a: (the type as it renders, the tooltip that explains a star).
+
+    A corrected type renders INLINE -- "government* (was: facility)" -- with
+    the star, and only the star, in red. That is the whole of what used to be
+    a second badge, and it is why the 2A "umbrella and type-corrected are
+    mutually exclusive" assertion could be retired instead of being satisfied
+    by hiding one of two true facts (ten institutions carry both).
+
+    The red comes from Streamlit's own `:red[...]` markdown directive rather
+    than from a hex: `lib/palette.py` owns every colour in this app and
+    `tests/test_palette.py` fails the build on a hex written anywhere else
+    under `lib/`, so a one-glyph accent that Streamlit already themes is the
+    honest way to get it. An uncorrected type renders exactly as before."""
+    kind = str(card["type"]) if card["type"] else NA_MARK
+    was = corrected_from(row)
+    if was is None:
+        return kind, None
+    return (copy.FIND["IDENTITY_TYPE_CORRECTED"].format(
+        kind=kind, star=f":red[{BONUS_STAR}]", was=was),
+        copy.FIND["IDENTITY_TYPE_HELP"])
+
+
 def _profile_identity(card: dict, row, bundle: dict) -> None:
-    """VIZ_SPEC S2.10: name, "type . city, COUNTRY NAME", the two seed-level
-    badges (mutually exclusive by `badges.badges_for`'s own assertion), then
-    the link row. A missing city / ROR / homepage drops silently; a missing
-    type renders NA_MARK, never a blank or a guess."""
-    st.subheader(str(card["display_name"]))
+    """VIZ_SPEC S2.10 / 2B-R2-6: the institution NAME as the link to its own
+    publications in OpenAlex, then "type . city, COUNTRY NAME" with a
+    correction rendered inline, then the umbrella badge if it applies, then the
+    two links that point somewhere else. A missing city / ROR / homepage drops
+    silently; a missing type renders NA_MARK, never a blank or a guess.
+
+    2B-R2-6 removes the "What counts as a publication" link: it pointed at the
+    same URL the name now carries, and its tooltip -- the corpus definition --
+    moved onto the publications card, where the figure it qualifies is. What
+    remains here is a row of two links, not a row of one link and one
+    explanation.
+
+    `ranked.works_link_named` is the SAME builder the benchmark tables use for
+    their institution-name links (its `#<name>` fragment is inert for OpenAlex
+    and is what `LinkColumn` reads back per cell); reusing it keeps one
+    definition of "the works URL for an institution" in the app instead of two
+    that can drift."""
+    name = str(card["display_name"])
+    st.markdown(f"### [{name}]({works_link_named(card['institution_id'], name)})",
+                help=copy.FIND["IDENTITY_NAME_HELP"])
     country = countries.name(str(card["country_code"]))
     city = row.get("city")
     if isinstance(city, str) and city:
         place = f"{city}, {country}"
     else:
         place = country
-    kind = str(card["type"]) if card["type"] else NA_MARK
-    st.caption(f"{kind} {SEP} {place}")
+    kind, kind_help = _identity_kind(card, row)
+    # `st.caption` renders markdown, which is what carries the `:red[...]`
+    # star; a plain type has no directive in it and reads exactly as before.
+    st.caption(f"{kind} {SEP} {place}", help=kind_help)
 
     labels = badges_for(card, bundle["flags"], bundle["medians"])
     if labels:
@@ -470,39 +555,15 @@ def _profile_identity(card: dict, row, bundle: dict) -> None:
             tip = copy.UMBRELLA_TOOLTIP.format(median=f"{med:,.0f}")
         st.markdown(f" {SEP} ".join(labels), help=tip)
 
-    # L23: the works link carries the harvest's OWN server-side filters, so it
-    # counts the corpus the app counted -- give or take live-vs-snapshot drift,
-    # which the tooltip discloses (measured 0.99907-1.00023 on six seeds,
-    # progress/R1_B.md) rather than hiding.
-    #
-    # R2/L29: that link is now labelled by what it ANSWERS ("what counts as a
-    # publication") rather than by where it points, and the whole row carries
-    # the corpus definition as its tooltip -- stated ONCE for the section, so
-    # every tile and panel beneath can say "publications" without re-explaining
-    # document types, the DOI requirement or the bonus year. The drift sentence
-    # is appended, not dropped: it is the ratified fix for gate-2A bug #9.
-    parts = [f"[{copy.FIND['PUBLICATIONS_LINK_LABEL']}]"
-             f"({links.works_url(card['institution_id'])})"]
+    parts = []
     ror = row.get("ror_id")
     if isinstance(ror, str) and ror:
         parts.append(f"[{copy.FIND['LINK_ROR']}]({links.ror_url(ror)})")
     home = row.get("homepage_url")
     if isinstance(home, str) and home:
         parts.append(f"[{copy.FIND['LINK_HOMEPAGE']}]({home})")
-    tooltip = copy.FIND["PUBLICATIONS_TOOLTIP"].format(
-        y0=WINDOW_START, y1=WINDOW_END, bonus_year=CFG["bonus_year"], dash=DASH, sep=SEP)
-    st.markdown(f" {SEP} ".join(parts),
-                help=f"{tooltip} {copy.FIND['LINK_OPENALEX_HELP']}")
-
-    # 2B-R-7: the two co-publication facts sit in the IDENTITY column, not on a
-    # card -- they describe who this institution publishes WITH, which is a fact
-    # about the institution rather than a performance measure the index has a
-    # median for. One caption, one tooltip carrying both definitions and their
-    # shared denominator.
-    st.caption(f"{copy.FIND['IDENTITY_INTL_LABEL']} {_identity_fact(row, INTL_COLUMN)} "
-               f"{SEP} {copy.FIND['IDENTITY_COMPANY_LABEL']} "
-               f"{_identity_fact(row, COMPANY_COLUMN)}",
-               help=copy.FIND["IDENTITY_FACTS_HELP"].format(y0=WINDOW_START, y1=WINDOW_END))
+    if parts:
+        st.markdown(f" {SEP} ".join(parts))
 
 
 def _baseline_sub(bundle: dict, kpi: str, value, fmt) -> str:
@@ -522,10 +583,19 @@ def _baseline_sub(bundle: dict, kpi: str, value, fmt) -> str:
 
 
 def _card_specs(card: dict, row) -> list[tuple]:
-    """(baseline key, label, value, formatter, tooltip, 2nd value, 2nd label)
-    x 4 -- the 2B-R-2 cards, in the ruled order: publications (both counting
-    bases on ONE card), SDG-tagged share, frontier top-quartile share,
-    PP(top10%) with its interval.
+    """(baseline key, label, value, formatter, tooltip) x 6 -- the 2B-R2-6
+    cards, in the ruled order: publications, SDG-tagged share, frontier
+    top-quartile share, PP(top10%), international co-publications, industrial
+    co-publications. The last two are PROMOTED here from the identity column
+    (2B-R-7 put them there as "facts about the institution"; the gate read them
+    as measures, and they have an index median like any other measure, so they
+    are now measured against it).
+
+    The publications card is the one card with no index line: its small line
+    carries the SAME measure on the fractional basis instead (2B-R2-6), which
+    is a companion figure rather than a second card. `_profile_cards` reads
+    `KPI_PUBS_KEY` to tell the two forms apart, so the special case is named
+    once and never inferred from a position in this list.
 
     What is GONE and why (2B-R-2, closing R2 gate items #3 and #5):
       * concentration (HHI) and breadth -- R2 had already stripped the
@@ -540,40 +610,49 @@ def _card_specs(card: dict, row) -> list[tuple]:
         window is a category error at the same visual weight; the bonus year is
         now marked where it is actually read, on the breakdown's year axis.
 
-    Every definition that used to print as a subline under its tile is now in
-    the card's `?` tooltip: the card surface carries the value and the index
-    position, and nothing else.
+    Every definition that used to print as a subline under its tile is in the
+    card's `?` tooltip: the card surface carries the name, the value and the
+    index position, and nothing else. The publications card's tooltip also
+    absorbed the corpus definition that used to hang off the retired "What
+    counts as a publication" link (2B-R2-6) -- it is read where the figure it
+    qualifies is, not a column away.
+
+    The PP card lost its bootstrap-interval companion line (2B-R2-6): an
+    interval printed under a value on a card competed with the value at the
+    same visual weight for a caveat that only ever changes a reading at the
+    margin. The caveat itself is not dropped -- it is the last sentence of the
+    card's own tooltip.
 
     `frontier_top25_share_index` (not `frontier_top25_share`) is the card's
     value: `seed_card` names the index-basis column that way, while the
     baseline key stays the `index.parquet` column name `baselines.KPI_COLUMNS`
     knows -- the same pairing R2's tile spec used."""
+    window = {"y0": WINDOW_START, "y1": WINDOW_END}
     return [
-        ("total_full_2020_2024", copy.FIND["KPI_PUBS_LABEL"],
+        (KPI_PUBS_KEY, copy.FIND["KPI_PUBS_LABEL"],
          card["total_full_2020_2024"], _count,
-         copy.FIND["KPI_PUBS_HELP"].format(y0=WINDOW_START, y1=WINDOW_END,
-                                           bonus_year=CFG["bonus_year"]),
-         _count(card["total_frac_2020_2024"]), copy.FIND["KPI_PUBS_FRAC_LABEL"]),
+         f"{copy.FIND['PUBLICATIONS_TOOLTIP'].format(bonus_year=CFG['bonus_year'], **window)} "
+         f"{copy.FIND['KPI_PUBS_HELP_FULL']}"),
         ("sdg_tagged_share", copy.FIND["KPI_SDG_LABEL"],
-         card["sdg_tagged_share"], _pct,
-         copy.FIND["KPI_SDG_HELP"], None, None),
+         card["sdg_tagged_share"], _pct, copy.FIND["KPI_SDG_HELP"]),
         ("frontier_top25_share", copy.FIND["KPI_FRONTIER_LABEL"],
-         card["frontier_top25_share_index"], _pct,
-         copy.FIND["KPI_FRONTIER_HELP"], None, None),
+         card["frontier_top25_share_index"], _pct, copy.FIND["KPI_FRONTIER_HELP"]),
         ("pp_top10_frac", copy.FIND["KPI_PP_LABEL"],
-         row["pp_top10_frac"], _pct,
-         copy.FIND["KPI_PP_HELP"],
-         copy.FIND["KPI_PP_VALUE_CI"].format(lo=_pct(row["pp_ci_low"]),
-                                             hi=_pct(row["pp_ci_high"]), dash=DASH),
-         copy.FIND["KPI_PP_CI_LABEL"]),
+         row["pp_top10_frac"], _pct, copy.FIND["KPI_PP_HELP_R2"]),
+        (INTL_COLUMN, copy.FIND["KPI_INTL_LABEL"],
+         _identity_value(row, INTL_COLUMN), _pct,
+         copy.FIND["KPI_INTL_HELP"].format(**window)),
+        (COMPANY_COLUMN, copy.FIND["KPI_COMPANY_LABEL"],
+         _identity_value(row, COMPANY_COLUMN), _pct,
+         copy.FIND["KPI_COMPANY_HELP"].format(**window)),
     ]
 
 
 def _profile_cards(card: dict, row, bundle: dict) -> None:
-    """2B-R-2: FOUR cards in a 2 x 2 grid filling the right half of the profile
-    row, each `big value (+ companion figure) + label + the index baseline`,
-    with all methodology behind the card's own `?`. `n/a` for anything the data
-    cannot support -- never 0, never a hidden card.
+    """2B-R2-6: SIX cards in a 2 x 3 grid filling the LEFT half of the profile
+    row (the swap: cards left, identity and its wordcloud right), each `name +
+    value + one small line`, with all methodology behind the card's own `?`.
+    `n/a` for anything the data cannot support -- never 0, never a hidden card.
 
     Streamlit stacks every row one-card-per-line below its own small
     breakpoint, so 390 px needs no media query."""
@@ -581,10 +660,14 @@ def _profile_cards(card: dict, row, bundle: dict) -> None:
     cols = []
     for _ in range(N_CARDS // CARD_GRID_COLS):
         cols.extend(st.columns(CARD_GRID_COLS))
-    for col, (kpi, label, value, fmt, tip, value2, value2_label) in zip(
-            cols, _card_specs(card, row)):
-        tiles.kpi_tile(col, label, fmt(value), _baseline_sub(bundle, kpi, value, fmt),
-                       help=tip, value2=value2, value2_label=value2_label)
+    for col, (kpi, label, value, fmt, tip) in zip(cols, _card_specs(card, row)):
+        if kpi == KPI_PUBS_KEY:
+            tiles.kpi_tile(col, label, fmt(value), help=tip,
+                           note_template=copy.FIND["KPI_PUBS_FRAC_NOTE"],
+                           note_value=_count(card["total_frac_2020_2024"]))
+        else:
+            tiles.kpi_tile(col, label, fmt(value),
+                           _baseline_sub(bundle, kpi, value, fmt), help=tip)
 
 
 def _erc_share(card: dict, row) -> float | None:
@@ -801,11 +884,13 @@ def _panel_subfields(iid: str, ctl: dict, card: dict) -> None:
     st.plotly_chart(charts.fig_share_si(top, family="oa", sort=SORT_VOLUME,
                                         label_col="subfield_name", volume_col=vol),
                     width="stretch", key="fig_subfields")
-    st.caption(copy.FIND["CAPTION_TOP_N_VOLUME"].format(n=f"{len(top):,}"))
-    st.caption(copy.FIND["CAPTION_SI"])
-    st.caption(copy.FIND["CAPTION_SI_FLOOR"].format(
+    # 2B-R2-8: ONE reading line under the figure; how to read the SI mark and
+    # what the two floors are move -- verbatim -- into that line's own `?`.
+    floors = copy.FIND["CAPTION_SI_FLOOR"].format(
         floor_solid=int(profile_data.SI_FLOOR_SOLID),
-        floor_thin=int(profile_data.SI_FLOOR_THIN)))
+        floor_thin=int(profile_data.SI_FLOOR_THIN))
+    st.caption(copy.FIND["CAPTION_TOP_N_VOLUME"].format(n=f"{len(top):,}"),
+               help=f"{copy.FIND['CAPTION_SI']} {floors}")
 
 
 def _panel_topics(iid: str, ctl: dict, card: dict) -> None:
@@ -823,13 +908,15 @@ def _panel_topics(iid: str, ctl: dict, card: dict) -> None:
     top = df.nlargest(TOPICS_TOP_N, "share")
     st.plotly_chart(charts.fig_topics(top, volume_col=_vol_col(ctl["basis"])),
                     width="stretch", key="fig_topics")
-    st.caption(copy.FIND["CAPTION_TOP_N_SHARE"].format(n=f"{len(top):,}"))
     # R2/L30: the seed's catch-all SHARE moved off the retired coverage line
     # into this caption, which already counted the flagged rows from the data --
-    # a caveat is read where the rows it qualifies are on screen.
+    # a caveat is read where the rows it qualifies are on screen. 2B-R2-8 keeps
+    # THAT as the panel's one visible line (it qualifies every number in the
+    # figure) and moves the depth-of-cut line into its `?`.
     st.caption(copy.FIND["CAPTION_TOPICS_CATCHALL"].format(
         n=f"{int(top['is_excluded'].fillna(False).sum()):,}", glyph=charts.EXCLUDED_GLYPH,
-        catchall=_pct(card["catchall_811_share"])))
+        catchall=_pct(card["catchall_811_share"])),
+        help=copy.FIND["CAPTION_TOP_N_SHARE"].format(n=f"{len(top):,}"))
 
 
 def _frontier_modes() -> tuple[str, str]:
@@ -889,12 +976,14 @@ def _panel_frontier(iid: str, ctl: dict, card: dict) -> None:
         st.plotly_chart(charts.fig_frontier(base, size_col=vol_col, top_n=top_n),
                         width="stretch", key="fig_frontier")
     n_not_placeable = int(len(base) - cov["n_placeable"])
-    st.caption(copy.FIND["CAPTION_FRONTIER"].format(
-        n_shown=f"{cov['n_shown']:,}", n_excluded=f"{n_not_placeable:,}"))
     min_mass = NA_MARK if cov["min_mass_shown"] is None else f"{cov['min_mass_shown']:,.0f}"
-    st.caption(copy.FIND["CAPTION_FRONTIER_COVERAGE"].format(
-        n_catchall=f"{cov['n_catchall_shown']:,}", glyph=charts.EXCLUDED_GLYPH,
-        pct_not_shown=_pct(cov["pct_mass_not_shown"]), min_mass=min_mass))
+    # 2B-R2-8: what is plotted stays visible; how much mass the cut leaves out
+    # and how catch-all topics are treated move into the same line's `?`.
+    st.caption(copy.FIND["CAPTION_FRONTIER"].format(
+        n_shown=f"{cov['n_shown']:,}", n_excluded=f"{n_not_placeable:,}"),
+        help=copy.FIND["CAPTION_FRONTIER_COVERAGE"].format(
+            n_catchall=f"{cov['n_catchall_shown']:,}", glyph=charts.EXCLUDED_GLYPH,
+            pct_not_shown=_pct(cov["pct_mass_not_shown"]), min_mass=min_mass))
 
 
 def _panel_sdg(iid: str, ctl: dict, card: dict) -> None:
@@ -906,10 +995,12 @@ def _panel_sdg(iid: str, ctl: dict, card: dict) -> None:
         st.caption(copy.FIND["PANEL_EMPTY"])
         return
     st.plotly_chart(charts.fig_sdg(df), width="stretch", key="fig_sdg")
+    # 2B-R2-8: one visible line. The fractional-only disclosure is a CONDITION
+    # of what is on screen, not background, so it joins the same line's tooltip
+    # rather than adding a second grey line under the figure.
+    tip = copy.FIND["FRACTIONAL_ONLY_PANEL"] if ctl["basis"] == "full" else None
     st.caption(copy.FIND["CAPTION_SDG"].format(
-        n_missing=", ".join(str(n) for n in P.SDG_UNCOVERED)))
-    if ctl["basis"] == "full":
-        st.caption(copy.FIND["FRACTIONAL_ONLY_PANEL"])
+        n_missing=", ".join(str(n) for n in P.SDG_UNCOVERED)), help=tip)
 
 
 def _panel_erc(iid: str, ctl: dict, card: dict) -> None:
@@ -923,13 +1014,16 @@ def _panel_erc(iid: str, ctl: dict, card: dict) -> None:
         return
     sort = _sort_control("erc", default=SORT_TAXONOMY)
     st.plotly_chart(charts.fig_erc(df, sort=sort), width="stretch", key="fig_erc")
-    st.caption(copy.FIND["CAPTION_SI"])
     # R2/L30: the ERC-classified share moved off the retired coverage line into
-    # this caption, where the panel it qualifies is on screen.
-    st.caption(copy.FIND["CAPTION_ERC"].format(n_panels=f"{len(df):,}",
-                                               erc_share=_pct(card.get("_erc_share"))))
+    # this caption, where the panel it qualifies is on screen. 2B-R2-8 makes it
+    # the panel's ONE visible line and folds the SI reading note (and the
+    # fractional-only disclosure, when it applies) into its `?`.
+    tip = copy.FIND["CAPTION_SI"]
     if ctl["basis"] == "full":
-        st.caption(copy.FIND["FRACTIONAL_ONLY_PANEL"])
+        tip = f"{tip} {copy.FIND['FRACTIONAL_ONLY_PANEL']}"
+    st.caption(copy.FIND["CAPTION_ERC"].format(n_panels=f"{len(df):,}",
+                                               erc_share=_pct(card.get("_erc_share"))),
+               help=tip)
 
 
 # The six panels of VIZ_SPEC S1.9 block 5, in their fixed order. The key is
@@ -970,10 +1064,10 @@ def _profile_panels(iid: str, ctl: dict, card: dict) -> None:
 
 
 def _render_profile(bundle: dict, subs: dict, seed_id: str, ctl: dict) -> dict:
-    """VIZ_SPEC S1.9 / 2B-R-2 -- the profile as a 2 + 2 split. Row 1 in two
-    halves (identity with the wordcloud UNDER it | the four KPI cards as a
-    2 x 2 grid), row 2 full width (a titled section holding one control, one
-    chip legend and the height-matched breakdown pair), then the six collapsed
+    """VIZ_SPEC S1.9 / 2B-R2-6 -- the profile as a 2 + 2 split. Row 1 in two
+    halves (the SIX KPI cards as a 2 x 3 grid | identity with the wordcloud
+    UNDER it), row 2 full width (a titled section holding one control, one chip
+    legend and the height-matched breakdown pair), then the six collapsed
     panels. Returns the seed card, which the L2f tab intro and the export path
     both read after the profile has rendered."""
     ctx = bundle["ctx"]
@@ -982,12 +1076,12 @@ def _render_profile(bundle: dict, subs: dict, seed_id: str, ctl: dict) -> dict:
     card["_erc_share"] = _erc_share(card, row)
     st.header(copy.FIND["PROFILE_HEADER"])
     with st.container(border=True, key="profile"):
-        c_identity, c_cards = st.columns(PROFILE_ROW1_WIDTHS)
+        c_cards, c_identity = st.columns(PROFILE_ROW1_WIDTHS)
+        with c_cards:
+            _profile_cards(card, row, bundle)
         with c_identity:
             _profile_identity(card, row, bundle)
             _profile_wordcloud(seed_id, ctl)
-        with c_cards:
-            _profile_cards(card, row, bundle)
         _profile_breakdown(seed_id, ctl, bundle)
         _profile_panels(seed_id, ctl, card)
     return card

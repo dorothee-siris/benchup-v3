@@ -3,7 +3,13 @@ tests/test_profile_2br.py -- Sprint 2 Phase 2B-R, stream FA: the Find page's
 profile + search rework (BUILD_PLAN_2BR.md S0 A12/A14/A15, S1 decisions
 2B-R-1 / 2B-R-2 / 2B-R-7 / 2B-R-12).
 
-Five claims, one section each:
+RE-CUT for Phase 2B-R2, stream FA3 (BUILD_PLAN_2BR2.md S1 decisions 2B-R2-1a /
+2B-R2-6 / 2B-R2-7 / 2B-R2-8): SIX cards instead of four, name-first anatomy, the
+publications card's fractional note in place of an index line, the PP card
+without its interval line, the identity line's inline type correction and the
+ten profiles that used to crash on it.
+
+Six claims, one section each:
 
   1. SEARCH ON VALIDATE (2B-R-12 / A12). Typing a query renders the results
      list and NOTHING below it: no profile header, no benchmark header, no KPI
@@ -11,16 +17,15 @@ Five claims, one section each:
      a test that only checked "the profile appears after a pick" would pass
      against the old auto-load behaviour, which is the exact defect.
 
-  2. FOUR CARDS (2B-R-2). Card count, one subline each (the index baseline),
-     the companion figures (fractional count on the publications card, the
-     bootstrap interval on the PP card), and a `?` tooltip on every card
-     carrying the methodology that used to print as a subline.
+  2. SIX CARDS (2B-R2-6). Card count and order, ONE small line each (the index
+     baseline for five of them, the fractional-counting note for publications),
+     the name-first anatomy, the PP card WITHOUT its interval line, and a `?`
+     tooltip on every card carrying the methodology that used to print under it.
 
-  3. THE IDENTITY FACTS (2B-R-7). `intl_share` / `company_share` land on
-     `index.parquet` LATER this phase (stream P2). BOTH branches are covered
-     here on the pure helper -- absent column -> n/a, present column -> the
-     formatted percent -- so the day the columns ship, this file already
-     asserts the behaviour rather than needing an edit.
+  3. THE TWO CO-PUBLICATION MEASURES (2B-R-7, promoted to cards by 2B-R2-6).
+     Both branches are covered on the pure helper -- absent column -> None ->
+     n/a, present column -> the value -- so an index rebuild that drops one
+     renders honestly rather than as a zero.
 
   4. NO SNAPSHOT STRING (2B-R-12 / A14). The verbose stamp is gone from the
      rendered Find page and from `lib/copy.py`'s own template; the CSV export
@@ -28,6 +33,12 @@ Five claims, one section each:
 
   5. THE BONUS YEAR (2B-R-2). Starred on the year axis, its footnote in the
      section tooltip, and the standalone banner gone from the page.
+
+  6. THE CRASH (2B-R2-1a). All TEN institutions that are both an umbrella and
+     type-corrected render their profile end to end with no exception, and the
+     correction is on the page in its INLINE form. This is the regression test
+     for the gate-2B-R crash: every one of these ten raised an AssertionError
+     out of `badges.badges_for` before the invariant was retired.
 
 Run from cwd `app/`:  python -m pytest tests/test_profile_2br.py -q
 """
@@ -39,7 +50,7 @@ import pandas as pd
 import pytest
 from streamlit.testing.v1 import AppTest
 
-from lib import copy, exports, tiles, views_find
+from lib import badges, copy, exports, tiles, views_find
 from lib.app_config import CFG
 from lib.palette import NA_MARK
 
@@ -139,34 +150,82 @@ def _cards(at: AppTest) -> list[str]:
     return [m.value for m in at.markdown if tiles.TILE_CLASS in m.value]
 
 
-def test_the_profile_shows_four_cards_each_with_one_baseline_subline(profile_app):
+def _seed_card_and_row(iid: str):
+    """(seed card, index row) for one institution, through the page's OWN
+    cached bundle -- the same two objects `_card_specs` and `_profile_identity`
+    are handed at render time."""
+    from lib.engine import seed_card
+
+    bundle = views_find._bundle()
+    subs = views_find._subs(CFG["scenario"]["tree_default"], CFG["scenario"]["basis_default"])
+    card = seed_card(bundle["ctx"], iid, subs, bundle["catchall"])
+    return card, bundle["ctx"]["index_by_id"].loc[iid]
+
+
+def test_the_profile_shows_six_cards_each_with_exactly_one_small_line(profile_app):
+    """2B-R2-6: six cards, one small line each. FIVE carry the index baseline;
+    the publications card carries the fractional note instead, which is why the
+    baseline is counted rather than asserted on every card."""
     cards = _cards(profile_app)
-    assert len(cards) == views_find.N_CARDS == 4, len(cards)
+    assert len(cards) == views_find.N_CARDS == 6, len(cards)
     baseline = copy.FIND["TILE_BASELINE_SUB"].split("{")[0]
     for html in cards:
         assert html.count(tiles.SUBLINE_CLASS) == 1, html
-        assert baseline in html, html
+    assert sum(baseline in html for html in cards) == views_find.N_CARDS - 1, cards
 
 
-def test_the_publications_card_carries_both_counting_bases(profile_app):
-    """2B-R-2 (1): full AND fractional on ONE card -- the companion figure has
-    its own class hook, so this is a count, not a string match on a number."""
+def test_a_card_puts_its_name_above_its_value():
+    """2B-R2-6's anatomy claim, asserted on POSITION in the markup rather than
+    on a font size: the name is the first thing in the card, the value follows,
+    the small line closes it. Pure unit on the builder -- no app needed."""
+    html = tiles.tile_html("Metric name", "1,234", subline="index median 900")
+    assert html.index("Metric name") < html.index("1,234") < html.index("index median 900")
+    assert tiles.LABEL_PX < tiles.VALUE_PX and tiles.META_PX < tiles.LABEL_PX
+
+
+def test_a_card_cannot_carry_two_small_lines_or_none():
+    """The rule the builder enforces, so no future caller can rebuild the grey
+    stack 2B-R2-6 removed."""
+    with pytest.raises(ValueError):
+        tiles.tile_html("N", "1", subline="a", note_template="({n})", note_value="2")
+    with pytest.raises(ValueError):
+        tiles.tile_html("N", "1")
+
+
+def test_the_publications_card_carries_the_fractional_count_as_its_small_line(profile_app):
+    """2B-R2-6 (1): full AND fractional on ONE card -- the note has its own
+    class hook inside the small line, so this is a count, not a string match on
+    a number -- and NO index line on that card."""
     cards = _cards(profile_app)
     pubs = [h for h in cards if copy.FIND["KPI_PUBS_LABEL"] in h]
     assert len(pubs) == 1, len(pubs)
     assert tiles.VALUE2_CLASS in pubs[0], pubs[0]
-    assert copy.FIND["KPI_PUBS_FRAC_LABEL"] in pubs[0], pubs[0]
+    note = copy.FIND["KPI_PUBS_FRAC_NOTE"].split(tiles.NOTE_SLOT)[-1]
+    assert note in pubs[0], pubs[0]
+    assert copy.FIND["TILE_BASELINE_SUB"].split("{")[0] not in pubs[0], pubs[0]
 
 
-def test_the_pp_card_carries_its_interval(profile_app):
-    """2B-R-2 (4) + the standing rule that the point estimate is never shown
-    alone: the CI is the PP card's companion figure."""
+def test_the_pp_card_no_longer_prints_its_interval(profile_app):
+    """2B-R2-6: the interval line is off the card surface; the caveat it
+    carried is the last sentence of the card's own tooltip instead."""
     cards = _cards(profile_app)
     pp = [h for h in cards if copy.FIND["KPI_PP_LABEL"] in h]
     assert len(pp) == 1, len(pp)
-    assert tiles.VALUE2_CLASS in pp[0], pp[0]
-    assert copy.FIND["KPI_PP_CI_LABEL"] in pp[0], pp[0]
-    assert views_find.DASH in pp[0], pp[0]
+    assert tiles.VALUE2_CLASS not in pp[0], pp[0]
+    assert copy.FIND["KPI_PP_CI_LABEL"] not in pp[0], pp[0]
+    helped = [m.help for m in profile_app.markdown
+              if tiles.TILE_CLASS in m.value and copy.FIND["KPI_PP_LABEL"] in m.value]
+    assert helped and copy.FIND["KPI_PP_HELP_R2"] in helped[0], helped
+
+
+def test_the_two_copublication_measures_are_cards_now(profile_app):
+    """2B-R2-6: promoted out of the identity column onto the grid, each with
+    its own index baseline line like every other measured card."""
+    cards = _cards(profile_app)
+    for key in ("KPI_INTL_LABEL", "KPI_COMPANY_LABEL"):
+        hits = [h for h in cards if copy.FIND[key] in h]
+        assert len(hits) == 1, (key, len(hits))
+        assert copy.FIND["TILE_BASELINE_SUB"].split("{")[0] in hits[0], hits[0]
 
 
 def test_every_card_hides_its_methodology_behind_a_tooltip(profile_app):
@@ -178,7 +237,9 @@ def test_every_card_hides_its_methodology_behind_a_tooltip(profile_app):
     assert len(helped) == views_find.N_CARDS, len(helped)
     for tip in helped:
         assert tip, helped
-    for key in ("KPI_PUBS_HELP", "KPI_SDG_HELP", "KPI_FRONTIER_HELP", "KPI_PP_HELP"):
+    for key in ("PUBLICATIONS_TOOLTIP", "KPI_PUBS_HELP_FULL", "KPI_SDG_HELP",
+                "KPI_FRONTIER_HELP", "KPI_PP_HELP_R2", "KPI_INTL_HELP",
+                "KPI_COMPANY_HELP"):
         fixed = copy.FIND[key].split("{")[0]
         assert any(fixed in (tip or "") for tip in helped), key
 
@@ -192,20 +253,14 @@ def test_the_four_dropped_measures_are_off_the_card_grid(profile_app):
         assert label not in cards, label
 
 
-def test_the_card_spec_is_the_ruled_order_of_four(profile_app):
+def test_the_card_spec_is_the_ruled_order_of_six(profile_app):
     """A unit-level pin on the spec itself, so a reorder is caught even if the
-    rendered HTML still holds four cards."""
-    from lib.engine import seed_card
-
-    bundle = views_find._bundle()
-    subs = views_find._subs(CFG["scenario"]["tree_default"], CFG["scenario"]["basis_default"])
-    card = seed_card(bundle["ctx"], STRASBOURG, subs, bundle["catchall"])
-    row = bundle["ctx"]["index_by_id"].loc[STRASBOURG]
-    specs = views_find._card_specs(card, row)
-    assert [s[0] for s in specs] == ["total_full_2020_2024", "sdg_tagged_share",
-                                     "frontier_top25_share", "pp_top10_frac"]
-    assert specs[0][5] is not None and specs[3][5] is not None      # companion figures
-    assert specs[1][5] is None and specs[2][5] is None
+    rendered HTML still holds six cards."""
+    specs = views_find._card_specs(*_seed_card_and_row(STRASBOURG))
+    assert [s[0] for s in specs] == [
+        views_find.KPI_PUBS_KEY, "sdg_tagged_share", "frontier_top25_share",
+        "pp_top10_frac", views_find.INTL_COLUMN, views_find.COMPANY_COLUMN]
+    assert all(len(s) == 5 for s in specs), specs      # no companion-figure slots left
 
 
 def test_the_wordcloud_caption_states_the_two_bases_render_differently(profile_app):
@@ -229,28 +284,39 @@ def test_the_wordcloud_caps_its_largest_word():
 
 # ------------------------------------------- 3. identity facts (2B-R-7) -----
 
-def test_identity_fact_reads_n_a_while_the_column_is_absent():
-    """The branch that is live TODAY: stream P2 has not landed the columns, so
-    the honest render is n/a -- never 0, which would claim the institution
-    co-publishes with nobody abroad."""
+def test_the_copublication_value_is_none_when_the_column_is_absent():
+    """An index rebuilt without the column must render n/a -- never 0, which
+    would claim the institution co-publishes with nobody abroad. `None` is what
+    `_pct` turns into NA_MARK and what `baselines.percentile` refuses to
+    position, so both halves of the card degrade together."""
     row = pd.Series({"display_name": "Somewhere"})
-    assert views_find._identity_fact(row, views_find.INTL_COLUMN) == NA_MARK
-    assert views_find._identity_fact(row, views_find.COMPANY_COLUMN) == NA_MARK
+    assert views_find._identity_value(row, views_find.INTL_COLUMN) is None
+    assert views_find._pct(views_find._identity_value(row, views_find.INTL_COLUMN)) == NA_MARK
 
 
-def test_identity_fact_formats_the_share_once_the_column_exists():
-    """The branch that goes live when P2 ships: a real share renders as a
-    percent, and a NULL value in a PRESENT column still reads n/a."""
+def test_the_copublication_value_reads_through_once_the_column_exists():
+    """A real share formats as a percent; a NULL value in a PRESENT column
+    still reads n/a."""
     row = pd.Series({views_find.INTL_COLUMN: 0.4237,
                      views_find.COMPANY_COLUMN: float("nan")})
-    assert views_find._identity_fact(row, views_find.INTL_COLUMN) == "42.4%"
-    assert views_find._identity_fact(row, views_find.COMPANY_COLUMN) == NA_MARK
+    assert views_find._pct(views_find._identity_value(row, views_find.INTL_COLUMN)) == "42.4%"
+    assert views_find._pct(views_find._identity_value(row, views_find.COMPANY_COLUMN)) == NA_MARK
 
 
-def test_both_identity_facts_render_in_the_profile(profile_app):
+def test_both_copublication_measures_render_on_the_card_grid(profile_app):
     text = _page_strings(profile_app)
-    assert copy.FIND["IDENTITY_INTL_LABEL"] in text, text[:400]
-    assert copy.FIND["IDENTITY_COMPANY_LABEL"] in text, text[:400]
+    assert copy.FIND["KPI_INTL_LABEL"] in text, text[:400]
+    assert copy.FIND["KPI_COMPANY_LABEL"] in text, text[:400]
+
+
+def test_the_index_has_a_population_for_both_measures():
+    """The promotion is only honest if the index really has a median to
+    position an institution against: an empty population would render every
+    card's baseline as n/a and say nothing."""
+    bl = views_find._bundle()["baselines"]
+    for column in (views_find.INTL_COLUMN, views_find.COMPANY_COLUMN):
+        assert bl[column]["n"] > 0, column
+        assert 0.0 <= bl[column]["median"] <= 1.0, (column, bl[column]["median"])
 
 
 # ------------------------------------- 4. the snapshot string (2B-R-12) -----
@@ -334,3 +400,65 @@ def test_the_breakdown_control_label_is_collapsed_but_still_set(profile_app):
     # AppTest hands back the protobuf enum, whose str() is "value: COLLAPSED".
     assert "COLLAPSED" in str(ctl.label_visibility), ctl.label_visibility
     assert copy.FIND["BREAKDOWN_SECTION_TITLE"] in _page_strings(profile_app)
+
+
+# ------------------------------- 6. the ten crashing profiles (2B-R2-1a) -----
+
+# Every institution in the index that is BOTH an umbrella (volume against its
+# country-type median) and type-corrected. Under the 2A L7 invariant each of
+# these raised an AssertionError out of `badges.badges_for`, which took the
+# whole profile down -- the gate hit it on Ifremer. The list is pinned here as
+# DATA rather than recomputed, so a future index that quietly stops correcting
+# one of them fails this file instead of silently shrinking the regression.
+BOTH_BADGE_IDS = {
+    "I154202486": "Ifremer",
+    "I148297040": "TNO",
+    "I4210155236": "CNR",
+    "I173888879": "SINTEF",
+    "I2898391981": "DLR",
+    "I110594554": "Ikerbasque",
+    "I4210127591": "DZHK",
+    "I2801533059": "DZNE",
+    "I4210129183": "DZL",
+    "I4210115305": "DZIF",
+}
+
+
+def test_the_ten_both_badge_institutions_are_exactly_this_set():
+    """Non-vacuity guard for the render test below: if the population changed,
+    the ten renders would still pass while testing something else."""
+    bundle = views_find._bundle()
+    idx = bundle["index_df"]
+    flags = bundle["flags"]
+    found = {r.institution_id for r in idx.itertuples(index=False)
+             if bool(flags.get(r.institution_id, False))
+             and str(r.type) != str(r.type_openalex)}
+    assert found == set(BOTH_BADGE_IDS), sorted(found ^ set(BOTH_BADGE_IDS))
+
+
+@pytest.mark.parametrize("iid", sorted(BOTH_BADGE_IDS), ids=sorted(BOTH_BADGE_IDS.values()))
+def test_every_formerly_crashing_profile_renders(iid):
+    """THE regression test: the whole Find page, seeded on each of the ten, with
+    no exception -- and the type correction present in its INLINE form (the
+    literal head of the identity template, plus the original type it names),
+    with no badge carrying it."""
+    at = AppTest.from_file(FIND_PAGE, default_timeout=120)
+    at.session_state["seed_id"] = iid
+    at.session_state["basket"] = []
+    at.run()
+    assert not at.exception, [str(e) for e in at.exception]
+    assert len(_cards(at)) == views_find.N_CARDS
+
+    card, row = _seed_card_and_row(iid)
+    was = badges.corrected_from(row)
+    assert was, iid
+    kind, kind_help = views_find._identity_kind(card, row)
+    assert kind == copy.FIND["IDENTITY_TYPE_CORRECTED"].format(
+        kind=str(card["type"]), star=f":red[{views_find.BONUS_STAR}]", was=was)
+    assert kind_help == copy.FIND["IDENTITY_TYPE_HELP"]
+    captions = [c.value for c in at.caption]
+    assert any(kind in c for c in captions), captions[:6]
+    # ...and the umbrella badge is still there, on its own.
+    assert copy.UMBRELLA_BADGE_LABEL in _page_strings(at)
+    assert not any(was in b for b in
+                   badges.badges_for(card, views_find._bundle()["flags"], {})), iid
