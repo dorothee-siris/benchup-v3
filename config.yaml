@@ -57,7 +57,7 @@ erc_tau: 0.5  # config.yaml erc_tau, R2.23 -- global; per-panel exception consid
 corpus_types: [article, review, book, book-chapter, letter]  # harvest server-side filter, pipeline/01b_harvest_eu27_aug.py lines 10-14; L23
 openalex_filters: {has_doi: true}  # same harvest filter; L23
 
-basket_cap: 6  # BUILD_PLAN_2B.md decision 2B-8/2B-1 -- Compare is 2-6 institutions; additive key, Stream S (config.yaml otherwise unowned in 2B)
+basket_cap: 10  # BUILD_PLAN_2BR3.md SEL, ruling 1 (2026-08-31) -- ONE sidebar basket, cap 10, shared by Find/Compare/Collaborate; was 6 (BUILD_PLAN_2B.md decision 2B-8/2B-1)
 compare_cap: 3  # BUILD_PLAN_2BR.md decision 2B-R-4/A13 -- Compare itself is capped at 3, hard; basket_cap (6) stays the shortlist cap, unchanged
 
 # Facts the Methods page states whose SOURCE lives outside this repo (manager, 2B, 2026-08-29):

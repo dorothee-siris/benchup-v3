@@ -16,6 +16,11 @@ exists for it, and none is needed).
 same list, so the basket now enforces a cap and carries a stable USER order (`move`/
 `reorder`) distinct from any table rank -- Compare/Collaborate mirror that order, they never
 re-sort the compared set themselves.
+
+2BR3 (Phase 2B-R3, Stream SEL, ruling 1): the basket is now the ONE selection surface for
+every page (a shared sidebar component, `lib/selection.render_sidebar`) instead of a
+per-view add flow, so BASKET_CAP widens 6 -> 10 (config.yaml `basket_cap`) and a new
+COLLAB_CAP names Collaborate's own fixed pair-page constant alongside COMPARE_CAP.
 """
 from __future__ import annotations
 
@@ -28,17 +33,24 @@ from lib.app_config import CFG
 # **state.PERSIST).
 PERSIST = dict(persist_state="session")
 
-# 2B-8: Compare is 2-6 institutions (BUILD_PLAN_2B.md decision 2B-1). `config.yaml` carries
-# an ADDITIVE `basket_cap` key (`# 2B-8`) so the number lives with the rest of the ruled
-# config rather than only here; a config snapshot that predates that key (an older deploy,
-# a stray test fixture) falls back to this module constant instead of raising -- BASKET_CAP
-# is read once at import time, same as every other CFG-derived module constant in this app.
-BASKET_CAP: int = int(CFG.get("basket_cap", 6))
+# 2B-8: the basket is a shortlist (BUILD_PLAN_2B.md decision 2B-1; widened to 10 by
+# BUILD_PLAN_2BR3.md SEL ruling 1). `config.yaml` carries an ADDITIVE `basket_cap` key
+# (`# 2B-8`) so the number lives with the rest of the ruled config rather than only here;
+# a config snapshot that predates that key (an older deploy, a stray test fixture) falls
+# back to this module constant instead of raising -- BASKET_CAP is read once at import
+# time, same as every other CFG-derived module constant in this app.
+BASKET_CAP: int = int(CFG.get("basket_cap", 10))
 
 # 2BR (A13/2B-R-4): Compare itself is capped at 3, hard -- separate from the
-# 6-slot basket (a shortlist) above. Config-backed the same way, additive
+# basket (a shortlist) above. Config-backed the same way, additive
 # `compare_cap` key in config.yaml, same import-time-constant convention.
 COMPARE_CAP: int = int(CFG.get("compare_cap", 3))
+
+# 2BR3 (SEL, plan §3 SEL / §1.1): Collaborate is exactly 2 slots, hard -- a
+# structural fact of a PAIR page, not a tunable, so it is a plain constant
+# rather than a config key the way COMPARE_CAP is (nothing to ever retune: a
+# collaboration reading is always between two institutions).
+COLLAB_CAP: int = 2
 
 
 def ensure() -> None:

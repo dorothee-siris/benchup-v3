@@ -4,6 +4,11 @@ unit tests for lib/state.py's basket cap/order and lib/selection.py's
 query-param and deep-link helpers, plus one AppTest proof that the Find
 page itself shows the cap message on a blocked add.
 
+2BR3 (Phase 2B-R3, Stream SEL, plan §3 SEL): extended for the shared sidebar
+search + basket (`selection.render_sidebar`, cap widened 6 -> 10) and the
+slots API (`selection.slots_row` / the pure `resolve_slot_hydration` rule
+behind its deep-link hydration).
+
 Run from cwd `app/`:  python -m pytest tests/test_selection.py -q
 """
 from __future__ import annotations
@@ -11,6 +16,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from lib import copy, selection, state
+from lib.selection import resolve_slot_hydration
 
 APP_DIR = Path(__file__).resolve().parents[1]
 FIND_PAGE = str(APP_DIR / "pages" / "1_\U0001F50E_Find.py")
@@ -21,9 +27,16 @@ KNOWN = {"A", "B", "C", "D", "E", "F", "G", "H"}
 # ------------------------------------------------------------- state.py -----
 
 def test_compare_cap_is_three_and_distinct_from_basket_cap():
-    """2BR A13/2B-R-4: Compare is capped at 3, hard; the basket stays 6."""
+    """2BR A13/2B-R-4: Compare is capped at 3, hard. 2BR3 SEL ruling 1 widens
+    the shared basket 6 -> 10 (ONE sidebar search + basket for every page)."""
     assert state.COMPARE_CAP == 3
-    assert state.BASKET_CAP == 6
+    assert state.BASKET_CAP == 10
+
+
+def test_collab_cap_is_two():
+    """2BR3 SEL, plan §1.6: Collaborate reads exactly two institutions, a
+    plain structural constant (not config-backed like COMPARE_CAP)."""
+    assert state.COLLAB_CAP == 2
 
 
 def _fresh_basket(ids=()):
@@ -232,19 +245,23 @@ def test_deeplink_round_trips_through_parse_query():
 # ------------------------------------------------------ Find page proof -----
 
 def test_find_page_shows_cap_message_on_a_blocked_add():
-    """2B-8 end to end: a basket already at state.BASKET_CAP refuses a
-    seventh id added through the sidebar's "add a comparator" flow, the
-    basket is left unchanged, and the exact copy.FIND["BASKET_FULL"] string
-    (with the real cap) renders as a sidebar warning -- no rerun stands
-    between the click and this assertion (lib/views_find.py's blocked
-    branch skips st.rerun() precisely so this is observable in one .run())."""
+    """2B-8 / 2BR3 SEL end to end: a basket already at state.BASKET_CAP
+    refuses an eleventh id added through the SHARED sidebar search (WT
+    2BR3 task 1: `lib.selection.render_sidebar`, one-click add per result
+    row -- replaces the old per-view "add a comparator" select+button flow
+    this test used to drive), the basket is left unchanged, and the exact
+    copy.FIND["BASKET_FULL"] string (with the real cap) renders as a
+    sidebar warning -- no rerun stands between the click and this
+    assertion (`render_sidebar`'s blocked branch skips st.rerun()
+    precisely so this is observable in one .run())."""
     from streamlit.testing.v1 import AppTest
 
     # Real institution ids (not the seed, not the id searched for below):
-    # _sidebar_basket looks each one up by `.loc[iid, "display_name"]", so a
-    # placeholder string would crash the render before the cap logic runs.
+    # render_sidebar looks each one up by display_name, so a placeholder
+    # string would crash the render before the cap logic runs.
     real_ids = ["I100063501", "I100066346", "I100288624", "I100296615",
-                "I100445878", "I100532134"]
+                "I100445878", "I100532134", "I100749904", "I100930933",
+                "I101202996", "I101343708"]
     assert len(real_ids) == state.BASKET_CAP, "fixture must match the real cap"
     dummy_basket = real_ids
     at = AppTest.from_file(FIND_PAGE, default_timeout=120)
@@ -254,14 +271,122 @@ def test_find_page_shows_cap_message_on_a_blocked_add():
     assert not at.exception, [str(e) for e in at.exception]
     assert at.session_state["basket"] == dummy_basket
 
-    at.sidebar.text_input(key="basket_query").set_value("Gdansk").run()
+    at.sidebar.text_input(key="sidebar_search_query").set_value("Gdansk").run()
     assert not at.exception, [str(e) for e in at.exception]
-    at.sidebar.selectbox(key="basket_pick").select_index(0).run()
-    assert not at.exception, [str(e) for e in at.exception]
-    at.sidebar.button(key="basket_add").click().run()
+    add_button = next(b for b in at.sidebar.button if b.key == "sidebar_add_I40413290")
+    add_button.click().run()
     assert not at.exception, [str(e) for e in at.exception]
 
     assert at.session_state["basket"] == dummy_basket, at.session_state["basket"]
     expected = copy.FIND["BASKET_FULL"].format(cap=state.BASKET_CAP)
     messages = [w.value for w in at.sidebar.warning]
     assert expected in messages, messages
+
+
+def test_find_page_sidebar_search_add_then_remove():
+    """2BR3 SEL end to end, the OTHER half of the shared sidebar: an empty
+    basket, a search that returns a real hit, one click adds it (no
+    intermediate pick step), and the remove control on the basket row takes
+    it back out -- both observed through the SAME AppTest instance so the add
+    and the remove are proven against the identical widget tree."""
+    from streamlit.testing.v1 import AppTest
+
+    at = AppTest.from_file(FIND_PAGE, default_timeout=120)
+    at.session_state["basket"] = []
+    at.run()
+    assert not at.exception, [str(e) for e in at.exception]
+
+    at.sidebar.text_input(key="sidebar_search_query").set_value("IFPEN").run()
+    assert not at.exception, [str(e) for e in at.exception]
+    add_button = next(b for b in at.sidebar.button if b.key == "sidebar_add_I265217849")
+    add_button.click().run()
+    assert not at.exception, [str(e) for e in at.exception]
+    assert at.session_state["basket"] == ["I265217849"], at.session_state["basket"]
+
+    rm_button = next(b for b in at.sidebar.button if b.key == "sidebar_rm_I265217849")
+    rm_button.click().run()
+    assert not at.exception, [str(e) for e in at.exception]
+    assert at.session_state["basket"] == [], at.session_state["basket"]
+
+
+# ------------------------------------------------------- slots API (2BR3) ---
+# 2BR3 SEL, plan §3 SEL: lib.selection.slots_row and the pure hydration rule
+# behind it. slots_row itself needs a Streamlit runtime (st.columns/
+# selectbox/query_params); resolve_slot_hydration is the pure rule split out
+# specifically so it is unit-testable with none.
+
+def test_resolve_slot_hydration_parses_and_pads():
+    out = resolve_slot_hydration("A,B", KNOWN, 3)
+    assert out == ["A", "B", selection.SLOT_EMPTY]
+
+
+def test_resolve_slot_hydration_truncates_to_n():
+    out = resolve_slot_hydration("A,B,C,D", KNOWN, 2)
+    assert out == ["A", "B"]
+
+
+def test_resolve_slot_hydration_drops_unknown_ids():
+    out = resolve_slot_hydration("A,ZZZ,B", KNOWN, 3)
+    assert out == ["A", "B", selection.SLOT_EMPTY]
+
+
+def test_resolve_slot_hydration_none_value_is_all_empty():
+    assert resolve_slot_hydration(None, KNOWN, 2) == [selection.SLOT_EMPTY] * 2
+
+
+def test_slots_row_hydrates_from_url_fills_basket_and_persists_across_rerun():
+    """slots_row end to end (AppTest.from_function, no real page needed):
+    first run with `?compare=A,B` hydrates both slots AND folds A/B into the
+    basket; a second .run() with NO query params must NOT re-hydrate (the
+    session flag guards it) -- the slots stay exactly where the reader last
+    left them, proving the persistence half of the acceptance."""
+    from streamlit.testing.v1 import AppTest
+
+    def _app():
+        import streamlit as st
+
+        from lib import selection, state
+
+        state.ensure()
+        picks = selection.slots_row("compare", 3)
+        st.session_state["_picks_seen"] = picks
+
+    at = AppTest.from_function(_app, default_timeout=60)
+    at.query_params["compare"] = "I265217849,I40413290"
+    at.run()
+    assert not at.exception, [str(e) for e in at.exception]
+    assert at.session_state["_picks_seen"] == ["I265217849", "I40413290", None]
+    assert at.session_state["basket"] == ["I265217849", "I40413290"]
+    assert at.query_params["compare"] == ["I265217849,I40413290"]
+
+    # Reader manually fills slot 3 (their own edit, no query param involved):
+    # options are SLOT_EMPTY plus the basket, so the LAST option is always a
+    # real id here (the basket holds A and B, both non-empty).
+    slot3 = at.selectbox(key="slot_compare_2")
+    assert len(slot3.options) >= 2, slot3.options
+    slot3.select_index(len(slot3.options) - 1).run()
+    assert not at.exception, [str(e) for e in at.exception]
+    third = at.session_state["_picks_seen"][2]
+    assert third is not None, at.session_state["_picks_seen"]
+    assert at.query_params["compare"] == [f"I265217849,I40413290,{third}"]
+
+
+def test_slots_row_collab_uses_pair_param_and_two_slots():
+    from streamlit.testing.v1 import AppTest
+
+    def _app():
+        import streamlit as st
+
+        from lib import selection, state
+
+        state.ensure()
+        picks = selection.slots_row("collab", 2)
+        st.session_state["_picks_seen"] = picks
+
+    at = AppTest.from_function(_app, default_timeout=60)
+    at.query_params["pair"] = "I265217849,I40413290"
+    at.run()
+    assert not at.exception, [str(e) for e in at.exception]
+    assert at.session_state["_picks_seen"] == ["I265217849", "I40413290"]
+    assert "compare" not in at.query_params
+    assert at.query_params["pair"] == ["I265217849,I40413290"]

@@ -10,12 +10,17 @@ palette,app_config,data_cache}. Nothing here re-implements them and nothing
 here types a value into a rendered string (BUILD_PLAN_2A.md L10).
 
 PAGE ORDER (L16/L17, re-laid by R2/L30, re-laid again by Phase 2B-R decision
-2B-R-2 as a 2 + 2 split; top to bottom, and the order the code below follows):
-  title + intro + verdict + data caption ("N institutions . data from <date>";
-  2B-R-12 removed the snapshot label and its generated timestamp), with the
-  "Filtered by..." strip slot right under it -> seed search, which loads
-  NOTHING until the reader picks a match (2B-R-12: the results selectbox opens
-  on `index=None`) -> PROFILE section: row 1 in two halves (2B-R2-6: SIX KPI
+2B-R-2 as a 2 + 2 split, and again by Phase 2B-R3 Stream SEL, plan §3 SEL,
+which compacts the header and moves the search itself off this page entirely;
+top to bottom, and the order the code below follows):
+  title + one-line promise (`_header`) -> the "Filtered by..." strip slot
+  right under it -> ONE dropdown OVER THE BASKET (`_seed_pick`; 2BR3: the
+  free-text seed search is GONE from this page -- an institution reaches the
+  basket only through the shared sidebar, `lib/selection.render_sidebar`,
+  which every page now carries; a basket of exactly one auto-selects itself,
+  more than one still needs an explicit pick, which is the SAME "never load a
+  match silently" guarantee 2B-R-12 built, now read off the basket instead of
+  off a live search) -> PROFILE section: row 1 in two halves (2B-R2-6: SIX KPI
   cards in a 2 x 3 grid, name first and all methodology in a `?` | the identity
   block with the subfield wordcloud under it, the institution NAME itself
   linking to its publications in OpenAlex and a corrected type rendered inline
@@ -27,9 +32,19 @@ PAGE ORDER (L16/L17, re-laid by R2/L30, re-laid again by Phase 2B-R decision
   read the lenses" guide -> the lens tabs, labelled by the bare
   `copy.LENS_DISPLAY_CODE` (2B-R-11a: L0..L9, renumbered in tab order; the
   full `copy.LENS_DISPLAY_NAMES` sentence moved inside each tab body). The
-  SIDEBAR holds only what is app-wide: counting & taxonomy (tree, basis) and
-  the Basket (L16 -- gate-2A feedback #1: a control that governs one section
-  belongs at the head of that section, not a page away in the sidebar).
+  SIDEBAR holds counting & taxonomy (tree, basis, this page's own scenario
+  controls) plus the shared search + basket every page now carries
+  (`selection.render_sidebar`, 2BR3 SEL) -- L16 / gate-2A feedback #1's "a
+  control that governs one section belongs at the head of that section" is
+  why scenario stays here rather than in the Benchmark controls row, and why
+  the basket -- app-wide, not Find-specific -- is a shared component instead
+  of this page's own.
+
+  Meta text (2BR3 SEL, plan §3): the verdict line and the data-from caption
+  that used to sit under the title move to the FOOT of the page
+  (`_footer_meta`), after every section -- the promise a reader needs before
+  scrolling is one line; the provenance a reader needs is not urgent enough
+  to spend that line.
 
   The R1 coverage line is GONE (L30, VIZ_SPEC S2.12 RETIRED): each of its four
   items now sits where it is read -- ERC-classified share in the ERC panel
@@ -70,7 +85,7 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
-from lib import baselines, charts, copy, countries, links, profile_data, state, tiles
+from lib import baselines, charts, copy, countries, links, profile_data, selection, state, tiles
 from lib import palette as P
 from lib.app_config import CFG
 from lib.badges import (
@@ -91,7 +106,7 @@ from lib.ranked import (
     format_concordance, format_rows, render_concordance_table, render_ranked_table,
     works_link_named,
 )
-from lib.search import build_search_index, normalize, search
+from lib.search import build_search_index, normalize
 from lib.wordcloud_png import render_wordcloud_png
 
 # The C1 lens restricts L1 to the seed's top-N subfields; N is a bare literal
@@ -345,9 +360,31 @@ def _strip_tree(tree: str) -> str:
     return default if tree == default else copy.TREE_LABELS[tree]
 
 
+# ------------------------------------------------------- header + search ----
+# 2BR3 SEL (plan §3 SEL): `_sidebar_basket` and `_seed_search` are RETIRED
+# from this file -- the sidebar search + basket is now the ONE shared
+# component every page calls (`lib/selection.render_sidebar`, which owns the
+# NEW result-row label `lib.selection.hit_label`), and `_seed_pick` below
+# replaces the free-text seed search with a single dropdown over what the
+# sidebar already basketed. `_header` is compacted to title + promise only;
+# the verdict line and data-from caption it used to carry move to
+# `_footer_meta`, called once at the very end of `render()`.
+#
+# `_hit_label` itself STAYS (not dead code, a deprecation shim): WT_2BR3.md
+# §5.7 confirms `lib/views_compare.py` and `lib/views_collab.py` import it BY
+# NAME (`from lib.views_find import ..., _hit_label, ...`) for their own OLD
+# add-comparator flows, which this wave keeps RUNNING unedited (wave-2 fence:
+# VC/VL rewire in wave 2, not this stream). Deleting it would break the shim,
+# not the intended target -- TODO(VC/VL, wave 2): once your own pages call
+# `selection.slots_row`/`selection.render_sidebar` instead, drop this import
+# and this function.
+
+
 def _hit_label(hits: list[dict], iid: str) -> str:
-    """name . country . type . size -- VIZ_SPEC S2.1's candidate line, with the
-    country by NAME since R1/L22."""
+    """name . country . type . size -- VIZ_SPEC S2.1's candidate line, with
+    the country by NAME since R1/L22. KEPT ONLY for `views_compare.py`/
+    `views_collab.py`'s old add-comparator flow (see the TODO above); Find's
+    own new sidebar search uses `lib.selection.hit_label` instead."""
     h = next(x for x in hits if x["id"] == iid)
     total = h["total_full_2020_2024"]
     if total is None or pd.isna(total):
@@ -357,62 +394,21 @@ def _hit_label(hits: list[dict], iid: str) -> str:
     return (f"{h['display_name']} {SEP} {countries.name(h['country_code'])} {SEP} "
             f"{h['type']} {SEP} {size}")
 
-
-def _sidebar_basket(bundle: dict) -> None:
-    """VIZ_SPEC S1.3 / S2.9: the basket list, a remove control per item, a
-    clear button, and the free-text "add a comparator" box. Stays in the
-    sidebar under L16 -- the basket is app-wide, not a benchmark control."""
-    sb, names = st.sidebar, bundle["ctx"]["index_by_id"]
-    sb.header(copy.FIND["BASKET_HEADER"])
-    items = state.items()
-    # 2B-8: the count against the cap sits right under the header, the one
-    # place every page hop shows it regardless of which add site was used.
-    sb.caption(copy.FIND["BASKET_COUNT"].format(n=len(items), cap=state.BASKET_CAP))
-    if not items:
-        sb.caption(copy.FIND["BASKET_EMPTY"])
-    else:
-        for iid in list(items):
-            col_a, col_b = sb.columns([4, 1])
-            col_a.write(str(names.loc[iid, "display_name"]))
-            if col_b.button(copy.FIND["BASKET_REMOVE"], key=f"rm_{iid}"):
-                state.remove(iid)
-                st.rerun()
-        if sb.button(copy.FIND["BASKET_CLEAR"], key="basket_clear"):
-            state.clear()
-            st.rerun()
-    query = sb.text_input(copy.FIND["ADD_COMPARATOR_LABEL"], help=copy.ADD_COMPARATOR_HELP,
-                          key="basket_query", **state.PERSIST)
-    hits = search(query, bundle["search_idx"]) if query else []
-    if query and not hits:
-        sb.caption(copy.SEARCH_EMPTY_TEMPLATE.format(query=query))
-    if hits:
-        pick = sb.selectbox(copy.FIND["ADD_COMPARATOR_PICK"], [h["id"] for h in hits],
-                            format_func=lambda i: _hit_label(hits, i), key="basket_pick")
-        if sb.button(copy.FIND["ADD_COMPARATOR_BUTTON"], key="basket_add"):
-            # 2B-8: state.add() never raises -- False means the cap (state.BASKET_CAP)
-            # is already reached and NOTHING changed, so the page is not rerun (the
-            # sidebar has nothing new to reflect) and the message renders right here.
-            if state.add(pick):
-                st.rerun()
-            else:
-                sb.warning(copy.FIND["BASKET_FULL"].format(cap=state.BASKET_CAP))
-
-
-# ------------------------------------------------------- header + search ----
-
-def _header(bundle: dict) -> None:
-    """Title, the standing verdict line, and the data stamp.
-
-    2B-R-12: the stamp is no longer "Snapshot: august_2026 (generated
-    2026-08-27T13:41:28.350794+00:00)". An internal artefact name and a
-    microsecond-precision machine timestamp are provenance for an operator, not
-    a caption for a reader -- and the Methods page already carries the vintage
-    in its own provenance section, where an operator looks. What stays is the
-    two facts a reader uses: how big the index is, and how old the data is.
-    Both are computed (index length, the manifest's own source stamp parsed by
-    `exports.data_date_label`), never typed."""
+def _header() -> None:
+    """Title + the one-line promise (2BR3 SEL, plan §3: 'title + promise
+    line, then ONE dropdown'). Everything this function used to also carry --
+    the standing verdict line, the data-from stamp -- is `_footer_meta` now."""
     st.title(copy.FIND["PAGE_TITLE"])
     st.caption(copy.FIND["PAGE_INTRO"])
+
+
+def _footer_meta(bundle: dict) -> None:
+    """The meta text 2BR3 SEL demotes to the FOOT of the page: the standing
+    verdict line and the data stamp (2B-R-12: 'how big the index is, and how
+    old the data is', never the verbose snapshot-label-plus-timestamp this
+    once was -- see `exports.data_date_label`). Called once, at the very end
+    of `render()`, after every section."""
+    st.markdown("---")
     st.markdown(f"**{copy.VERDICT_LINE}**")
     mf = manifest()
     # ops/deploy.py writes `source_manifest_generated_at` / `deployed_at`; the
@@ -426,33 +422,47 @@ def _header(bundle: dict) -> None:
         date=data_date_label(stamp, NA_MARK)))
 
 
-def _seed_search(bundle: dict) -> str | None:
-    """VIZ_SPEC S2.1 + 2B-R-12: search-first, no default listing, and NO
-    auto-load of the best match.
+def _seed_pick(bundle: dict) -> str | None:
+    """2BR3 SEL (plan §3): ONE dropdown OVER THE BASKET, replacing the old
+    free-text seed search entirely. An empty basket shows the SAME prompt the
+    old page showed on an empty query (`copy.FIND["SEED_PROMPT"]`, reworded
+    for the new entry point); exactly one basket item AUTO-SELECTS itself (no
+    click needed -- the plan's own wording); more than one still needs an
+    EXPLICIT pick, preserving 2B-R-12's 'never load a match silently'
+    guarantee, now read off the basket instead of off a live search.
 
-    `index=None` plus a placeholder is the whole change (Wind Tunnel A12
-    measured it as supported on the pinned Streamlit 1.61.1). Before it, typing
-    three letters silently loaded whichever institution the ranker happened to
-    put first, and a reader who had not chosen anything was looking at a full
-    benchmark for an institution they had not named -- the gate-2B complaint.
-    Now the selectbox starts empty, `pick` stays None, `seed_id` is never
-    written, and `render()`'s existing early return keeps the ENTIRE page below
-    the search box unrendered until the reader picks. A pick already made
-    survives a query edit: `seed_id` is only ever overwritten by another pick,
-    never cleared by typing.
-
-    The chosen id lives in the plain (non-widget) session key `seed_id`, so it
-    survives page hops."""
-    query = st.text_input(copy.FIND["SEED_SEARCH_LABEL"], key="seed_query", **state.PERSIST)
-    hits = search(query, bundle["search_idx"]) if query else []
-    if query and not hits:
-        st.info(copy.SEARCH_EMPTY_TEMPLATE.format(query=query))
-    if hits:
-        pick = st.selectbox(copy.FIND["SEED_PICK_LABEL"], [h["id"] for h in hits],
-                            index=None, placeholder=copy.FIND["SEED_PICK_PLACEHOLDER"],
-                            format_func=lambda i: _hit_label(hits, i), key="seed_pick")
-        if pick:
-            st.session_state["seed_id"] = pick
+    A pick already made (this session, or a page hop) survives a basket
+    change that leaves it present; `seed_id` is the SAME plain (non-widget)
+    session key the rest of this file already reads, so nothing downstream
+    of this function changes. An already-set `seed_id` is honoured even when
+    the basket happens to be empty (production code only ever sets it FROM
+    this function or from `render()`'s own `?seed=` hydration, which always
+    baskets the id too -- so this branch only ever fires for a test harness
+    that seeds `seed_id` directly to skip the picker, same as the retired
+    free-text `_seed_search` did)."""
+    items = state.items()
+    if not items:
+        current = st.session_state.get("seed_id")
+        if current:
+            return current
+        st.info(copy.FIND["SEED_PROMPT"])
+        return None
+    if len(items) == 1:
+        st.session_state["seed_id"] = items[0]
+        return items[0]
+    names = bundle["index_df"].set_index("institution_id")["display_name"]
+    # A basket edit (a removal in the sidebar) can leave the widget's OWN prior
+    # state pointing at an id that is no longer an option, which would make
+    # st.selectbox raise -- POP (never reassign) so `index=None` below is the
+    # only thing setting this key this run, the same "one writer" rule
+    # `views_collab.py::_pair_picker` follows for its own selectboxes.
+    if st.session_state.get("seed_pick") not in items:
+        st.session_state.pop("seed_pick", None)
+    pick = st.selectbox(copy.FIND["SEED_PICK_LABEL"], items,
+                        index=None, placeholder=copy.FIND["SEED_PICK_PLACEHOLDER"],
+                        format_func=lambda i: str(names.get(i, i)), key="seed_pick")
+    if pick:
+        st.session_state["seed_id"] = pick
     return st.session_state.get("seed_id")
 
 
@@ -1595,30 +1605,39 @@ def _ctx_bits(ctl: dict, filters: dict, seed_id: str, rankings: dict, strip: str
 
 
 def render() -> None:
-    """The whole Find page, in the argument order VIZ_SPEC S1.3/S1.9/S2 fixes.
+    """The whole Find page, in the argument order VIZ_SPEC S1.3/S1.9/S2 fixes,
+    re-laid by 2BR3 Stream SEL (plan §3 SEL) for the compacted header + the
+    basket-only seed picker.
 
-    Computation order (L16/L17/L29): sidebar counting & taxonomy -> header ->
-    seed search -> substrates -> rank_all -> PROFILE (which returns the seed
-    card the L2f tab intro reads) -> controls row (which needs the rankings for
-    the same-country tooltip) -> the lens guide -> the strip, rendered back into
-    the slot reserved under the title -> tabs."""
+    Computation order: sidebar counting & taxonomy, then the shared sidebar
+    search + basket (`selection.render_sidebar`) -> compact header (title +
+    promise) -> seed pick OVER THE BASKET -> substrates -> rank_all ->
+    PROFILE (which returns the seed card the L2f tab intro reads) -> controls
+    row (which needs the rankings for the same-country tooltip) -> the lens
+    guide -> the strip, rendered back into the slot reserved under the title
+    -> tabs -> the meta text 2BR3 demotes to the foot of the page
+    (`_footer_meta`), always rendered last, seed or no seed."""
     bundle = _bundle()
     qp_seed = st.query_params.get("seed")
     if qp_seed and "seed_id" not in st.session_state and qp_seed in bundle["ctx"]["id_pos"]:
+        # ops/_probe_find.py + tests/ui/smoke.py jump straight to a profile
+        # this way; folding the id into the basket keeps it a valid option
+        # for `_seed_pick` below rather than a session_state value the new
+        # basket-only dropdown would never have offered on its own.
         st.session_state["seed_id"] = qp_seed
+        state.add(qp_seed)
     scenario = _sidebar_scenario()
-    _header(bundle)
+    selection.render_sidebar()
+    _header()
     strip_slot = st.empty()
-    seed_id = _seed_search(bundle)
+    seed_id = _seed_pick(bundle)
     if not seed_id:
-        st.info(copy.FIND["SEED_PROMPT"])
-        _sidebar_basket(bundle)
+        _footer_meta(bundle)
         return
     subs = _subs(scenario["tree"], scenario["basis"])
     ctx = bundle["ctx"]
     rankings = rank_all(ctx, subs, seed_id)
     seed_row = ctx["index_by_id"].loc[seed_id]
-    _sidebar_basket(bundle)
     card = _render_profile(bundle, subs, seed_id, scenario)
     benchmark, filters = _controls_row(bundle, rankings, seed_row)
     ctl = {**scenario, **benchmark}
@@ -1645,3 +1664,4 @@ def render() -> None:
             _render_lens_tab(lens, rankings[lens], bundle, subs, filters, seed_row, bits)
     with tabs[-1]:
         _render_aspirational(bundle, rankings, filters, seed_row, bits)
+    _footer_meta(bundle)

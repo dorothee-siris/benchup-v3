@@ -19,7 +19,7 @@ from pathlib import Path
 
 import streamlit as st
 
-from lib import copy, state
+from lib import copy, selection, state
 from lib.data_cache import index, manifest
 from lib.exports import data_date_label
 from lib.palette import NA_MARK
@@ -28,6 +28,10 @@ SEP = "·"   # middle dot, the separator every other caption in the app uses
 
 st.set_page_config(page_title="BenchUp v3", layout="wide")
 state.ensure()
+# 2BR3 SEL, plan §1 item 1: the shared sidebar search + basket lives on every
+# page, landing page included -- a reader can start shortlisting before ever
+# opening Find.
+selection.render_sidebar()
 
 st.title(copy.NAV["MENU_HEADER"])
 st.caption(copy.NAV["MENU_INTRO"])

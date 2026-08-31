@@ -240,17 +240,33 @@ FIND = {
     "FAMILY_LABEL": "Family filter (field overlap)",
     "FAMILY_HELP": "Keeps candidates whose L0 field overlap with the seed is at or above {threshold}.",
     "BASKET_HEADER": "Basket",
-    "BASKET_EMPTY": "No comparator added yet. Use the add button under any table.",
+    "BASKET_EMPTY": "No institution added yet. Search above and add one.",
     "BASKET_COUNT": "{n} of {cap} added",
-    "BASKET_FULL": ("The basket already holds the most institutions Compare can show at "
+    "BASKET_FULL": ("The basket already holds the most institutions it can hold at "
                      "once ({cap}). Remove one before adding another."),
     "BASKET_CLEAR": "Clear basket",
-    "BASKET_REMOVE": "Remove",
-    "ADD_COMPARATOR_LABEL": "Add a comparator not found above",
-    "ADD_COMPARATOR_PICK": "Matching institutions",
-    "ADD_COMPARATOR_BUTTON": "Add to basket",
+    "BASKET_REMOVE": "✕",
+    # ---- 2BR3 SEL, ruling 1: the ONE shared sidebar search + basket, live on
+    # every page through lib/selection.render_sidebar -- replaces the old
+    # per-view "add a comparator" flow (ADD_COMPARATOR_LABEL/PICK/BUTTON,
+    # retired; see WT_2BR3.md §5.7 views_find.py:370-398). One-click add per
+    # result row, never a pick-then-click second step.
+    "SIDEBAR_SEARCH_HEADER": "Search institutions",
+    # "＋" not "Add": the 1/5 sidebar column is too narrow for a word — "Add"
+    # wraps to one letter per line at 1920px (manager merge fix, SEL proof
+    # screenshot). The help tooltip carries the words.
+    "SIDEBAR_ADD_BUTTON": "＋",
+    "SIDEBAR_ADD_HELP": "Add to basket",
+    # ---- 2BR3 SEL: the slots API (lib/selection.slots_row), Compare/
+    # Collaborate's own basket-only slot pickers.
+    "SLOT_EMPTY_LABEL": "Empty slot",
+    "SLOT_LABEL": "Slot {n}",
+    "SLOT_NEED_COMPARE": ("Add at least two institutions to your basket, using the "
+                          "sidebar search, to compare them."),
+    "SLOT_NEED_COLLAB": ("Collaborate reads exactly two institutions. Pick two in the "
+                        "slots above, adding more to your basket first if you need to."),
     "PAGE_TITLE": "Find",
-    "PAGE_INTRO": "Search for an institution, then read who resembles it across independent lenses.",
+    "PAGE_INTRO": "Add institutions in the sidebar, then read who resembles the one you profile, across independent lenses.",
     # 2B-R-12 / A14: the verbose "Snapshot: <label> (generated <timestamp>)"
     # stamp is GONE from every page. The key and its four call-site keywords
     # (`snapshot`, `generated_at`, `n_institutions`, `sep`) are kept exactly as
@@ -260,9 +276,14 @@ FIND = {
     # DATA_CAPTION below; the Methods page keeps its factual provenance in its
     # own METHODS["snapshot"] section, which is where a vintage belongs.
     "SNAPSHOT_CAPTION": "{n_institutions} institutions in the index.",
+    # 2BR3 SEL: SEED_SEARCH_LABEL now labels the ONE shared sidebar search box
+    # (lib/selection.render_sidebar), not a Find-only field -- the wording
+    # already named what it searches by, not where it lives, so it carries
+    # over unchanged. SEED_PICK_LABEL/PLACEHOLDER/PROMPT are Find's own
+    # dropdown OVER THE BASKET that replaced the free-text seed search.
     "SEED_SEARCH_LABEL": "Institution name, acronym or alternative name",
-    "SEED_PICK_LABEL": "Matching institutions",
-    "SEED_PROMPT": "Type an institution name above to load its benchmark.",
+    "SEED_PICK_LABEL": "Institution to profile",
+    "SEED_PROMPT": "Add an institution using the sidebar search to see its benchmark.",
 
     # ---- what a publication is (R2 / L29; every clause verified against
     # pipeline/01b_harvest_eu27_aug.py l.10-14, app/config.yaml l.42-43,
@@ -493,7 +514,7 @@ FIND = {
 
     # 2B-R-12: the results list no longer auto-loads its best match. The
     # placeholder is what the reader sees until they pick deliberately.
-    "SEED_PICK_PLACEHOLDER": "Choose one of these institutions",
+    "SEED_PICK_PLACEHOLDER": "Choose which one to profile",
 
     # 2B-R-2: FOUR cards replace the eight tiles. Each shows one big value,
     # the index-baseline line (TILE_BASELINE_SUB above), and carries ALL of

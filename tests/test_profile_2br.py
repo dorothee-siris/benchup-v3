@@ -77,22 +77,23 @@ def _page_strings(at: AppTest) -> str:
                                       *at.subheader, *at.title))
 
 
-# ------------------------------------------- 1. search on validate (A12) ----
+# ------------------------------- 1. basket-only seed pick (2BR3 SEL) --------
+# Re-cut for BUILD_PLAN_2BR3.md SEL: the free-text seed search this section
+# used to drive is GONE from this page (moved to the shared sidebar,
+# lib/selection.render_sidebar); the claims are the SAME shape -- nothing
+# renders before a subject is chosen, a choice is never made silently -- read
+# off the basket instead of off a live query.
 
-def test_a_query_alone_renders_the_results_list_and_nothing_below_it():
-    """The load-bearing half: after typing, the reader sees matches and NO
-    profile. `index=None` on the results selectbox is what makes `seed_id`
-    stay unwritten, and `render()`'s existing early return does the rest."""
+OTHER_SEED = "I265217849"  # IFPEN, a second real id distinct from STRASBOURG
+
+
+def test_an_empty_basket_renders_the_prompt_and_nothing_below_it():
+    """The load-bearing half: an empty basket shows the prompt and NO
+    profile -- `_seed_pick`'s own early return is what keeps `seed_id`
+    unwritten, and `render()`'s early return does the rest."""
     at = _fresh_find_app()
-    at.session_state["seed_query"] = STRASBOURG_QUERY
     at.run()
     assert not at.exception, [str(e) for e in at.exception]
-
-    keys = [s.key for s in at.selectbox]
-    assert "seed_pick" in keys, keys
-    pick = next(s for s in at.selectbox if s.key == "seed_pick")
-    assert pick.value is None, pick.value
-    assert len(pick.options) >= 1, pick.options
 
     assert "seed_id" not in at.session_state
     headers = [h.value for h in at.header]
@@ -102,20 +103,46 @@ def test_a_query_alone_renders_the_results_list_and_nothing_below_it():
     assert copy.FIND["SEED_PROMPT"] in [i.value for i in at.info]
 
 
-def test_picking_a_match_renders_the_profile():
-    """The other half, on the SAME app instance shape: select an option in the
-    results list and the profile appears. Selecting by the widget (not by
-    writing `seed_id`) is the point -- it exercises the one code path a reader
-    has."""
+def test_a_basket_of_one_auto_selects_and_renders_the_profile():
+    """2BR3 SEL, plan §3: exactly one basket item needs no click at all --
+    the profile renders straight away, and no picker widget is even shown
+    (nothing to choose between)."""
     at = _fresh_find_app()
-    at.session_state["seed_query"] = STRASBOURG_QUERY
+    at.session_state["basket"] = [STRASBOURG]
     at.run()
+    assert not at.exception, [str(e) for e in at.exception]
+
+    assert at.session_state["seed_id"] == STRASBOURG
+    headers = [h.value for h in at.header]
+    assert copy.FIND["PROFILE_HEADER"] in headers, headers
+    assert copy.FIND["BENCHMARK_HEADER"] in headers, headers
+    assert len([m.value for m in at.markdown if tiles.TILE_CLASS in m.value]) == \
+        views_find.N_CARDS
+    assert "seed_pick" not in [s.key for s in at.selectbox]
+
+
+def test_a_basket_of_several_needs_an_explicit_pick():
+    """The other half: more than one basket item shows the dropdown OVER THE
+    BASKET (2B-R-12's 'never load a match silently' guarantee, now read off
+    the basket), and picking by the widget renders that institution's
+    profile."""
+    at = _fresh_find_app()
+    at.session_state["basket"] = [OTHER_SEED, STRASBOURG]
+    at.run()
+    assert not at.exception, [str(e) for e in at.exception]
+
+    assert "seed_id" not in at.session_state
+    assert copy.FIND["PROFILE_HEADER"] not in [h.value for h in at.header]
     pick = next(s for s in at.selectbox if s.key == "seed_pick")
-    # `.options` carries the FORMATTED labels (`format_func` is applied), so
-    # the pick is made by POSITION -- which is also what a reader does. The
-    # top hit for this query is the university itself (the search's own
-    # "ties by total_full desc" rule), asserted rather than assumed.
-    pick.select_index(0).run()
+    assert pick.value is None, pick.value
+    # AppTest exposes the FORMATTED labels (format_func applied), not the raw
+    # ids -- length is what a pure-copy check can assert without depending on
+    # display-name text; the pick itself is made by POSITION below, which is
+    # also what a reader does, and basket order ([OTHER_SEED, STRASBOURG]) is
+    # exactly `state.items()`'s own insertion order.
+    assert len(pick.options) == 2, pick.options
+
+    pick.select_index(1).run()  # basket[1] == STRASBOURG
     assert not at.exception, [str(e) for e in at.exception]
 
     assert at.session_state["seed_id"] == STRASBOURG
@@ -126,9 +153,10 @@ def test_picking_a_match_renders_the_profile():
         views_find.N_CARDS
 
 
-def test_the_results_list_opens_on_its_placeholder_not_on_a_match():
-    """A pure-copy guard on the same decision: the placeholder key exists and
-    carries no institution name of its own."""
+def test_the_seed_pick_placeholder_names_no_institution():
+    """A pure-copy guard: the placeholder carries no institution name of its
+    own -- it is shown alongside every basket option, so it must never look
+    like one of them."""
     placeholder = copy.FIND["SEED_PICK_PLACEHOLDER"]
     assert placeholder
     assert STRASBOURG_QUERY.lower() not in placeholder.lower()
