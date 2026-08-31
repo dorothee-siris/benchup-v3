@@ -346,15 +346,22 @@ def test_metric_frame_field_pp_and_vol_top10_anchor(ctx):
 
 
 def test_metric_frame_field_sdg_share_anchor(ctx, subs_bestfit):
-    """Anchor (Strasbourg, bestfit): field 33 SDG-tagged mass 253.856812 /
-    field mass 878.0426 = 0.28911674; field 23: 100.5692/114.91687 =
-    0.8751474 (independently summed off sdg_fields.parquet/fields.parquet)."""
+    """RE-DERIVED 2BR3 (BUILD_PLAN_2BR3.md Stream TEV-D, item 3 -- the v1
+    anchor read the OLD per-goal `sdg_fields.mass` column, which is EXACTLY
+    the 264.8%-bug mechanism WT_2BR3.md task 5.2 traced this table to; that
+    column and grain (per-goal `sdg_idx`) no longer exist in v2). New anchor
+    (Strasbourg, bestfit, fractional basis), independently summed off v2's
+    `sdg_fields.parquet` (`mass_any_frac`, DISTINCT-tagged, no sdg_idx to
+    double-count over) / `fields.parquet` (`vol_frac`), SAME 2020-2024 core
+    window on both sides: field 33 142.799271 / 878.0426 = 0.16263365; field
+    23 44.070625 / 114.91687 = 0.38350005."""
     df = CD.metric_frame(ctx, subs_bestfit, [STRASBOURG], "field", "sdg_share")
     row33 = df[df["taxon_id"] == 33].iloc[0]
     row23 = df[df["taxon_id"] == 23].iloc[0]
-    np.testing.assert_allclose(row33["value"], 0.28911674, rtol=1e-4)
-    np.testing.assert_allclose(row23["value"], 0.8751474, rtol=1e-4)
+    np.testing.assert_allclose(row33["value"], 0.1626336469516921, rtol=1e-4)
+    np.testing.assert_allclose(row23["value"], 0.38350004886344685, rtol=1e-4)
     assert (df["taxon_id"] != -1).all()  # untopiced residual never surfaces as a field row
+    assert (df["value"] >= 0.0).all() and (df["value"] <= 1.0 + 1e-6).all()  # the bounded-share fix itself
 
 
 def test_metric_frame_field_dynamics_matches_independent_yearly_rollup(ctx, subs_bestfit):
@@ -429,11 +436,19 @@ def test_metric_frame_sdg_share_matches_sdg_long_and_dynamics_anchor(ctx, subs_b
 
 
 def test_metric_frame_vol_erc_and_sdg_anchors(ctx):
-    """2B-R-8 gap fix: raw-volume metric `vol` -- ERC 'Volume' from
-    erc.parquet.mass, SDG 'Volume tagged' from sdg.parquet.mass. Anchors
-    (Strasbourg, independently read off the raw parquet): ERC panel 0 mass
-    14.554565, panel 1 mass 62.74084; SDG idx 3 mass 67.25587, idx 1 mass
-    21.483147."""
+    """2B-R-8 gap fix, RE-DERIVED 2BR3 for the SDG half (BUILD_PLAN_2BR3.md
+    Stream TEV-D, item 3): ERC 'Volume' still reads `erc.parquet.mass`
+    UNCHANGED (v2 only ADDS `mass_full` beside it, ruling 2/SS2.2) -- the ERC
+    anchors are byte-identical to v1. SDG 'Volume tagged' MOVED off the
+    whole-run (2020-2025) `sdg.parquet.mass` onto `sdg_year.parquet` v2,
+    window-sliced to the 2020-2024 core window (2BR3 CD4 item 1: 'SDG
+    Volume tagged... moved off sdg.parquet's whole-run mass onto
+    sdg_year.parquet, window-sliced 2020-2024') -- so both the VALUES and the
+    denominator note's window text change. New anchor (Strasbourg,
+    fractional basis), independently summed off `sdg_year.parquet`'s
+    `mass_frac` for years 2020-2024 only: sdg idx 3 = 54.305721, idx 1 =
+    18.018429 (both LOWER than v1's whole-run 67.25587/21.483147, as
+    expected -- a 5-year window is a strict subset of the 6-year one)."""
     erc_vol = CD.metric_frame(ctx, {"tree": "bestfit"}, [STRASBOURG], "erc", "vol")
     assert list(erc_vol.columns) == CD.METRIC_FRAME_COLS
     np.testing.assert_allclose(erc_vol.loc[erc_vol["taxon_id"] == 0, "value"].iloc[0], 14.554565, atol=1e-3)
@@ -441,28 +456,59 @@ def test_metric_frame_vol_erc_and_sdg_anchors(ctx):
     assert erc_vol["ref_value"].isna().all()
     assert erc_vol["denominator"].iloc[0] == CD.ERC_VOL_DENOM_NOTE
 
-    sdg_vol = CD.metric_frame(ctx, {"tree": "bestfit"}, [STRASBOURG], "sdg", "vol")
+    # independent recompute: sdg_year.parquet, window-sliced 2020-2024, no
+    # import of `_vol_frame`/`_sdg_year_window_mass`'s own code
+    sdg_year = pd.read_parquet(Path(ctx["data_dir"]) / "sdg_year.parquet")
+    win = sdg_year[(sdg_year["institution_id"] == STRASBOURG) & sdg_year["year"].between(2020, 2024)]
+    hand_idx3 = float(win.loc[win["sdg_idx"] == 3, "mass_frac"].sum())
+    hand_idx1 = float(win.loc[win["sdg_idx"] == 1, "mass_frac"].sum())
+    np.testing.assert_allclose(hand_idx3, 54.305721282958984, atol=1e-3)
+    np.testing.assert_allclose(hand_idx1, 18.018428802490234, atol=1e-3)
+
+    sdg_vol = CD.metric_frame(ctx, {"tree": "bestfit", "basis": "frac"}, [STRASBOURG], "sdg", "vol")
     assert len(sdg_vol) == 16  # dense, matches sdg_long's own convention
-    np.testing.assert_allclose(sdg_vol.loc[sdg_vol["taxon_id"] == 3, "value"].iloc[0], 67.25587, atol=1e-3)
-    np.testing.assert_allclose(sdg_vol.loc[sdg_vol["taxon_id"] == 1, "value"].iloc[0], 21.483147, atol=1e-3)
-    assert "2020-2025" in sdg_vol["denominator"].iloc[0]  # window named per the manager's gap-fix ask
+    np.testing.assert_allclose(sdg_vol.loc[sdg_vol["taxon_id"] == 3, "value"].iloc[0], hand_idx3, atol=1e-3)
+    np.testing.assert_allclose(sdg_vol.loc[sdg_vol["taxon_id"] == 1, "value"].iloc[0], hand_idx1, atol=1e-3)
+    assert "2020-2024" in sdg_vol["denominator"].iloc[0]  # window text now matches the new source (was "2020-2025")
+    assert "2020-2025" not in sdg_vol["denominator"].iloc[0]
     assert sdg_vol["ref_value"].isna().all()
 
 
 def test_metric_frame_vol_matches_erc_long_and_sdg_long_mass(ctx):
-    """`vol`'s value column is IDENTICAL to erc_long/sdg_long's own `mass`
-    column -- same source, no recomputation."""
+    """RE-DERIVED 2BR3 (Stream TEV-D, item 3): ERC's `vol` metric is STILL
+    identical to `erc_long`'s own `mass` column (unchanged source) -- that
+    half of this anchor survives verbatim. SDG's `vol` metric is now a
+    GENUINE, DELIBERATE divergence from `sdg_long`'s `mass` column: `sdg_long`
+    (a thin wrapper over `profile_data.sdg_table`, untouched by CD4's fence)
+    still reports the whole-run 2020-2025 mass off `sdg.parquet`, while the
+    `vol` metric moved to the 2020-2024-windowed `sdg_year.parquet` (item 1
+    above) -- so asserting equality here would now be asserting the OLD,
+    un-fixed behaviour. This is re-derived as a NON-equality (the window
+    narrowed, `sdg_long`'s mass can only be >= the windowed vol) plus a
+    positive cross-check against a fresh `sdg_year.parquet` recompute."""
     erc_vol = CD.metric_frame(ctx, {"tree": "bestfit"}, IDS6, "erc", "vol")
     el = CD.erc_long(ctx, IDS6).set_index(["institution_id", "panel_idx"])["mass"]
     got = erc_vol.set_index(["institution_id", "taxon_id"])["value"]
     np.testing.assert_allclose(got.reindex(el.index).to_numpy(dtype="float64"),
                                el.to_numpy(dtype="float64"), atol=1e-6)
 
-    sdg_vol = CD.metric_frame(ctx, {"tree": "bestfit"}, IDS6, "sdg", "vol")
+    sdg_vol = CD.metric_frame(ctx, {"tree": "bestfit", "basis": "frac"}, IDS6, "sdg", "vol")
     sl = CD.sdg_long(ctx, IDS6).set_index(["institution_id", "sdg_idx"])["mass"]
     got2 = sdg_vol.set_index(["institution_id", "taxon_id"])["value"]
-    np.testing.assert_allclose(got2.reindex(sl.index).to_numpy(dtype="float64"),
-                               sl.to_numpy(dtype="float64"), atol=1e-6)
+    aligned_sl = sl.reindex(got2.index).to_numpy(dtype="float64")
+    aligned_got2 = got2.to_numpy(dtype="float64")
+    # NOT equal in general any more (whole-run mass >= windowed vol); assert
+    # the direction of the divergence rather than a stale equality
+    assert (aligned_sl >= aligned_got2 - 1e-6).all(), "sdg_long's whole-run mass should never be < the windowed vol"
+    assert (aligned_sl > aligned_got2 + 1e-6).any(), "expected at least one row where the window narrowing actually bites"
+
+    # positive cross-check: `vol`'s SDG value == a fresh sdg_year.parquet
+    # window-slice recompute (never sdg_long/sdg.parquet), for all of IDS6
+    sdg_year = pd.read_parquet(Path(ctx["data_dir"]) / "sdg_year.parquet")
+    win = sdg_year[sdg_year["institution_id"].isin(IDS6) & sdg_year["year"].between(2020, 2024)]
+    hand = win.groupby(["institution_id", "sdg_idx"])["mass_frac"].sum()
+    np.testing.assert_allclose(got2.reindex(hand.index).to_numpy(dtype="float64"),
+                               hand.to_numpy(dtype="float64"), atol=1e-3)
 
 
 def test_metric_frame_vol_unavailable_at_field_and_subfield(ctx):
@@ -628,8 +674,21 @@ def test_metric_frame_field_dynamics_ref_value_hand_duckdb_anchor(ctx, subs_best
     (Agricultural and Biological Sciences, bestfit/frac), hand-recomputed via
     a SEPARATE duckdb query (own topic->field join, no import of
     `compare_data._dynamics_population_ref`): 0.818266213962639 over 6,304
-    institutions with nonzero window-1 mass. Also pins the raw-delta gutter
-    string for Strasbourg's own row on this field: '130.0 -> 136.0/yr'."""
+    institutions with nonzero window-1 mass -- UNCHANGED by 2BR3 (this ref
+    value and the duckdb query itself are built on `vol_frac`, which P7 never
+    touched: topics_all.parquet is not a 2BR3 artefact).
+
+    RE-DERIVED 2BR3 gutter string only (BUILD_PLAN_2BR3.md Stream TEV-D, item
+    3 -- this WAS the exact 'dynamics value/gutter basis mismatch' bug,
+    compare_data.py item 1's own fix): v1 asserted the gutter as
+    '130.0 -> 136.0/yr' -- those are FULL-basis numbers, which the OLD code
+    hard-wired regardless of the page's basis toggle. `subs_bestfit` here is
+    frac/bestfit (the module fixture's default), so post-fix the gutter now
+    shows the SAME basis as `value` itself: fractional annual means '22.5 ->
+    21.7/yr' (w1=22.451658, w2=21.662164, both independently summed off
+    `topics_all.vol_frac_<year>` below). `vol_full_annual_mean` (the
+    low-volume FLOOR marker) is UNCHANGED -- it stays on the full basis by
+    design regardless of the toggle, so 132.4 (=(130*3+136*2)/5) still holds."""
     import duckdb
     tree = "bestfit"
     dim = ctx["topics_dim_df"][["topic_id", f"{tree}_subfield_id"]].rename(
@@ -658,30 +717,62 @@ def test_metric_frame_field_dynamics_ref_value_hand_duckdb_anchor(ctx, subs_best
     row = mf[mf["taxon_id"] == 11].iloc[0]
     np.testing.assert_allclose(float(row["ref_value"]), hand_ref, rtol=1e-9)
     np.testing.assert_allclose(hand_ref, 0.818266213962639, rtol=1e-9)
-    assert row["vol_display"] == "130.0 \N{RIGHTWARDS ARROW} 136.0/yr"
+    # RE-DERIVED 2BR3: frac-basis gutter (was the hard-FULL "130.0 -> 136.0/yr"
+    # pre-fix) -- independently summed off topics_all.vol_frac_<year>, for
+    # Strasbourg's own field-11 topic set (`sub`, already isolated above by
+    # the SAME tree-aware subfield->field join the duckdb query used -- `sub`
+    # itself carries topic_id only, so reload the frac year columns fresh).
+    ta_cols = ["topic_id", "inst_key"] + [f"vol_frac_{y}" for y in range(2020, 2025)]
+    ta = pd.read_parquet(Path(ctx["data_dir"]) / "topics_all.parquet", columns=ta_cols)
+    strasbourg_ik = int(ctx["index_by_id"].loc[STRASBOURG, "inst_key"])
+    ta_sub = ta[(ta["inst_key"] == strasbourg_ik) & ta["topic_id"].isin(set(sub["topic_id"]))]
+    frac_by_year = {y: float(ta_sub[f"vol_frac_{y}"].sum()) for y in range(2020, 2025)}
+    w1_frac = np.mean([frac_by_year[y] for y in (2020, 2021, 2022)])
+    w2_frac = np.mean([frac_by_year[y] for y in (2023, 2024)])
+    np.testing.assert_allclose(w1_frac, 22.451658248901367, atol=1e-4)
+    np.testing.assert_allclose(w2_frac, 21.662163734436035, atol=1e-4)
+    assert row["vol_display"] == f"{w1_frac:.1f} \N{RIGHTWARDS ARROW} {w2_frac:.1f}/yr" == "22.5 \N{RIGHTWARDS ARROW} 21.7/yr"
+    np.testing.assert_allclose(row["denom_value"], w1_frac, rtol=1e-6)
+    # vol_full_annual_mean (the low-volume FLOOR marker) stays FULL-basis
+    # regardless of the toggle -- UNCHANGED by the item-1 fix, still 132.4.
     np.testing.assert_allclose(row["vol_full_annual_mean"], (130.0 * 3 + 136.0 * 2) / 5, rtol=1e-6)
 
 
 def test_metric_frame_sdg_share_ref_value_hand_pandas_anchor(ctx, subs_bestfit):
-    """Independent anchor: the population mean SDG-tagged-share ratio for
-    field 33, hand-recomputed via plain pandas (own groupby, no import of
-    `compare_data._sdg_share_field_ref_means`): 0.44246414."""
+    """RE-DERIVED 2BR3 (BUILD_PLAN_2BR3.md Stream TEV-D, item 3 -- this test
+    IS the SDG-share-264.8%-bug's own regression guard, so it must be rebuilt
+    against the v2 fix, not just re-pinned). v1 read the OLD per-goal
+    `sdg_fields.mass` column and `.groupby("institution_id")["mass"].sum()`
+    -- summing across up to 16 goal-rows PER field, the exact mechanism
+    WT_2BR3.md task 5.2 traces the 264.8% bug to. v2's `sdg_fields.parquet`
+    has no `sdg_idx`/per-goal grain left to sum over: `mass_any_frac` is
+    ALREADY distinct-tagged (>=1 goal, counted once) per (institution, field,
+    tree), on the field-cross's own 2020-2024 core window (window_conventions.
+    core_window, NOT `sdg.parquet`'s whole-run 2020-2025). New independent
+    anchor (plain pandas, own groupby, no import of
+    `compare_data._sdg_share_field_ref_means`): population mean ratio for
+    field 33 (bestfit) = 0.2114361822605133 (was 0.44246414 under the old,
+    inflated per-goal-summed numerator -- LOWER here as expected, since a
+    distinct-tagged numerator can only be <= a per-goal-summed one)."""
     sdg_fields = pd.read_parquet(Path(ctx["data_dir"]) / "sdg_fields.parquet")
     fields_raw = pd.read_parquet(Path(ctx["data_dir"]) / "fields.parquet",
-                                 columns=["institution_id", "field_id", "vol_frac"])
+                                 columns=["institution_id", "field_id", "tree", "vol_frac"])
     sub = sdg_fields[(sdg_fields["tree"] == "bestfit") & (sdg_fields["field_id"] == 33)]
-    tagged = sub.groupby("institution_id")["mass"].sum()
-    fm = fields_raw[fields_raw["field_id"] == 33].set_index("institution_id")["vol_frac"]
+    tagged = sub.groupby("institution_id")["mass_any_frac"].sum()  # v2: already distinct-tagged, no sdg_idx to sum over
+    fm = fields_raw[(fields_raw["field_id"] == 33) & (fields_raw["tree"] == "bestfit")].set_index("institution_id")["vol_frac"]
     ratio = tagged.reindex(fm.index).fillna(0.0) / fm
     hand_ref = float(ratio.mean())
-    assert len(fm) == 7402
+    assert len(fm) == 7402  # unchanged: fields.parquet's own field-33 population, untouched by P7
 
     mf = CD.metric_frame(ctx, subs_bestfit, [STRASBOURG], "field", "sdg_share")
     row = mf[mf["taxon_id"] == 33].iloc[0]
     np.testing.assert_allclose(float(row["ref_value"]), hand_ref, rtol=1e-6)
-    np.testing.assert_allclose(hand_ref, 0.44246414, rtol=1e-6)
+    np.testing.assert_allclose(hand_ref, 0.2114361822605133, rtol=1e-6)
     assert int(row["domain_id"]) == 2
+    # vol_display/denom_value == the field's own vol_frac -- unchanged by P7
+    # (fields.parquet itself carries no 2BR3 rebuild)
     np.testing.assert_allclose(row["vol_display"], 878.0426, rtol=1e-4)
+    np.testing.assert_allclose(row["denom_value"], 878.0426, rtol=1e-4)
 
 
 def test_metric_frame_pp_carries_vol_top10_gutter_data(ctx):
