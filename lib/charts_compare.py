@@ -1283,11 +1283,20 @@ LOW_VOLUME_FLOOR = 10.0
 # on so few publications that a reader should not race it against a neighbour.
 
 LOW_VOLUME_GLYPH = "\N{DAGGER}"
-# The visible half of the low-volume marker (the hollow bar is the other half).
-# A DAGGER rather than the warning sign the plan sketches: a dagger is the
-# typographic convention for "see the note", renders as text in every font this
-# app ships, and cannot arrive as a colour emoji -- which would put a hue in the
-# figure that no palette owns.
+# The visible half of the low-volume marker (the hatched bar, below, is the
+# other half). A DAGGER rather than the warning sign the plan sketches: a
+# dagger is the typographic convention for "see the note", renders as text in
+# every font this app ships, and cannot arrive as a colour emoji -- which would
+# put a hue in the figure that no palette owns.
+
+LOW_VOLUME_PATTERN_SHAPE = "/"
+LOW_VOLUME_PATTERN_SOLIDITY = 0.35
+# 2B-R3 (user ruling 5, WT_2BR3.md): a below-floor bar is HATCHED, not hollow --
+# a diagonal `marker.pattern` in the bar's OWN colour (`fgcolor=color`) over a
+# SURFACE ground, at the same DAGGER + hover disclosure as before. Retires the
+# SURFACE-fill-plus-outline "hollow" idiom for every below-floor BAR this module
+# draws; the SI/mirror-dot below-floor MARKER stays hollow (plotly's pattern
+# fill is a Bar-family feature, not a Scatter-marker one).
 
 DOMAIN_RULE_PX = 2          # the separator BETWEEN two taxonomy domains
 NOTE_MAX_CHARS = 160        # `chart_note`'s hard cap -- see its docstring
@@ -1337,13 +1346,45 @@ _METRIC_DEFAULT_REF = {"si": C.SI_NEUTRAL}
 # one). Every other reference -- the index PP, the index share -- is DATA and
 # arrives in the frame's `ref_value` column; this module never invents one.
 
-_ACCENT_COLS = {"erc": ("erc_domain",), "sdg": ("sdg_number", "sdg_idx")}
-_LEVEL_ACCENT_FAMILY = {"erc": "erc", "sdg": "sdg"}
+_ACCENT_COLS = {"erc": ("erc_domain",), "sdg": ("sdg_number", "sdg_idx"),
+                "field": ("domain_id",), "subfield": ("domain_id",)}
+_LEVEL_ACCENT_FAMILY = {"erc": "erc", "sdg": "sdg", "field": "oa", "subfield": "oa"}
+# 2B-R3 (user ruling 5): field/subfield rows now carry the OA-domain chip too
+# -- the label accent is the ONLY visual cue for a field's domain once the bar
+# itself is institution-coloured, and the reader already knows this exact
+# palette from the OA-coloured Find panels.
+
+
+DYNAMICS_CLAMP_PCT = 999
+# 2B-R3 (user ruling 5, plan section 2.5): dynamics is a %-CHANGE, unbounded
+# in principle -- a collaboration going from one publication a year to twenty
+# is a real, valid four-digit swing, not a data error, so the underlying
+# number is NEVER clamped. Only the DISPLAY text is, past this many percent
+# either direction, so one runaway row cannot stretch the bar's own value
+# label or blow out the axis scale the other rows share.
+
+
+def _fmt_dynamics_pct(v) -> str:
+    """The dynamics metric's display clamp: `> +999 %` / `< -999 %` past
+    `DYNAMICS_CLAMP_PCT`, `_fmt_pct` unchanged inside it. `v` is the same
+    fraction every other `pct`-kind metric takes (`_fmt_pct` multiplies by a
+    hundred), so the clamp compares against the fraction form of the limit."""
+    f = _num(v)
+    if not np.isfinite(f):
+        return P.NA_MARK
+    limit = DYNAMICS_CLAMP_PCT / 100.0
+    if f > limit:
+        return f"> +{DYNAMICS_CLAMP_PCT}{C.THIN_SPACE}%"
+    if f < -limit:
+        return f"< \N{MINUS SIGN}{DYNAMICS_CLAMP_PCT}{C.THIN_SPACE}%"
+    return _fmt_pct(f)
 
 
 def _fmt_metric(v, metric: str) -> str:
     kind = _METRIC_KIND.get(metric, "vol")
     if kind == "pct":
+        if metric == "dynamics":
+            return _fmt_dynamics_pct(v)
         return _fmt_pct(v)
     if kind == "si":
         return _fmt_si(v)
@@ -1389,47 +1430,28 @@ def _series_ids(d: pd.DataFrame, slots: Mapping, ids: Sequence | None) -> list:
 
 
 def _accent_ticktext(rows: pd.DataFrame, level: str, label_col: str,
-                     accent_col: str | None,
-                     gutter_cells: Sequence[Sequence[tuple[str, str]]] | None = None,
-                     ) -> tuple[list[str], list[str]]:
-    """`(plain, styled)` tick strings, with the 2B-R-8 taxonomy accent and the
-    2B-R2-3 volume gutter.
+                     accent_col: str | None) -> tuple[list[str], list[str]]:
+    """`(plain, styled)` tick strings, with the 2B-R-8 taxonomy accent.
 
-    `plain` is what `_gutter_margin_px` measures (the glyph, its gap and every
-    gutter number occupy real width, so they are all counted); `styled` is what
-    plotly draws. When the level has no official palette, or the frame carries
-    no accent key, no accent is invented; when `gutter_cells` is None or a row's
-    entry is empty, no gutter is drawn for that row.
+    `plain` is what `_gutter_margin_px` measures; `styled` is what plotly
+    draws. When the level has no official palette, or the frame carries no
+    accent key, no accent is invented.
 
-    `gutter_cells[ri]` is a list of `(text, ink)` in slot order -- one entry per
-    drawn institution that HAS a cell in that row. Each is written in its own
-    institution's dark twin, which is the one place in this module where text
-    carries identity: the ordinary rule (dataviz: text wears text tokens) exists
-    because a series colour is usually too light to read, and the twin is
-    precisely the fix for that -- it clears 4.5:1 where its fill sits at 2:1."""
+    2B-R3: the volume gutter that used to be CRAMMED into this tick string
+    (one line, every drawn institution's number concatenated) moved to each
+    bar's OWN text (`fig_metric_bars`'s per-bar vertical gutter) -- illegible
+    past two institutions on one line, legible at any count when each number
+    sits at its own bar's end instead. This function carries the taxonomy
+    accent only now."""
     family = _LEVEL_ACCENT_FAMILY.get(level)
     plain, styled = [], []
-    for ri, (_, r) in enumerate(rows.iterrows()):
+    for _, r in rows.iterrows():
         text_plain, text_styled = C._tick_display(str(r[label_col]), None)
         if family and accent_col and accent_col in rows.index.names + list(rows.columns):
             hexcol = P.label_accent_color(family, r[accent_col])
             text_plain = f"{ACCENT_GLYPH}{ACCENT_GAP}{text_plain}"
             text_styled = (f'<span style="color:{hexcol}">{ACCENT_GLYPH}</span>'
                            f"{ACCENT_GAP}{text_styled}")
-        cells = list(gutter_cells[ri]) if gutter_cells else []
-        if cells:
-            # NO-BREAK spaces, doubled: three numbers in one gutter cell need a
-            # gap wide enough to read as three numbers (the first render ran
-            # them together at a thin space), and an ordinary space would be a
-            # legal line break inside a tick label.
-            gap = ACCENT_GAP + ACCENT_GAP
-            text_plain = (f"{text_plain}{C.TICK_LABEL_GAP}"
-                          + gap.join(t for t, _ in cells))
-            text_styled = (f"{text_styled}{C.TICK_LABEL_GAP}"
-                           + gap.join(
-                               f'<span style="color:{ink};'
-                               f'font-size:{C.GUTTER_FONT_PX}px">{t}</span>'
-                               for t, ink in cells))
         plain.append(text_plain)
         styled.append(text_styled)
     return plain, styled
@@ -1551,6 +1573,7 @@ def fig_metric_bars(
     ref_col: str = "ref_value",
     ref_value: float | None = None,
     denominator_col: str = "denominator",
+    denom_value_col: str = "denom_value",
     accent_col: str | None = None,
     metric_label: str | None = None,
     gutter: bool = True,
@@ -1579,22 +1602,30 @@ def fig_metric_bars(
     whole" rule `_row_order` uses. Colour follows the entity either way, so
     nothing repaints when the reader flips the toggle.
 
-    THE GUTTER (2B-R2-3: raw volume on EVERY metric, not just the volume tab).
-    `gutter_col` prints each institution's own raw volume, in slot order, at the
-    right edge of the row label -- the profile section's own gutter idiom
-    (`charts._tick_display`), one number per drawn institution, each in that
-    institution's DARK TWIN so the number and the bar it belongs to are visibly
-    the same entity. It answers the question every share chart provokes and no
-    share chart answers: forty per cent of how many? The fills are at 2:1
-    contrast, which is exactly why the twin -- and not the fill -- writes text.
+    THE GUTTER (2B-R2-3: raw volume on EVERY metric, not just the volume tab;
+    2B-R3: moved from the tick label onto each institution's OWN bar). Every
+    drawn bar carries its own institution's raw volume as PART OF ITS OWN bar
+    text (plotly `text`, `textposition="outside"`, `cliponaxis=False`) --
+    `"{value} ({volume})"`, written in that institution's DARK TWIN, right at
+    that bar's own end. This REPLACES the pre-2B-R3 mechanism, which crammed
+    every drawn institution's number onto ONE line of the row's tick label --
+    legible at two institutions, a wall of digits at three. A per-bar label is
+    legible at any count, because each number sits where its own bar is,
+    vertically, rather than competing for one line of text. It answers the
+    question every share chart provokes and no share chart answers: forty per
+    cent of how many?
 
-    LOW VOLUME (2B-R2-4). A cell whose `low_vol_col` (mean annual FULL volume)
-    is under `LOW_VOLUME_FLOOR` is drawn HOLLOW -- SURFACE fill, institution
-    outline -- and its value label carries `LOW_VOLUME_GLYPH`, with the reason
-    in the hover. Disclosure, never suppression: the number is real, it is just
-    built on too little to race against its neighbour. This is the same
-    hollow-means-thin idiom `fig_mirror_dots` uses for a below-floor SI cell, so
-    the two sections read as one system.
+    LOW VOLUME (2B-R2-4; 2B-R3: hatched, not hollow). A cell whose
+    `low_vol_col` (mean annual FULL volume) is under `LOW_VOLUME_FLOOR` is
+    drawn with a diagonal `marker.pattern` in the bar's OWN colour over a
+    SURFACE ground (`LOW_VOLUME_PATTERN_SHAPE`/`_SOLIDITY`, replacing the old
+    hollow SURFACE-fill-plus-outline), and its value label carries
+    `LOW_VOLUME_GLYPH`, with the reason in the hover. Disclosure, never
+    suppression: the number is real, it is just built on too little to race
+    against its neighbour. `fig_mirror_dots` keeps the hollow-means-thin dot
+    for a below-floor SI cell (plotly patterns are a Bar-family feature, not a
+    Scatter-marker one), so the two sections still read as one system, texture
+    substituting for outline-only where a bar has real area to hatch.
 
     ENCODING. Bar = institution (`palette.institution_slots`, ascending
     `inst_key`). Row label = the taxon, and for ERC and SDG ONLY it carries a
@@ -1634,8 +1665,13 @@ def fig_metric_bars(
     accent_col = accent_col or _first_col(d, _ACCENT_COLS.get(level, ()))
     series = _series_ids(d, slots, ids)
 
-    keep = [c for c in (key_col, label_col, ref_col, accent_col, domain_col,
-                        domain_order_col) if c and c in d.columns]
+    # 2B-R3: dict.fromkeys dedupes -- `accent_col` and `domain_col` are now
+    # the SAME column name at OA level ("domain_id" is both the accent source
+    # and the domain-boundary key), and a duplicate name in a DataFrame column
+    # selection returns a 2-column sub-frame instead of a Series downstream.
+    keep = list(dict.fromkeys(c for c in (key_col, label_col, ref_col, accent_col,
+                                          domain_col, domain_order_col)
+                              if c and c in d.columns))
     rows, boundaries = _metric_rows(d, key_col, keep, sort, value_col,
                                     domain_col, domain_order_col)
     n = len(rows)
@@ -1649,7 +1685,6 @@ def fig_metric_bars(
     signed = metric in _SIGNED_METRICS or vmin < 0
 
     keys = rows[key_col].tolist()
-    gutter_cells: list[list[tuple[str, str]]] = [[] for _ in keys]
 
     fig = go.Figure()
     _row_rules(fig, n, boundaries)
@@ -1659,28 +1694,38 @@ def fig_metric_bars(
         slot = _slot_of(slots, iid)
         color = P.institution_color(slot)
         ink = P.institution_ink(slot)
-        xs, ys, texts, hovers, fills, widths = [], [], [], [], [], []
+        xs, ys, texts, hovers, fills, widths, patterns = [], [], [], [], [], [], []
         for ri, key in enumerate(keys):
             r = cells.get((key, iid))
             if r is None:
                 continue
-            if gutter and gutter_col in r.index:
-                gutter_cells[ri].append((_gutter_value(r[gutter_col]), ink))
             v = _num(r[value_col])
             if not np.isfinite(v):
                 continue
             low = _is_low_volume(r, low_vol_col)
             xs.append(v)
             ys.append(ri)
-            texts.append(_fmt_metric(v, metric) + (LOW_VOLUME_GLYPH if low else ""))
+            text = _fmt_metric(v, metric) + (LOW_VOLUME_GLYPH if low else "")
+            # 2B-R3 (user ruling 5): the PER-BAR vertical gutter -- each
+            # institution's own raw volume at ITS OWN bar end, one bar text per
+            # institution rather than three numbers crammed onto one tick-label
+            # line (illegible past two institutions; see git history for the
+            # retired `_accent_ticktext` gutter_cells mechanism this replaces).
+            if gutter and gutter_col in r.index:
+                text = f"{text}{C.TICK_LABEL_GAP}({_gutter_value(r[gutter_col])})"
+            texts.append(text)
+            # 2B-R3: hatched, not hollow -- see LOW_VOLUME_PATTERN_SHAPE above.
             fills.append(P.SURFACE if low else color)
             widths.append(P.OUTLINE_WIDTH if low else C.HAIRLINE_PX)
+            patterns.append(LOW_VOLUME_PATTERN_SHAPE if low else "")
             hovers.append(_metric_hover(r, iid, names, label_col, value_col,
-                                        metric, ref_col, denominator_col,
+                                        metric, ref_col, denom_value_col,
                                         metric_label, gutter_col, low))
         fig.add_trace(go.Bar(
             x=xs, y=ys, orientation="h", offset=offset, width=bar_w,
-            marker=dict(color=fills, line=dict(color=color, width=widths)),
+            marker=dict(color=fills, line=dict(color=color, width=widths),
+                        pattern=dict(shape=patterns, fgcolor=color,
+                                    solidity=LOW_VOLUME_PATTERN_SOLIDITY)),
             text=texts, textposition="outside", cliponaxis=False,
             textfont=dict(size=C.GUTTER_FONT_PX, color=ink),
             customdata=hovers, hovertemplate="%{customdata}<extra></extra>",
@@ -1690,8 +1735,7 @@ def fig_metric_bars(
     if metric in REF_METRICS or ref_value is not None or metric in _METRIC_DEFAULT_REF:
         _add_reference(fig, rows, ref_col, ref_value, _METRIC_DEFAULT_REF.get(metric))
 
-    plain, styled = _accent_ticktext(rows, level, label_col, accent_col,
-                                     gutter_cells if gutter else None)
+    plain, styled = _accent_ticktext(rows, level, label_col, accent_col)
     _y_axis(fig, n, styled)
     n_wrapped = sum(1 for s in styled if "<br>" in s)
     lo = min(vmin, 0.0)
@@ -1713,8 +1757,16 @@ def fig_metric_bars(
 
 
 def _metric_hover(r, iid, names, label_col, value_col, metric, ref_col,
-                  denominator_col, metric_label, gutter_col: str | None = None,
+                  denom_value_col, metric_label, gutter_col: str | None = None,
                   low: bool = False) -> str:
+    """2B-R3 (user ruling 5, §2.5): the hover's `denominator` line prints
+    `denom_value_col` -- a NUMBER, formatted with `_fmt_vol` -- and NEVER the
+    old `denominator` NOTE STRING (a sentence like "articles+reviews,
+    2020-2024"), which is the exact root cause of the "denominator: n/a" bug:
+    a sentence is not `None` and not a NaN float, so `_fmt_vol` did not treat
+    it as missing, it tried to coerce it as a number and lost. The note string
+    itself moves to a tooltip/collapsible OUTSIDE this hover (the caller's
+    page copy, not this chart) -- it never reaches `_fmt_vol` again."""
     title = (metric_label or _METRIC_AXIS[metric]).lower()
     parts = [_name_of(names, iid), str(r[label_col]),
              f"{title}{C.THIN_SPACE}{_fmt_metric(r[value_col], metric)}"]
@@ -1723,8 +1775,12 @@ def _metric_hover(r, iid, names, label_col, value_col, metric, ref_col,
         parts.append(f"{C.AX_WORKS.lower()}{C.THIN_SPACE}{_gutter_value(r[gutter_col])}")
     if ref_col in index and metric in REF_METRICS:
         parts.append(f"{HOVER_REFERENCE}{C.THIN_SPACE}{_fmt_metric(r[ref_col], metric)}")
-    if denominator_col in index:
-        parts.append(f"{HOVER_DENOMINATOR}{C.THIN_SPACE}{_fmt_vol(r[denominator_col])}")
+    if denom_value_col in index:
+        # `_fmt_vol` already turns a genuinely nullable denom_value into
+        # NA_MARK -- that is honest disclosure ("no denominator for this
+        # row"), not the bug. The bug was a NOTE STRING reaching this branch;
+        # `denom_value` is a number by contract (§2.5), so this is now safe.
+        parts.append(f"{HOVER_DENOMINATOR}{C.THIN_SPACE}{_fmt_vol(_num(r[denom_value_col]))}")
     if low:
         # the other half of the low-volume marker: the hollow bar says THAT, the
         # hover says WHY (2B-R2-4). Never a reason to hide the value.
@@ -2053,18 +2109,25 @@ def fig_pulse(
     """Joint publications per year for ONE pair -- the Collaborate opener.
 
     ONE series, and it belongs to neither side: a co-publication is the PAIR's,
-    so it wears `palette.SHARED_FRONTIER` rather than either institution's hue.
-    That is also why this is the one figure on these two pages whose colour
-    carries no institution identity at all -- there is nothing here to tell
-    apart, which is what makes a single-series chart legal with no legend of its
-    own (the page's institution strip still names both sides for the figures
-    below it).
+    so it wears `palette.JOINT_COLOR` rather than either institution's hue --
+    2B-R3 (user ruling 5): NOT `SHARED_FRONTIER` any more, because the topic
+    table on this same Collaborate page renders an ERC-SH/momentum-down
+    vermillion chip, and `SHARED_FRONTIER` was re-measured to fail outright
+    against that exact hue (WT_2BR3.md task 2.8). `JOINT_COLOR` is a dark
+    ink-navy, never a
+    red, so the two can never collide on this page again. This is also why this
+    is the one figure on these two pages whose colour carries no institution
+    identity at all -- there is nothing here to tell apart, which is what makes
+    a single-series chart legal with no legend of its own (the page's
+    institution strip still names both sides for the figures below it).
 
-    `bonus_year` names the PARTIAL final year (2B-R-12): its bar is drawn hollow
-    -- SURFACE fill, coloured outline -- and its tick reads `<year>*`, the same
-    hollow-means-partial idiom `fig_trends_small_multiples` uses for its last
-    point. The year itself is always the caller's string; this module never
-    names one.
+    `bonus_year` names the PARTIAL final year (2B-R-12): its bar is HATCHED
+    (2B-R3: a `JOINT_COLOR` diagonal pattern on a SURFACE ground, replacing the
+    old hollow SURFACE-fill-plus-outline) and its tick reads `<year>*`, the
+    same partial-disclosure idiom `fig_trends_small_multiples` uses (there, on
+    a hollow DOT -- a scatter marker cannot take a pattern fill, so that one
+    stays hollow). The year itself is always the caller's string; this module
+    never names one.
 
     A year with no joint publications is a REAL zero and keeps its place on the
     axis with a zero-height bar and its own value label; a year absent from the
@@ -2094,8 +2157,11 @@ def fig_pulse(
             continue
         fig.add_trace(go.Bar(
             x=xs, y=ys, width=PULSE_BAR_SPAN,
-            marker=dict(color=P.SURFACE if is_bonus else P.SHARED_FRONTIER,
-                        line=dict(color=P.SHARED_FRONTIER,
+            marker=dict(color=P.SURFACE if is_bonus else P.JOINT_COLOR,
+                        pattern=dict(shape=LOW_VOLUME_PATTERN_SHAPE if is_bonus else "",
+                                    fgcolor=P.JOINT_COLOR,
+                                    solidity=LOW_VOLUME_PATTERN_SOLIDITY),
+                        line=dict(color=P.JOINT_COLOR,
                                   width=P.OUTLINE_WIDTH if is_bonus
                                   else C.HAIRLINE_PX)),
             text=texts, textposition="outside", cliponaxis=False,
@@ -2129,9 +2195,14 @@ def legend_strip(ids: Sequence, *, slots: Mapping, names: Mapping | None = None,
     legend. It is also still the secondary encoding the palette's warnings
     oblige (palette_validation.txt runs 9 and 16).
 
-    `shared=True` appends the `palette.SHARED_FRONTIER` chip -- the frontier map
-    and the pulse are the two figures whose marks are not all institutions, and
-    a chip is the only thing that says so without a caption.
+    `shared=True` appends the `palette.SHARED_FRONTIER` chip -- the pooled
+    frontier map and the "who holds the shared frontier" bar are the two
+    figures this names. 2B-R3: the Collaborate PULSE chart is NOT this chip any
+    more (it moved to `palette.JOINT_COLOR`, never a red, so it can never be
+    confused with the `SHARED_FRONTIER`/momentum-down vermillion collision
+    WT_2BR3.md task 2.8 measured); a caller building the pulse page's legend
+    drops the joint chip rather than asking this function for one, since
+    `JOINT_COLOR` is never chip-adjacent to an institution chip.
 
     `extra` takes further `(label, hex)` chips for a caller that needs one; the
     hex must still come from `lib.palette`, which the app-wide hex scan enforces

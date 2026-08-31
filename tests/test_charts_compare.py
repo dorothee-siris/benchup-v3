@@ -730,21 +730,30 @@ def test_erc_and_sdg_labels_carry_the_official_taxonomy_accent(cids, cslots):
             assert P.institution_color(s) not in ticks
 
 
-def test_field_and_subfield_labels_take_no_accent(cids, cslots):
-    """A family with no OFFICIAL colour borrows none -- an accent is worth its
-    ink only where the reader already knows the palette from outside the app."""
+def test_field_and_subfield_labels_carry_the_oa_domain_accent(cids, cslots):
+    """2B-R3 (user ruling 5): field/subfield rows now carry the OA-domain chip,
+    the same idiom the ERC/SDG rows already used -- retires the 2B-R-8 "OA
+    fields take no accent" rule. The chip is a LABEL only: institution colour
+    still owns every MARK, so no OA hex ever appears as a bar/marker colour."""
     for level in ("field", "subfield"):
         fig = X.fig_metric_bars(metric_frame(cids), "share", cids, slots=cslots,
                                 names=NAMES, level=level)
-        assert X.ACCENT_GLYPH not in "".join(fig.layout.yaxis.ticktext)
+        ticks = "".join(fig.layout.yaxis.ticktext)
+        assert X.ACCENT_GLYPH in ticks
+        oa_hexes = set(P.OA_DOMAIN_COLORS.values())
+        assert any(h in ticks for h in oa_hexes)
+        # the MARKS stay institution-coloured -- no OA hex reaches a bar fill
+        for tr in fig.data:
+            assert set(tr.marker.color) - {P.SURFACE} <= set(P.INSTITUTION_COLORS)
 
 
 def test_label_accent_resolver_is_the_one_entry_point():
     assert P.label_accent_color("erc", "PE") == P.ERC_DOMAIN_COLORS["PE"]
     assert P.label_accent_color("sdg", 7) == P.SDG_COLORS[7]
-    for family in ("oa", "doctype", "institution", None):
+    assert P.label_accent_color("oa", 1) == P.OA_DOMAIN_COLORS[1]
+    for family in ("doctype", "institution", None):
         assert P.label_accent_color(family, 1) == P.COMPARISON
-    assert set(P.LABEL_ACCENT_FAMILIES) == {"erc", "sdg"}
+    assert set(P.LABEL_ACCENT_FAMILIES) == {"erc", "sdg", "oa"}
 
 
 # ---------------------------------------------------------- the reference ---
@@ -834,6 +843,42 @@ def test_grouped_at_three_institutions_and_refused_at_four():
         X.fig_diverging_shared(shared_long(ids4), ids4, slots=slots_for(4), names=NAMES)
 
 
+def _shared_long_wide(ids, n_topics: int = 30) -> pd.DataFrame:
+    """A shared-frontier frame wide enough to actually exercise a display cap
+    (2B-R3, brief item 7: `top_n` -- the page passes 20 or `None`/"all")."""
+    rows = []
+    for t in range(n_topics):
+        for n, iid in enumerate(ids):
+            rows.append(dict(institution_id=iid, topic_id=9000 + t,
+                             name=f"Wide topic {t}", vol=float(n_topics - t) + n))
+    return pd.DataFrame(rows)
+
+
+def test_shared_frontier_bars_support_a_top_n_display_cap(cslots, cids, kc):
+    """2B-R3 item 7: the shared-frontier bar chart takes a display `top_n` --
+    the page will pass 20 (the default view) or None ("Show all"). Keeps the
+    LARGEST-combined-volume topics, same ranking rule `fig_frontier_map` uses,
+    and `None` reproduces the pre-cap behaviour (every row drawn)."""
+    d = _shared_long_wide(cids)
+    n_topics = d["topic_id"].nunique()
+    assert n_topics > 20
+
+    capped = X.fig_diverging_shared(d, cids, slots=cslots, names=NAMES, top_n=20)
+    assert sum(len(tr.x) for tr in capped.data) == 20 * kc
+
+    full = X.fig_diverging_shared(d, cids, slots=cslots, names=NAMES, top_n=None)
+    assert sum(len(tr.x) for tr in full.data) == n_topics * kc
+
+    # the cap keeps the LARGEST rows -- the smallest-volume topic is dropped
+    combined = d.groupby("topic_id")["vol"].sum()
+    smallest_topic = combined.idxmin()
+    kept_names = set()
+    for tr in capped.data:
+        kept_names |= {str(t) for t in capped.layout.yaxis.ticktext}
+    dropped_name = d[d["topic_id"] == smallest_topic]["name"].iloc[0]
+    assert dropped_name not in kept_names
+
+
 def test_shared_rows_rank_by_combined_volume_and_a_hole_stays_a_hole():
     ids2 = IDS[:2]
     d = shared_long(ids2)
@@ -844,13 +889,19 @@ def test_shared_rows_rank_by_combined_volume_and_a_hole_stays_a_hole():
 
 
 # ---------------------------------------------------------------- the pulse ---
-def test_pulse_marks_the_partial_year_hollow_and_stars_its_tick():
+def test_pulse_marks_the_partial_year_hatched_and_stars_its_tick():
+    """2B-R3: hatched, not hollow (LOW_VOLUME_PATTERN_SHAPE), and the pulse
+    wears JOINT_COLOR (never SHARED_FRONTIER, moved off it per WT_2BR3.md
+    task 2.8 -- the momentum-down/ERC-SH vermillion collision)."""
     fig = X.fig_pulse(pulse_frame(), bonus_year=PULSE_YEARS[-1])
     assert len(fig.data) == 2
     full, bonus = fig.data
-    assert full.marker.color == P.SHARED_FRONTIER
+    assert full.marker.color == P.JOINT_COLOR
+    assert full.marker.pattern.shape in (None, "", ("",) * len(full.marker.pattern.shape or ()))
     assert bonus.marker.color == P.SURFACE
-    assert bonus.marker.line.color == P.SHARED_FRONTIER
+    assert bonus.marker.line.color == P.JOINT_COLOR
+    assert bonus.marker.pattern.shape == X.LOW_VOLUME_PATTERN_SHAPE
+    assert bonus.marker.pattern.fgcolor == P.JOINT_COLOR
     assert list(fig.layout.xaxis.ticktext)[-1] == PULSE_YEARS[-1] + X.PARTIAL_YEAR_GLYPH
     assert list(fig.layout.xaxis.ticktext)[0] == PULSE_YEARS[0]
 
@@ -1054,45 +1105,113 @@ def test_the_order_is_stable_across_every_metric_tab(cids, cslots):
     assert len(orders) == 1
 
 
-def test_every_metric_carries_the_raw_volume_gutter_in_the_twins(cids, cslots, kc):
-    """2B-R2-3: the gutter is on EVERY metric, not just the volume tab, and each
-    institution's number wears that institution's DARK TWIN -- the relief the
-    fills' contrast WARN obliges (palette_validation.txt run 18)."""
+def test_every_metric_carries_the_raw_volume_gutter_on_its_own_bar(cids, cslots, kc):
+    """2B-R2-3 (the gutter is on EVERY metric, not just the volume tab) + 2B-R3
+    (user ruling 5, PER-BAR not the tick label): each institution's own raw
+    volume prints as PART OF ITS OWN bar text, right at that bar's end, in
+    that institution's DARK TWIN via the trace-level `textfont.color` -- the
+    relief the fills' contrast WARN obliges. This REPLACES the pre-2B-R3
+    mechanism that crammed every drawn institution's number onto one line of
+    the row's tick label (illegible past two institutions); the tick label
+    itself now carries no institution accent at all."""
     inks = [P.institution_ink(s) for s in cslots.values()]
     for metric in X.SELECTOR_METRICS:
         fig = X.fig_metric_bars(metric_frame_r2(cids), metric, cids, slots=cslots,
                                 names=NAMES)
         ticks = "".join(fig.layout.yaxis.ticktext)
+        # the gutter moved OFF the tick label -- neither a twin nor a fill
+        # colour appears there any more
         for ink in inks:
-            assert ink in ticks, (metric, ink)
-        # a fill never writes text, and a value label never wears the fill
+            assert ink not in ticks, (metric, ink)
         for fill in (P.institution_color(s) for s in cslots.values()):
             assert fill not in ticks
+        # every bar's OWN text is coloured in that institution's twin...
         assert {tr.textfont.color for tr in fig.data} == set(inks)
+        # ...and carries a parenthesised volume number alongside its value
+        for tr in fig.data:
+            assert tr.text, (metric, "no per-bar text drawn")
+            for t in tr.text:
+                assert "(" in t and ")" in t, (metric, t)
     off = X.fig_metric_bars(metric_frame_r2(cids), "share", cids, slots=cslots,
                             names=NAMES, gutter=False)
-    assert not any(ink in "".join(off.layout.yaxis.ticktext) for ink in inks)
+    for tr in off.data:
+        for t in tr.text:
+            assert "(" not in t, t
 
 
 def test_the_gutter_prints_a_producer_string_verbatim(cids, cslots):
     """2B-R2-4's raw delta ("2.1 -> 0.4/yr") is composed by the producer, never
-    by this module: a non-numeric gutter value reaches the axis as written."""
+    by this module: a non-numeric gutter value reaches its bar's own text as
+    written (2B-R3: the gutter moved from the tick label to the bar)."""
     d = metric_frame_r2(cids)
     d["vol_display"] = "up then flat"
     fig = X.fig_metric_bars(d, "dynamics", cids, slots=cslots, names=NAMES)
-    assert "up then flat" in "".join(fig.layout.yaxis.ticktext)
+    assert any("up then flat" in t for tr in fig.data for t in tr.text)
 
 
-def test_low_volume_cells_are_hollow_daggered_and_explained(cids, cslots):
-    """2B-R2-4. Disclosure, never suppression: the value is still drawn and
-    still labelled -- it is the MARK that says "read me with care"."""
+def test_dynamics_display_clamps_at_the_ruled_limit(cids, cslots):
+    """2B-R3 (user ruling 5, plan section 2.5): a dynamics %-change beyond
+    +/-999% displays clamped, on the bar's OWN text and in its hover, while
+    the underlying value is untouched (never clamped in the data)."""
+    d = metric_frame_r2(cids)
+    huge = 12.5      # 1250% as a fraction -- a real, valid, runaway swing
+    tiny = -20.0      # -2000%
+    d.loc[d.index[0], "value"] = huge
+    d.loc[d.index[1], "value"] = tiny
+    fig = X.fig_metric_bars(d, "dynamics", cids, slots=cslots, names=NAMES)
+    texts = [t for tr in fig.data for t in tr.text]
+    hovers = [h for tr in fig.data for h in tr.customdata]
+    assert any(t.startswith("> +") and "999" in t for t in texts)
+    assert any(t.startswith("< ") and "999" in t for t in texts)
+    assert any("> +" in h and "999" in h for h in hovers)
+    assert any("< " in h and "999" in h for h in hovers)
+    # a value inside the band is UNCHANGED -- ordinary percent formatting
+    d.loc[d.index[0], "value"] = 0.05
+    fig2 = X.fig_metric_bars(d, "dynamics", cids, slots=cslots, names=NAMES)
+    assert not any(t.startswith("> +") for tr in fig2.data for t in tr.text)
+
+
+def test_hover_denominator_prints_denom_value_never_the_note_string(cids, cslots):
+    """2B-R3 (user ruling 5, section 2.5): the root-cause fix for the shipped
+    "denominator: n/a" bug. The hover's denominator line reads `denom_value`
+    -- a NUMBER -- and never the old `denominator` NOTE STRING (a sentence
+    like "articles+reviews, 2020-2024"): a sentence is not `None` and not a
+    NaN float, so the pre-2B-R3 code did not treat it as missing, tried to
+    coerce it as a number, and lost. The note string now reaches this hover
+    NEVER, whatever it holds."""
+    d = metric_frame_r2(cids)
+    d["denominator"] = "articles+reviews, 2020-2024"    # the OLD note string
+    d["denom_value"] = 4200.0 + np.arange(len(d))         # a real per-row number
+    fig = X.fig_metric_bars(d, "share", cids, slots=cslots, names=NAMES)
+    hovers = [h for tr in fig.data for h in tr.customdata]
+    assert hovers
+    for h in hovers:
+        assert X.HOVER_DENOMINATOR in h
+        assert "articles+reviews" not in h
+        assert P.NA_MARK not in h.split(X.HOVER_DENOMINATOR)[-1]
+    # no denom_value column at all -> the row still builds, honestly n/a
+    fig2 = X.fig_metric_bars(d.drop(columns=["denom_value"]), "share", cids,
+                             slots=cslots, names=NAMES)
+    assert fig2.data
+
+
+def test_low_volume_cells_are_hatched_daggered_and_explained(cids, cslots):
+    """2B-R2-4 + 2B-R3 (hatched, not hollow -- user ruling 5). Disclosure,
+    never suppression: the value is still drawn and still labelled -- it is
+    the MARK that says "read me with care"."""
     d = metric_frame_r2(cids)
     fig = X.fig_metric_bars(d, "share", cids, slots=cslots, names=NAMES)
     hollow = sum(1 for tr in fig.data for c in tr.marker.color if c == P.SURFACE)
+    hatched = sum(1 for tr in fig.data for s in tr.marker.pattern.shape
+                  if s == X.LOW_VOLUME_PATTERN_SHAPE)
     daggered = sum(1 for tr in fig.data for t in tr.text if X.LOW_VOLUME_GLYPH in t)
     expected = int((d["vol_full_annual_mean"] < X.LOW_VOLUME_FLOOR).sum())
-    assert hollow == daggered == expected > 0
-    # ...and the hollow bar keeps its institution outline, thicker so it reads
+    assert hollow == hatched == daggered == expected > 0
+    # the hatch is drawn in the BAR's own colour (fgcolor), at the ruled solidity
+    for tr in fig.data:
+        assert tr.marker.pattern.fgcolor in P.INSTITUTION_COLORS
+        assert tr.marker.pattern.solidity == X.LOW_VOLUME_PATTERN_SOLIDITY
+    # ...and the hatched bar keeps its institution outline, thicker so it reads
     for tr in fig.data:
         widths = list(tr.marker.line.width)
         assert P.OUTLINE_WIDTH in widths and C.HAIRLINE_PX in widths
@@ -1102,6 +1221,8 @@ def test_low_volume_cells_are_hollow_daggered_and_explained(cids, cslots):
     bare = X.fig_metric_bars(d.drop(columns=["vol_full_annual_mean"]), "share",
                              cids, slots=cslots, names=NAMES)
     assert not [c for tr in bare.data for c in tr.marker.color if c == P.SURFACE]
+    assert not [s for tr in bare.data for s in tr.marker.pattern.shape
+               if s == X.LOW_VOLUME_PATTERN_SHAPE]
 
 
 def test_reference_lines_are_drawn_for_exactly_the_three_ruled_metrics(cids, cslots):

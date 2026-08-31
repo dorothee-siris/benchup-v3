@@ -189,75 +189,22 @@ mutual validator distance a NON-requirement (see palette_validation.txt run 6).
 #   suppressed because they ARE on screen together. **SUPERSEDED by run 25** --
 #   the 2B-R2 palette moves BOTH families and the same co-occurrence now PASSES.
 #
-# --- PHASE 2B-R2 (2026-08-31, stream VS3). Runs 18-25 are the ONE colour
-#     rework of this phase; they replace the institution family's hexes and the
-#     ERC family's hexes, and every number below is quoted verbatim from
-#     `design-system/palette_validation.txt`. ------------------------------
-# Run 18 (2B-R2/VS3): the NEW institution trio #FF8BA6 / #B4BF07 / #8EB3FF,
-#   `--pairs all` -> ALL CHECKS PASS. Worst all-pairs CVD 12.6 deutan
-#   (#B4BF07 <-> #FF8BA6, tritan 11.3), worst all-pairs normal-vision 20.2
-#   (#8EB3FF <-> #FF8BA6). The ONE finding is [WARN] contrast vs surface: all
-#   three fills are below 3:1 (2.21 / 2.02 / 2.09) -- an unavoidable
-#   consequence of the L = 0.77 rung the band allows, and the relief is
-#   `INSTITUTION_COLORS_DARK` plus the value label on every bar plus the chip
-#   legend plus the CSV/xlsx export (see the family section).
-# Run 18b (2B-R2/VS3, `design-system/ab/search_inst_2br2.mjs`): the hue
-#   fine-tuning A1 licences (L in [0.74, 0.77], hue free). Exhaustive 6-degree
-#   hue-triple search at L = 0.740 / 0.750 / 0.760 / 0.770, keeping only triples
-#   the validator returns ok=true for AND with in-trio CVD >= 8.0 AND >= 15
-#   normal-vision from the chrome that shares the Compare screen (FOCAL,
-#   COMPARISON, SHARED_FRONTIER): 11,379 survivors, ranked by minimum
-#   normal-vision distance to OA+SDG. WINNER #FF8BA6 / #B4BF07 / #8EB3FF at
-#   min-external 9.4. The wind tunnel's own proposal #FC9095 / #28CFB7 / #90B3FC
-#   ties it on the external axis (9.3) and LOSES on the in-trio one: its worst
-#   CVD is 6.1 deutan (#FC9095 <-> #28CFB7), i.e. inside the 6-8 band that is
-#   "legal ONLY with secondary encoding", against 12.6 here. Every survivor at
-#   CVD >= 8 contains a yellow-green slot -- at L 0.77 the red/green confusion
-#   lines collapse, and the yellow-green region is the only one that stays
-#   separable -- which is why slot 2 is an acid olive rather than the mint the
-#   wind tunnel proposed. A/B `design-system/ab/2br2_pastel_{a,b}_1280.png`
-#   renders both trios through the shipped builder at the real bar pitch.
-# Run 19 (2B-R2/VS3): the trio + FOCAL + SHARED_FRONTIER (5 slots), i.e. every
-#   hue that can be on a Compare screen at once (FOCAL paints Streamlit's own
-#   buttons and links; SHARED_FRONTIER is a chip in the frontier map's legend
-#   BESIDE the institution chips) -> ALL CHECKS PASS, same worst pairs as run 18
-#   and the same lone contrast WARN. The trio adds no failing pair to the chrome.
-# Run 20 (2B-R2/VS3): the trio + the four OA domain hues (7 slots) -> FAIL:
-#   #8190FF <-> #8EB3FF normal 9.4, plus the pre-existing fixed-OA findings
-#   (#FFCB3A lightness 0.865; #FFCB3A <-> #B4BF07 protan 6.4). DISPOSITION: the
-#   COEXISTENCE EXCEPTION documented in the institution family section -- and
-#   this is a MEASURED IMPOSSIBILITY, not a choice (wind tunnel 2BR2 claim #2:
-#   an exhaustive search finds NO triple at ANY lightness reaching normal-vision
-#   15 against OA and SDG both; over twenty hue angles are already occupied).
-# Run 21 (2B-R2/VS3): the trio + the 16 drawn SDG hues (19 slots) -> FAIL, and
-#   the worst pair is the UN palette's own pre-existing amber collision
-#   (#FD9D24 <-> #DDA63A normal 5.3 / protan 1.3, run 7). The trio's OWN worst
-#   SDG pair, measured pairwise in `screen_inst_2br2.mjs`, is #B4BF07 <->
-#   #DDA63A (normal 9.6 / protan 1.3) -- recorded, same coexistence exception.
-# Run 22 (2B-R2/VS3): the three DARK TWINS #BF526F / #747C00 / #5375BC alone,
-#   `--pairs all` -> ALL CHECKS PASS including contrast vs surface (all >= 3:1;
-#   measured on white 4.51 / 4.54 / 4.53:1, i.e. above the 4.5:1 WCAG body-text
-#   floor, which is the floor that applies because a twin is only ever TEXT).
-#   Each twin is its fill's own hue: OKLCH hue drift 0.2 / 0.3 / 0.2 degrees,
-#   lightness 0.586 / 0.560 / 0.570 against the fills' 0.770.
-# Run 23 (2B-R2/VS3): the NEW ERC trio #6A3D9A / #009E73 / #D55E00 alone ->
-#   ALL CHECKS PASS, no warning (worst CVD 11.0 deutan, worst normal 25.8, all
-#   contrasts >= 3:1). This is run 13's set with a different owner, so its
-#   legality was never open (wind tunnel 2BR2 claim #4) -- only the assignment.
-# Run 24 (2B-R2/VS3): the ERC trio + SHARED_FRONTIER (4 slots) -> ALL CHECKS
-#   PASS with one WARN, #C2185B <-> #009E73 deutan 7.6 (the 6-8 band). It
-#   REPLACES run 16's #C2185B <-> #9B1B6B FAIL, which named a hue this phase
-#   retires. Relief: identical to run 16's -- the ERC hues render only as row
-#   LABEL glyphs, `SHARED_FRONTIER` only as a bubble/bar in a different figure,
-#   and both carry their name in words.
-# Run 25 (2B-R2/VS3): the institution trio + the ERC trio (6 slots), the
-#   `fig_metric_bars(level="erc")` co-occurrence run 17 measured as a FAIL ->
-#   **ALL CHECKS PASS**, worst CVD 7.6 protan (#009E73 <-> #FF8BA6), worst
-#   normal-vision 18.7 (#D55E00 <-> #FF8BA6), plus the run-18 contrast WARN.
-#   Run 17's protan 1.7 / normal 10.8 is GONE: moving both families at once
-#   turned the app's worst same-screen collision into a passing set, which is
-#   the strongest single argument for this rework and is why the two changes
-#   ship together rather than one at a time.
+# --- PHASE 2B-R2 (2026-08-31, stream VS3). Runs 18-25 were the ONE colour
+#     rework of that phase: a light pastel institution trio (L = 0.77, the top
+#     of the lightness band) replacing the original six-hue Okabe-Ito set, plus
+#     the ERC family's move to #6A3D9A/#009E73/#D55E00. Full numbers for that
+#     trio (now RETIRED, 2B-R3 -- see the "PHASE 2B-R3" block below the family
+#     section) are in git history and `design-system/palette_validation.txt`;
+#     the ERC-family result (runs 23-24, still current) is: ERC trio ALONE ->
+#     ALL CHECKS PASS (worst CVD 11.0 deutan, worst normal 25.8); ERC trio +
+#     SHARED_FRONTIER (4 slots) -> ALL CHECKS PASS, one WARN (SHARED_FRONTIER
+#     <-> ERC-LS deutan in the 6-8 band, relief unchanged: ERC hues are row
+#     LABEL glyphs only, SHARED_FRONTIER is a different figure's mark, both
+#     name themselves in words). Run 25 (pastel institution trio + ERC trio,
+#     6 slots) turned run 17's same-screen protan FAIL into a PASS -- the
+#     historical reason the two families' 2B-R2 rework shipped together; that
+#     specific pastel-vs-ERC number no longer applies to the 2B-R3 navy trio
+#     and is superseded by the 2B-R3 runs below.
 
 # ---------------------------------------------------------------------------
 # Focal / comparison / neutral / ink
@@ -646,75 +593,80 @@ OUTLINE_WIDTH = 2
 # thing that makes the colour stable between the Compare page, the Collaborate
 # page, a rerun, a deep link and an export.
 #
-# 2B-R2-2 REPLACED THIS FAMILY WHOLE (2026-08-31, stream VS3): six saturated
-# Okabe-Ito hues -> THREE light ones, and the count is now the Compare cap
-# rather than the basket cap.
-#
-# WHY THE FILLS ARE LIGHT. The user's ruling was "much lighter fills, so the
-# value labels can be read against them". Taken literally that is unbuildable:
-# the dataviz validator's hard lightness gate is OKLCH L in [0.43, 0.77] at
-# EVERY hue, and the wind tunnel's exhaustive search (26 claims, claim #1)
-# returned zero passing triples at L 0.78, 0.80 or 0.82. **L = 0.77 exactly --
-# the top of the band -- is the lightest legal rung, and that is what ships.**
-#
-# PROVENANCE OF THE THREE HEXES: not inherited, searched. `search_inst_2br2.mjs`
-# walks every 6-degree hue triple at L 0.740 / 0.750 / 0.760 / 0.770 (the window
-# A1 licences), keeps the ones the validator returns ok=true for AND whose
-# in-trio CVD clears the dataviz TARGET of 8 (not the 6-8 floor band) AND which
-# stay >= 15 normal-vision from FOCAL / COMPARISON / SHARED_FRONTIER, then ranks
-# the 11,379 survivors by distance to the OA + SDG palettes. Runs 18 / 18b.
-#
-# THE COEXISTENCE EXCEPTION, DOCUMENTED WITH ITS NUMBERS (A1). No triple, at any
-# lightness, reaches normal-vision 15 against the OA domain hues AND the sixteen
-# drawn SDG hues -- the wind tunnel measured that as an impossibility, not a
-# shortfall: those two palettes already occupy more than twenty hue angles. The
-# shipped trio's measured distances are therefore RECORDED here rather than
-# asserted away:
-#     vs OA          min normal  9.4   (#8EB3FF <-> #8190FF)   run 20 FAIL
-#     vs SDG         min normal  9.6   (#B4BF07 <-> #DDA63A)   run 21 FAIL
-#     vs DOCTYPE     min normal 14.4   (#8EB3FF <-> #22A2BD)
-#     vs ERC         min normal 18.7   (#FF8BA6 <-> #D55E00)   run 25 PASS
-#     vs FOCAL       min normal 24.2 · vs SHARED_FRONTIER 24.6 · vs COMPARISON 15.8
-# The exception is legal for exactly the reason runs 6b and 10 already are, and
-# it is CHECKABLE rather than asserted: an institution fill never shares a
-# figure with an OA, SDG or doctype FILL (module docstring, VIZ_SPEC 1.1 and
-# 2 ter), the taxonomy colours reach a Compare figure only as row-LABEL glyphs
-# (LABEL ACCENTS, below), and the two families that DO share a screen -- ERC and
-# the chrome -- both clear the floor. What is new in 2B-R2 is that the exception
-# is now the only one left: run 25 turned run 17's same-screen FAIL into a PASS.
-#
 # k = 3 IS THE WHOLE FAMILY. 2B-R-4 caps Compare at three institutions and
-# Collaborate is a PAIR, so slots 4-6 had no consumer; keeping them would have
-# meant three hues nothing can draw. `state.BASKET_CAP` is still 6 -- a reader
-# may hold six institutions in the basket -- but a basket chip is not painted
-# with `institution_color` anywhere (grep, 2026-08-31: the only callers are
-# `charts_compare.py`, `views_compare.py` and `views_collab.py`, all of them
-# behind `charts_compare._series_ids`' hard cap of COMPARE_MAX_SERIES = 3), so
-# no fourth slot can reach the screen. If a future view ever needs one it gets
+# Collaborate is a PAIR, so slots 4-6 had no consumer. `state.BASKET_CAP` is
+# still 6 -- a reader may hold six institutions in the basket -- but a basket
+# chip is not painted with `institution_color` anywhere (the only callers are
+# `charts_compare.py`, `views_compare.py` and `views_collab.py`, all behind
+# `charts_compare._series_ids`' hard cap of COMPARE_MAX_SERIES = 3), so no
+# fourth slot can reach the screen. If a future view ever needs one it gets
 # COMPARISON grey, never a generated hue and never a cycle.
+#
+# --- PHASE 2B-R3 (2026-08-31, stream PAL, user ruling 5) -----------------
+# REPLACES THE LIGHT PASTEL TRIO (2B-R2) with a DARK NAVY TRIO -- three shades
+# of the same ink-navy hue, darkest first. Full wind-tunnel measurement:
+# `evals/wind_tunnel_2BR3/WT_2BR3.md` task 2. The pastel trio is RETIRED and no
+# longer appears anywhere in `lib/` (grepped clean 2026-08-31); its own numbers
+# now live only in git history.
+#
+# NAMED VALIDATOR EXCEPTION: institution-monochrome-family. A monochrome
+# identity ramp fails the categorical validator's lightness band AND its chroma
+# floor BY DEFINITION -- that IS the design (a single ink-navy hue at three
+# lightness steps, not three distinct hues), so those two checks are WAIVED for
+# `INSTITUTION_COLORS` alone, and INTERNAL PAIRWISE SEPARATION is asserted
+# instead of them:
+#     L / C            #192C41 L=0.288 C=0.046  ·  #5A6883 L=0.516 C=0.046  ·
+#                       #B5C0D4 L=0.806 C=0.031  (all three fail band+floor,
+#                       BY DESIGN -- see the exception name above)
+#     in-trio CVD       worst 22.6 (protan)  -- far above the 8.0 target
+#     in-trio normal    worst 22.9           -- far above the 15 floor
+# (WT_2BR3.md task 2.1/2.3, re-measurable with `evals/wind_tunnel_2BR3/
+# wt_task2_colour.mjs` sections 1/1-alone.)
+#
+# COEXISTENCE EXCEPTION (the pre-existing rule this file has always carried,
+# extended here with the navy trio's own numbers -- WT_2BR3.md task 2.4-2.6):
+#     vs OA        min normal 17.5   (slot 3 <-> OA Physical periwinkle)  PASS
+#     vs SDG       min normal 12.5   (slot 3 <-> SDG-6 Clean Water cyan)  FAIL,
+#                  same coexistence disposition as every other cross-family
+#                  pair in this file: an institution fill and an SDG fill never
+#                  share a MARK (SDG reaches a Compare figure only as a row-
+#                  label glyph, LABEL ACCENTS below).
+#     vs ERC       min normal 12.9   (slot 2 <-> ERC-PE violet)  FAIL, same
+#                  disposition -- ERC reaches a Compare mark only via the label
+#                  accent, never a fill sharing a figure with an institution bar.
+# Both FAILs are legal for the same reason runs 6b/10/20/21 already established
+# in this file: the two colliding families are never two MARKS in one figure.
+#
+# WHY DARKEST FIRST. Slot 1 (`#192C41`) is the darkest and needs no label twin
+# at all (contrast 14.21:1 on white, already text-legible); slot 2 (`#5A6883`,
+# 5.61:1) likewise self-twins; only slot 3 (`#B5C0D4`, 1.83:1, the light end)
+# needs an actually-computed darker twin (`INSTITUTION_COLORS_DARK[2]`) --
+# an ADJUSTED finding vs the plan's plural "twins": only one new hex, not three
+# (WT_2BR3.md task 2.2).
 
 INSTITUTION_COLORS = [
-    "#FF8BA6",   # slot 1 -- light rose        (L 0.770, contrast 2.21 -- twin/label relief)
-    "#B4BF07",   # slot 2 -- light olive       (L 0.770, contrast 2.02 -- twin/label relief)
-    "#8EB3FF",   # slot 3 -- light cornflower  (L 0.770, contrast 2.09 -- twin/label relief)
+    "#192C41",   # slot 1 -- darkest navy   (L 0.288, contrast 14.21:1 -- self-twin)
+    "#5A6883",   # slot 2 -- mid navy       (L 0.516, contrast  5.61:1 -- self-twin)
+    "#B5C0D4",   # slot 3 -- pale navy      (L 0.806, contrast  1.83:1 -- needs a twin)
 ]
 
 INSTITUTION_COLORS_DARK = [
-    "#BF526F",   # twin of slot 1 -- same hue (drift 0.2 deg), L 0.586, contrast 4.51:1
-    "#747C00",   # twin of slot 2 -- same hue (drift 0.3 deg), L 0.560, contrast 4.54:1
-    "#5375BC",   # twin of slot 3 -- same hue (drift 0.2 deg), L 0.570, contrast 4.53:1
+    "#192C41",   # slot 1 self-twin (== the fill: already clears 4.5:1 body text)
+    "#5A6883",   # slot 2 self-twin (== the fill: already clears 4.5:1 body text)
+    "#687284",   # slot 3 twin -- same hue, L 0.55, contrast 4.85:1 (first clean
+                 # pass above the 4.5:1 floor; measured by walking OKLCH L down
+                 # at constant hue/chroma, `wt_task2_colour.mjs` section 9).
+                 # Readability note, not a validator FAIL (fill-vs-text is not a
+                 # checked pair): this twin sits only ~3.7 normal-vision units
+                 # from slot 2's own FILL, i.e. institution-3's label text reads
+                 # visually close to institution-2's bar on the same screen.
 ]
 # NOT a second identity family and NEVER a fill: one entry per slot, the SAME
 # hue as the fill it belongs to, dark enough to be read as small text on
-# SURFACE. It exists because run 18's only finding is the fills' contrast WARN
-# ("relief required (visible labels or table view)"), and this IS the relief:
-# the value label written on a bar, the institution's name in the chip legend,
-# and the KPI card's best-value dot caption are all drawn in the twin, so the
-# reader never has to resolve an institution from a 2:1 fill alone. Each twin
-# was found by walking OKLCH lightness DOWN from its fill at constant hue and
-# chroma until WCAG contrast on white crossed 4.5:1 -- the body-text floor,
-# because a twin is only ever text (`design-system/ab/screen_inst_2br2.mjs`).
-# Validator run 22: the three alone -> ALL CHECKS PASS, contrast included.
+# SURFACE -- the value label on a bar, the institution's name in the chip
+# legend, the KPI card's best-value dot caption. Only slot 3 required a NEW
+# hex (see the ADJUSTED note above); slots 1-2 are their own fill, which is
+# legal here because they already clear 4.5:1 unmodified.
 
 INSTITUTION_SLOT_MAX = len(INSTITUTION_COLORS)
 # The hard ceiling. A fourth institution is NEVER a generated hue (dataviz
@@ -722,41 +674,112 @@ INSTITUTION_SLOT_MAX = len(INSTITUTION_COLORS)
 # `institution_color` hands back COMPARISON grey rather than cycling.
 
 
-SHARED_FRONTIER = "#C2185B"
-# **NOT a seventh institution slot** -- deliberately kept OUT of
+SHARED_FRONTIER = "#7A1600"
+# **NOT a fourth institution slot** -- deliberately kept OUT of
 # `INSTITUTION_COLORS` so `institution_color` can never hand it to an
 # institution and `INSTITUTION_SLOT_MAX` keeps meaning what it says.
 #
-# WHAT IT MEANS (2B-R-9): in the pooled Compare frontier map a topic is painted
-# in an institution's own hue when ONLY that institution holds it, and in this
-# hue when EVERY compared institution holds it. "Shared" is not an entity, it is
-# the intersection, so it takes a hue no entity owns. The same hue paints the
-# Collaborate relationship pulse (2B-R-10 section 1), whose subject is likewise
-# the pair's JOINT corpus rather than either institution -- one colour, one
-# meaning, in both places it appears.
+# WHAT IT MEANS (2B-R-9, unchanged by 2B-R3): in the pooled Compare frontier
+# map a topic is painted in an institution's own hue when ONLY that institution
+# holds it, and in this hue when EVERY compared institution holds it --
+# "shared" is the intersection, so it takes a hue no entity owns. It paints the
+# pooled frontier map and the "who holds the shared frontier" bar chart ONLY;
+# the Collaborate pulse chart moved to `JOINT_COLOR` below (2B-R3), so this hue
+# and the vermillion ERC-SH/momentum-down hue are no longer both reachable from
+# the same Collaborate page.
 #
-# WHY THIS HEX (validator runs 14-16 above, all measured, none eyeballed): with
-# the Compare cap at three institutions the drawn set is
-# {#D55E00, #009E73, #6A3D9A, SHARED_FRONTIER}, and only three candidates in the
-# whole screen cleared that set AND `FOCAL` -- which had to be cleared because
-# FOCAL paints the Streamlit buttons and links ON THE SAME PAGE (that is what
-# eliminated #2E75B6, otherwise the best candidate, at normal DeltaE 2.3 from
-# FOCAL). Of the three survivors #C2185B keeps the largest margin to the crimson
-# hues the app already owns in OTHER figures (#9B1B6B ERC LS, #A10A4E doctype
-# letter), which is the sequential-memory criterion run 16 decided on.
+# 2B-R3 RE-MEASUREMENT (user ruling 5 / WT_2BR3.md §0): the previous
+# `SHARED_FRONTIER` failed outright against ERC-SH/momentum-down vermillion
+# `#D55E00` -- normal-vision 7.6, deutan 2.4, both below their hard floors, not
+# a "needs care" WARN. PAL re-measured the ratification's two darker-red
+# candidates against `#D55E00` with `evals/wind_tunnel_2BR3/
+# wt_task2_pal_remeasure.mjs` (both normal AND deutan required >= 15):
+#     candidate 1  L=0.501  normal ΔE 13.05  deutan ΔE 12.10   FAIL (both < 15)
+#     candidate 2  L=0.377  normal ΔE 24.93  deutan ΔE 25.20   PASS  <- SHIPPED
+# The winner clears every other cross-family floor too (isolated pairwise,
+# normal-vision): vs OA min 30.4, vs SDG min 11.2 (FAIL -- same coexistence
+# disposition as the rest of this file: SHARED_FRONTIER is a MARK in its own
+# two figures, never alongside an SDG fill), vs ERC min 21.8, vs FOCAL 30.2,
+# vs COMPARISON 31.3. Contrast on white: 10.81:1.
 #
-# RELIEF the two run-16 FAILs oblige: the frontier map's chip legend carries a
-# "shared" chip beside the institution chips (`charts_compare.legend_strip`),
-# every bubble's hover names its owner in words, and the map's own export column
-# carries the owner as text -- so "shared" is never colour-alone, and the two
-# colliding hues are in neither that figure nor its legend.
+# RELIEF the SDG-coexistence and "colour never alone" rules oblige: the
+# frontier map's chip legend carries a "shared" chip beside the institution
+# chips (`charts_compare.legend_strip`), every bubble's hover names its owner
+# in words, and the map's own export column carries the owner as text.
+
+JOINT_COLOR = "#2F3B52"
+# The Collaborate relationship-pulse bars and other JOINT-corpus accents (2B-R3,
+# user ruling 5 / WT_2BR3.md §0). Dark ink-navy, deliberately NOT a red: the
+# pulse chart's only mark is the PAIR's joint corpus, and the ERC-SH/momentum-
+# down vermillion `#D55E00` renders on the SAME Collaborate page (the topic
+# table's Momentum column), so painting the pulse in any red risked exactly the
+# collision `SHARED_FRONTIER` was just re-measured out of (contrast on white
+# 11.24:1). Never chip-adjacent to an institution chip: the pulse is the one
+# figure on the Collaborate page whose colour carries no institution identity
+# at all (`charts_compare.fig_pulse`'s own docstring), so a chip strip that
+# would otherwise show a JOINT chip beside institution chips drops the joint
+# chip instead rather than asking a reader to tell JOINT_COLOR apart from the
+# darkest institution navy.
+
+
+# ---------------------------------------------------------------------------
+# MOMENTUM -- Collaborate's up/down/stable read (2B-R3, ruling 6, Lorraine
+# port; class thresholds and windows live in `collab_facts.json`, not here).
+# ---------------------------------------------------------------------------
+# TEXT + GLYPH ONLY, NEVER A FILL (§2.3) -- the mandatory reason this is legal
+# at all: `up`'s own hue is ERC-LS green and `down`'s is ERC-SH/momentum-down
+# vermillion (the app's one hard colour-alone failure, WT_2BR3.md task 2.8:
+# ΔE 7.6 normal / 2.4 deutan against the old SHARED_FRONTIER, still the
+# distinguishability floor a bare fill would fail). A momentum chip is always
+# colour + glyph + the class word together, never colour alone.
 #
-# 2B-R2 RE-MEASUREMENT (run 24), because both families around it moved: run 16's
-# `#9B1B6B` and `#1F4E9C` are no longer ERC hues at all, so those two lines are
-# HISTORY. Against the palette as it now stands, #C2185B keeps normal-vision
-# 24.6 to the nearest institution fill and 16.3 to ERC SH #D55E00, and its one
-# remaining finding is a WARN, #C2185B <-> #009E73 (ERC LS) deutan 7.6, in the
-# 6-8 band -- same disposition, same relief, and one band better than before.
+# `stable` moved off the shipped `INK_SECONDARY` twin `#5A5F66` (WT_2BR3.md
+# task 2.7, a NEW finding not in the plan: `#5A5F66` sits only ΔE 4.7 from
+# navy slot 2 `#5A6883`, near-indistinguishable even to normal vision) to
+# `#727272` -- re-measured against navy slot 2 with `wt_task2_pal_remeasure.mjs`
+# section F at ΔE 5.86, still short of the 15 mark. That residual is the same
+# disposition class as the slot-3 twin's ΔE 3.7 to slot 2's fill above: a
+# TEXT-vs-FILL pairing the categorical validator does not check (chrome tokens
+# are excluded from it by this file's own convention, see INK_SECONDARY /
+# COMPARISON / INK above), carried here as a readability note rather than a
+# blocking fail. `#727272` clears 4.5:1 body-text contrast (4.81:1).
+
+MOMENTUM_COLORS = {
+    "up": "#009E73",
+    "down": "#D55E00",
+    "stable": "#727272",
+    "ns": "#8C9196",       # up/down demoted by the significance test
+    "new": "#8C9196",
+    "dormant": "#8C9196",
+    "weak": "#8C9196",     # weak base -- glyph + "weak base" text, no percent
+}
+
+MOMENTUM_GLYPHS = {
+    "up": "\N{NORTH EAST ARROW}",
+    "down": "\N{SOUTH EAST ARROW}",
+    "stable": "\N{RIGHTWARDS ARROW}",
+    # the four "can't classify with confidence" states share ONE neutral dash
+    # (never the stable arrow -- "n.s." must not read as "stable"): manager
+    # merge 2BR3, aligning to collab_data's documented ladder + the Lorraine
+    # source convention.
+    "ns": "\N{EN DASH}",
+    "new": "\N{EN DASH}",
+    "dormant": "\N{EN DASH}",
+    "weak": "\N{EN DASH}",
+}
+
+
+def momentum_color(mom_class) -> str:
+    """Colour for a `mom_class` value. Unknown -> COMPARISON grey, the family
+    convention -- never a fill, see the section note above."""
+    return MOMENTUM_COLORS.get(str(mom_class).strip().lower(), COMPARISON)
+
+
+def momentum_glyph(mom_class) -> str:
+    """Glyph for a `mom_class` value. Unknown -> the neutral en dash, never
+    blank -- a momentum chip is never colour or text alone."""
+    return MOMENTUM_GLYPHS.get(str(mom_class).strip().lower(), MOMENTUM_GLYPHS["ns"])
+
 
 def institution_color(slot) -> str:
     """Colour for an institution SLOT (zero-based, as returned by
@@ -861,28 +884,35 @@ def institution_slots(inst_keys) -> dict:
 #      fixed and one-way: colour on a MARK means the institution, colour on a
 #      LABEL means the taxonomy. If both could go either way, neither would
 #      mean anything.
-# Families with no official colour of their own -- OA fields, subfields, topics
-# -- take NO accent in Compare rather than borrowing the OA domain hues: an
-# accent is worth its ink only where the taxonomy's colour is a thing the
-# reader already knows from outside the app.
+# 2B-R3 (user ruling 5, plan section 1.5) ADDS "oa" to the accent families.
+# The 2B-R-8 note above ("OA fields, subfields, topics take NO accent") is
+# RETIRED: every field/subfield row `fig_metric_bars` draws now carries its
+# OA-domain chip too, the same idiom the ERC/SDG rows already used -- an
+# institution-coloured bar chart otherwise gives no visual cue AT ALL for
+# which domain a field belongs to, which the OA-coloured Find panels the
+# reader came from do supply. The three-part rule above is unchanged and
+# binds "oa" identically: chip on the LABEL only, institution colour never
+# reaches a label accent, and the label text still names the field in full.
 
-LABEL_ACCENT_FAMILIES = ("erc", "sdg")
+LABEL_ACCENT_FAMILIES = ("erc", "sdg", "oa")
 
 
 def label_accent_color(family, key) -> str:
     """Colour for a ROW-LABEL accent glyph, by taxonomy family.
 
     The ONE entry point for part 1 of the rule above -- a chart module asks for
-    an accent by family and never reaches into `ERC_DOMAIN_COLORS` or
-    `SDG_COLORS` itself, so the "labels only, marks never" split has a single
-    place it can be audited. An unsupported family (`oa`, `doctype`, anything
-    else) returns COMPARISON grey, the family convention: no accent rather than
-    a borrowed one."""
+    an accent by family and never reaches into `ERC_DOMAIN_COLORS`,
+    `SDG_COLORS` or `OA_DOMAIN_COLORS` itself, so the "labels only, marks
+    never" split has a single place it can be audited. An unsupported family
+    (`doctype`, anything else) returns COMPARISON grey, the family convention:
+    no accent rather than a borrowed one."""
     fam = str(family).strip().lower()
     if fam == "erc":
         return erc_color(key)
     if fam == "sdg":
         return sdg_color(key)
+    if fam == "oa":
+        return domain_color(key)
     return COMPARISON
 
 

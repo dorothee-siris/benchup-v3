@@ -261,20 +261,27 @@ def test_institution_family_is_three_distinct_validated_hexes():
     assert len(set(upper)) == len(upper), f"duplicate institution hue: {upper}"
 
 
-def test_institution_dark_twins_are_one_per_slot_darker_and_not_a_second_family():
-    """`INSTITUTION_COLORS_DARK` is the relief the fills' contrast WARN obliges
-    (validator run 18): one TEXT colour per slot, the same hue as its fill and
-    dark enough to read. Pinned here so it can never drift into a second
-    identity set -- same length, disjoint hexes, and strictly darker."""
+def test_institution_dark_twins_are_never_lighter_than_their_fill():
+    """`INSTITUTION_COLORS_DARK` is the relief a fill's contrast WARN obliges:
+    one TEXT colour per slot, the same hue as its fill, never lighter than it.
+
+    2B-R3 (WT_2BR3.md task 2.2, ADJUSTED vs 2B-R2's plural "twins"): a slot
+    whose FILL already clears 4.5:1 body-text contrast unmodified may SELF-TWIN
+    (navy slots 1-2 here, contrast 14.21:1 / 5.61:1) -- only a slot below 4.5:1
+    needs an actually-darker computed hex (slot 3, 1.83:1 fill -> a 4.85:1
+    twin). So twins are no longer required to be disjoint from their fills;
+    what is pinned is that a REAL twin (one that differs from its fill) is
+    always strictly darker, never a second identity set."""
     palette = _palette()
     fills, twins = palette.INSTITUTION_COLORS, palette.INSTITUTION_COLORS_DARK
     assert isinstance(twins, list) and len(twins) == len(fills)
-    assert len({t.upper() for t in twins}) == len(twins)
-    assert not ({t.upper() for t in twins} & {f.upper() for f in fills})
+    lum = lambda h: 0.2126 * int(h[1:3], 16) + 0.7152 * int(h[3:5], 16) + 0.0722 * int(h[5:7], 16)
     for fill, twin in zip(fills, twins):
         assert HEX6.match(twin), twin
-        lum = lambda h: 0.2126 * int(h[1:3], 16) + 0.7152 * int(h[3:5], 16) + 0.0722 * int(h[5:7], 16)
-        assert lum(twin) < lum(fill), (fill, twin)
+        if twin.upper() == fill.upper():
+            assert lum(fill) < 255 * 0.5, (fill, twin)  # a self-twin must already read dark
+        else:
+            assert lum(twin) < lum(fill), (fill, twin)  # a real twin is strictly darker
     # the resolver, and its fallback: an unassignable slot loses the accent
     for i, twin in enumerate(twins):
         assert palette.institution_ink(i) == twin
