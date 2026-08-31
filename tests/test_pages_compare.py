@@ -22,8 +22,23 @@ dot mirrors; the page it tested no longer exists. What is pinned now:
     subfield, and a metric the drill retires is CLAMPED rather than raising.
   * THE UNAVAILABLE OPTIONS ARE DISCLOSED, not merely hidden: the frame's own
     reason string is rendered.
-  * THE ROWS ARRIVE RANKED AND THE BUILDER KEEPS THAT ORDER (2B-R-5, no sort
-    toggles): `_rank_rows` is order-only -- same rows, same values.
+  * THE ROW ORDER IS STABLE ACROSS METRIC TABS (2B-R2-5): `_order_rows` is
+    order-only -- same rows, same values -- and the DRAWN row order is identical
+    from one measure to the next, which is what makes two tabs comparable; the
+    per-section toggle really does re-rank.
+
+Re-cut again for Phase 2B-R2 (stream CP3). What is pinned on top of the above:
+
+  * THE CARDS LOST THE INTERVAL LINE AND THE PUBLICATIONS BUTTON, gained the
+    best-value DOT in the leading institution's colour, and the institution name
+    is now the OpenAlex link (2B-R2-9).
+  * "PUBLICATIONS IN THE WORLD TOP DECILE" IS NOT A TAB (2B-R2-3) while staying
+    a metric the data frame and the builder still know.
+  * EVERY SELECTOR OPTION IS DRIVEN TO A RENDER at every level -- the 2B-R
+    lesson, where an option was visible and its render path unreached.
+  * THE FRONTIER POOL AND COLOUR CONTROLS (2B-R2-10) do real work: the elite
+    pool is a strict subset, and the colour swap rebuilds the legend.
+  * EVERY READING LINE FITS ONE LINE (2B-R2-8), enforced by the builder itself.
   * THE SHARED-FRONTIER MELT IS LOSSLESS (2B-R-9): per topic, the long frame's
     volumes sum to the wide frame's `combined_vol`.
   * A LEGEND SITS ABOVE EVERY CHART (2B-R-12): at least as many legend strips
@@ -47,6 +62,7 @@ Run from cwd `app/`:  python -m pytest tests/test_pages_compare.py -q
 from __future__ import annotations
 
 import io
+import re
 from pathlib import Path
 from unittest import mock
 
@@ -54,7 +70,7 @@ import pandas as pd
 import pytest
 from streamlit.testing.v1 import AppTest
 
-from lib import charts_compare, compare_data, copy, selection, state, views_compare
+from lib import charts_compare, compare_data, copy, selection, state, tiles, views_compare
 from lib.data_cache import DATA_DIR
 from lib.engine import build_substrates, load_context
 
@@ -103,6 +119,24 @@ def _first_literal(template: str) -> str:
 
 def _captions(at) -> str:
     return " ".join(c.value for c in at.caption)
+
+
+def _markdown(at) -> str:
+    """Every rendered markdown block, joined. 2B-R2-8 moved most of this page's
+    prose OUT of `st.caption` and into `charts_compare.chart_note` -- a reading
+    line plus a `title=` tooltip, both rendered through `st.markdown` -- so a
+    test that only read captions would now be testing an empty surface."""
+    return " ".join(m.value for m in at.markdown)
+
+
+def _rendered(at) -> str:
+    return _markdown(at) + " " + _captions(at)
+
+
+def _cards(at) -> int:
+    """How many overview cards were drawn (2B-R2-9: the cards are markup, not
+    `st.metric`, because `st.metric` cannot carry the leader dot)."""
+    return sum(m.value.count(f'class="{tiles.TILE_CLASS}"') for m in at.markdown)
 
 
 # ------------------------------------------------------------- render ------
@@ -165,7 +199,7 @@ def test_an_over_cap_deep_link_truncates_with_a_rendered_reason():
     assert at.session_state["basket"] == SIX[:state.BASKET_CAP]
     warnings = " ".join(w.value for w in at.warning)
     assert _first_literal(copy.COMPARE["CAP_TRUNCATED"]) in warnings, warnings
-    assert len(at.metric) == state.COMPARE_CAP * len(
+    assert _cards(at) == state.COMPARE_CAP * len(
         views_compare._card_facts(None, views_compare._overview(tuple(TRIO)).iloc[0]))
 
 
@@ -173,25 +207,56 @@ def test_an_over_cap_deep_link_truncates_with_a_rendered_reason():
 
 def test_every_overview_card_value_reads_back_from_compare_data(engine):
     """2B-R-7: the cards are a rendering of `compare_data.overview` and nothing
-    else -- recompute the frame and match every rendered metric value."""
+    else -- recompute the frame and match every rendered card value.
+
+    2B-R2-9 changed the CARRIER (markup, not `st.metric`, so the leader dot can
+    sit beside the value) and not the contract: label and value must still both
+    be on the card, together, for every measure of every institution."""
     ctx, _subs = engine
     at = _app(basket=TRIO).run()
     frame = compare_data.overview(ctx, TRIO).set_index("institution_id")
-    rendered = {(m.label, m.value) for m in at.metric}
+    blocks = [m.value for m in at.markdown if tiles.TILE_CLASS in m.value]
+    assert len(blocks) == len(TRIO) * len(views_compare.CARD_COLUMNS), len(blocks)
     for iid in TRIO:
         cell = frame.loc[iid]
-        for label, value, _help, _sub in views_compare._card_facts(
+        for _col, label, value, _tip in views_compare._card_facts(
                 ctx["index_by_id"].loc[iid], cell):
-            assert (label, value) in rendered, (iid, label, value)
-    # ... and the two new 2B-R-7 facts are real, not the pre-artefact n/a
+            assert any(label in b and value in b for b in blocks), (iid, label, value)
+    # ... and the two 2B-R-7 facts are real, not the pre-co-publication n/a
     for iid in TRIO:
         assert 0.0 <= float(frame.loc[iid, "intl_share"]) <= 1.0
         assert 0.0 <= float(frame.loc[iid, "company_share"]) <= 1.0
 
 
+def test_the_cards_carry_no_interval_line_and_no_publications_button():
+    """2B-R2-9's two deletions, checked as deletions. The interval STRING that
+    used to sit under the PP value is gone from the strip, and the separate
+    "Publications" link button is gone from every card -- both because the
+    institution name now carries that link and the impact panel carries the
+    intervals."""
+    at = _app().run()
+    labels = [b.label for b in at.button]
+    assert copy.COMPARE["STRIP_LINK_PUBS"] not in labels, labels
+    # the interval STRING itself -- "[x-y]" -- is what left the cards; the
+    # coverage SENTENCE stays on the impact panels, where the intervals are
+    # drawn, so the check is on the rendered range and not on the words.
+    frame = views_compare._overview(tuple(TRIO)).set_index("institution_id")
+    cards = " ".join(m.value for m in at.markdown if tiles.TILE_CLASS in m.value)
+    for iid in TRIO:
+        cell = frame.loc[iid]
+        rendered_interval = copy.FIND["KPI_PP_VALUE_CI"].format(
+            lo=views_compare._pct(cell["ci_low"]), hi=views_compare._pct(cell["ci_high"]),
+            dash=views_compare.DASH)
+        assert rendered_interval not in cards, (iid, rendered_interval)
+
+
 def test_the_interval_coverage_sentence_is_the_methods_page_one():
     """2B-R-12: stated beside every interval, from METHODS_FAISCEAU through
-    `copy.IMPACT_CI_CAPTION`, filled by the Methods page's own values."""
+    `copy.IMPACT_CI_CAPTION`, filled by the Methods page's own values.
+
+    2B-R2-9 moved it OFF the cards (which no longer print an interval) and left
+    it on BOTH impact panels, where the intervals are actually drawn -- inside
+    the chart note's tooltip, per 2B-R2-8."""
     from lib import views_methods
 
     values = views_methods.methods_values()
@@ -199,7 +264,7 @@ def test_the_interval_coverage_sentence_is_the_methods_page_one():
                                              n_bootstrap=values["n_bootstrap"])
     assert views_compare._ci_sentence() == expected
     at = _app().run()
-    assert _captions(at).count(expected) >= 2, "the coverage is not stated beside both intervals"
+    assert _markdown(at).count(expected) >= 2, "the coverage is not stated beside both intervals"
 
 
 # ------------------------------------------------ the metric selector (5) --
@@ -220,16 +285,43 @@ def test_each_level_offers_exactly_the_metrics_the_data_can_serve():
 
 
 def test_a_hidden_metric_carries_the_frames_own_reason():
+    """2B-R2-8/13: the header and the line are `copy.SHARED`'s -- the SAME two
+    strings the Collaborate page uses for the same situation -- and the reason
+    is the frame's own plain-language sentence."""
     at = _app().run()
     text = _captions(at)
+    assert copy.SHARED["NOT_OFFERED_HEADER"] in text
     hidden = [m for m in views_compare.SUBJECT_METRICS
               if not compare_data.metric_frame_available(m, "sdg")]
     assert hidden
     for m in hidden:
-        line = copy.COMPARE["METRIC_HIDDEN_LINE"].format(
-            metric=views_compare.METRIC_LABELS[m],
-            reason=compare_data.UNAVAILABLE_REASON[(m, "sdg")])
+        line = views_compare._not_offered_line(
+            views_compare.METRIC_LABELS[m], compare_data.UNAVAILABLE_REASON[(m, "sdg")])
         assert line in text, m
+    # a reason that already opens with the measure's own name is not printed
+    # twice -- the live page read "Volume: Volume: shown in the chart gutter"
+    assert views_compare._not_offered_line(
+        "Volume", "Volume: shown in the chart gutter instead of as a tab."
+    ) == "Volume: shown in the chart gutter instead of as a tab."
+    at2 = _app().run()
+    assert "Volume: Volume" not in _captions(at2)
+
+
+def test_the_top_decile_volume_is_not_a_tab_any_more():
+    """2B-R2-3: `vol_top10` is retired as a SELECTOR option at every level (its
+    mass rides in the PP view's gutter and hover instead) -- while remaining a
+    metric the builder and the data frame still know, which is the distinction
+    the 2B-R2-1b crash class was about."""
+    at = _app().run()
+    label = views_compare.METRIC_LABELS["vol_top10"]
+    for r in at.get("radio"):
+        assert label not in list(r.options), (r.key, r.options)
+    assert "vol_top10" not in views_compare.SUBJECT_METRICS
+    assert "vol_top10" in compare_data.METRICS and "vol_top10" in charts_compare.METRICS
+    # and the field-level frame still carries that mass, for the PP gutter
+    frame = views_compare._metric(tuple(TRIO), TREE, BASIS, "field", "pp", None,
+                                  views_compare.IMPACT_FLOOR_DEFAULT)
+    assert frame["vol_top10"].notna().any()
 
 
 def test_switching_the_subject_metric_redraws_the_page():
@@ -240,9 +332,29 @@ def test_switching_the_subject_metric_redraws_the_page():
     assert not at.exception, [str(e) for e in at.exception]
     assert len(at.get("plotly_chart")) == before
     assert at.session_state["cmp_metric_subject"] == views_compare.METRIC_LABELS["si"]
-    # SI is the one metric with a constant reference, and its floor caption is
-    # only drawn on that metric
-    assert _first_literal(copy.FIND["CAPTION_SI"]) in _captions(at)
+    # SI is the one metric with a constant reference, and its floor sentence is
+    # only rendered on that metric -- inside the chart note's tooltip (2B-R2-8)
+    assert _first_literal(copy.FIND["CAPTION_SI"]) in _markdown(at)
+
+
+def test_every_selector_option_renders_at_every_level():
+    """The 2B-R lesson, pinned: an option the selector OFFERS must reach a
+    render, or the crash lives on a path no test drives. Every option of every
+    section is set here, one after another, including the subfield drill."""
+    at = _app().run()
+    for key, level in (("cmp_metric_subject", "field"), ("cmp_metric_erc", "erc"),
+                       ("cmp_metric_sdg", "sdg")):
+        options = list(at.radio(key=key).options)
+        assert options, key
+        for label in options:
+            at.radio(key=key).set_value(label).run()
+            assert not at.exception, (key, label, [str(e) for e in at.exception])
+            assert len(at.get("plotly_chart")) >= 8, (key, label)
+    field_id = int(sorted(views_compare._fields(tuple(TRIO), TREE, BASIS)["field_id"].unique())[0])
+    at.selectbox(key="cmp_field_drill").set_value(field_id).run()
+    for label in list(at.radio(key="cmp_metric_subject").options):
+        at.radio(key="cmp_metric_subject").set_value(label).run()
+        assert not at.exception, ("subfield", label, [str(e) for e in at.exception])
 
 
 def test_drilling_into_a_field_switches_the_level_and_clamps_a_retired_metric():
@@ -260,7 +372,7 @@ def test_drilling_into_a_field_switches_the_level_and_clamps_a_retired_metric():
     assert at.session_state["cmp_metric_subject"] in [
         views_compare.METRIC_LABELS[m] for m in views_compare.SUBJECT_METRICS
         if compare_data.metric_frame_available(m, "subfield")]
-    assert _first_literal(copy.COMPARE["CAPTION_DRILL"]) in _captions(at)
+    assert _first_literal(copy.COMPARE["CAPTION_DRILL"]) in _markdown(at)
 
 
 def test_the_dynamics_view_names_both_windows(engine):
@@ -275,25 +387,70 @@ def test_the_dynamics_view_names_both_windows(engine):
     at.radio(key="cmp_metric_subject").set_value(
         views_compare.METRIC_LABELS["dynamics"]).run()
     assert not at.exception, [str(e) for e in at.exception]
-    assert note in _captions(at)
+    assert note in _markdown(at)
 
 
-def test_ranking_reorders_rows_and_moves_no_value(engine):
-    """2B-R-5 removed the sort toggles, so the page ranks the frame once and
-    the builder preserves that order. Ranking is ORDER ONLY."""
+def _row_labels(df, metric, slots, sort="taxonomy", level="field"):
+    fig = charts_compare.fig_metric_bars(
+        views_compare._order_rows(df), metric, list(slots), slots=slots,
+        names={i: i for i in slots}, level=level, sort=sort)
+    return [str(t) for t in fig.layout.yaxis.ticktext]
+
+
+def test_the_row_order_is_stable_across_metric_tabs(engine):
+    """2B-R2-5, the property the whole taxonomy order exists for: switch the
+    measure and every row stays where it was, so two tabs can be read against
+    each other. Checked on the ROWS THE BUILDER DRAWS, not on the frame, and on
+    three metrics whose producers order their own output differently."""
     ctx, subs = engine
+    slots = {iid: n for n, iid in enumerate(TRIO)}
+    orders = {}
+    for metric in ("share", "dynamics", "sdg_share"):
+        df = compare_data.metric_frame(ctx, subs, TRIO, "field", metric)
+        rows = views_compare._order_rows(df)
+        orders[metric] = rows.drop_duplicates("taxon_id")["taxon_id"].tolist()
+    base = orders["share"]
+    assert len(base) > 5, base
+    for metric, order in orders.items():
+        common = [t for t in base if t in set(order)]
+        assert common == [t for t in order if t in set(base)], metric
+        assert len(common) > 5, (metric, len(common))
+    # ... and the drawn labels agree with that, metric to metric
+    a = _row_labels(compare_data.metric_frame(ctx, subs, TRIO, "field", "share"),
+                    "share", slots)
+    b = _row_labels(compare_data.metric_frame(ctx, subs, TRIO, "field", "dynamics"),
+                    "dynamics", slots)
+    strip = lambda s: s.split(charts_compare.C.TICK_LABEL_GAP)[0]  # noqa: E731
+    assert [strip(x) for x in a] == [strip(x) for x in b]
+
+
+def test_the_sort_toggle_reranks_and_moves_no_value(engine):
+    """The other half of 2B-R2-5: `value` really does re-rank, and ordering is
+    ORDER ONLY -- same rows, same numbers, in both modes."""
+    ctx, subs = engine
+    slots = {iid: n for n, iid in enumerate(TRIO)}
     raw = compare_data.metric_frame(ctx, subs, TRIO, "field", "share")
-    ranked = views_compare._rank_rows(raw, keep_order=False)
-    assert len(ranked) == len(raw)
+    ordered = views_compare._order_rows(raw)
+    assert len(ordered) == len(raw)
     key = ["institution_id", "taxon_id"]
-    assert (ranked.sort_values(key).reset_index(drop=True)["value"].round(12).tolist()
+    assert (ordered.sort_values(key).reset_index(drop=True)["value"].round(12).tolist()
             == raw.sort_values(key).reset_index(drop=True)["value"].round(12).tolist())
-    first = ranked.drop_duplicates("taxon_id")["taxon_id"].tolist()
-    summed = raw.groupby("taxon_id")["value"].sum()
-    assert first == list(summed.sort_values(ascending=False).index)
-    # the taxonomy-ordered levels keep their own sequence untouched
-    erc = compare_data.metric_frame(ctx, subs, TRIO, "erc", "share")
-    assert views_compare._rank_rows(erc, keep_order=True) is erc
+    by_taxonomy = _row_labels(raw, "share", slots, sort="taxonomy")
+    by_value = _row_labels(raw, "share", slots, sort="value")
+    assert set(by_taxonomy) == set(by_value)
+    assert by_taxonomy != by_value, "the sort toggle changed nothing"
+
+
+def test_the_sort_toggle_is_offered_per_section_and_defaults_to_taxonomy():
+    at = _app().run()
+    keys = {r.key: list(r.options) for r in at.get("radio")}
+    for key in ("cmp_sort_subject", "cmp_sort_erc", "cmp_sort_sdg"):
+        assert keys[key] == [views_compare.SORT_LABELS[m] for m in charts_compare.SORT_MODES], key
+        assert at.session_state[key] == views_compare.SORT_LABELS[views_compare.SORT_DEFAULT]
+    at.radio(key="cmp_sort_subject").set_value(
+        views_compare.SORT_LABELS["value"]).run()
+    assert not at.exception, [str(e) for e in at.exception]
+    assert at.session_state["cmp_sort_subject"] == views_compare.SORT_LABELS["value"]
 
 
 def test_the_erc_and_sdg_frames_carry_their_label_accent_key(engine):
@@ -317,6 +474,45 @@ def test_the_erc_and_sdg_frames_carry_their_label_accent_key(engine):
 
 
 # ---------------------------------------------------------- frontier (9) ---
+
+def test_the_leader_dot_marks_one_card_per_measure(engine):
+    """2B-R2-9: the dot is drawn in the LEADING institution's own colour, on the
+    measure it leads, and on nothing else. A tie draws no dot -- the dot's claim
+    is "this one leads", which two level institutions do not support."""
+    ctx, _subs = engine
+    frame = views_compare._overview(tuple(TRIO))
+    leaders = views_compare._leaders(frame)
+    assert leaders, "no leader on any measure -- the dot would never be drawn"
+    cells = frame.set_index("institution_id")
+    for column, iid in leaders.items():
+        best = pd.to_numeric(cells[column], errors="coerce").max()
+        assert float(cells.loc[iid, column]) == pytest.approx(float(best))
+    slots = views_compare._slots(ctx, TRIO)
+    at = _app().run()
+    text = _markdown(at)
+    for column, iid in leaders.items():
+        dot = charts_compare.best_value_dot(slots[iid])
+        assert dot in text, (column, iid)
+    assert text.count("border-radius:") >= len(leaders)
+    # a tie yields nothing, tested on a frame that is level by construction
+    tied = pd.DataFrame({"institution_id": list(TRIO[:2])}
+                        | {c: [1.0, 1.0] for c in views_compare.CARD_COLUMNS})
+    assert views_compare._leaders(tied) == {}
+
+
+def test_the_institution_name_is_the_openalex_link():
+    """2B-R2-9: the name IS the link (the same fragment-carrying builder the
+    Find profile and the benchmark tables use), which is what let the separate
+    Publications button go."""
+    from lib.ranked import works_link_named
+
+    at = _app().run()
+    text = _markdown(at)
+    ctx = views_compare._bundle()["ctx"]
+    for iid in TRIO:
+        name = views_compare._name(ctx, iid)
+        assert f"]({works_link_named(iid, name)})" in text, iid
+
 
 def test_the_frontier_slider_defaults_to_the_measured_value_and_caps_the_frame():
     at = _app().run()
@@ -345,14 +541,54 @@ def test_the_shared_frontier_melt_loses_no_volume():
     assert set(long["institution_id"]) <= set(TRIO)
 
 
-def test_the_frontier_caption_counts_the_shared_topics_from_the_data():
+def test_the_frontier_note_counts_the_shared_topics_from_the_data():
     at = _app().run()
     pooled = views_compare._frontier_pooled(tuple(TRIO), TREE, BASIS,
-                                            views_compare.FRONTIER_TOPN_DEFAULT)
+                                            views_compare.FRONTIER_TOPN_DEFAULT,
+                                            views_compare.POOL_DEFAULT)
     n_shared = int((pooled["owner"] == charts_compare.SHARED_OWNER).sum())
-    line = copy.COMPARE["CAPTION_FRONTIER_SHARED_COUNT"].format(
+    line = copy.COMPARE["NOTE_FRONTIER_MAP"].format(
         n_shared=f"{n_shared:,}", n_shown=f"{len(pooled):,}")
-    assert line in _captions(at), line
+    assert line in _markdown(at), line
+
+
+def test_the_frontier_pool_selector_narrows_the_topic_set():
+    """2B-R2-10: the elite pool is a STRICT subset of the default one (the cut
+    is global, so it does not move with the basket), and picking it redraws the
+    page without exception."""
+    at = _app().run()
+    assert list(at.radio(key="cmp_frontier_pool").options) == [
+        views_compare.POOL_LABELS[p] for p in compare_data.FRONTIER_POOLS]
+    # UNCAPPED on both sides: the subset claim is about the POOL, and two
+    # different top-N cuts of two different rankings need not nest.
+    uncapped = 10 ** 6
+    wide = views_compare._frontier_pooled(tuple(TRIO), TREE, BASIS, uncapped, "volume")
+    elite = views_compare._frontier_pooled(tuple(TRIO), TREE, BASIS, uncapped, "elite")
+    assert not elite.empty
+    assert set(elite["topic_id"]) <= set(wide["topic_id"])
+    assert len(elite) < len(wide)
+    at.radio(key="cmp_frontier_pool").set_value("elite").run()
+    assert not at.exception, [str(e) for e in at.exception]
+    assert copy.COMPARE["FRONTIER_POOL_RULE_ELITE"] in _markdown(at)
+
+
+def test_the_colour_toggle_rebuilds_the_frontier_legend():
+    """2B-R2-10: colouring by broad subject area REPLACES the ownership reading,
+    legend included -- in that mode no mark means an institution, so a legend
+    naming the institutions would name a figure that is not on screen."""
+    at = _app().run()
+    assert list(at.radio(key="cmp_frontier_color").options) == [
+        views_compare.COLOR_BY_LABELS[c] for c in charts_compare.COLOR_BY]
+    pooled = views_compare._frontier_pooled(tuple(TRIO), TREE, BASIS,
+                                            views_compare.FRONTIER_TOPN_DEFAULT,
+                                            views_compare.POOL_DEFAULT)
+    items = views_compare._domain_items(pooled)
+    assert items and all(isinstance(label, str) and label for _d, label in items)
+    at.radio(key="cmp_frontier_color").set_value("domain").run()
+    assert not at.exception, [str(e) for e in at.exception]
+    text = _markdown(at)
+    for _did, label in items:
+        assert label in text, label
 
 
 # -------------------------------------------------------------- legends ----
@@ -497,6 +733,43 @@ def test_workbook_opens_with_openpyxl_and_carries_every_view(engine):
         assert label in values and caption in values, label
     header = [c.value for c in next(book[copy.COMPARE["XLSX_SHEET_OVERVIEW"]].iter_rows())]
     assert header == list(views_compare._overview(tuple(TRIO)).columns)
+
+
+def test_the_methods_sheet_records_the_controls_the_reader_was_on(engine):
+    """2B-R2-5/10: the workbook names the row order, the frontier pool and the
+    colour mode. A file that named the metric of each selector but not the pool
+    its frontier sheet was cut from would describe a view nobody saw."""
+    ctx, _subs = engine
+    controls = {"pool": "elite", "color_by": "domain", "sort": "value"}
+    rows = views_compare.methods_rows(ctx, list(TRIO), SCENARIO,
+                                      views_compare.IMPACT_FLOOR_DEFAULT,
+                                      views_compare.FRONTIER_TOPN_DEFAULT, [], controls)
+    items = list(rows[copy.COMPARE["XLSX_COL_ITEM"]])
+    values = list(rows[copy.COMPARE["XLSX_COL_VALUE"]])
+    for key in ("XLSX_ROW_POOL", "XLSX_ROW_COLOUR", "XLSX_ROW_SORT"):
+        assert copy.COMPARE[key] in items, key
+    assert views_compare.POOL_LABELS["elite"] in values
+    assert views_compare.COLOR_BY_LABELS["domain"] in values
+    assert views_compare.SORT_LABELS["value"] in values
+    # ... and the defaults stand in when the page passes nothing
+    plain = views_compare.methods_rows(ctx, list(TRIO), SCENARIO,
+                                       views_compare.IMPACT_FLOOR_DEFAULT,
+                                       views_compare.FRONTIER_TOPN_DEFAULT, [])
+    assert views_compare.POOL_LABELS[views_compare.POOL_DEFAULT] in list(
+        plain[copy.COMPARE["XLSX_COL_VALUE"]])
+
+
+def test_every_reading_line_fits_the_one_line_rule():
+    """2B-R2-8's enforcement, read back over this page's OWN copy: every `NOTE_*`
+    key must survive `charts_compare.chart_note`, which raises on a line break
+    or on a line over its cap. A wall of prose cannot come back as a "note"."""
+    notes = {k: v for k, v in copy.COMPARE.items()
+             if k.startswith("NOTE_") and isinstance(v, str)}
+    assert len(notes) >= 6, notes.keys()
+    for key, template in notes.items():
+        filled = re.sub(r"\{[^{}]*\}", "0", template)
+        rendered = charts_compare.chart_note(filled, "a tooltip")
+        assert charts_compare.NOTE_HELP_GLYPH in rendered, key
 
 
 def test_the_methods_sheet_states_the_windows_the_floor_and_the_cap(engine):

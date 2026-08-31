@@ -9,9 +9,29 @@ mirrors (2B-R-5 -> ONE "Compare by" metric selector over horizontal grouped
 bars, because at k = 3 the number fits ON the mark and the dot row could never
 carry it), the quadrant small-multiples and the frontier overlay (2B-R-9 -> a
 POOLED frontier map plus a diverging "who holds the shared frontier" list, so
-cross-institution occlusion is impossible rather than merely reduced), and
-every sort toggle (2B-R-5: the frame arrives ranked, the builder never
-re-sorts, so no control can move a colour).
+cross-institution occlusion is impossible rather than merely reduced).
+
+PHASE 2B-R2 (stream CP3, decisions 2B-R2-3/4/5/8/9/10), what changed and why:
+  * the overview cards lose the bootstrap-interval line and the "Publications"
+    button, gain a best-value DOT in the leading institution's colour, and put
+    the window sentence in each card's own `?`; the institution NAME is now the
+    link to its publications (2B-R2-9);
+  * the metric selector offers `charts_compare.SELECTOR_METRICS` -- "Publications
+    in the world top decile" is retired as a TAB and rides in the PP view's
+    gutter and hover instead (2B-R2-3);
+  * every section gains a ROW-ORDER control, and the default taxonomy order is
+    canonicalised HERE (`_order_rows`) so it cannot move when the reader
+    switches metric (2B-R2-5 -- the one thing that makes two tabs comparable);
+  * the frontier map gains a POOL selector and a colour-by-domain toggle, both
+    wired straight to the builder's own modes (2B-R2-10);
+  * and every grey paragraph above or below a chart is now ONE reading line with
+    the methodology behind its `?` (2B-R2-8, `_note` / `charts_compare.
+    chart_note`, which REFUSES an over-long line rather than truncating it).
+Sort toggles were removed in 2B-R and are back in 2B-R2 for a stated reason:
+2B-R's rule was "the frame arrives ranked so no control can move a colour", and
+colour still never moves -- it follows the institution, not the row -- while the
+gate found that a value ranking that cannot be turned OFF makes two metric tabs
+incomparable, which is the more expensive of the two problems.
 
 COMPOSITION ONLY, the same rule as lib/views_find.py: every frame comes from
 `lib/compare_data.py`, every figure from `lib/charts_compare.py`, every colour
@@ -62,13 +82,14 @@ import streamlit as st
 
 from lib import charts_compare as X
 from lib import compare_data as K
-from lib import copy, countries, links, profile_data, selection, state
+from lib import copy, countries, profile_data, selection, state, tiles
 from lib import palette as P
 from lib.app_config import CFG
 from lib.data_cache import manifest
 from lib.exports import data_date_label
 from lib.exports_xlsx import XLSX_MIME, workbook_bytes, workbook_filename
 from lib.palette import NA_MARK
+from lib.ranked import works_link_named
 from lib.search import search
 from lib.views_find import (
     DASH, SEP, _bundle, _hit_label, _count, _pct, _sidebar_scenario, _subs, _vol_col,
@@ -88,17 +109,49 @@ METRIC_LABELS = {
     "si": copy.COMPARE["METRIC_SI"],
     "vol": copy.COMPARE["METRIC_VOL"],
 }
-# Every section starts from the SAME six-metric vocabulary and lets the level
-# filter it (2B-R-5). Starting each section from a hand-written short list would
-# hide the ERC and SDG gaps instead of disclosing them: as shipped, ERC serves
-# Share and Specialisation, SDG serves Share and Dynamics, and each section
-# prints `compare_data`'s own reason for every measure it cannot offer -- which
-# is how a reader learns that "Volume of top-decile publications" is missing
-# because no impact artefact crosses with the ERC panels, not because this page
-# decided against it.
-SUBJECT_METRICS = tuple(METRIC_LABELS)
+# Every section starts from the SAME vocabulary and lets the level filter it
+# (2B-R-5). Starting each section from a hand-written short list would hide the
+# ERC and SDG gaps instead of disclosing them: as shipped, ERC serves Share and
+# Specialisation, SDG serves Share and Dynamics, and each section prints
+# `compare_data`'s own reason for every measure it cannot offer -- which is how a
+# reader learns that a measure is missing because nothing crosses the ERC panels
+# with it, not because this page decided against it.
+#
+# 2B-R2-3 narrows the vocabulary to `charts_compare.SELECTOR_METRICS`: Share,
+# Specialisation, PP(top10%), SDG-tagged share, Change in mean annual volume,
+# and Volume where a level defines one. "Publications in the world top decile"
+# is NOT a tab any more -- that mass now rides in the PP view's own gutter and
+# hover, where it qualifies the share instead of competing with it. The metric
+# still EXISTS (`compare_data.METRICS`, `charts_compare.METRICS`, the workbook's
+# own label); it is the SELECTOR that stopped offering it, which is why the
+# order lives in the chart module beside the builder that has to draw them all.
+SUBJECT_METRICS = X.SELECTOR_METRICS
 ERC_METRICS = SUBJECT_METRICS
 SDG_METRICS = SUBJECT_METRICS
+
+# 2B-R2-5: the row-order control, one per section. `taxonomy` (the default) is
+# what makes two metric tabs comparable -- a row stays where it was when the
+# measure changes -- and `value` is the toggle for a reader who wants the
+# ranking instead. The builder owns both mechanics (`charts_compare.SORT_MODES`);
+# this page owns only the widget and the words.
+SORT_LABELS = {"taxonomy": copy.COMPARE["SORT_TAXONOMY"],
+               "value": copy.COMPARE["SORT_VALUE"]}
+SORT_DEFAULT = X.SORT_MODES[0]
+
+# 2B-R2-10: the frontier map's two controls. The POOL is the producer's
+# (`compare_data.FRONTIER_POOLS`: which topics are eligible at all); the chart
+# module has its own name for the matching RANKING (`charts_compare.POOLS`), so
+# the two vocabularies are mapped here, once, rather than each section guessing.
+POOL_LABELS = {"volume": copy.COMPARE["FRONTIER_POOL_VOLUME"],
+               "elite": copy.COMPARE["FRONTIER_POOL_ELITE"]}
+POOL_RULES = {"volume": copy.COMPARE["FRONTIER_POOL_RULE_VOLUME"],
+              "elite": copy.COMPARE["FRONTIER_POOL_RULE_ELITE"]}
+POOL_CHART_MODE = dict(zip(K.FRONTIER_POOLS, X.POOLS))   # {"volume": "volume", "elite": "frontier"}
+POOL_DEFAULT = K.FRONTIER_POOLS[0]
+
+COLOR_BY_LABELS = {"owner": copy.COMPARE["FRONTIER_COLOR_OWNER"],
+                   "domain": copy.COMPARE["FRONTIER_COLOR_DOMAIN"]}
+COLOR_BY_DEFAULT = X.COLOR_BY[0]
 
 # The accent KEY column each level's builder call needs (2B-R-8). `metric_frame`
 # returns the six contract columns only, so the key is merged back on from the
@@ -195,13 +248,15 @@ def _sdg(ids: tuple) -> pd.DataFrame:
 
 
 @st.cache_data(show_spinner=False, max_entries=24)
-def _frontier_pooled(ids: tuple, tree: str, basis: str, top_n: int) -> pd.DataFrame:
-    return K.frontier_pooled(_bundle()["ctx"], _subs(tree, basis), list(ids), top_n)
+def _frontier_pooled(ids: tuple, tree: str, basis: str, top_n: int,
+                     pool: str = POOL_DEFAULT) -> pd.DataFrame:
+    return K.frontier_pooled(_bundle()["ctx"], _subs(tree, basis), list(ids), top_n, pool)
 
 
 @st.cache_data(show_spinner=False, max_entries=12)
-def _shared_frontier(ids: tuple, tree: str, basis: str) -> pd.DataFrame:
-    return K.shared_frontier(_bundle()["ctx"], _subs(tree, basis), list(ids))
+def _shared_frontier(ids: tuple, tree: str, basis: str,
+                     pool: str = POOL_DEFAULT) -> pd.DataFrame:
+    return K.shared_frontier(_bundle()["ctx"], _subs(tree, basis), list(ids), pool)
 
 
 @st.cache_data(show_spinner=False, max_entries=12)
@@ -280,10 +335,16 @@ def _legend(ids, slots: dict, names: dict, *, shared: bool = False) -> None:
                 unsafe_allow_html=True)
 
 
-def _interval(low, high) -> str:
-    if low is None or high is None or pd.isna(low) or pd.isna(high):
-        return NA_MARK
-    return copy.FIND["KPI_PP_VALUE_CI"].format(lo=_pct(low), hi=_pct(high), dash=DASH)
+def _note(reading: str, tooltip: str | None = None) -> None:
+    """2B-R2-8's ONE presentation primitive on this page: a short reading line
+    under a chart, with the methodology folded into its `?`.
+
+    Every grey paragraph this page used to stack above and below its figures now
+    arrives through here. `charts_compare.chart_note` REFUSES a reading line
+    longer than its own cap or one carrying a line break, so the wall of prose
+    cannot come back through this door one release later: an over-long reading
+    line fails at render time, in the test suite, not in the reader's face."""
+    st.markdown(X.chart_note(reading, tooltip), unsafe_allow_html=True)
 
 
 def _scenario_words(sc: dict) -> dict:
@@ -410,62 +471,142 @@ def _selection(bundle: dict) -> list:
 
 # ---------------------------------------------------- overview (VIZ 4.1) ----
 
+CARD_COLUMNS = ("vol_full", "sdg_share", "frontier_top25_share", "pp",
+                "intl_share", "company_share")
+# 2B-R2-9: the six card measures, in the order they are drawn, named by the
+# `compare_data.overview` COLUMN each one renders. The tuple is what `_leaders`
+# ranks over, so a card and its dot can never be computed from two different
+# columns.
+
+
 def _card_facts(row, cell) -> list:
-    """`[(label, value, help, subline)]` for ONE institution's card, in the
+    """`[(column, label, value, tooltip)]` for ONE institution's card, in the
     2B-R-7 order. Every value arrives from `compare_data.overview`; a null
-    source cell renders `n/a`, never zero."""
-    words = {"y0": WINDOW_START, "y1": WINDOW_END, "bonus_year": CFG["bonus_year"]}
+    source cell renders `n/a`, never zero.
+
+    2B-R2-9 changes the shape here twice. The bootstrap-interval SUBLINE is
+    gone: an interval printed under a value competed with the value at the same
+    weight, and the intervals themselves are still drawn -- as intervals -- on
+    the impact panel below, where they are the subject. And the window sentence
+    that used to sit as one grey caption under the WHOLE strip is folded into
+    each card's own `?`, beside the figure it qualifies: these six measures do
+    not share a window or a denominator, so one caption under all of them could
+    only ever be true of some.
+
+    `row` (the institution's index row) is unused by the facts themselves and
+    kept in the signature because the caller has it: every VALUE comes from the
+    overview frame, which is exactly what the read-back test pins."""
+    words = {"y0": WINDOW_START, "y1": WINDOW_END}
+    window_tip = copy.COMPARE["CARD_WINDOW_TIP"].format(**words)
     return [
-        (copy.FIND["KPI_PUBS_LABEL"], _count(cell["vol_full"]),
-         copy.FIND["KPI_PUBS_HELP"].format(**words),
-         f"{_count(cell['vol_frac'])} {copy.FIND['KPI_PUBS_FRAC_LABEL']}"),
-        (copy.FIND["KPI_SDG_LABEL"], _pct(cell["sdg_share"]), copy.FIND["KPI_SDG_HELP"], None),
-        (copy.FIND["KPI_FRONTIER_LABEL"], _pct(cell["frontier_top25_share"]),
-         copy.FIND["KPI_FRONTIER_HELP"], None),
-        (copy.FIND["KPI_PP_LABEL"], _pct(cell["pp"]), copy.FIND["KPI_PP_HELP"],
-         f"{_interval(cell['ci_low'], cell['ci_high'])} "
-         f"{copy.FIND['KPI_PP_CI_LABEL']}"),
-        (copy.FIND["IDENTITY_INTL_LABEL"], _pct(cell["intl_share"]),
-         copy.FIND["IDENTITY_FACTS_HELP"].format(y0=WINDOW_START, y1=WINDOW_END), None),
-        (copy.FIND["IDENTITY_COMPANY_LABEL"], _pct(cell["company_share"]),
-         copy.FIND["IDENTITY_FACTS_HELP"].format(y0=WINDOW_START, y1=WINDOW_END), None),
+        ("vol_full", copy.FIND["KPI_PUBS_LABEL"], _count(cell["vol_full"]),
+         copy.FIND["PUBLICATIONS_TOOLTIP"].format(bonus_year=CFG["bonus_year"], **words)
+         + " " + copy.COMPARE["CARD_PUBS_FRAC"].format(n=_count(cell["vol_frac"]))),
+        ("sdg_share", copy.FIND["KPI_SDG_LABEL"], _pct(cell["sdg_share"]),
+         f"{copy.FIND['KPI_SDG_HELP']} {window_tip}"),
+        ("frontier_top25_share", copy.FIND["KPI_FRONTIER_LABEL"],
+         _pct(cell["frontier_top25_share"]),
+         f"{copy.FIND['KPI_FRONTIER_HELP']} {window_tip}"),
+        ("pp", copy.FIND["KPI_PP_LABEL"], _pct(cell["pp"]),
+         f"{copy.FIND['KPI_PP_HELP_R2']} {window_tip}"),
+        ("intl_share", copy.FIND["KPI_INTL_LABEL"], _pct(cell["intl_share"]),
+         copy.FIND["KPI_INTL_HELP"].format(**words)),
+        ("company_share", copy.FIND["KPI_COMPANY_LABEL"], _pct(cell["company_share"]),
+         copy.FIND["KPI_COMPANY_HELP"].format(**words)),
     ]
+
+
+def _leaders(df: pd.DataFrame) -> dict:
+    """`{overview column: institution_id}` for the HIGHEST value of each card
+    measure across the compared set (2B-R2-9's best-value dot).
+
+    A TIE yields no entry, so no dot is drawn: the dot's whole claim is "this
+    one leads", and two institutions level on a measure do not. A column with no
+    finite value anywhere likewise yields nothing -- the same absence-is-never-
+    zero rule the cards themselves obey."""
+    cells = df.set_index("institution_id")
+    out = {}
+    for col in CARD_COLUMNS:
+        series = pd.to_numeric(cells[col], errors="coerce").dropna()
+        if series.empty:
+            continue
+        winners = series[series == series.max()]
+        if len(winners) == 1:
+            out[col] = str(winners.index[0])
+    return out
+
+
+def _esc(value) -> str:
+    """Minimal HTML escape for institution-derived text going into markup."""
+    return (str(value).replace("&", "&amp;").replace("<", "&lt;")
+            .replace(">", "&gt;").replace('"', "&quot;"))
+
+
+def _card_html(label: str, value: str, dot: str) -> str:
+    """ONE compare card: the measure NAME first, the value under it, and the
+    2B-R2-9 leader dot beside the value.
+
+    Why not `tiles.kpi_tile`, which draws the Find profile's cards: that helper
+    ESCAPES everything it is given -- correctly, it renders institution data --
+    so a dot cannot be passed through it, and its third line is an index
+    baseline these cards do not have (here the reference is the card NEXT to
+    this one, which is what a comparison is). What this DOES borrow from it is
+    the TYPE SCALE: every size and weight below is `lib/tiles.py`'s own
+    constant, so the two card families cannot drift apart, and no number and no
+    colour is typed in this file."""
+    return (f'<div class="{tiles.TILE_CLASS}">'
+            f'<div style="font-size:{tiles.LABEL_PX}px;font-weight:{tiles.LABEL_WEIGHT};'
+            f'line-height:{tiles.LABEL_LINE_HEIGHT};color:{P.INK};">{_esc(label)}</div>'
+            f'<div style="display:flex;align-items:center;gap:{X.DOT_GAP_PX}px;'
+            f'font-size:{tiles.VALUE_PX}px;font-weight:{tiles.VALUE_WEIGHT};'
+            f'line-height:{tiles.VALUE_LINE_HEIGHT};color:{P.INK};">'
+            f'<span>{_esc(value)}</span>{dot}</div></div>')
 
 
 def _view_overview(ctx: dict, ids: list, slots: dict) -> pd.DataFrame:
     """VIZ_SPEC 4.1: not a chart. One card per compared institution, in SLOT
     order, carrying the swatch that binds it to every figure below and the six
-    2B-R-7 KPI facts as NUMBERS -- seven measures with no shared unit or range
-    is a table's job, and drawing it would produce seven mini-charts competing
-    with the metric selector immediately underneath."""
+    2B-R-7 KPI facts as NUMBERS -- six measures with no shared unit or range is
+    a table's job, and drawing it would produce six mini-charts competing with
+    the metric selector immediately underneath.
+
+    2B-R2-9 rewrites the surface: the institution NAME is the link to its own
+    publications in OpenAlex (the same `works_link_named` builder the Find
+    profile and the benchmark tables use), so the separate "Publications" button
+    that pointed at exactly that URL is gone; the leading institution's card
+    carries a dot in its own colour on the measure it leads; and the two grey
+    captions under the strip -- the interval coverage and the window -- moved
+    into the cards' own tooltips and onto the impact panel, which is where the
+    intervals are actually drawn."""
     st.subheader(copy.COMPARE["OVERVIEW_HEADER"])
-    st.caption(copy.COMPARE["OVERVIEW_HELP"])
     df = _overview(tuple(ids))
     cells = df.set_index("institution_id")
+    leaders = _leaders(df)
     order = _slot_order(ids, slots)
     with st.container(key="compare_strip", border=True):
         cols = st.columns(len(order))
         for col, iid in zip(cols, order):
             row = ctx["index_by_id"].loc[iid]
-            colour = P.institution_color(slots.get(iid, len(slots)))
+            slot = slots.get(iid, len(slots))
+            colour = P.institution_color(slot)
+            name = _name(ctx, iid)
             # A coloured GLYPH, not a styled box: a box would need typed pixel
             # lengths inside a rendered string (BUILD_PLAN_2A.md L10). The only
-            # interpolated value is the palette's own colour.
+            # interpolated values are the palette's own colour and the link.
             col.markdown(f'<span style="color:{colour}">{SWATCH_MARK}</span> '
-                         f"**{_name(ctx, iid)}**", unsafe_allow_html=True)
+                         f"**[{_esc(name)}]({works_link_named(iid, name)})**",
+                         unsafe_allow_html=True, help=copy.FIND["IDENTITY_NAME_HELP"])
             col.caption(f"{str(row['type'])} {SEP} "
                         f"{countries.name(str(row['country_code']))}")
-            for label, value, help_text, subline in _card_facts(row, cells.loc[iid]):
-                col.metric(label, value, help=help_text)
-                if subline:
-                    col.caption(subline)
-            col.link_button(copy.COMPARE["STRIP_LINK_PUBS"], links.works_url(iid),
-                            help=copy.FIND["LINK_OPENALEX_HELP"])
+            for column, label, value, tip in _card_facts(row, cells.loc[iid]):
+                dot = X.best_value_dot(slot) if leaders.get(column) == iid else ""
+                with col.container(border=True):
+                    st.markdown(_card_html(label, value, dot),
+                                unsafe_allow_html=True, help=tip)
             if col.button(copy.COMPARE["REMOVE_BUTTON"], key=f"cmp_rm_{iid}"):
                 state.remove(iid)
                 st.rerun()
-    st.caption(_ci_sentence())
-    st.caption(copy.COMPARE["OVERVIEW_WINDOW"].format(y0=WINDOW_START, y1=WINDOW_END))
+    _note(copy.COMPARE["OVERVIEW_NOTE"], copy.COMPARE["OVERVIEW_NOTE_TIP"])
     if st.button(copy.COMPARE["CLEAR_BUTTON"], key="cmp_clear"):
         state.clear()
         st.rerun()
@@ -497,30 +638,76 @@ def _metric_selector(key: str, level: str, metrics: tuple) -> str:
         # to open is a disclosure most readers never see, and the missing option
         # is exactly the thing someone comparing two levels will look for. The
         # reason is `compare_data`'s own sentence, so the page cannot invent a
-        # softer one.
-        st.caption(copy.COMPARE["METRIC_HIDDEN_HEADER"])
+        # softer one -- and the HEADER and the LINE are `copy.SHARED`'s, the
+        # same two strings the Collaborate page uses for the same situation
+        # (2B-R2-8: one wording for "not shown here, and why", not one per
+        # page).
+        st.caption(copy.SHARED["NOT_OFFERED_HEADER"])
         for m in hidden:
-            st.caption(copy.COMPARE["METRIC_HIDDEN_LINE"].format(
-                metric=METRIC_LABELS[m], reason=K.UNAVAILABLE_REASON[(m, level)]))
+            st.caption(_not_offered_line(METRIC_LABELS[m], K.UNAVAILABLE_REASON[(m, level)]))
     return available[labels.index(picked)]
 
 
-def _rank_rows(df: pd.DataFrame, *, keep_order: bool) -> pd.DataFrame:
-    """The row order the grouped-bar builder will preserve (it never re-sorts,
-    2B-R-5). `keep_order=True` leaves the taxonomy's own sequence alone -- ERC
-    domains run PE, LS, SH and the SDGs are a numbered list a reader navigates
-    by position, so re-ranking them would move goal seven in every comparison.
-    Otherwise the taxa are ranked by the value SUMMED over the compared set (the
-    A3 ruling: the intersection of per-institution top lists is not a
-    comparison), which moves rows and never a colour."""
-    if df.empty or keep_order:
+def _not_offered_line(label: str, reason: str) -> str:
+    """One "not shown here, and why" line, in `copy.SHARED`'s wording.
+
+    A reason that ALREADY opens with the measure's own name is printed as it
+    stands: 2B-R2-8's own example sentence is written that way ("Volume: shown
+    in the chart gutter instead of as a tab"), and pouring it into the shared
+    "{feature}: {reason}" template rendered "Volume: Volume: shown ..." on the
+    live page. Trimming the duplicate here keeps ONE wording for the situation
+    without editing a producer's sentence from a page."""
+    prefix = f"{label}:"
+    if reason.strip().lower().startswith(prefix.lower()):
+        return reason.strip()
+    return copy.SHARED["NOT_OFFERED_LINE"].format(feature=label, reason=reason)
+
+
+def _sort_toggle(key: str) -> str:
+    """2B-R2-5's per-section row-order control. Returns a
+    `charts_compare.SORT_MODES` value, never a label: the builder owns the
+    mechanics of both orders, this page owns only the choice and the words."""
+    labels = [SORT_LABELS[m] for m in X.SORT_MODES]
+    if st.session_state.get(key) not in labels:
+        st.session_state[key] = SORT_LABELS[SORT_DEFAULT]
+    picked = st.radio(copy.COMPARE["SORT_LABEL"], labels, horizontal=True, key=key,
+                      help=copy.COMPARE["SORT_HELP"], **state.PERSIST)
+    return X.SORT_MODES[labels.index(picked)]
+
+
+def _current_sort(key: str) -> str:
+    """The sort mode a section's toggle currently holds, read back off session
+    state for the workbook (the widget itself stores the LABEL)."""
+    label = st.session_state.get(key)
+    for mode, text in SORT_LABELS.items():
+        if text == label:
+            return mode
+    return SORT_DEFAULT
+
+
+def _order_rows(df: pd.DataFrame) -> pd.DataFrame:
+    """The frame in its CANONICAL taxonomy order: by display domain, then by the
+    taxon's own id inside the domain (2B-R2-5).
+
+    This is order only -- no value moves, no row is added or dropped -- and it
+    is what makes the row order STABLE ACROSS METRIC TABS. The builder's
+    `sort="taxonomy"` groups by domain and then keeps the frame's own ARRIVAL
+    order inside each group, so stability is only as good as the arrival order
+    the producer happened to give it: the share frame arrives in field-id order,
+    the impact frame in the order its own cells are stored, and two tabs would
+    then disagree about where a row sits. Sorting here, once, on keys every
+    metric frame carries by contract, removes that dependency. `sort="value"`
+    re-ranks on top of this, so the toggle still works exactly as before."""
+    if df.empty:
         return df
-    summed = df.groupby("taxon_id")["value"].sum(min_count=1)
-    order = {t: i for i, t in enumerate(summed.sort_values(ascending=False, kind="mergesort").index)}
     out = df.copy()
-    out["_rank"] = out["taxon_id"].map(order)
-    return out.sort_values(["_rank", "institution_id"], kind="mergesort").drop(
-        columns="_rank").reset_index(drop=True)
+    if "domain_order" not in out.columns:
+        return out.reset_index(drop=True)
+    out["_dom"] = pd.to_numeric(out["domain_order"], errors="coerce")
+    out["_dom"] = out["_dom"].fillna(float(len(out)))
+    out["_key"] = pd.to_numeric(out["taxon_id"], errors="coerce")
+    return out.sort_values(["_dom", "_key", "institution_id"], kind="mergesort").drop(
+        columns=["_dom", "_key"]).reset_index(drop=True)
 
 
 def _decorate(df: pd.DataFrame, level: str, long: pd.DataFrame, key_col: str,
@@ -540,27 +727,51 @@ def _decorate(df: pd.DataFrame, level: str, long: pd.DataFrame, key_col: str,
 
 
 def _metric_chart(df: pd.DataFrame, metric: str, ids, slots, names, level: str,
-                  *, key: str) -> None:
+                  *, key: str, sort: str = SORT_DEFAULT) -> None:
     _legend(ids, slots, names)
     st.plotly_chart(
         X.fig_metric_bars(df, metric, _slot_order(ids, slots), slots=slots, names=names,
-                          level=level, accent_col=ACCENT_KEY.get(level),
+                          level=level, sort=sort, accent_col=ACCENT_KEY.get(level),
                           metric_label=METRIC_LABELS[metric]),
         width="stretch", key=key)
 
 
-def _denominator_caption(df: pd.DataFrame) -> None:
-    """The frame states its own denominator (and, for dynamics, both windows
-    verbatim per 2B-R-6). Rendering that column is how the caption and the
-    numbers stay the same object -- a hand-written caption is a second opinion
-    about a denominator this page does not own."""
+def _metric_tip(df: pd.DataFrame, metric: str, sc: dict, *, accent: bool = False) -> str:
+    """Everything that used to be a stack of grey captions under a metric chart,
+    assembled into ONE tooltip (2B-R2-8): the scenario, the frame's own
+    denominator, what the gutter numbers are, what the dashed reference is and
+    -- crucially -- which of the two baselines it is NOT (2B-R2-3: the world
+    top decile is cut on world publications per topic and year; the dashed rule
+    is the mean over the institutions in this index), the low-volume marker, the
+    row-label accent, and specialisation's own floors.
+
+    The DENOMINATOR sentence is read off the frame, never written here: a
+    hand-typed denominator is a second opinion about a number this page does not
+    own, and for Dynamics it is also where both windows are named verbatim."""
+    parts = [copy.COMPARE["TIP_SCENARIO"].format(**_scenario_words(sc))]
     if not df.empty and "denominator" in df.columns:
-        st.caption(str(df["denominator"].iloc[0]))
+        parts.append(str(df["denominator"].iloc[0]))
+    parts.append(copy.COMPARE["TIP_GUTTER"])
+    if metric in X.REF_METRICS:
+        parts.append(copy.COMPARE["TIP_REFERENCE"])
+    if not df.empty and "vol_full_annual_mean" in df.columns \
+            and pd.to_numeric(df["vol_full_annual_mean"], errors="coerce").notna().any():
+        parts.append(copy.COMPARE["TIP_LOW_VOLUME"].format(
+            floor=f"{X.LOW_VOLUME_FLOOR:,.0f}"))
+    if accent:
+        parts.append(copy.COMPARE["TIP_ACCENT"])
+    if metric == "si":
+        parts.append(copy.FIND["CAPTION_SI"])
+        parts.append(copy.FIND["CAPTION_SI_FLOOR"].format(
+            floor_solid=int(profile_data.SI_FLOOR_SOLID),
+            floor_thin=int(profile_data.SI_FLOOR_THIN)))
+    return " ".join(parts)
 
 
 def _view_subject(ids, slots, names, sc) -> tuple:
     """2B-R-5: fields by default, a drill into ONE field's subfields, one metric
-    selector over both."""
+    selector over both. 2B-R2-5 adds the row-order control beside it, and 2B-R2-8
+    replaces the four grey captions under the chart with one reading line."""
     st.subheader(copy.COMPARE["VIEW_SUBJECT"])
     fields = _fields(tuple(ids), sc["tree"], sc["basis"])
     options = [None] + [int(f) for f in sorted(fields["field_id"].unique())]
@@ -571,23 +782,20 @@ def _view_subject(ids, slots, names, sc) -> tuple:
         key="cmp_field_drill", **state.PERSIST)
     level = "field" if field_id is None else "subfield"
     metric = _metric_selector("cmp_metric_subject", level, SUBJECT_METRICS)
+    sort = _sort_toggle("cmp_sort_subject")
     floor = int(st.session_state.get("cmp_impact_floor") or IMPACT_FLOOR_DEFAULT)
-    df = _rank_rows(_metric(tuple(ids), sc["tree"], sc["basis"], level, metric,
-                            field_id, floor), keep_order=False)
+    df = _order_rows(_metric(tuple(ids), sc["tree"], sc["basis"], level, metric,
+                             field_id, floor))
     if df.empty:
         st.caption(copy.COMPARE["EMPTY_METRIC"])
         return df, level, metric
-    _metric_chart(df, metric, ids, slots, names, level, key="fig_cmp_subject")
-    st.caption(copy.COMPARE["CAPTION_SUBJECT"].format(**_scenario_words(sc)))
+    _metric_chart(df, metric, ids, slots, names, level, key="fig_cmp_subject", sort=sort)
+    reading = copy.COMPARE["NOTE_SUBJECT"]
+    tip = _metric_tip(df, metric, sc)
     if level == "subfield":
-        st.caption(copy.COMPARE["CAPTION_DRILL"].format(field=str(labels.get(field_id, field_id))))
-    st.caption(copy.COMPARE["CAPTION_RANKED"])
-    _denominator_caption(df)
-    if metric == "si":
-        st.caption(copy.FIND["CAPTION_SI"])
-        st.caption(copy.FIND["CAPTION_SI_FLOOR"].format(
-            floor_solid=int(profile_data.SI_FLOOR_SOLID),
-            floor_thin=int(profile_data.SI_FLOOR_THIN)))
+        reading = copy.COMPARE["CAPTION_DRILL"].format(field=str(labels.get(field_id, field_id)))
+        tip = f"{copy.COMPARE['NOTE_SUBJECT']} {tip}"
+    _note(reading, tip)
     _download(df, slug=SLUGS["subject"], sc=sc, key="subject")
     return df, level, metric
 
@@ -606,23 +814,35 @@ def _shares_line(ctx: dict, ids, slots: dict, numerator: str) -> str:
     return f" {SEP} ".join(parts)
 
 
+def _taxon_tip(ctx, ids, slots, sc, df, metric, numerator: str, accent_key: str) -> str:
+    """The ERC/SDG tooltip: the metric tooltip, plus the per-institution
+    classified/tagged shares (each of these two views rests on a denominator
+    that differs from one institution to the next, so one figure could not
+    stand for the set), plus the accent rule and the fractional-only note when
+    the reader is on the full basis."""
+    parts = [_metric_tip(df, metric, sc, accent=True),
+             copy.COMPARE[accent_key],
+             copy.COMPARE["CAPTION_CLASSIFIED_SHARES"].format(
+                 shares=_shares_line(ctx, ids, slots, numerator))]
+    if sc["basis"] == "full":
+        parts.append(copy.FIND["FRACTIONAL_ONLY_PANEL"])
+    return " ".join(parts)
+
+
 def _view_erc(ctx, ids, slots, names, sc) -> tuple:
     st.subheader(copy.COMPARE["VIEW_ERC"])
     metric = _metric_selector("cmp_metric_erc", "erc", ERC_METRICS)
-    df = _rank_rows(_metric(tuple(ids), sc["tree"], sc["basis"], "erc", metric, None,
-                            IMPACT_FLOOR_DEFAULT), keep_order=True)
+    sort = _sort_toggle("cmp_sort_erc")
+    df = _order_rows(_metric(tuple(ids), sc["tree"], sc["basis"], "erc", metric, None,
+                             IMPACT_FLOOR_DEFAULT))
     df = _decorate(df, "erc", _erc(tuple(ids)), "panel_idx")
     if df.empty:
         st.caption(copy.COMPARE["EMPTY_METRIC"])
         return df, metric
-    _metric_chart(df, metric, ids, slots, names, "erc", key="fig_cmp_erc")
-    st.caption(copy.COMPARE["CAPTION_ERC"])
-    st.caption(copy.COMPARE["CAPTION_ACCENT_ERC"])
-    st.caption(copy.COMPARE["CAPTION_CLASSIFIED_SHARES"].format(
-        shares=_shares_line(ctx, ids, slots, "erc_classified_mass_frac")))
-    _denominator_caption(df)
-    if sc["basis"] == "full":
-        st.caption(copy.FIND["FRACTIONAL_ONLY_PANEL"])
+    _metric_chart(df, metric, ids, slots, names, "erc", key="fig_cmp_erc", sort=sort)
+    _note(copy.COMPARE["NOTE_ERC"],
+          _taxon_tip(ctx, ids, slots, sc, df, metric, "erc_classified_mass_frac",
+                     "CAPTION_ACCENT_ERC"))
     _download(df, slug=SLUGS["erc"], sc=sc, key="erc")
     return df, metric
 
@@ -630,20 +850,17 @@ def _view_erc(ctx, ids, slots, names, sc) -> tuple:
 def _view_sdg(ctx, ids, slots, names, sc) -> tuple:
     st.subheader(copy.COMPARE["VIEW_SDG"])
     metric = _metric_selector("cmp_metric_sdg", "sdg", SDG_METRICS)
-    df = _rank_rows(_metric(tuple(ids), sc["tree"], sc["basis"], "sdg", metric, None,
-                            IMPACT_FLOOR_DEFAULT), keep_order=True)
+    sort = _sort_toggle("cmp_sort_sdg")
+    df = _order_rows(_metric(tuple(ids), sc["tree"], sc["basis"], "sdg", metric, None,
+                             IMPACT_FLOOR_DEFAULT))
     df = _decorate(df, "sdg", _sdg(tuple(ids)), "sdg_idx", label_col="sdg_label_numbered")
     if df.empty:
         st.caption(copy.COMPARE["EMPTY_METRIC"])
         return df, metric
-    _metric_chart(df, metric, ids, slots, names, "sdg", key="fig_cmp_sdg")
-    st.caption(copy.COMPARE["CAPTION_SDG"])
-    st.caption(copy.COMPARE["CAPTION_ACCENT_SDG"])
-    st.caption(copy.COMPARE["CAPTION_CLASSIFIED_SHARES"].format(
-        shares=_shares_line(ctx, ids, slots, "sdg_classified_mass_frac")))
-    _denominator_caption(df)
-    if sc["basis"] == "full":
-        st.caption(copy.FIND["FRACTIONAL_ONLY_PANEL"])
+    _metric_chart(df, metric, ids, slots, names, "sdg", key="fig_cmp_sdg", sort=sort)
+    _note(copy.COMPARE["NOTE_SDG"],
+          _taxon_tip(ctx, ids, slots, sc, df, metric, "sdg_classified_mass_frac",
+                     "CAPTION_ACCENT_SDG"))
     _download(df, slug=SLUGS["sdg"], sc=sc, key="sdg")
     return df, metric
 
@@ -672,34 +889,78 @@ def _shared_long(df: pd.DataFrame, ids) -> pd.DataFrame:
     return pd.concat(frames, ignore_index=True).reindex(columns=cols)
 
 
-def _view_frontier(ids, slots, names, sc, top_n: int) -> tuple:
-    """2B-R-9's two charts. The map pools the compared institutions' top-quartile
-    frontier topics into ONE plane -- one bubble per topic, so the same topic
-    can never be drawn twice in two colours -- and the diverging list answers
-    the question the map's near-degenerate head cannot: who actually holds the
-    topics they share."""
+def _frontier_controls() -> tuple:
+    """2B-R2-10's two selectors, side by side above the map: WHICH topics are
+    eligible, and WHAT the colour means. Both return the producer's own
+    vocabulary (`compare_data.FRONTIER_POOLS`, `charts_compare.COLOR_BY`), never
+    a label."""
+    cols = st.columns(2)
+    pools = list(K.FRONTIER_POOLS)
+    with cols[0]:
+        pool = st.radio(copy.COMPARE["FRONTIER_POOL_LABEL"], pools,
+                        format_func=lambda p: POOL_LABELS[p], horizontal=True,
+                        help=copy.COMPARE["FRONTIER_POOL_HELP"], key="cmp_frontier_pool",
+                        **state.PERSIST)
+    modes = list(X.COLOR_BY)
+    with cols[1]:
+        color_by = st.radio(copy.COMPARE["FRONTIER_COLOR_LABEL"], modes,
+                            format_func=lambda c: COLOR_BY_LABELS[c], horizontal=True,
+                            help=copy.COMPARE["FRONTIER_COLOR_HELP"], key="cmp_frontier_color",
+                            **state.PERSIST)
+    return str(pool), str(color_by)
+
+
+def _domain_items(pooled: pd.DataFrame) -> list:
+    """`[(domain_id, name)]` for the domains actually plotted, in the palette's
+    own domain order -- the legend the colour-by-domain mode needs. The WORDS
+    come from the engine's domain map (the same `bundle["domain_names"]` the
+    Find page's yearly breakdown reads), the HUES from `palette.domain_color`
+    inside `charts_compare.map_legend_strip`: this page names neither."""
+    if pooled.empty or "domain_id" not in pooled.columns:
+        return []
+    names = _bundle()["domain_names"]
+    present = {int(d) for d in pd.to_numeric(pooled["domain_id"], errors="coerce").dropna()}
+    ordered = [d for d in P.OA_DOMAIN_ORDER if d in present]
+    ordered += sorted(d for d in present if d not in set(P.OA_DOMAIN_ORDER))
+    return [(d, str(names.get(d, d))) for d in ordered]
+
+
+def _view_frontier(ids, slots, names, sc, top_n: int, pool: str, color_by: str) -> tuple:
+    """2B-R-9's two charts, with 2B-R2-10's pool and colour selectors wired in.
+    The map pools the compared institutions' eligible frontier topics into ONE
+    plane -- one bubble per topic, so the same topic can never be drawn twice in
+    two colours -- and the diverging list answers the question the map's
+    near-degenerate head cannot: who actually holds the topics they share."""
     st.subheader(copy.COMPARE["VIEW_FRONTIER_MAP"])
-    pooled = _frontier_pooled(tuple(ids), sc["tree"], sc["basis"], top_n)
+    pooled = _frontier_pooled(tuple(ids), sc["tree"], sc["basis"], top_n, pool)
     if pooled.empty:
         st.caption(copy.COMPARE["EMPTY_FRONTIER_POINTS"])
         return pooled, pd.DataFrame()
-    _legend(ids, slots, names, shared=True)
-    st.plotly_chart(X.fig_frontier_map(pooled, slots=slots, names=names),
-                    width="stretch", key="fig_cmp_frontier_map")
-    st.caption(copy.COMPARE["CAPTION_FRONTIER_MAP"].format(
-        basis=copy.BASIS_LABELS[sc["basis"]]))
+    items = _domain_items(pooled)
+    st.markdown(X.map_legend_strip(_slot_order(ids, slots), slots=slots, names=names,
+                                   color_by=color_by, shared=True,
+                                   shared_label=copy.COMPARE["LEGEND_SHARED"],
+                                   domain_items=items),
+                unsafe_allow_html=True)
+    st.plotly_chart(
+        X.fig_frontier_map(pooled, slots=slots, names=names,
+                           pool=POOL_CHART_MODE[pool], color_by=color_by,
+                           domain_labels=dict(items)),
+        width="stretch", key="fig_cmp_frontier_map")
     # The shared count is READ OFF the plotted frame, never asserted in prose:
     # on a realistic trio nearly every head topic is shared, so the picture's
-    # colour split is degenerate and the caption is the only honest place to
-    # say it.
+    # colour split is degenerate and the reading line is the only honest place
+    # to say it. The POOL RULE is stated in the tooltip in the same plain words
+    # the selector uses (2B-R2-10).
     n_shared = int((pooled["owner"] == X.SHARED_OWNER).sum())
-    st.caption(copy.COMPARE["CAPTION_FRONTIER_SHARED_COUNT"].format(
-        n_shared=f"{n_shared:,}", n_shown=f"{len(pooled):,}"))
-    st.caption(copy.COMPARE["CAPTION_FRONTIER_AXES"])
+    _note(copy.COMPARE["NOTE_FRONTIER_MAP"].format(
+        n_shared=f"{n_shared:,}", n_shown=f"{len(pooled):,}"),
+        copy.COMPARE["TIP_FRONTIER_MAP"].format(pool_rule=POOL_RULES[pool],
+                                                basis=copy.BASIS_LABELS[sc["basis"]]))
     _download(pooled, slug=SLUGS["frontier_map"], sc=sc, key="frontier_map")
 
     st.subheader(copy.COMPARE["VIEW_SHARED_FRONTIER"])
-    shared_long = _shared_long(_shared_frontier(tuple(ids), sc["tree"], sc["basis"]),
+    shared_long = _shared_long(_shared_frontier(tuple(ids), sc["tree"], sc["basis"], pool),
                                _slot_order(ids, slots))
     if shared_long.empty:
         st.caption(copy.COMPARE["EMPTY_SHARED_FRONTIER"])
@@ -709,10 +970,9 @@ def _view_frontier(ids, slots, names, sc, top_n: int) -> tuple:
         X.fig_diverging_shared(shared_long, _slot_order(ids, slots), slots=slots,
                                names=names, value_col="vol", top_n=top_n),
         width="stretch", key="fig_cmp_shared_frontier")
-    st.caption(copy.COMPARE["CAPTION_SHARED_FRONTIER"].format(
-        basis=copy.BASIS_LABELS[sc["basis"]]))
-    st.caption(copy.COMPARE["CAPTION_SHARED_TOTAL"].format(
-        n=f"{shared_long['topic_id'].nunique():,}"))
+    _note(copy.COMPARE["NOTE_SHARED_FRONTIER"].format(
+        n=f"{shared_long['topic_id'].nunique():,}"),
+        copy.COMPARE["TIP_SHARED_FRONTIER"].format(basis=copy.BASIS_LABELS[sc["basis"]]))
     _download(shared_long, slug=SLUGS["shared_frontier"], sc=sc, key="shared_frontier")
     return pooled, shared_long
 
@@ -742,9 +1002,10 @@ def _view_impact(ids, slots, names, sc) -> tuple:
         _legend(ids, slots, names)
         st.plotly_chart(X.fig_impact_intervals(index_df, slots, names=names),
                         width="stretch", key="fig_cmp_impact")
-    st.caption(copy.COMPARE["CAPTION_IMPACT"].format(y0=WINDOW_START, y1=WINDOW_END))
-    st.caption(_ci_sentence())
-    st.caption(copy.COMPARE["IMPACT_BONUS_NOTE"].format(bonus_year=CFG["bonus_year"]))
+    _note(copy.COMPARE["NOTE_IMPACT"],
+          copy.COMPARE["TIP_IMPACT"].format(y0=WINDOW_START, y1=WINDOW_END,
+                                            bonus_year=CFG["bonus_year"],
+                                            ci=_ci_sentence()))
     _download(index_df, slug=SLUGS["impact"], sc=sc, key="impact")
 
     st.markdown(f"**{copy.COMPARE['IMPACT_SUBFIELD_HEADER']}**")
@@ -762,9 +1023,9 @@ def _view_impact(ids, slots, names, sc) -> tuple:
     _legend(ids, slots, names)
     st.plotly_chart(X.fig_impact_subfields(shown, slots, names=names),
                     width="stretch", key="fig_cmp_impact_subfields")
-    st.caption(copy.COMPARE["IMPACT_UNION_CAPTION"])
-    st.caption(copy.COMPARE["CAPTION_IMPACT_SHOWN"].format(
-        n=f"{shown['subfield_id'].nunique():,}", n_union=f"{union['subfield_id'].nunique():,}"))
+    _note(copy.COMPARE["NOTE_IMPACT_SUBFIELDS"].format(
+        n=f"{shown['subfield_id'].nunique():,}", n_union=f"{union['subfield_id'].nunique():,}"),
+        copy.COMPARE["TIP_IMPACT_SUBFIELDS"].format(ci=_ci_sentence()))
     _download(union, slug=SLUGS["impact_subfields"], sc=sc, key="impact_subfields")
     return index_df, union
 
@@ -796,9 +1057,9 @@ def _view_trends(ids, slots, names, sc) -> pd.DataFrame:
                                      value_col=TRENDS_VALUE_COL,
                                      bonus_year=str(CFG["bonus_year"])),
         width="stretch", key="fig_cmp_trends")
-    st.caption(copy.COMPARE["CAPTION_TRENDS_SHARE"].format(**_scenario_words(sc)))
-    st.caption(copy.COMPARE["TRENDS_SELECTION_HELP"])
-    st.caption(copy.FIND["BONUS_YEAR_CAPTION"].format(year=CFG["bonus_year"]))
+    _note(copy.COMPARE["NOTE_TRENDS"],
+          copy.COMPARE["TIP_TRENDS"].format(bonus_year=CFG["bonus_year"],
+                                            **_scenario_words(sc)))
     out = pd.concat(kept, ignore_index=True)
     _download(out, slug=SLUGS["trends"], sc=sc, key="trends")
     return out
@@ -825,8 +1086,8 @@ def _view_coverage(ids, slots, names, sc) -> pd.DataFrame:
     _legend(ids, slots, names)
     st.plotly_chart(X.fig_coverage_strip(df, slots, names=names, labels=_state_labels()),
                     width="stretch", key="fig_cmp_coverage")
-    st.caption(copy.COMPARE["CAPTION_COVERAGE"])
-    st.caption(copy.COMPARE["STATE_TOTAL_HELP"])
+    _note(copy.COMPARE["NOTE_COVERAGE"],
+          f"{copy.COMPARE['TIP_COVERAGE']} {copy.COMPARE['STATE_TOTAL_HELP']}")
     _download(df, slug=SLUGS["coverage"], sc=sc, key="coverage")
     return df
 
@@ -834,7 +1095,7 @@ def _view_coverage(ids, slots, names, sc) -> pd.DataFrame:
 # ----------------------------------------------------------------- workbook --
 
 def methods_rows(ctx: dict, ids: list, sc: dict, floor: int, top_n: int,
-                 sheets: list) -> pd.DataFrame:
+                 sheets: list, controls: dict | None = None) -> pd.DataFrame:
     """The workbook's Methods sheet: what the file is, and what every other
     sheet counts. Every VALUE comes from CFG, the manifest, `compare_data`'s own
     window constants or the live frames; every LABEL comes from `copy.COMPARE` /
@@ -843,7 +1104,14 @@ def methods_rows(ctx: dict, ids: list, sc: dict, floor: int, top_n: int,
     2B-R re-cut: the snapshot row is GONE (2B-R-12, snapshot string removed
     app-wide) and four rows are new -- the data date, BOTH dynamics windows
     named verbatim (2B-R-6), the comparison cap (2B-R-4) with the frontier
-    slider beside it, and the interval coverage sentence (2B-R-12)."""
+    slider beside it, and the interval coverage sentence (2B-R-12).
+
+    2B-R2-5/10 adds `controls`: the row ORDER, the frontier POOL and the
+    frontier COLOUR mode the reader was actually on. A workbook that named the
+    metric of each selector but not the pool its frontier sheet was cut from
+    would describe a view nobody saw."""
+    ctl = {"pool": POOL_DEFAULT, "color_by": COLOR_BY_DEFAULT, "sort": SORT_DEFAULT}
+    ctl.update(controls or {})
     mf = manifest()
     words = _scenario_words(sc)
     src = copy.METHODS_SOURCES
@@ -862,6 +1130,12 @@ def methods_rows(ctx: dict, ids: list, sc: dict, floor: int, top_n: int,
         (copy.COMPARE["XLSX_ROW_CAP"], f"{state.COMPARE_CAP:,}",
          copy.COMPARE["XLSX_SOURCE_PAGE"]),
         (copy.COMPARE["XLSX_ROW_TOPN"], f"{top_n:,}", copy.COMPARE["XLSX_SOURCE_PAGE"]),
+        (copy.COMPARE["XLSX_ROW_POOL"], POOL_LABELS[ctl["pool"]],
+         POOL_RULES[ctl["pool"]]),
+        (copy.COMPARE["XLSX_ROW_COLOUR"], COLOR_BY_LABELS[ctl["color_by"]],
+         copy.COMPARE["FRONTIER_COLOR_HELP"]),
+        (copy.COMPARE["XLSX_ROW_SORT"], SORT_LABELS[ctl["sort"]],
+         copy.COMPARE["SORT_HELP"]),
         (copy.COMPARE["XLSX_ROW_FLOORS"],
          copy.COMPARE["IMPACT_FLOOR_OPTION"].format(floor=floor), src["floor_solid"]),
         (copy.COMPARE["XLSX_ROW_FLOORS"],
@@ -913,18 +1187,20 @@ def sheet_specs(sc: dict, frames: dict, metrics: dict) -> list:
     ]
 
 
-def _workbook(ctx: dict, ids: list, sc: dict, floor: int, top_n: int, sheets: list) -> bytes:
+def _workbook(ctx: dict, ids: list, sc: dict, floor: int, top_n: int, sheets: list,
+              controls: dict | None = None) -> bytes:
     ordered = [(copy.COMPARE["XLSX_SHEET_METHODS"],
-                methods_rows(ctx, ids, sc, floor, top_n, sheets))]
+                methods_rows(ctx, ids, sc, floor, top_n, sheets, controls))]
     ordered += [(label, frame) for label, _caption, frame in sheets]
     return workbook_bytes(ordered)
 
 
-def _exports(ctx: dict, ids: list, sc: dict, floor: int, top_n: int, sheets: list) -> None:
+def _exports(ctx: dict, ids: list, sc: dict, floor: int, top_n: int, sheets: list,
+             controls: dict | None = None) -> None:
     """ONE workbook (2B-13) beside the per-view CSVs. `data` is a callable, so
     the sheets are only written when someone clicks."""
     st.download_button(copy.COMPARE["EXPORT_XLSX_BUTTON"],
-                       lambda: _workbook(ctx, ids, sc, floor, top_n, sheets),
+                       lambda: _workbook(ctx, ids, sc, floor, top_n, sheets, controls),
                        file_name=workbook_filename(ids, sc["tree"], sc["basis"]),
                        mime=XLSX_MIME, help=copy.COMPARE["EXPORT_XLSX_HELP"],
                        key="dl_workbook")
@@ -997,12 +1273,13 @@ def render() -> None:
     frames["erc"], erc_metric = _view_erc(ctx, ids, slots, names, scenario)
     frames["sdg"], sdg_metric = _view_sdg(ctx, ids, slots, names, scenario)
 
+    pool, color_by = _frontier_controls()
     top_n = st.slider(copy.COMPARE["FRONTIER_TOPN_LABEL"], FRONTIER_TOPN_MIN,
                       FRONTIER_TOPN_MAX, FRONTIER_TOPN_DEFAULT, FRONTIER_TOPN_STEP,
                       help=copy.COMPARE["FRONTIER_TOPN_HELP"], key="cmp_frontier_topn",
                       **state.PERSIST)
     frames["frontier_map"], frames["shared_frontier"] = _view_frontier(
-        ids, slots, names, scenario, int(top_n))
+        ids, slots, names, scenario, int(top_n), pool, color_by)
     frames["impact"], frames["impact_subfields"] = _view_impact(ids, slots, names, scenario)
     frames["trends"] = _view_trends(ids, slots, names, scenario)
     frames["coverage"] = _view_coverage(ids, slots, names, scenario)
@@ -1011,5 +1288,7 @@ def render() -> None:
                "sdg": sdg_metric}
     sheets = sheet_specs(scenario, frames, metrics)
     floor = int(st.session_state.get("cmp_impact_floor") or IMPACT_FLOOR_DEFAULT)
-    _exports(ctx, ids, scenario, floor, int(top_n), sheets)
+    controls = {"pool": pool, "color_by": color_by,
+                "sort": _current_sort("cmp_sort_subject")}
+    _exports(ctx, ids, scenario, floor, int(top_n), sheets, controls)
     _handoff(ctx, ids)

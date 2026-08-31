@@ -1070,6 +1070,116 @@ COMPARE = {
     "XLSX_SHEET_SUBJECT_SUBFIELD": "Subfields",
     "XLSX_CAPTION_METRIC": ("{metric}, on the {basis} basis and the {tree} taxonomy. Every row "
                             "carries its own denominator in the last column."),
+
+    # ======================================================================
+    # Sprint 2 Phase 2B-R2, stream CP3 (2B-R2-3/4/5/8/9/10). ADDITIVE ONLY,
+    # inside this dict and nowhere else in the file.
+    #
+    # The presentation rule every key below obeys (2B-R2-8): a `NOTE_*` key
+    # is ONE short reading line -- what the chart SAYS -- and is rendered
+    # through `charts_compare.chart_note`, which REFUSES a line over its own
+    # character cap. A `TIP_*` key is the methodology that used to sit under
+    # the chart as a grey paragraph, and is rendered inside that line's `?`.
+    # The pairing is what removed the walls of prose: nothing was deleted,
+    # everything moved one hover away.
+    # ======================================================================
+
+    # 2B-R2-9: the cards. The window sentence that used to sit under the whole
+    # strip is now per card, inside the card's own `?`, beside the figure it
+    # actually qualifies; the bootstrap-interval line is gone from the cards
+    # (it stays on the impact panel, where the intervals are the subject).
+    "CARD_WINDOW_TIP": "Counted over the {y0} to {y1} window.",
+    "CARD_PUBS_FRAC": "On fractional counting the figure is {n}.",
+    "OVERVIEW_NOTE": "One card per institution; the dot marks the highest figure on that measure.",
+    "OVERVIEW_NOTE_TIP": ("Each figure names its own denominator and window in its own tooltip. A "
+                          "measure an institution holds too little to support reads n/a, never "
+                          "zero. Where two institutions are exactly level no dot is drawn. Each "
+                          "institution name opens its own publications in OpenAlex."),
+
+    # 2B-R2-5: the row order, and the one control that moves it.
+    "SORT_LABEL": "Row order",
+    "SORT_TAXONOMY": "By subject area",
+    "SORT_VALUE": "Largest first",
+    "SORT_HELP": ("By subject area keeps every row in the same place when the measure changes, so "
+                  "two measures can be read against one another; a heavier line marks where one "
+                  "subject area ends. Largest first ranks the rows by what the compared "
+                  "institutions hold between them."),
+
+    # 2B-R2-3/4: the reading line and the method behind each metric chart.
+    "NOTE_SUBJECT": "One bar per institution, with its own publication count beside the row name.",
+    "NOTE_ERC": "One bar per institution in each ERC research panel.",
+    "NOTE_SDG": "One bar per institution under each Sustainable Development Goal.",
+    "TIP_SCENARIO": "Read on the {basis} basis and the {tree} taxonomy.",
+    "TIP_GUTTER": ("The figures beside each row name are that institution's own publications in "
+                   "that row, each written in its own colour."),
+    "TIP_REFERENCE": ("The dashed mark on a row is the average across every institution in this "
+                      "index that publishes there. The world top decile behind PP(top10%) is a "
+                      "different reference: it is set on world publications, per topic and year, "
+                      "not on the institutions compared here."),
+    "TIP_LOW_VOLUME": ("A hollow bar with a dagger rests on fewer than {floor} publications a year "
+                       "on average: the figure is real, but too thin to race against its "
+                       "neighbour."),
+    "TIP_ACCENT": ("The mark beside each row name is that taxonomy's own colour. Colour on a bar "
+                   "is always the institution."),
+
+    # 2B-R2-10: the frontier map's two controls, and the pool rule in words.
+    "FRONTIER_POOL_LABEL": "Topics shown",
+    "FRONTIER_POOL_VOLUME": "Most published by this set",
+    "FRONTIER_POOL_ELITE": "The most emerging topics only",
+    "FRONTIER_POOL_HELP": ("The first pool answers where these institutions put their work; the "
+                           "second answers what the fastest-moving topics are, whatever the volume "
+                           "behind them. Both pools are cut on all topics in the world, so neither "
+                           "moves when an institution is added or removed."),
+    "FRONTIER_POOL_RULE_VOLUME": ("the pool is every topic in the global top quarter of emergence "
+                                  "these institutions publish in, ranked by what they put into "
+                                  "it."),
+    "FRONTIER_POOL_RULE_ELITE": ("the pool is narrowed to topics in the global top tenth of "
+                                 "emergence, ranked by what these institutions put into them."),
+    "FRONTIER_COLOR_LABEL": "Colour by",
+    "FRONTIER_COLOR_OWNER": "Who holds the topic",
+    "FRONTIER_COLOR_DOMAIN": "Broad subject area",
+    "FRONTIER_COLOR_HELP": ("Who holds the topic colours a bubble by the institution publishing "
+                            "there alone, and greys the ones more than one of them holds. Broad "
+                            "subject area colours the same bubbles by the kind of science instead, "
+                            "which answers what is expanding rather than whose it is."),
+    "NOTE_FRONTIER_MAP": "{n_shared} of the {n_shown} topics plotted are held by more than one of them.",
+    "TIP_FRONTIER_MAP": ("One bubble per topic: {pool_rule} Bubble area is the publications the "
+                         "compared set holds in it on the {basis} basis. The bold lines are the "
+                         "two zero axes -- right of the vertical one attention to the topic is "
+                         "expanding, above the horizontal one that expansion is itself speeding "
+                         "up. At the head of the ranking almost every topic is shared, so the "
+                         "colour split says little and what the plane shows is position and size."),
+    "NOTE_SHARED_FRONTIER": "The topics more than one of them holds, largest first: {n} in all.",
+    "TIP_SHARED_FRONTIER": ("Each institution's own publications in the topic are drawn from a "
+                            "common zero on the {basis} basis, so the imbalance is the shape of "
+                            "the row and the axis carries counts on both sides."),
+
+    # 2B-R2-8: the impact, trends and coverage panels lose their grey stacks.
+    "NOTE_IMPACT": "Share of each institution's articles and reviews in the world top decile of citations.",
+    "TIP_IMPACT": ("Counted over the {y0} to {y1} window, against the world distribution for the "
+                   "publication's own subject, year and document type; fractional counting "
+                   "throughout, and {bonus_year} is left out. {ci}"),
+    "NOTE_IMPACT_SUBFIELDS": "Showing the {n} of the {n_union} subfields this set publishes most in.",
+    "TIP_IMPACT_SUBFIELDS": ("Every subfield at least one of the compared institutions clears at "
+                             "the chosen floor is in the frame. Where an institution does not "
+                             "clear it the cell reads n/a: it publishes too little there to "
+                             "measure, which is a different thing from a low figure. Lowering the "
+                             "floor brings in more subfields and widens every interval. {ci}"),
+    "NOTE_TRENDS": "Each line is the share of that institution's own publications of the year in one subfield.",
+    "TIP_TRENDS": ("Read on the {basis} basis and the {tree} taxonomy. Every panel shares one "
+                   "vertical scale, so any line can be read against any other. The subfields are "
+                   "the ones the whole compared set publishes most in, so a subfield that matters "
+                   "to one institution alone can still appear. {bonus_year} is marked on the axis "
+                   "and reported for volume only."),
+    "NOTE_COVERAGE": "Share of each institution's whole output in each state; the states cover everything.",
+    "TIP_COVERAGE": ("The states are exclusive and sum to the institution's whole fractional "
+                     "output, so the classified share is what the subject, ERC and SDG views above "
+                     "rest on."),
+
+    # 2B-R2-10/5: the workbook records the controls the reader was actually on.
+    "XLSX_ROW_POOL": "Frontier topics shown",
+    "XLSX_ROW_COLOUR": "Frontier colours",
+    "XLSX_ROW_SORT": "Row order",
 }
 
 # ----------------------------------------------------- Collaborate page ----
