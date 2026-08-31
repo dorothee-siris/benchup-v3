@@ -1,13 +1,13 @@
 {
-  "deployed_at": "2026-08-29T14:04:02.607241+00:00",
+  "deployed_at": "2026-08-31T18:16:17.856361+00:00",
   "snapshot": "august_2026",
   "source_manifest_generated_at": "2026-08-27T13:41:28.350794+00:00",
-  "contract_version": "1.1",
+  "contract_version": "1.3",
   "files": {
     "index.parquet": {
-      "sha256": "ff2ce045d7627e15320cfbbcc4d350d5ba1fdb24431731f8dc9e4d2a85e6c0da",
+      "sha256": "d8e9f588650cd784f8655a084ef52fd892bd3a0c34aace91cfa74e8e509b6902",
       "n_rows": 7557,
-      "size_bytes": 6283075
+      "size_bytes": 4242731
     },
     "fields.parquet": {
       "sha256": "6a2c0d8487d9159f0a6ef1d9554213c263908dce138c8b420be8dea06d8d6b23",
@@ -30,9 +30,9 @@
       "size_bytes": 1221803
     },
     "erc.parquet": {
-      "sha256": "bd4d246c0842e8b2fb761ec407c5d070ff1fedc85c9cb5d085274726970d6ded",
+      "sha256": "f75a682391c843083439814ae37998b81a718ee90f2633684a6947714ab1afa6",
       "n_rows": 211596,
-      "size_bytes": 3128608
+      "size_bytes": 3536056
     },
     "sdg.parquet": {
       "sha256": "09c13fea61ba0ae332f35f2ef89792c8ae684ab315041b4604375c9f66bb9c23",
@@ -44,24 +44,64 @@
       "n_rows": 328978,
       "size_bytes": 6348905
     },
+    "sdg_fields.parquet": {
+      "sha256": "56e6d099d8bce6f5e5d31f5d657ed78ba3e23bdcfa977d623a6ddb90e9c98b8f",
+      "n_rows": 284673,
+      "size_bytes": 1497898
+    },
+    "sdg_year.parquet": {
+      "sha256": "67020062cd348904bb7345d01c02089b4f02edfdc4574ad6b4d0a33489d81c98",
+      "n_rows": 427687,
+      "size_bytes": 2024707
+    },
+    "impact_fields.parquet": {
+      "sha256": "b08bf7cc102a7fec6d3bdad8178c2c5fd937c1aa83a8456cc8b7d3300cb03066",
+      "n_rows": 164477,
+      "size_bytes": 3103627
+    },
     "doctype_by_year.parquet": {
       "sha256": "bc401f8a745c9876eac0d5d7b5082865d6265a4d009ca368727eb76905205acd",
       "n_rows": 141182,
       "size_bytes": 1023183
     },
     "overrides/type_overrides.csv": {
-      "sha256": "c30c244d8b31c6820c44d6d3958f154a921c2a78af2baec1ee97c9802bec7399",
-      "n_rows": 34,
-      "size_bytes": 12607
+      "sha256": "d50b35e13752c94bd084e7ff92d8f455553b49d7e1faea877263ac4126b65b2c",
+      "n_rows": 41,
+      "size_bytes": 15988
+    },
+    "overrides/pool_exclusions.csv": {
+      "sha256": "c76220e20021ea8941d92677a69dc578cfaa9f5b59bf4eac52398488d842a2c8",
+      "n_rows": 3,
+      "size_bytes": 804
     },
     "overrides/umbrella_supplement.csv": {
       "sha256": "6f6b82ab3d6b85c2860d849e644f80f2f2ce07ae3f15c25c159b83e92008c21d",
       "n_rows": 24,
       "size_bytes": 2057
+    },
+    "collab_pairs.parquet": {
+      "sha256": "b97090d5575b7f362d112131a2d68ba31934c92672554b99ab43b1043a2bf995",
+      "n_rows": 3581332,
+      "size_bytes": 57851464
+    },
+    "collab_pair_topics.parquet": {
+      "sha256": "92fdde90126cc1544f6382d8e582853208a791c34014a26b51abd6cf25b8340b",
+      "n_rows": 13400326,
+      "size_bytes": 65656703
+    },
+    "collab_pair_fields.parquet": {
+      "sha256": "79cb4d59d28f50530506c0df0d815c4572e70c4ff0951fb2de2a40dadfee101e",
+      "n_rows": 3571800,
+      "size_bytes": 26635256
+    },
+    "collab_topic_vols.parquet": {
+      "sha256": "e43abcda1def1ea5afc9eb2d1538390bb53ee12820101455f7145c0d99093a78",
+      "n_rows": 15392404,
+      "size_bytes": 36633695
     }
   },
   "type_overrides": {
-    "sha256": "c30c244d8b31c6820c44d6d3958f154a921c2a78af2baec1ee97c9802bec7399",
-    "n_rows": 34
+    "sha256": "d50b35e13752c94bd084e7ff92d8f455553b49d7e1faea877263ac4126b65b2c",
+    "n_rows": 41
   }
 }
