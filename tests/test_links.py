@@ -80,7 +80,11 @@ def test_copubs_taxon_url_shape_per_level(level, key):
     assert "authorships.institutions.id:I21491767" in decoded
     assert f"{key}:T12345" in decoded
     assert "publication_year:2020-2024" in decoded
-    assert "type:article|review|book|book-chapter|letter" in decoded
+    # CORE-AR default (plan 2BR3 §2.1 / inspection I-2): a taxon link sits
+    # beside an articles+reviews table count and must return that same count --
+    # never the 5-type harvest list works_url/copubs_url default to.
+    assert "type:article|review," in decoded
+    assert "book" not in decoded
     assert "has_doi:true" in decoded
 
 

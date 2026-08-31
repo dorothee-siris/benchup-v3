@@ -194,6 +194,8 @@ def _arrow(vol_w1, vol_w2) -> str:
 
 
 def _taxon_url(a: str, b: str, level: str, taxon_id) -> str:
+    # types default = links.CORE_AR_TYPES (articles+reviews), matching every
+    # table count this module serves (plan §2.1; inspection I-2 fix).
     return links.copubs_taxon_url(a, b, level, taxon_id)
 
 

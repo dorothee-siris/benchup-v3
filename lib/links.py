@@ -58,6 +58,10 @@ TAXON_FILTER_KEY = {
 }
 TAXON_LEVELS = tuple(TAXON_FILTER_KEY)
 
+# The Collaborate tables' counting basis (articles+reviews, plan 2BR3 §2.1) --
+# the default type filter for `copubs_taxon_url` below.
+CORE_AR_TYPES = ["article", "review"]
+
 
 def copubs_taxon_url(institution_a: str, institution_b: str, level: str, taxon_id,
                      *, years: tuple[int, int] | None = None, types: list[str] | None = None,
@@ -81,7 +85,12 @@ def copubs_taxon_url(institution_a: str, institution_b: str, level: str, taxon_i
     if level not in TAXON_LEVELS:
         raise ValueError(f"level must be one of {TAXON_LEVELS}, got {level!r}")
     y0, y1 = years if years is not None else CFG["window"]
-    type_list = types if types is not None else CFG["corpus_types"]
+    # Default type filter is CORE-AR (articles+reviews), NOT the 5-type harvest
+    # list: this builder exists only for Collaborate's TABLE rows, whose every
+    # displayed count is articles+reviews 2020-2024 (plan 2BR3 §2.1 "link count
+    # == displayed count"; inspection finding I-2). Pass `types=` explicitly
+    # for any other basis.
+    type_list = types if types is not None else CORE_AR_TYPES
     doi = CFG["openalex_filters"]["has_doi"] if has_doi is None else has_doi
     filt = (f"authorships.institutions.id:{institution_a},"
            f"authorships.institutions.id:{institution_b},"
