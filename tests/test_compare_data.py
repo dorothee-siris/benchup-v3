@@ -222,27 +222,14 @@ def test_impact_subfields_rejects_unshipped_floor(ctx):
         CD.impact_subfields(ctx, IDS6, "bestfit", floor=20)
 
 
-# ------------------------------------------------------------------ trends --
-
-def test_trends_subfields_matches_yearly_by_domain(ctx, subs_bestfit):
-    """Cross-grain identity: Sigma over subfields per year (trends_subfields,
-    the K brief's `compare_data.trends_subfields`) == Sigma over domains per
-    year (`profile_data.yearly_by_domain`) for the SAME institution/tree --
-    both reconcile to the index's own by-year bookkeeping total, verified
-    for all six named seeds."""
-    for iid in IDS6:
-        ybd = P.yearly_by_domain(ctx, iid, subs_bestfit["tree"])
-        ybs = CD.trends_subfields(ctx, iid, subs_bestfit["tree"])
-        assert list(ybs.columns) == P.SUBFIELD_YEARLY_COLS
-        d_full = ybd.groupby("year")["vol_full"].sum()
-        s_full = ybs.groupby("year")["vol_full"].sum()
-        d_frac = ybd.groupby("year")["vol_frac"].sum()
-        s_frac = ybs.groupby("year")["vol_frac"].sum()
-        np.testing.assert_allclose(s_full.reindex(d_full.index).to_numpy(dtype="float64"),
-                                   d_full.to_numpy(dtype="float64"), atol=1e-6)
-        np.testing.assert_allclose(s_frac.reindex(d_frac.index).to_numpy(dtype="float64"),
-                                   d_frac.to_numpy(dtype="float64"), atol=1e-3)
-
+# 2BR3 CD4 item 7 (BUILD_PLAN_2BR3.md SS1.5 "'Trends in the 6 subfields'
+# DELETED"): `compare_data.trends_subfields` is removed this round --
+# `test_trends_subfields_matches_yearly_by_domain` tested a function that no
+# longer exists and is removed WITH it (this plan, CD4 items 7/8). The
+# cross-grain identity it checked (Sigma subfields == Sigma domains per year)
+# still holds at the `profile_data.yearly_by_subfield`/`yearly_by_domain`
+# level -- unchanged, untouched by this plan -- just no longer exercised
+# through a `compare_data` wrapper that no longer exists.
 
 # ------------------------------------------------------- shared subfields ---
 
@@ -297,14 +284,6 @@ def test_six_institution_frames_warm_under_1s(ctx, subs_bestfit):
     print(f"[timing] fields_long={t1 - t0:.4f}s subfields_long={t2 - t1:.4f}s "
           f"erc_long={t3 - t2:.4f}s sdg_long={t4 - t3:.4f}s total={t4 - t0:.4f}s")
     assert (t4 - t0) < 1.0
-
-
-def test_trends_subfields_warm_under_200ms(ctx, subs_bestfit):
-    t0 = time.time()
-    CD.trends_subfields(ctx, STRASBOURG, subs_bestfit["tree"])
-    dt = time.time() - t0
-    print(f"[timing] trends_subfields(1 institution)={dt:.4f}s")
-    assert dt < 0.2
 
 
 # ============================================================================

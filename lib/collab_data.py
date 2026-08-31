@@ -13,12 +13,15 @@ pair on `subs`'s basis, exactly (no further division for L3 --
 """
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
+from . import compare_data as CD
 from . import links
+from . import palette as PAL
 from . import profile_data as P
 
 SHARED_TOPICS_COLS = ["topic_id", "topic_name", "subfield_name", "share_a", "share_b",
@@ -109,22 +112,52 @@ def _topic_membership(ctx: dict, subs: dict, idx: int, min_full: int) -> "np.nda
 # ============================================================================
 
 def _load_collab_pairs(ctx: dict) -> pd.DataFrame:
-    """Lazy, ctx-cached (`collab_pairs.parquet`, 2B-R-15/A1): ALL a<b
-    indexed-institution pairs with >=1 co-published work 2020-2025 (floor 1
-    -- WT A1 refutes a floor here), ranks computed before any floor."""
+    """Lazy, ctx-cached (`collab_pairs.parquet` v2, BUILD_PLAN_2BR3.md SS2.2):
+    ALL a<b indexed-institution pairs with >=1 co-published work 2020-2025
+    (floor 1 -- WT A1 refutes a floor here), `copubs_2020..copubs_2025`
+    (all-types, pulse's own window, naming kept per WT_2BR3.md SS0 -- NOT a
+    typo), `core_total`/`c1`/`c2` (CORE-AR, articles+reviews 2020-2024),
+    `n_top10`/`n_covered`/`n_sdg`/`fwci_median` (CORE-AR), `rank_in_a`/
+    `rank_in_b` (recomputed on CORE-AR, ranks computed before any floor),
+    `mom_class`/`mom_rr`/`mom_p` (SS2.3, pipeline-classified), plus
+    `erc_top_panel`/`erc_top_panel_n`/`erc_labelled_n` carried forward on
+    their CURRENT basis (WT_2BR3.md SS0 gap g: moved here from
+    collab_pair_topics v1, the pair-level ERC header now has a schema home)."""
     if "collab_pairs_df" not in ctx:
         ctx["collab_pairs_df"] = pd.read_parquet(Path(ctx["data_dir"]) / "collab_pairs.parquet")
     return ctx["collab_pairs_df"]
 
 
 def _load_collab_pair_topics(ctx: dict) -> pd.DataFrame:
-    """Lazy, ctx-cached (`collab_pair_topics.parquet`, regenerated 2B-R2-12):
-    top-`PAIR_TOPICS_TOP_N` joint topics (primary topic only) per pair with
-    `copubs_total >= PAIR_TOPICS_FLOOR`, plus impact columns (n_top10,
-    n_covered)."""
+    """Lazy, ctx-cached (`collab_pair_topics.parquet` v2): top-
+    `PAIR_TOPICS_TOP_N` joint topics (PRIMARY bestfit topic only) per pair
+    with `core_total >= PAIR_TOPICS_FLOOR`, CORE-AR `vol`/`vol_w1`/`vol_w2`,
+    `n_top10`/`n_covered`/`n_sdg`/`fwci_median`/`mom_class`. `erc_top_panel`/
+    etc. are GONE from this table since v2 -- see `_load_collab_pairs`."""
     if "collab_pair_topics_df" not in ctx:
         ctx["collab_pair_topics_df"] = pd.read_parquet(Path(ctx["data_dir"]) / "collab_pair_topics.parquet")
     return ctx["collab_pair_topics_df"]
+
+
+def _load_collab_topic_vols(ctx: dict) -> pd.DataFrame:
+    """Lazy, ctx-cached (`collab_topic_vols.parquet` NEW, SS2.2): (a, b,
+    topic_id, vol) UNCAPPED per qualifying pair, CORE-AR -- the item-4 fix
+    for `untapped()`'s `joint_observed` (was reading the top-100-CAPPED
+    `collab_pair_topics`, silently zeroing out any shared topic outside the
+    cap, WT_2BR3.md task 5.7 / SS0 task 6 #11)."""
+    if "collab_topic_vols_df" not in ctx:
+        ctx["collab_topic_vols_df"] = pd.read_parquet(Path(ctx["data_dir"]) / "collab_topic_vols.parquet")
+    return ctx["collab_topic_vols_df"]
+
+
+def _load_collab_facts(ctx: dict) -> dict:
+    """Lazy, ctx-cached (`collab_facts.json` NEW, SS2.2): the momentum
+    constants (med/w1/w2/band/alpha/elig_min/weak_base_max/new_min_c2/
+    dormant_min_c1/basis) `momentum_display` may need for its message text."""
+    if "collab_facts" not in ctx:
+        with open(Path(ctx["data_dir"]) / "collab_facts.json") as f:
+            ctx["collab_facts"] = json.load(f)
+    return ctx["collab_facts"]
 
 
 PULSE_YEARS = list(range(2020, 2026))  # collab_pairs' own window (2020-2025 incl. the 2025 bonus year)
@@ -223,11 +256,20 @@ def pulse(ctx: dict, a: str, b: str) -> dict | None:
 PAIR_TOPICS_FLOOR = 5    # 2B-R2-12: collab_pair_topics/collab_pair_fields ship only for pairs with copubs_total >= this
 PAIR_TOPICS_TOP_N = 100  # 2B-R2-12: top-100 joint topics per pair by vol_total (slider-ready, up to this cap)
 
+# 2BR3 CD4 item 3 (WT_2BR3.md SS0 fence correction (c)/(d) -- the stale-
+# constant trap named explicitly in this plan's CD4 acceptance): `vol_total`
+# -> `vol` (CORE-AR, no `vol_2025` component -- DROPPED, not renamed) and
+# `sdg_tagged_n` -> `n_sdg`. `fwci_median`/`mom_class` ride on the per-topic
+# row (collab_pair_topics v2 carries them natively) but are NOT summable, so
+# they are in JOINT_TOPICS_COLS (per-row) but deliberately absent from
+# JOINT_ROLLUP_VALUE_COLS (the groupby().sum() rollup to field/subfield
+# grain inside `joint_profile` below) -- `field_breakdown()`'s own table is
+# the authoritative source for a field's real fwci_median/mom_class.
 JOINT_TOPICS_COLS = ["topic_id", "topic_name", "subfield_id", "subfield_name", "field_id", "field_name",
-                     "domain_id", "domain_name", "vol_w1", "vol_w2", "vol_2025", "vol_total",
-                     "n_covered", "n_top10", "sdg_tagged_n", "arrow", "url"]
-JOINT_ROLLUP_VALUE_COLS = ["vol_w1", "vol_w2", "vol_2025", "vol_total", "n_covered", "n_top10", "sdg_tagged_n"]
-# n_top10/n_covered are ADDITIVE counts (2B-R2-12) -- summing them over a
+                     "domain_id", "domain_name", "vol_w1", "vol_w2", "vol",
+                     "n_covered", "n_top10", "n_sdg", "fwci_median", "mom_class", "arrow", "url"]
+JOINT_ROLLUP_VALUE_COLS = ["vol_w1", "vol_w2", "vol", "n_covered", "n_top10", "n_sdg"]
+# n_top10/n_covered/n_sdg are ADDITIVE counts -- summing them over a
 # rollup's shown topics is exact for THOSE topics, same lower-bound caveat
 # as every other rollup column here (see `meta.note`).
 
@@ -238,42 +280,45 @@ MEAN_CITATIONS_NOTE = (
 
 
 def joint_profile(ctx: dict, subs: dict, a: str, b: str) -> dict | None:
-    """2B-R2-11(a)/(c) Joint corpus, re-cut on the regenerated top-100/floor-5
-    `collab_pair_topics.parquet` (2B-R2-12). Field/subfield/domain names are
-    resolved TREE-AWARE (`subs['tree']`'s own `{tree}_subfield_id`) even
-    though `topic_id` itself never changes -- only which subfield a topic
-    rolls into does.
+    """Joint corpus, on the top-100/floor-5 `collab_pair_topics.parquet` v2
+    (CORE-AR, SS2.1). Field/subfield/domain names are resolved TREE-AWARE
+    (`subs['tree']`'s own `{tree}_subfield_id`) even though `topic_id` itself
+    never changes -- only which subfield a topic rolls into does.
 
-    Returns `None` when the pair's `copubs_total` is below `PAIR_TOPICS_
-    FLOOR` (or the pair never co-published) -- both `PAIR_TOPICS_FLOOR` and
+    Returns `None` when the pair's `core_total` is below `PAIR_TOPICS_FLOOR`
+    (or the pair never co-published) -- both `PAIR_TOPICS_FLOOR` and
     `PAIR_TOPICS_TOP_N` are public module constants so a caller can render
     'below the floor of {F}' without a second lookup.
 
     On a hit, returns:
       topics       -- one row per joint topic (<= PAIR_TOPICS_TOP_N rows,
                       slider-ready -- a caller may `.head(n)` for n <=
-                      PAIR_TOPICS_TOP_N), sorted by vol_total descending,
+                      PAIR_TOPICS_TOP_N), sorted by `vol` (CORE-AR) descending,
                       each with an `n_top10`/`n_covered` impact pair ("x of
                       y covered joint works in the world top decile" --
-                      NEVER divide n_top10 by vol_total, only by n_covered),
-                      a w1-vs-w2 `arrow` (`_arrow`, deadband documented
-                      there) and a live OpenAlex `url` restricted to this
-                      topic. `mean_citations` is NOT a column here --
-                      `meta.mean_citations_note` says why.
-      fields       -- topics rolled up to field grain (sum of the window/
-                      impact/sdg columns over the SHOWN topics only -- see
-                      `meta.note`; for the AUTHORITATIVE, uncapped field
-                      numbers with `mean_citations`, use `field_breakdown`).
+                      NEVER divide n_top10 by vol, only by n_covered), a
+                      w1-vs-w2 `arrow` (`_arrow`, deadband documented there),
+                      per-topic `fwci_median`/`mom_class` and a live OpenAlex
+                      `url` restricted to this topic. `mean_citations` is NOT
+                      a column here -- `meta.mean_citations_note` says why.
+      fields       -- topics rolled up to field grain (sum of the additive
+                      window/impact/sdg columns over the SHOWN topics only --
+                      see `meta.note`; for the AUTHORITATIVE, uncapped field
+                      numbers with `mean_citations`-superseding `fwci_median`,
+                      use `field_breakdown`).
       subfields    -- topics rolled up to subfield grain, same caveat.
-      sdg_tagged_total -- sum of sdg_tagged_n over the shown topics (a LOWER
-                      BOUND on the pair's true joint SDG-tagged count,
-                      because of the top-N cap).
-      erc          -- PAIR-LEVEL dict (erc_top_panel/panel_n/labelled_n) --
-                      the source columns are repeated on every row of the
-                      shipped table for this pair, never per-topic;
-                      `denominator_note` states the labelled-work
-                      convention: NEVER divide panel_n by copubs_total, only
-                      by labelled_n.
+      sdg_tagged_total -- sum of n_sdg over the shown topics (a LOWER BOUND
+                      on the pair's true joint SDG-tagged count, because of
+                      the top-N cap).
+      erc          -- PAIR-LEVEL dict (erc_top_panel/panel_n/labelled_n),
+                      now read from `collab_pairs.parquet` v2 (WT_2BR3.md
+                      SS0 gap g -- this info moved off collab_pair_topics,
+                      which carries no erc_* columns since v2); `None` when
+                      the pair has no collab_pairs row at all (should not
+                      happen once `rows` above is non-empty, defensive only).
+                      `denominator_note` states the labelled-work convention:
+                      NEVER divide panel_n by copubs_total, only by
+                      labelled_n.
       meta         -- {floor, top_n_cap, n_topics_shown, note, mean_citations_note}."""
     topics = _load_collab_pair_topics(ctx)
     lo, hi = (a, b) if a < b else (b, a)
@@ -288,27 +333,31 @@ def joint_profile(ctx: dict, subs: dict, a: str, b: str) -> dict | None:
 
     df = rows.merge(dim, on="topic_id", how="left").merge(sfd, on="subfield_id", how="left") \
              .merge(extra, on="topic_id", how="left")
-    df = df.sort_values("vol_total", ascending=False).reset_index(drop=True)
+    df = df.sort_values("vol", ascending=False).reset_index(drop=True)
     df["arrow"] = [_arrow(w1, w2) for w1, w2 in zip(df["vol_w1"], df["vol_w2"])]
     df["url"] = [_taxon_url(a, b, "topic", t) for t in df["topic_id"]]
     topics_out = df.reindex(columns=JOINT_TOPICS_COLS)
 
     fields_out = (df.groupby(["field_id", "field_name"], as_index=False)[JOINT_ROLLUP_VALUE_COLS].sum()
-                    .sort_values("vol_total", ascending=False).reset_index(drop=True))
+                    .sort_values("vol", ascending=False).reset_index(drop=True))
     subfields_out = (df.groupby(["subfield_id", "subfield_name", "field_id", "field_name"], as_index=False)
                        [JOINT_ROLLUP_VALUE_COLS].sum()
-                       .sort_values("vol_total", ascending=False).reset_index(drop=True))
+                       .sort_values("vol", ascending=False).reset_index(drop=True))
 
-    r0 = rows.iloc[0]
-    erc = {
-        "panel_idx": r0["erc_top_panel"], "panel_n": int(r0["erc_top_panel_n"]),
-        "labelled_n": int(r0["erc_labelled_n"]),
-        "denominator_note": ("Of the labelled share of joint works with an ERC-panel prediction "
-                             "(panel_n / labelled_n) -- never divide by the total co-publication count."),
-    }
+    pairs = _load_collab_pairs(ctx)
+    prow = pairs[(pairs["a"] == lo) & (pairs["b"] == hi)]
+    erc = None
+    if len(prow):
+        p0 = prow.iloc[0]
+        erc = {
+            "panel_idx": p0["erc_top_panel"], "panel_n": int(p0["erc_top_panel_n"]),
+            "labelled_n": int(p0["erc_labelled_n"]),
+            "denominator_note": ("Of the labelled share of joint works with an ERC-panel prediction "
+                                 "(panel_n / labelled_n) -- never divide by the total co-publication count."),
+        }
     return {
         "a": a, "b": b, "topics": topics_out, "fields": fields_out, "subfields": subfields_out,
-        "sdg_tagged_total": int(df["sdg_tagged_n"].sum()), "erc": erc,
+        "sdg_tagged_total": int(df["n_sdg"].sum()), "erc": erc,
         "meta": {"floor": PAIR_TOPICS_FLOOR, "top_n_cap": PAIR_TOPICS_TOP_N, "n_topics_shown": len(topics_out),
                 "note": (f"The top {PAIR_TOPICS_TOP_N} joint topics by volume are shown -- the pair's true "
                         "topic diversity may exceed this cap; sdg_tagged_total and the field/subfield "
@@ -318,35 +367,39 @@ def joint_profile(ctx: dict, subs: dict, a: str, b: str) -> dict | None:
 
 
 FIELD_BREAKDOWN_COLS = ["field_id", "field_name", "domain_id", "domain_name", "vol_w1", "vol_w2",
-                        "vol_2025", "vol_total", "n_covered", "n_top10", "mean_citations", "arrow", "url"]
+                        "vol", "n_covered", "n_top10", "n_sdg", "fwci_median", "mom_class", "arrow", "url"]
 FIELD_BREAKDOWN_NOTE = (
     "Field mix uses the repaired (best-fit) taxonomy only and does not change with the tree toggle."
 )
 
 
 def _load_collab_pair_fields(ctx: dict) -> pd.DataFrame:
-    """Lazy, ctx-cached: `collab_pair_fields.parquet` (2B-R2-12) -- pair x
-    field, UNCAPPED (every field the pair has any joint mass in), bestfit
-    tree only, same a<b/floor-5 qualifying-pair convention as
+    """Lazy, ctx-cached: `collab_pair_fields.parquet` v2 -- pair x field,
+    UNCAPPED (every field the pair has any joint mass in), bestfit tree
+    only, same a<b/floor-5 qualifying-pair convention as
     `collab_pair_topics`. The ONE source `field_breakdown` reads; unlike
     `joint_profile`'s own field rollup (a lower bound over its top-100
-    topics), this table is the AUTHORITATIVE per-field total and the only
-    place `mean_citations` is shipped."""
+    topics), this table is the AUTHORITATIVE per-field total. `mean_citations`
+    is GONE (SS2.2: "DROPPED, superseded by FWCI") -- `fwci_median` is the
+    only per-field impact figure now."""
     if "collab_pair_fields_df" not in ctx:
         ctx["collab_pair_fields_df"] = pd.read_parquet(Path(ctx["data_dir"]) / "collab_pair_fields.parquet")
     return ctx["collab_pair_fields_df"]
 
 
 def field_breakdown(ctx: dict, a: str, b: str) -> pd.DataFrame:
-    """2B-R2-11(a): the field breakdown of the joint corpus -- one row per
-    field the pair has any joint mass in, from `collab_pair_fields.parquet`
+    """The field breakdown of the joint corpus -- one row per field the pair
+    has any joint CORE-AR mass in, from `collab_pair_fields.parquet` v2
     (UNCAPPED, bestfit-tree-only -- `.attrs['note']` carries that caveat for
     the caller's caption, and `.attrs['floor']` the qualifying-pair floor).
-    Sorted by `vol_total` descending; empty (with the right columns) when
+    Sorted by `vol` (CORE-AR) descending; empty (with the right columns) when
     the pair never co-published or falls below `PAIR_TOPICS_FLOOR`. Each row
-    carries `mean_citations` (Int32, nullable -- NA when the field's joint
-    mass is 2025-only), an `arrow` (`_arrow`) and a live OpenAlex `url`
-    restricted to this field."""
+    carries `fwci_median`/`mom_class`, an `arrow` (`_arrow`) and a live
+    OpenAlex `url` restricted to this field. The DATA function survives 2BR3
+    unchanged in shape (only its column contract moves) -- only the TABLE
+    RENDERER that used to sit on top of it is retired (WT_2BR3.md SS0
+    ratification, CD4 acceptance: 'field_breakdown() the DATA function
+    SURVIVES... only VL's table renderer dies')."""
     fields = _load_collab_pair_fields(ctx)
     lo, hi = (a, b) if a < b else (b, a)
     rows = fields[(fields["a"] == lo) & (fields["b"] == hi)]
@@ -357,19 +410,23 @@ def field_breakdown(ctx: dict, a: str, b: str) -> pd.DataFrame:
         out["url"] = [_taxon_url(a, b, "field", int(fid)) for fid in out["field_id"]]
     else:
         out["arrow"], out["url"] = pd.Series(dtype=object), pd.Series(dtype=object)
-    out = out.sort_values("vol_total", ascending=False).reset_index(drop=True).reindex(columns=FIELD_BREAKDOWN_COLS)
+    out = out.sort_values("vol", ascending=False).reset_index(drop=True).reindex(columns=FIELD_BREAKDOWN_COLS)
     out.attrs["note"] = FIELD_BREAKDOWN_NOTE
     out.attrs["floor"] = PAIR_TOPICS_FLOOR
     return out
 
 
 def _joint_vol_by_topic(ctx: dict, a: str, b: str) -> dict:
-    """topic_id -> vol_total for the pair (a, b) from `collab_pair_topics`,
-    empty dict when the pair is below `PAIR_TOPICS_FLOOR` or absent."""
-    topics = _load_collab_pair_topics(ctx)
+    """topic_id -> vol (CORE-AR, TRUE, UNCAPPED) for the pair (a, b), from
+    `collab_topic_vols.parquet` NEW (item 4 fix -- was reading the top-100-
+    CAPPED `collab_pair_topics`, silently returning 0 for any shared topic
+    outside the cap and inflating `untapped()`'s gaps; WT_2BR3.md task 5.7 /
+    SS0 task 6 #11 confirm this exact mechanism). Empty dict when the pair
+    has no qualifying rows at all."""
+    vols = _load_collab_topic_vols(ctx)
     lo, hi = (a, b) if a < b else (b, a)
-    rows = topics[(topics["a"] == lo) & (topics["b"] == hi)]
-    return dict(zip(rows["topic_id"], rows["vol_total"]))
+    rows = vols[(vols["a"] == lo) & (vols["b"] == hi)]
+    return dict(zip(rows["topic_id"], rows["vol"]))
 
 
 UNTAPPED_COLS = ["topic_id", "topic_name", "subfield_id", "subfield_name", "vol_a", "vol_b",
@@ -471,3 +528,123 @@ def breadth_jaccard(ctx: dict, subs: dict, a: str, b: str, min_full: int = 0) ->
     union = n_a + n_b - n_shared
     jaccard = (n_shared / union) if union > 0 else 0.0
     return {"jaccard": jaccard, "n_a": n_a, "n_b": n_b, "n_shared": n_shared}
+
+
+# ============================================================================
+# 2BR3 CD4 items 5/6 (BUILD_PLAN_2BR3.md SS2.3 momentum, SS1.6 reciprocity)
+# ============================================================================
+
+# Merged (manager, 2BR3 wave-1 close): palette.py is the ONE source of momentum
+# hexes/glyphs; this module keeps only its ladder's "neutral" bucket alias
+# (ns/new/dormant/weak all share palette's ns entry).
+MOMENTUM_COLORS = {"up": PAL.MOMENTUM_COLORS["up"], "down": PAL.MOMENTUM_COLORS["down"],
+                   "stable": PAL.MOMENTUM_COLORS["stable"], "neutral": PAL.MOMENTUM_COLORS["ns"]}
+MOMENTUM_GLYPH = {"up": PAL.MOMENTUM_GLYPHS["up"], "down": PAL.MOMENTUM_GLYPHS["down"],
+                  "stable": PAL.MOMENTUM_GLYPHS["stable"], "neutral": PAL.MOMENTUM_GLYPHS["ns"]}
+MOMENTUM_CLAMP_PCT = 999.0  # SS2.3: delta_pct display-clamped at "> +999 %" (one-sided -- rr>=0 bounds delta at -100%)
+MOMENTUM_NULL_TEXT = "—"
+
+
+def _mom_num(v) -> float:
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return float("nan")
+    return f
+
+
+def momentum_display(mom_class, mom_rr, mom_p, c1, c2, facts: dict) -> tuple[str, str, str]:
+    """SS2.3's 9-case Lorraine momentum display ladder -- a PURE formatting
+    function over an ALREADY-CLASSIFIED pair/field/topic row (`mom_class`/
+    `mom_rr`/`mom_p` are pipeline outputs from `collab_pairs`/
+    `collab_pair_fields`/`collab_pair_topics` v2; this function never
+    reclassifies, and `c1`/`c2`/`facts` are accepted for signature parity
+    with the brief and future message-text branches but are not needed by
+    today's 9 cases -- classification already happened upstream). Returns
+    `(text, hex_colour, glyph)`; colour is NEVER the only signal -- text and
+    glyph always accompany it (WT_2BR3.md task 2.8's mandatory rule, the
+    sharpest REFUTED finding in this Wind Tunnel pass).
+
+    The 9 cases: null/unclassified -> '—' neutral; 'weak' (0<c1<5, no
+    %) -> 'weak base'; 'new' -> 'new'; 'dormant' -> 'dormant'; 'ns' (demoted
+    by the two-proportion z-test) -> 'n.s.'; 'up' normal -> signed no-decimal
+    '+NN%'; 'up' beyond the clamp -> '> +999%'; 'down' -> signed no-decimal
+    '-NN%'; 'stable' -> signed no-decimal '+NN%' (a real number inside the
+    +-25% band, unlike the four label-only neutral states above)."""
+    if mom_class is None or (isinstance(mom_class, float) and np.isnan(mom_class)):
+        return MOMENTUM_NULL_TEXT, MOMENTUM_COLORS["neutral"], MOMENTUM_GLYPH["neutral"]
+    mc = str(mom_class)
+    if mc == "weak":
+        return "weak base", MOMENTUM_COLORS["neutral"], MOMENTUM_GLYPH["neutral"]
+    if mc == "new":
+        return "new", MOMENTUM_COLORS["neutral"], MOMENTUM_GLYPH["neutral"]
+    if mc == "dormant":
+        return "dormant", MOMENTUM_COLORS["neutral"], MOMENTUM_GLYPH["neutral"]
+    if mc == "ns":
+        return "n.s.", MOMENTUM_COLORS["neutral"], MOMENTUM_GLYPH["neutral"]
+    if mc not in ("up", "down", "stable"):
+        raise AssertionError(f"unknown mom_class {mom_class!r}")
+    rr = _mom_num(mom_rr)
+    if not np.isfinite(rr):
+        return MOMENTUM_NULL_TEXT, MOMENTUM_COLORS["neutral"], MOMENTUM_GLYPH["neutral"]
+    delta_pct = (rr - 1.0) * 100.0
+    if mc == "up" and delta_pct > MOMENTUM_CLAMP_PCT:
+        return "> +999%", MOMENTUM_COLORS["up"], MOMENTUM_GLYPH["up"]
+    return f"{delta_pct:+.0f}%", MOMENTUM_COLORS[mc], MOMENTUM_GLYPH[mc]
+
+
+def pair_momentum(ctx: dict, a: str, b: str) -> dict | None:
+    """Pair-header momentum verdict (SS2.3): reads `collab_pairs.parquet`
+    v2's own `mom_class`/`mom_rr`/`mom_p`/`c1`/`c2` (already classified
+    upstream -- ONE drift correction per run, per SS2.3) plus each side's own
+    CORE-AR window totals (`index.total_ar_full_w1/w2`, SS2.2) for the
+    evidence block's d1/d2, re-oriented to the CALLER's (a, b) like every
+    other pair-table read in this module. Returns `None` when the pair has
+    no `collab_pairs` row at all (never co-published)."""
+    pairs = _load_collab_pairs(ctx)
+    lo, hi = (a, b) if a < b else (b, a)
+    row = pairs[(pairs["a"] == lo) & (pairs["b"] == hi)]
+    if row.empty:
+        return None
+    row = row.iloc[0]
+    idx = ctx["index_by_id"]
+    d1 = float(idx.loc[a, "total_ar_full_w1"]) + float(idx.loc[b, "total_ar_full_w1"])
+    d2 = float(idx.loc[a, "total_ar_full_w2"]) + float(idx.loc[b, "total_ar_full_w2"])
+    c1, c2 = float(row["c1"]), float(row["c2"])
+    facts = _load_collab_facts(ctx)
+    text, color, glyph = momentum_display(row.get("mom_class"), row.get("mom_rr"), row.get("mom_p"), c1, c2, facts)
+    return {
+        "a": a, "b": b, "mom_class": row.get("mom_class"), "mom_rr": _mom_num(row.get("mom_rr")),
+        "mom_p": _mom_num(row.get("mom_p")), "c1": c1, "c2": c2, "d1": d1, "d2": d2,
+        "text": text, "color": color, "glyph": glyph,
+    }
+
+
+RECIPROCITY_COLS = ["field_id", "field_name", "domain_id", "domain_name", "x", "y", "joint_vol"]
+
+
+def reciprocity_frame(ctx: dict, subs: dict, a: str, b: str) -> pd.DataFrame:
+    """"Strategic reciprocity by field" (SS1.6, Lorraine port, HONEST
+    both-sides variant per the brainstorm root-cause note -- Lorraine's own
+    x-axis builder divides pair co-works by the PARTNER's total, which is in
+    tension with its own copy; BenchUp implements the version that matches
+    what the chart actually claims to show): per field with joint CORE-AR
+    volume > 0, `x` = that field's share of B's OWN corpus, `y` = that
+    field's share of A's OWN corpus (both `fields.parquet`, current tree/
+    basis-aware via `subs` -- `compare_data.fields_long`, never recomputed
+    here), `joint_vol` = the pair's CORE-AR joint volume in that field
+    (`field_breakdown`'s own `vol`, the authoritative uncapped source, never
+    the topic-rollup lower bound). One row per qualifying field; SYMMETRIC by
+    construction -- swapping (a, b) swaps (x, y) and leaves `joint_vol`
+    unchanged (field_breakdown is itself a<b-orientation-invariant)."""
+    fb = field_breakdown(ctx, a, b)
+    fb = fb[fb["vol"] > 0]
+    if fb.empty:
+        return pd.DataFrame(columns=RECIPROCITY_COLS)
+    fl = CD.fields_long(ctx, subs, [a, b])
+    a_share = fl[fl["institution_id"] == a].set_index("field_id")["share"]
+    b_share = fl[fl["institution_id"] == b].set_index("field_id")["share"]
+    out = fb[["field_id", "field_name", "domain_id", "domain_name", "vol"]].rename(columns={"vol": "joint_vol"})
+    out["x"] = out["field_id"].map(b_share).fillna(0.0)  # field's share of B's OWN corpus
+    out["y"] = out["field_id"].map(a_share).fillna(0.0)  # field's share of A's OWN corpus
+    return out.reindex(columns=RECIPROCITY_COLS).sort_values("joint_vol", ascending=False).reset_index(drop=True)

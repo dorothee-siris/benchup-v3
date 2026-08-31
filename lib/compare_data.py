@@ -244,16 +244,14 @@ def impact_subfields(ctx: dict, ids: list[str], tree: str, floor: int = 30) -> p
         columns=IMPACT_SUBFIELDS_COLS)
 
 
-# ------------------------------------------------------------------ trends --
-
-def trends_subfields(ctx: dict, iid: str, tree: str) -> pd.DataFrame:
-    """`year, subfield_id, subfield_name, vol_full, vol_frac` for ONE
-    institution -- a thin wrapper over `profile_data.yearly_by_subfield`
-    (the subfield-grain generalisation of `yearly_by_domain`, same duckdb
-    predicate-pushdown query, same "Unclassified" residual convention so the
-    per-year total matches the domain-grain view exactly)."""
-    return P.yearly_by_subfield(ctx, iid, tree)
-
+# 2BR3 CD4 item 7 (BUILD_PLAN_2BR3.md SS1.5 "'Trends in the 6 subfields'
+# DELETED"): `trends_subfields()` and its implicit column contract
+# (`profile_data.SUBFIELD_YEARLY_COLS`, unchanged there) are REMOVED --
+# `views_compare._view_trends`/`_trends` (VC's own fence) is the only
+# consumer (WT_2BR3.md SS5.7 deleted-code map: a clean 4-hop chain entirely
+# inside VC/CD4's own fences, no cross-stream break). The corresponding
+# `tests/test_compare_data.py::test_trends_subfields_*` tests are removed
+# with it (this plan, CD4 item 7/8).
 
 # ------------------------------------------------------- shared subfields ---
 
@@ -311,11 +309,22 @@ def _load_sdg_fields(ctx: dict) -> pd.DataFrame:
 
 
 def _load_sdg_year(ctx: dict) -> pd.DataFrame:
-    """Lazy, ctx-cached (`sdg_year.parquet`, 2B-R-15/A7): institution x sdg x
-    year (2020-2025), fractional SDG-tagged mass -- tree-independent."""
+    """Lazy, ctx-cached (`sdg_year.parquet` v2, SS2.2): institution x sdg x
+    year (2020-2025 on disk), `mass_frac`/`mass_full` -- tree-independent."""
     if "sdg_year_df" not in ctx:
         ctx["sdg_year_df"] = pd.read_parquet(Path(ctx["data_dir"]) / "sdg_year.parquet")
     return ctx["sdg_year_df"]
+
+
+def _sdg_year_window_mass(ctx: dict, ids: list[str]) -> pd.DataFrame:
+    """`sdg_year.parquet` v2, window-sliced to `CORE_WINDOW` (2020-2024,
+    item 1 -- Compare's SDG 'Volume tagged' + SDG dynamics both move here off
+    the whole-run `sdg.parquet.mass`), summed per (institution_id, sdg_idx),
+    BOTH `mass_frac` and `mass_full` carried through so a caller picks its
+    own basis column without a second read."""
+    df = _load_sdg_year(ctx)
+    sub = df[df["institution_id"].isin(ids) & df["year"].between(CORE_WINDOW[0], CORE_WINDOW[1])]
+    return sub.groupby(["institution_id", "sdg_idx"], as_index=False)[["mass_frac", "mass_full"]].sum()
 
 
 def _load_impact_fields(ctx: dict) -> pd.DataFrame:
@@ -387,7 +396,8 @@ def overview(ctx: dict, ids: list[str]) -> pd.DataFrame:
 # level that cannot derive one of the five (see each builder's own docstring)
 # ships NaN/None there, never a fabricated number -- absence, not zero.
 METRIC_FRAME_COLS = ["institution_id", "taxon_id", "taxon_label", "value", "ref_value", "denominator",
-                     "domain_id", "domain_order", "vol_display", "vol_full_annual_mean", "vol_top10"]
+                     "denom_value", "domain_id", "domain_order", "vol_display", "vol_full_annual_mean",
+                     "vol_top10"]
 METRICS = ("share", "vol_top10", "pp", "sdg_share", "dynamics", "si", "vol")
 LEVELS = ("field", "subfield", "erc", "sdg")
 
@@ -423,6 +433,25 @@ DYNAMICS_DENOM_NOTE = (
     "divided by the 2020-2022 mean; 2025 (a partial, bonus year) is excluded from both periods; "
     "shown as n/a when the 2020-2022 mean is zero, never as a divide-by-zero result."
 )
+
+# 2BR3 CD4 (BUILD_PLAN_2BR3.md SS2.5, "metric_frame v4"): `denom_value`
+# (Float64, nullable) is the NUMBER a hover prints beside `value` -- the real
+# denominator that produced it, computed directly (never back-divided
+# value/vol_display, which would be 0/0=NaN for every legitimately-zero
+# row and violate "finite wherever value is finite"). A metric with no
+# natural count-style denominator (si -- a ratio against a population MEAN,
+# not a share of a knowable total; vol/vol_top10 -- themselves raw counts,
+# not ratios) ships NaN here deliberately (absence, not a fabricated number).
+def _grain_total_by_institution(base: pd.DataFrame, vcol: str) -> pd.Series:
+    """Per-institution SUM of `vcol` across EVERY taxon row in `base` (before
+    any field_id/etc. filter) -- the share family's own true denominator:
+    for field/subfield this is exact by construction (Sigma_taxon share == 1,
+    tested elsewhere in this suite); for erc/sdg it is the sum of the taxon
+    rows actually shipped, which can be a slight underestimate of the true
+    classified/tagged total when a residual exists outside any taxon row
+    (documented approximation, not silently assumed exact)."""
+    return base.groupby("institution_id")[vcol].sum().astype("float64")
+
 
 # 2B-R2-13 plain-language sweep (A4): reason is surfaced on the returned empty
 # frame's `.attrs["reason"]` so the page can hide the option instead of
@@ -528,13 +557,39 @@ def _domain_cols_for(base: pd.DataFrame, level: str) -> tuple[pd.Series, pd.Seri
 
 
 def _vol_display_col_for(level: str, basis: str) -> str:
-    """Which already-present column IS the current-basis raw volume (2B-R2-3)
-    for the share/si frame family: fields/subfields ship both `vol_full` and
-    `vol_frac`; erc/sdg ship one fractional `mass` column only (no full/frac
-    toggle exists at that grain)."""
+    """Which already-present column IS the current-basis raw volume: fields/
+    subfields ship both `vol_full` and `vol_frac`. `erc_long`/`sdg_long`
+    (thin wrappers over `profile_data.erc_table`/`sdg_table`) still only
+    carry the ONE fractional `mass` column each -- 2BR3 CD4 does NOT touch
+    `profile_data.py`'s column contract (out of fence), so the erc/sdg
+    MASS_FULL toggle (SS2.5 "ERC/SDG frames honor the basis toggle via the
+    new mass_full columns") is applied by `_vol_frame`/`_sdg_dynamics_frame`
+    reading the raw parquet directly, NOT through this helper -- this
+    function stays 'mass' for erc/sdg (the share/si families, which this
+    helper serves, are fractional-only by design regardless of basis)."""
     if level in ("field", "subfield"):
         return "vol_full" if basis == "full" else "vol_frac"
     return "mass"
+
+
+def _share_denom_value(ctx, subs, ids, level, base_filtered: pd.DataFrame) -> pd.Series:
+    """v4 `denom_value` for the share family (SS2.5): a per-institution SUM
+    computed independently of any single row (never value-back-division, see
+    `_grain_total_by_institution`'s own docstring). field/subfield share the
+    SAME institution total mass across the WHOLE taxonomy at that grain
+    (subfield needs the UNFILTERED base, not just the drilled field's own
+    subfields -- its own denominator note says so); erc/sdg sum their own
+    (sparse/dense) taxon rows."""
+    vcol = _vol_display_col_for(level, subs.get("basis"))
+    if level == "field":
+        totals = _grain_total_by_institution(base_filtered, vcol)
+    elif level == "subfield":
+        totals = _grain_total_by_institution(subfields_long(ctx, subs, ids), vcol)
+    elif level == "erc":
+        totals = _grain_total_by_institution(erc_long(ctx, ids), vcol)
+    else:  # sdg
+        totals = _grain_total_by_institution(sdg_long(ctx, ids), vcol)
+    return base_filtered["institution_id"].map(totals)
 
 
 def _share_frame(ctx, subs, ids, level, field_id=None) -> pd.DataFrame:
@@ -555,6 +610,7 @@ def _share_frame(ctx, subs, ids, level, field_id=None) -> pd.DataFrame:
     out = base[["institution_id", "taxon_id", "taxon_label", "share"]].rename(columns={"share": "value"})
     out["ref_value"] = None
     out["denominator"] = denom
+    out["denom_value"] = _share_denom_value(ctx, subs, ids, level, base)
     out["domain_id"], out["domain_order"] = _domain_cols_for(base, level)
     vcol = _vol_display_col_for(level, subs.get("basis"))
     out["vol_display"] = base[vcol]
@@ -579,6 +635,7 @@ def _si_frame(ctx, subs, ids, level, field_id=None) -> pd.DataFrame:
     out = base[["institution_id", "taxon_id", "taxon_label", "si"]].rename(columns={"si": "value"})
     out["ref_value"] = 1.0  # 2B-R-5: SI reference line is always 1
     out["denominator"] = denom
+    out["denom_value"] = np.nan  # SI is a ratio against a population MEAN, not a share of a knowable total -- no count-style denominator to print (v4 SS2.5: absence, not a fabricated number)
     out["domain_id"], out["domain_order"] = _domain_cols_for(base, level)
     vcol = _vol_display_col_for(level, subs.get("basis"))
     out["vol_display"] = base[vcol]
@@ -589,39 +646,77 @@ def _si_frame(ctx, subs, ids, level, field_id=None) -> pd.DataFrame:
 
 
 ERC_VOL_DENOM_NOTE = (
-    "The raw fractional volume of work classified into this ERC research panel -- a headline "
-    "count, not a share, so there is no separate denominator: a work's ERC volume splits evenly "
-    "across every panel it clears the threshold for."
+    "The raw volume of work classified into this ERC research panel, on the current basis -- a "
+    "headline count, not a share, so there is no separate denominator: a work's ERC volume splits "
+    "evenly across every panel it clears the threshold for."
 )
 SDG_VOL_DENOM_NOTE = (
-    "The raw fractional volume of work tagged to this goal (a work tagged with more than one "
-    "Sustainable Development Goal counts in full toward each), over the full 2020-2025 window -- "
-    "not the 2020-2024 window used elsewhere in Compare (for example, publication volume, "
-    "international share, and industry share)."
+    "The raw volume of work tagged to this goal (a work tagged with more than one Sustainable "
+    "Development Goal counts in full toward each), summed over 2020-2024 on the current basis -- "
+    "the SAME core window the rest of Compare uses (sourced from sdg_year.parquet, not the "
+    "whole-run sdg.parquet mass)."
 )
 
 
-def _vol_frame(ctx, ids, level) -> pd.DataFrame:
-    """2B-R-8 gap fix: ERC 'Volume' / SDG 'Volume tagged' -- the raw
-    fractional MASS underlying each taxon's `share` (contrast `share`, which
-    divides by the institution's own classified/tagged total). ERC reads
-    `erc.parquet.mass` (2020-2024-ish classified-mass basis, same as
-    `erc_long`'s own `mass` column, unchanged here); SDG reads
-    `sdg.parquet.mass`, whose basis is the FULL 2020-2025 run window --
-    NAMED explicitly in `SDG_VOL_DENOM_NOTE` since it differs from the
-    2020-2024 core window most other Compare KPIs use."""
+def _erc_mass_full_by_institution_panel(ctx: dict) -> pd.Series:
+    """Lazy, ctx-cached: `erc.parquet`'s `mass_full` column (v2, SS2.2)
+    indexed by (institution_id, panel_idx) -- read straight off `ctx[
+    'erc_df']` (load_context/the fixture builder both load erc.parquet
+    unfiltered, so any v2 column rides along without profile_data.py ever
+    needing to reindex it through -- CD4 stays out of that fence). Falls
+    back to an all-NaN series when `mass_full` is absent (today's real
+    erc.parquet, pre-P7): a graceful degrade, never a KeyError."""
+    key = "_erc_mass_full_by_panel"
+    if key not in ctx:
+        raw = ctx["erc_df"]
+        if "mass_full" in raw.columns:
+            ctx[key] = raw.set_index(["institution_id", "panel_idx"])["mass_full"]
+        else:
+            ctx[key] = pd.Series(dtype="float64")
+    return ctx[key]
+
+
+def _vol_frame(ctx, subs, ids, level) -> pd.DataFrame:
+    """2B-R-8 gap fix, basis-toggle-aware since 2BR3 CD4 (SS2.5 "ERC/SDG
+    frames honor the basis toggle via the new mass_full columns"): ERC
+    'Volume' / SDG 'Volume tagged' -- the raw MASS underlying each taxon's
+    `share`. ERC reads `erc.parquet.mass`/`mass_full` (basis-toggled, v2);
+    SDG now reads `sdg_year.parquet` window-sliced 2020-2024 (item 1 -- moved
+    off `sdg.parquet`'s whole-run 2020-2025 mass, see `SDG_VOL_DENOM_NOTE`),
+    dense 16 rows, `mass_frac`/`mass_full` basis-toggled."""
+    basis = (subs or {}).get("basis", "frac")
     if level == "erc":
         base = erc_long(ctx, ids).rename(columns={"panel_idx": "taxon_id", "panel_label": "taxon_label"})
-        denom = ERC_VOL_DENOM_NOTE
-    else:  # sdg
-        base = sdg_long(ctx, ids).rename(columns={"sdg_idx": "taxon_id", "sdg_label": "taxon_label"})
-        denom = SDG_VOL_DENOM_NOTE
-    out = base[["institution_id", "taxon_id", "taxon_label", "mass"]].rename(columns={"mass": "value"})
+        full_by_panel = _erc_mass_full_by_institution_panel(ctx)
+        if basis == "full" and not full_by_panel.empty:
+            value = pd.Series(
+                [float(full_by_panel.get((iid, pid), np.nan))
+                 for iid, pid in zip(base["institution_id"], base["taxon_id"])],
+                index=base.index)
+        else:
+            value = base["mass"].astype("float64")
+        out = base[["institution_id", "taxon_id", "taxon_label"]].copy()
+        out["value"] = value
+        out["denominator"] = ERC_VOL_DENOM_NOTE
+        out["domain_id"], out["domain_order"] = _domain_cols_for(base, level)
+    else:  # sdg -- sdg_year.parquet v2, window-sliced 2020-2024, basis-toggled
+        vcol = "mass_full" if basis == "full" else "mass_frac"
+        win = _sdg_year_window_mass(ctx, ids)
+        labels = P._sdg_labels(ctx)[["sdg_idx", "sdg_label", "sdg_number"]]
+        rows = []
+        for iid in ids:
+            d = win[win["institution_id"] == iid].set_index("sdg_idx")
+            for _, lab in labels.iterrows():
+                sidx = int(lab["sdg_idx"])
+                v = float(d.loc[sidx, vcol]) if sidx in d.index else 0.0
+                rows.append({"institution_id": iid, "taxon_id": sidx, "taxon_label": lab["sdg_label"],
+                            "value": v, "denominator": SDG_VOL_DENOM_NOTE,
+                            "domain_id": SDG_DOMAIN_ID, "domain_order": int(lab["sdg_number"])})
+        out = pd.DataFrame(rows)
     out["ref_value"] = None  # raw volume carries no reference line (2B-R-5: SI=1/index-PP only)
-    out["denominator"] = denom
-    out["domain_id"], out["domain_order"] = _domain_cols_for(base, level)
-    out["vol_display"] = base["mass"]  # this metric IS the raw volume -- gutter mirrors the bar
-    out["vol_full_annual_mean"] = np.nan  # no by-year full-count table at erc/sdg grain (not derivable)
+    out["denom_value"] = np.nan  # a raw volume IS the count -- not a ratio, so no separate denominator (v4 SS2.5)
+    out["vol_display"] = out["value"]  # this metric IS the raw volume -- gutter mirrors the bar
+    out["vol_full_annual_mean"] = np.nan  # no by-year full-count table at erc/sdg TAXON grain (not derivable)
     out["vol_top10"] = None
     return out.reindex(columns=METRIC_FRAME_COLS)
 
@@ -643,8 +738,9 @@ def _dynamics_population_ref(ctx, level: str, tree: str | None, basis: str | Non
 
     if level == "sdg":
         df = _load_sdg_year(ctx)
+        vcol = "mass_full" if basis == "full" else "mass_frac"
         piv = df.pivot_table(index=["institution_id", "sdg_idx"], columns="year",
-                             values="mass", aggfunc="sum", fill_value=0.0)
+                             values=vcol, aggfunc="sum", fill_value=0.0)
         w1 = piv.reindex(columns=range(DYNAMICS_W1[0], DYNAMICS_W1[1] + 1), fill_value=0.0).mean(axis=1)
         w2 = piv.reindex(columns=range(DYNAMICS_W2[0], DYNAMICS_W2[1] + 1), fill_value=0.0).mean(axis=1)
         dyn = ((w2 - w1) / w1).where(w1 > 0)
@@ -716,11 +812,12 @@ def _field_dynamics_frame(ctx, subs, ids) -> pd.DataFrame:
     their own SUM-to-total invariant; Dynamics has no such invariant to
     protect and the user ruled the row out entirely.
 
-    `vol_display`/`vol_full_annual_mean` are built from a SEPARATE FULL-basis
-    year rollup (`vol_full`, never `vol_col`) alongside the basis-dependent
-    `value`, because 2B-R2-4's raw-delta gutter and low-volume floor are
-    BOTH defined on the full count regardless of which basis the chart is
-    plotting."""
+    `vol_display` (the raw-delta gutter string) is now built from the SAME
+    `vol_col` as `value` (2BR3 item 1 fix -- this WAS the "-16.4% beside
+    3.7 -> 4.5/yr" bug, WT_2BR3.md task 6 #2b: value and gutter silently
+    disagreeing in basis). `vol_full_annual_mean` (the low-volume FLOOR
+    marker) stays on the SEPARATE FULL-basis rollup regardless of toggle --
+    unchanged, the floor is deliberately never basis-dependent."""
     vol_col = "vol_full" if subs["basis"] == "full" else "vol_frac"
     sub_field_map = P._subfield_field_domain_map(ctx)[["subfield_id", "field_id", "field_name"]]
     field_domain = P._field_domain_map(ctx).set_index("field_id")["domain_id"]
@@ -735,15 +832,16 @@ def _field_dynamics_frame(ctx, subs, ids) -> pd.DataFrame:
             # first (multiple subfield rows can share one year), never a
             # naive dict(zip(...)) which would silently keep only the last
             # subfield's value per year.
-            vol_by_year = g.groupby("year")[vol_col].sum().to_dict()
-            full_by_year = g.groupby("year")["vol_full"].sum().to_dict()
+            vol_by_year = g.groupby("year")[vol_col].sum().to_dict()      # CURRENT basis -- value AND gutter
+            full_by_year = g.groupby("year")["vol_full"].sum().to_dict()  # FULL basis -- floor marker ONLY
+            w1, w2 = _window_mean(vol_by_year, DYNAMICS_W1), _window_mean(vol_by_year, DYNAMICS_W2)
             w1_full, w2_full = _window_mean(full_by_year, DYNAMICS_W1), _window_mean(full_by_year, DYNAMICS_W2)
             dom = field_domain.get(int(fid))
             rows.append({"institution_id": iid, "taxon_id": int(fid), "taxon_label": fname,
                         "value": _dynamics_value(vol_by_year), "ref_value": None,
-                        "denominator": DYNAMICS_DENOM_NOTE,
+                        "denominator": DYNAMICS_DENOM_NOTE, "denom_value": w1 if w1 > 0 else np.nan,
                         "domain_id": dom, "domain_order": _OA_DOMAIN_ORDER_MAP.get(dom),
-                        "vol_display": _dynamics_delta_str(w1_full, w2_full),
+                        "vol_display": _dynamics_delta_str(w1, w2),
                         "vol_full_annual_mean": _annual_full_mean(w1_full, w2_full),
                         "vol_top10": None})
     out = pd.DataFrame(rows, columns=METRIC_FRAME_COLS)
@@ -766,55 +864,61 @@ def _subfield_dynamics_frame(ctx, subs, ids, field_id) -> pd.DataFrame:
         yb = P.yearly_by_subfield(ctx, iid, subs["tree"])
         yb = yb[yb["subfield_id"].isin(wanted)]
         for sid, g in yb.groupby("subfield_id"):
-            vol_by_year = dict(zip(g["year"], g[vol_col]))
-            full_by_year = dict(zip(g["year"], g["vol_full"]))
+            vol_by_year = dict(zip(g["year"], g[vol_col]))      # CURRENT basis -- value AND gutter (item-1 fix)
+            full_by_year = dict(zip(g["year"], g["vol_full"]))  # FULL basis -- floor marker ONLY
+            w1, w2 = _window_mean(vol_by_year, DYNAMICS_W1), _window_mean(vol_by_year, DYNAMICS_W2)
             w1_full, w2_full = _window_mean(full_by_year, DYNAMICS_W1), _window_mean(full_by_year, DYNAMICS_W2)
             dom = sub_domain.get(int(sid))
             rows.append({"institution_id": iid, "taxon_id": int(sid), "taxon_label": g["subfield_name"].iloc[0],
                         "value": _dynamics_value(vol_by_year), "ref_value": None,
-                        "denominator": DYNAMICS_DENOM_NOTE,
+                        "denominator": DYNAMICS_DENOM_NOTE, "denom_value": w1 if w1 > 0 else np.nan,
                         "domain_id": dom, "domain_order": _OA_DOMAIN_ORDER_MAP.get(dom),
-                        "vol_display": _dynamics_delta_str(w1_full, w2_full),
+                        "vol_display": _dynamics_delta_str(w1, w2),
                         "vol_full_annual_mean": _annual_full_mean(w1_full, w2_full),
                         "vol_top10": None})
     out = pd.DataFrame(rows, columns=METRIC_FRAME_COLS)
     return _attach_dynamics_ref(ctx, out, "subfield", subs["tree"], subs["basis"])
 
 
-def _sdg_dynamics_frame(ctx, ids) -> pd.DataFrame:
-    """SDG-grain dynamics from `sdg_year.parquet` (institution x sdg x year,
-    fractional SDG-tagged mass) -- DENSE 16 rows per institution (matching
-    `profile_data.sdg_table`'s own convention: a SDG absent from `sdg_year`
-    for this institution is 'n/a', not a dropped row). No Unclassified row
+def _sdg_dynamics_frame(ctx, subs, ids) -> pd.DataFrame:
+    """SDG-grain dynamics, basis-toggle-aware since 2BR3 CD4 (item 1): reads
+    `sdg_year.parquet` v2's `mass_frac`/`mass_full` on `subs['basis']`,
+    window-sliced 2020-2024 (2025 excluded, same convention as every other
+    level's dynamics windows -- `sdg_year.parquet` ships 2020-2025 on disk,
+    the slice is applied here, not upstream). DENSE 16 rows per institution
+    (matching `profile_data.sdg_table`'s own convention). No Unclassified row
     exists at this grain (nothing to exclude).
 
-    `vol_full_annual_mean` is NaN throughout: `sdg_year.parquet` ships one
-    FRACTIONAL `mass` column, never a full-count-by-year column (no such
-    table exists for SDG, see docs/data_contract.yaml) -- so the 2B-R2-4
-    low-volume marker is NOT derivable here and simply never fires, which is
-    the documented gap (never a fabricated full count). `vol_display` falls
-    back to the SAME fractional mass for its raw-delta string, disclosed in
-    the denominator note."""
+    `vol_full_annual_mean` (the low-volume floor marker) is now POPULATED --
+    v2's `mass_full` finally makes it derivable here (v3's NaN-always gap is
+    closed); it stays on the FULL basis regardless of the page's toggle, the
+    same convention `_field_dynamics_frame`/`_field_pp_frame` already use."""
     sdg_year_df = _load_sdg_year(ctx)
     labels = P._sdg_labels(ctx)[["sdg_idx", "sdg_label", "sdg_number"]]
-    note = (DYNAMICS_DENOM_NOTE + " Volumes are sdg_year.mass (fractional, SDG-tagged, multi-label, "
-           "tree-independent) -- no full-count-by-year table exists for SDG, so the raw-delta gutter "
-           "and the low-volume marker are both on this FRACTIONAL basis here, unlike every other level.")
+    vcol = "mass_full" if subs["basis"] == "full" else "mass_frac"
+    note = (DYNAMICS_DENOM_NOTE + " Volumes are sdg_year.mass_frac/mass_full on the CURRENT basis, "
+           "all doc types, window-sliced 2020-2024 -- sdg.parquet's whole-run 2020-2025 mass is no "
+           "longer used for this figure.")
     rows = []
     for iid in ids:
-        d = sdg_year_df[sdg_year_df["institution_id"] == iid]
+        d = sdg_year_df[(sdg_year_df["institution_id"] == iid)
+                        & sdg_year_df["year"].between(CORE_WINDOW[0], CORE_WINDOW[1])]
         for _, lab in labels.iterrows():
             sidx = int(lab["sdg_idx"])
             g = d[d["sdg_idx"] == sidx]
-            vol_by_year = dict(zip(g["year"], g["mass"])) if len(g) else {}
+            vol_by_year = dict(zip(g["year"], g[vcol])) if len(g) else {}
+            full_by_year = dict(zip(g["year"], g["mass_full"])) if len(g) else {}
             w1, w2 = _window_mean(vol_by_year, DYNAMICS_W1), _window_mean(vol_by_year, DYNAMICS_W2)
+            w1_full, w2_full = _window_mean(full_by_year, DYNAMICS_W1), _window_mean(full_by_year, DYNAMICS_W2)
             rows.append({"institution_id": iid, "taxon_id": sidx, "taxon_label": lab["sdg_label"],
                         "value": _dynamics_value(vol_by_year), "ref_value": None, "denominator": note,
+                        "denom_value": w1 if w1 > 0 else np.nan,
                         "domain_id": SDG_DOMAIN_ID, "domain_order": int(lab["sdg_number"]),
-                        "vol_display": _dynamics_delta_str(w1, w2), "vol_full_annual_mean": np.nan,
+                        "vol_display": _dynamics_delta_str(w1, w2),
+                        "vol_full_annual_mean": _annual_full_mean(w1_full, w2_full),
                         "vol_top10": None})
     out = pd.DataFrame(rows, columns=METRIC_FRAME_COLS)
-    return _attach_dynamics_ref(ctx, out, "sdg", None, None)
+    return _attach_dynamics_ref(ctx, out, "sdg", None, subs["basis"])
 
 
 def _field_impact_ref_means(ctx, tree, floor) -> pd.Series:
@@ -830,23 +934,22 @@ def _field_impact_ref_means(ctx, tree, floor) -> pd.Series:
     return ctx[key]
 
 
-def _field_pp_frame(ctx, ids, tree, floor, want_vol: bool) -> pd.DataFrame:
+def _field_pp_frame(ctx, ids, tree, floor, want_vol: bool, basis: str = "frac") -> pd.DataFrame:
     """Field-grain `pp` or `vol_top10` from `impact_fields.parquet`. Missing
     cell (this institution has no impact_fields row for this field/tree/
     floor) means the field is simply ABSENT from the returned frame for that
     institution -- never a 0 or NaN placeholder row (this table is sparse-
     to-candidate-cells, unlike sdg.parquet's dense convention).
 
-    `vol_display`/`vol_full_annual_mean` read `n_works_full` (the SAME full
-    work-count denominator the `want_vol` branch already multiplies by) --
-    this function receives no `subs`/basis (impact_fields carries no
-    fractional-volume column beyond `pp_denominator_frac`, which is
-    articles+reviews-only and not comparable to the all-doctype `vol_frac`
-    the share family gutters), so its gutter is FULL-basis regardless of the
-    page's frac/full toggle, documented here rather than silently varying.
-    `vol_top10` (2B-R2-3: retired as a selector tab, kept AS DATA) is
-    populated ONLY on the `pp` branch -- the `vol_top10` metric's own frame
-    already carries that number as `value` and does not need a duplicate."""
+    `vol_display`/`denom_value` (the PP gutter) now follow `basis` (2BR3
+    item 1/SS2.5: "PP gutter = pp_denominator_frac when basis=frac /
+    n_works_full when full" -- BOTH already ship on `impact_fields.parquet`,
+    confirmed 2026-08-31 via a live schema dump; this metric is ALWAYS on the
+    articles+reviews basis regardless of which one is picked, only the
+    NUMBER shown switches). `vol_full_annual_mean` (the low-volume FLOOR
+    marker) stays on `n_works_full` unconditionally -- never basis-dependent,
+    same convention as the dynamics frames. `vol_top10` (2B-R2-3: retired as
+    a selector tab, kept AS DATA) is populated ONLY on the `pp` branch."""
     assert floor in IMPACT_FIELD_FLOORS, f"impact_fields.parquet only ships floors {IMPACT_FIELD_FLOORS}, got {floor}"
     f = _load_impact_fields(ctx)
     sub = f[(f["tree"].astype(str) == tree) & (f["floor"] == floor) & (f["institution_id"].isin(ids))]
@@ -862,6 +965,7 @@ def _field_pp_frame(ctx, ids, tree, floor, want_vol: bool) -> pd.DataFrame:
             fname = name_row["field_name"].iloc[0] if len(name_row) else str(fid)
             dom = int(name_row["domain_id"].iloc[0]) if len(name_row) else None
             n_full = float(row["n_works_full"])
+            gutter = float(row["pp_denominator_frac"]) if basis == "frac" else n_full  # item 1 basis toggle
             vol_top10 = float(row["pp_top10_frac"]) * n_full
             if want_vol:
                 value = vol_top10
@@ -869,24 +973,27 @@ def _field_pp_frame(ctx, ids, tree, floor, want_vol: bool) -> pd.DataFrame:
                         "n_works_full = full work count, articles+reviews, 2020-2024)")
                 ref = None
                 vt10 = None
+                denom_value = None  # vol_top10 IS the count -- no separate ratio denominator (v4 SS2.5)
             else:
                 value = float(row["pp_top10_frac"])
-                denom = f"pp_denominator_frac (fractional mass, articles+reviews, 2020-2024, field grain, tree={tree}, floor={floor})"
+                denom = (f"pp_denominator_frac / n_works_full (articles+reviews, 2020-2024, field grain, "
+                        f"tree={tree}, floor={floor}, on the current basis)")
                 ref = float(ref_means.get(fid, np.nan))
                 vt10 = vol_top10
+                denom_value = gutter  # literally what pp_top10_frac divides by, on the current basis
             rows.append({"institution_id": iid, "taxon_id": fid, "taxon_label": fname,
-                        "value": value, "ref_value": ref, "denominator": denom,
+                        "value": value, "ref_value": ref, "denominator": denom, "denom_value": denom_value,
                         "domain_id": dom, "domain_order": _OA_DOMAIN_ORDER_MAP.get(dom),
-                        "vol_display": n_full, "vol_full_annual_mean": n_full / N_CORE_YEARS,
+                        "vol_display": gutter, "vol_full_annual_mean": n_full / N_CORE_YEARS,
                         "vol_top10": vt10})
     return pd.DataFrame(rows, columns=METRIC_FRAME_COLS)
 
 
 SDG_SHARE_FIELD_DENOM_NOTE = (
-    "Numerator: SDG-tagged fractional volume summed across all 16 goals for this field (a work "
-    "tagged with more than one goal counts in full toward each); denominator: the field's total "
-    "fractional volume. Both over the full 2020-2025 window -- not the 2020-2024 window used "
-    "elsewhere in Compare (for example, publication volume, international share, and industry share)."
+    "Numerator: the field's DISTINCT SDG-tagged volume (a work counts once toward this field even "
+    "when it carries more than one Sustainable Development Goal); denominator: the field's total "
+    "volume. Both articles+reviews, 2020-2024, on the SAME window and the SAME basis as the page's "
+    "current toggle -- no window mismatch between numerator and denominator."
 )
 
 
@@ -902,23 +1009,25 @@ def _load_fields_raw(ctx: dict) -> pd.DataFrame:
     return ctx["fields_raw_df"]
 
 
-def _sdg_share_field_ref_means(ctx: dict, tree: str) -> pd.Series:
-    """2B-R2-4 reference line for SDG-tagged share: the population mean of
-    the SAME ratio `_sdg_share_field_frame` computes per institution (tagged
-    mass / field mass), among institutions with nonzero field mass, per
-    field x tree. `fields.parquet` is BESTFIT-tree-only (its own grain note)
-    so this reference is computed against that one basis regardless of
-    `tree` -- the same approximation WT 2BR2 claim #15 measured and cleared
-    ('SDG-tagged share per field x tree (join to fields.parquet): 112/94
-    ms'). Cached per tree on ctx (a plain pandas groupby, no duckdb needed at
-    this row count -- 1.7M sdg_fields rows x 150K fields rows)."""
-    key = f"_sdgshare_ref_{tree}"
+def _sdg_share_field_ref_means(ctx: dict, tree: str, basis: str) -> pd.Series:
+    """2BR3 item 2 fix: population mean of the SAME corrected ratio
+    `_sdg_share_field_frame` computes per institution (field's DISTINCT
+    SDG-tagged mass / field mass, `sdg_fields.parquet` v2's `mass_any_<basis>`
+    -- never the OLD per-goal-summed `mass`, which is the 264.8%-bug
+    mechanism WT_2BR3.md task 5.2 pins), among institutions with nonzero
+    field mass, per field x tree x basis. `fields.parquet` is BESTFIT-tree-
+    only (its own grain note) so this reference is computed against that one
+    basis regardless of `tree` (the same approximation WT 2BR2 claim #15
+    cleared). Cached per (tree, basis) on ctx."""
+    key = f"_sdgshare_ref_{tree}_{basis}"
     if key in ctx:
         return ctx[key]
     sdg_fields_df = _load_sdg_fields(ctx)
+    numer_col = "mass_any_full" if basis == "full" else "mass_any_frac"
+    vol_col = "vol_full" if basis == "full" else "vol_frac"
     sub = sdg_fields_df[(sdg_fields_df["tree"].astype(str) == tree) & (sdg_fields_df["field_id"] != -1)]
-    tagged = sub.groupby(["institution_id", "field_id"])["mass"].sum()
-    fields_raw = _load_fields_raw(ctx).set_index(["institution_id", "field_id"])["vol_frac"]
+    tagged = sub.groupby(["institution_id", "field_id"])[numer_col].sum()  # v2 grain has no sdg_idx to double-count over
+    fields_raw = _load_fields_raw(ctx).set_index(["institution_id", "field_id"])[vol_col]
     # `fields.parquet` ships nonzero-mass (institution, field) rows only (its
     # own grain note) -- so its own index IS "nonzero field mass", and a
     # left-join from it (never the other way) is what keeps a
@@ -931,30 +1040,45 @@ def _sdg_share_field_ref_means(ctx: dict, tree: str) -> pd.Series:
     return ref
 
 
+SDG_SHARE_EPS = 1e-6  # v2's numerator/denominator are matched-window/matched-basis -- value must be <= 1 + this
+
+
 def _sdg_share_field_frame(ctx, subs, ids, tree) -> pd.DataFrame:
+    """2BR3 item 2 fix: numerator = `sdg_fields.mass_any_<basis>` (v2,
+    DISTINCT-tagged -- a work with 3 goals contributes once, not 3x, closing
+    the 264.8%-share bug WT_2BR3.md task 5.2 traces to the OLD per-goal
+    `groupby(institution_id, field_id)["mass"].sum()`); denominator = the
+    field's own vol on the SAME basis as the numerator and the SAME 2020-2024
+    window -- asserted `<= 1 + SDG_SHARE_EPS` HERE, not left to a caller."""
+    basis = subs["basis"]
+    numer_col = "mass_any_full" if basis == "full" else "mass_any_frac"
+    vol_col = "vol_full" if basis == "full" else "vol_frac"
     sdg_fields_df = _load_sdg_fields(ctx)
     sub = sdg_fields_df[(sdg_fields_df["tree"].astype(str) == tree) & (sdg_fields_df["institution_id"].isin(ids))
                         & (sdg_fields_df["field_id"] != -1)]
-    tagged = sub.groupby(["institution_id", "field_id"])["mass"].sum()
-    field_mass = subs["fields_df"].set_index(["institution_id", "field_id"])["vol_frac"]
+    tagged = sub.groupby(["institution_id", "field_id"])[numer_col].sum()
+    field_mass = subs["fields_df"].set_index(["institution_id", "field_id"])[vol_col]
     field_mass_full = subs["fields_df"].set_index(["institution_id", "field_id"])["vol_full"]
     name_map = P._field_domain_map(ctx)[["field_id", "field_name", "domain_id"]]
-    ref_means = _sdg_share_field_ref_means(ctx, tree)
+    ref_means = _sdg_share_field_ref_means(ctx, tree, basis)
 
     rows = []
     for iid in ids:
         fids = sorted(int(x) for x in sub.loc[sub["institution_id"] == iid, "field_id"].unique())
         for fid in fids:
-            fm = float(field_mass.get((iid, fid), 0.0))
-            fm_full = float(field_mass_full.get((iid, fid), 0.0))
-            num = float(tagged.get((iid, fid), 0.0))
+            fm = float(field_mass.get((iid, fid), 0.0))          # denominator, current basis
+            fm_full = float(field_mass_full.get((iid, fid), 0.0))  # floor marker source, always full
+            num = float(tagged.get((iid, fid), 0.0))              # numerator, DISTINCT-tagged, same basis
             value = (num / fm) if fm > 0 else np.nan
+            assert not (value is not None and value == value and value > 1.0 + SDG_SHARE_EPS), (
+                f"SDG share > 1 (item-2 regression): institution={iid} field={fid} basis={basis} "
+                f"num={num} denom={fm} value={value}")
             name_row = name_map.loc[name_map["field_id"] == fid]
             fname = name_row["field_name"].iloc[0] if len(name_row) else str(fid)
             dom = int(name_row["domain_id"].iloc[0]) if len(name_row) else None
             rows.append({"institution_id": iid, "taxon_id": fid, "taxon_label": fname,
                         "value": value, "ref_value": float(ref_means.get(fid, np.nan)),
-                        "denominator": SDG_SHARE_FIELD_DENOM_NOTE,
+                        "denominator": SDG_SHARE_FIELD_DENOM_NOTE, "denom_value": fm if fm > 0 else np.nan,
                         "domain_id": dom, "domain_order": _OA_DOMAIN_ORDER_MAP.get(dom),
                         "vol_display": fm, "vol_full_annual_mean": fm_full / N_CORE_YEARS,
                         "vol_top10": None})
@@ -986,7 +1110,8 @@ def metric_frame(ctx: dict, subs: dict, ids: list[str], level: str, metric: str,
     assert metric in METRICS, f"unknown metric {metric!r}"
     if level == "subfield":
         assert field_id is not None, "level='subfield' needs field_id (drill within one field)"
-    tree = tree or subs["tree"]
+    tree = tree or (subs or {}).get("tree", "bestfit")
+    basis = (subs or {}).get("basis", "frac")  # v4 SS2.5: pp/vol_top10/vol/sdg-dynamics now basis-toggle-aware too
 
     if not metric_frame_available(metric, level):
         out = pd.DataFrame(columns=METRIC_FRAME_COLS)
@@ -1002,15 +1127,15 @@ def metric_frame(ctx: dict, subs: dict, ids: list[str], level: str, metric: str,
             return _field_dynamics_frame(ctx, subs, ids)
         if level == "subfield":
             return _subfield_dynamics_frame(ctx, subs, ids, field_id)
-        return _sdg_dynamics_frame(ctx, ids)  # level == "sdg" (erc has no dynamics, marked unavailable)
+        return _sdg_dynamics_frame(ctx, subs or {"basis": basis}, ids)  # level == "sdg" (erc has no dynamics, marked unavailable)
     if metric == "pp":
-        return _field_pp_frame(ctx, ids, tree, floor, want_vol=False)  # level == "field" only (asserted available)
+        return _field_pp_frame(ctx, ids, tree, floor, want_vol=False, basis=basis)  # level == "field" only (asserted available)
     if metric == "vol_top10":
-        return _field_pp_frame(ctx, ids, tree, floor, want_vol=True)
+        return _field_pp_frame(ctx, ids, tree, floor, want_vol=True, basis=basis)
     if metric == "sdg_share":
         return _sdg_share_field_frame(ctx, subs, ids, tree)
     if metric == "vol":
-        return _vol_frame(ctx, ids, level)  # level in {"erc", "sdg"} only (field/subfield marked unavailable)
+        return _vol_frame(ctx, subs, ids, level)  # level in {"erc", "sdg"} only (field/subfield marked unavailable)
     raise AssertionError("unreachable")  # pragma: no cover
 
 
