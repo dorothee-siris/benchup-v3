@@ -1277,6 +1277,95 @@ COLLAB = {
     "LINKS_INTRO": (
         "Every figure on this page is computed offline from the snapshot. These three links open the "
         "same filters live on OpenAlex, where the publications themselves can be read."),
+
+    # ======================================================================
+    # 2B-R2-11 / stream LP3: the re-cut Collaborate page (field breakdown as
+    # a chart, top shared topics with a slider, untapped potential with a
+    # slider, and the two directional "what X does not publish in" tables
+    # removed). ADDITIVE: every key above stays where it is, and the keys
+    # this section does not replace are still read by the page. Every
+    # placeholder is filled by lib/views_collab.py from a frame, from CFG or
+    # from a module constant: no number, no window and no floor is typed
+    # into a string here, and nothing here names a build code, a table or a
+    # file (tests/test_forbidden_vocabulary.py scans this dict).
+    # ======================================================================
+
+    # ---- the swap control, once the directional gap tables are gone -------
+    "PAIR_SWAP_HELP_PAIR": (
+        "Swapping changes which institution is read first. Every figure below covers the pair as a "
+        "pair, so the readings themselves do not change."),
+
+    # ---- section two: the joint corpus, field by field --------------------
+    "FIELDS_HEADER": "The joint corpus, field by field",
+    "FIELDS_CHART_READING": (
+        "Publications signed by both institutions, by field, grouped under the four broad domains."),
+    "FIELDS_CHART_TOOLTIP": (
+        "Each joint publication is counted once, under the field its main subject belongs to, and "
+        "counted in full for both sides. The colour beside a field name is its domain. Field mix "
+        "reads the repaired subject taxonomy and does not follow the taxonomy choice in the sidebar, "
+        "so it stays the same as that choice moves; the topic table below does follow it."),
+    "FIELDS_TABLE_READING": "The same fields as numbers, with how the joint work has been received.",
+    # The page appends `FWCI_NOT_AVAILABLE_LINE` (defined BELOW this dict, so
+    # it cannot be concatenated here) to this tooltip: the impact columns are
+    # introduced in this table, and that is where the descope has to be said.
+    "FIELDS_TABLE_TOOLTIP": (
+        "Volumes count every joint publication in the field, not only the ones behind the topic "
+        "table below. The two impact columns are described in their own column headings."),
+    "DOWNLOAD_FIELDS": "Download the field breakdown (CSV)",
+
+    # ---- section three: the shared topics ---------------------------------
+    "TOPICS_HEADER": "The topics the two publish on together",
+    "TOPICS_READING": "The shared topics carrying the most joint publications, largest first.",
+    "TOPICS_TOOLTIP": (
+        "Each joint publication counts once, under the topic it is mainly about, so a publication is "
+        "never spread over several rows. Only the pair's most-published shared topics are held, up to "
+        "{cap} of them, and only for pairs with at least {floor} joint publications; the counts by "
+        "goal and by panel below therefore describe the topics shown rather than the whole joint "
+        "corpus. Topics roll up to the subfield the taxonomy choice in the sidebar gives them."),
+    "TOPICS_SLIDER": "Topics shown",
+    "TOPICS_SLIDER_HELP": (
+        "How many of the pair's most-published shared topics to list. The ones left out are the "
+        "smallest."),
+
+    # ---- the table columns shared by the three tables ---------------------
+    "COL_TOP10": "In the world top decile",
+    "COL_TOP10_VALUE": "{n_top10} of {n_covered}",
+    "COL_TOP10_HELP": (
+        "How many joint publications sit among the most cited tenth of the world's publications on "
+        "the same subject, in the same year and of the same kind, out of the joint publications a "
+        "world comparison can be made for at all. Read the first number against the second, never "
+        "against the total beside it: the two counts have different denominators on purpose."),
+    "COL_MEAN_CITATIONS": "Mean citations",
+    "COL_MEAN_CITATIONS_HELP": (
+        "The average number of citations a joint publication in this field has collected so far, "
+        "exactly as counted, with no adjustment for subject or for how long ago it appeared. Older "
+        "work has had more time to be cited than recent work, so fields are not strictly comparable "
+        "on this column alone."),
+    "COL_TREND": "Trend",
+    "COL_TREND_HELP": (
+        "Mean joint publications a year over {w1}, against the same rate over {w2}. A difference "
+        "smaller than {band} of a publication a year is shown as steady rather than as a direction, "
+        "and the partial year is in neither window."),
+    "COL_LINK": "Read",
+    "COL_LINK_HELP": (
+        "Opens the publications the two institutions signed together on this row's subject, live on "
+        "OpenAlex, with the same filters this page counts on."),
+    "TABLE_ROWS_NOTE": "{n_shown} rows shown of {n_total}.",
+
+    # ---- the below-floor branch, and what this page does not show ---------
+    "BELOW_FLOOR_ITEM": "This pair",
+    "NOT_OFFERED_GAPS": "What each one publishes in that the other does not",
+    "NOT_OFFERED_GAPS_REASON": (
+        "answered better by the reading above, which starts from the ground the two already share "
+        "and asks where the joint publications have not followed"),
+    "NOT_OFFERED_BREADTH": "How many topics both institutions touch",
+    "NOT_OFFERED_BREADTH_REASON": (
+        "a single overlap figure counts a topic the same whether it carries one publication or a "
+        "thousand, so the topic by topic reading above replaces it here"),
+    "NOT_OFFERED_SUBFIELDS": "The joint corpus by subfield",
+    "NOT_OFFERED_SUBFIELDS_REASON": (
+        "the field breakdown and the topic table sit either side of it and are both complete on "
+        "their own terms"),
 }
 
 # --------------------------------------------------------- Methods page ----
