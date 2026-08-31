@@ -23,186 +23,201 @@ as a foreground-waited subprocess and always terminated in a `finally` block
 throwaway copy) instead of the checkout the script itself lives in -- this is
 how the non-vacuity proofs below run without ever touching the real repo.
 
-## Phase 2B-R re-cut (BUILD_PLAN_2BR.md Stream H)
+## Phase 2B-R2 re-cut (BUILD_PLAN_2BR2.md Stream H2)
 
-The journey now covers: search-on-validate (A12) with a proof that NOTHING
-renders before a pick; the 4-card profile (2B-R-2) with real (non-`n/a`)
-international/company facts (2B-R-7); the "2025*" bonus-year mark read off
-the live yearly figure's own data, since the old banner/caption is gone; the
-"`<n>` institutions &middot; data from `<date>`" caption (2B-R-12, the
-verbose snapshot stamp is gone); Top topics cut to 30 with no sort control
-(2B-R-13); the SI panels' outer-end value labels with the per-integer grid
-retired (`showgrid=False`); the frontier panel's ONE slider driving both
-modes; the A11 bare-code tab strip (`L0`..`L9`) fitting at 1280px with both
-optional lenses on, and the full lens name opening inside the tab body
-instead; the institution-name OpenAlex-works link proven with a real click +
-captured popup; Compare's cap-3 truncation (2B-R-4), metric selectors
-(2B-R-5/8), two frontier charts (2B-R-9) and 11-sheet workbook; Collaborate's
-four sections (2B-R-10) including a REAL below-floor pair; and the Methods
-lens-concordance table (2B-R-11).
+Re-cut for the crash fixes, colour system, Compare rationalisation and
+Collaborate rebuild. New/changed this round:
+
+- **Find (2B-R2-1a/6/7/8).** The Ifremer crash seed (umbrella AND
+  type-corrected, the profile that took the app down at gate 2B-R) is now its
+  own dedicated, standalone check at all three widths -- the inline
+  `"<type>* (was: <type>)"` correction with the `*`, and only the `*`, in a
+  reddish colour; the retired second badge stays gone. The profile's cards
+  column is a SIX-card 2x3 grid (was four): title-first anatomy (name, then a
+  bigger bold value, then one small line) proven structurally via computed
+  font-size/weight, not by string-matching a label; the Publications card
+  carries the fractional-counting NOTE, the other five carry the
+  index-baseline line; the institution NAME is the OpenAlex link; the
+  separate "What counts as a publication" link is gone. The SI outer-end
+  value label is proven fully inside the plot with a real bounding-box check
+  (not a DOM-presence check) on Ifremer's own worst-measured panel, at the
+  widths the 2B-R2-7 padding fix actually targets (1280/1920 -- 390px keeps a
+  pre-existing, documented, unrelated crowding issue).
+- **Compare (2B-R2-3/4/5/8/9/10/13).** The metric selector's exact vocabulary
+  is asserted per level (Share/Specialisation/PP/SDG-tagged/Dynamics
+  everywhere, "Volume" only where a level defines one, the retired
+  "Publications in the world top decile" TAB nowhere); every option the
+  subject selector offers is actually clicked and redrawn (the 2B-R lesson);
+  row order is read off the DRAWN y-axis ticks and proven IDENTICAL between
+  two metric tabs (the load-bearing check), then proven to actually re-rank
+  under the "Largest first" toggle and restore under "By subject area";
+  volume gutters are proven to carry a number on (almost) every row; the
+  low-volume dagger glyph is hunted down on the BAR's own value-label text
+  (not the y-tick text, which never carries it -- see DOM facts below);
+  reference-line shape counts are compared across Share/Dynamics/PP; the
+  frontier map's pool selector and domain-colour toggle are proven to change
+  the plotted topic-set SIGNATURE and the map's OWN legend (scoped past the
+  unrelated "who holds the shared frontier" chart, which carries the same
+  "held by more than one" chip in a legend of its own); the plain-language
+  "Not shown here, and why" disclosures and a page-wide forbidden-vocabulary
+  scan (no "2B-R", "artefact", "pipeline", stream code) run on the journey
+  page.
+- **Collaborate (2B-R2-11/12/13).** New section order (pulse -> field
+  breakdown chart+table -> shared topics -> untapped -> link-outs), driven on
+  a manager-verified anchor pair (Universite de Strasbourg x CNRS) as its own
+  standalone, deterministic check -- never on the journey's hand-off pair,
+  which is built from an arbitrary L1 ranking and could legitimately land
+  below the floor. Proves: the field-breakdown chart carries real values and
+  is COMPARISON-grey (no institution hue reaches the pair's own chart); every
+  field/topic row carries a domain chip and a dynamics arrow that varies row
+  to row; every shown row's `.bu-link` carries a live pair+taxon OpenAlex URL
+  (both institutions ANDed with a repeated filter key, plus the taxon filter);
+  the topic-depth and untapped-depth sliders change their own table's row
+  count; the two "X does not publish in" gap tables and their CSV download
+  are GONE, disclosed instead through the shared "Not shown here, and why"
+  line; the CSV downloads (fields/topics/untapped) match the published column
+  contracts. The below-floor pair (Strasbourg x Bavarian Academy of Sciences
+  and Humanities, 2 joint works, floor now 5) shows the honest notice and
+  renders ONLY the untapped/adjacent tables -- field and topic breakdowns are
+  absent, since they are floor-gated and untapped is not.
+- Everything else (Menu, Find search-on-validate, basket, controls placement,
+  A11 tab overflow, benchmark tables/export, institution-link popup,
+  settings, persistence, undefined lens, Methods) is unchanged in shape from
+  2B-R and re-verified, not re-designed, this round.
 
 ## What each check proves
 
 | Section | What it proves |
 |---|---|
-| Menu | The landing page renders: a heading, the `.st-key-nav_cards` container, >=4 live `st.page_link` cards (Find peers, Compare, Collaborate, How it is built), no exception. |
-| Find search (2B-R-12/A12) | The data caption reads "`<n>` institutions &middot; data from `<date>`" with the old verbose stamp gone; typing "gdansk" + Enter opens the results selectbox but renders **no profile and no tabs** until a pick is made (A12); picking the first result loads the University of Gdańsk profile; the default tab count is exactly 10. |
+| Menu | The landing page renders: a heading, the `.st-key-nav_cards` container, exactly 4 live `st.page_link` cards (Find peers, Compare, Collaborate, How it is built), no exception. |
+| Find search (A12) | The data caption reads "`<n>` institutions &middot; data from `<date>`"; typing "gdansk" + Enter opens the results selectbox but renders **no profile and no tabs** until a pick is made; picking the first result loads the University of Gdańsk profile; the default tab count is exactly 10. |
 | Basket | The sidebar "add a comparator" flow adds Sorbonne then Bologna; the basket panel lists exactly 2 items. |
 | Controls placement | The sidebar carries ONLY `.st-key-tree` / `.st-key-basis`; depth/C1/L7/post-filters render in the main-area controls row; the scenario selectboxes show their DISPLAY label, never the internal value; the country multiselect shows names. |
-| Profile / panels (2B-R-2/7/13) | `.st-key-profile` renders once; the wordcloud renders as a real `<img>`; exactly 4 `.benchup-kpi` cards, 4 `.benchup-kpi-sub` sublines (one each, all containing "index median"); the identity caption carries REAL international/company percentages (`n/a` is gone now that P2/P4 have deployed); the six panels carry their exact labels; Top subfields AND Top topics both carry no sort control and are cut at 30; SDG y-ticks all start with "SDG"; the frontier panel's mode control changes the plotted TOPIC SET (see "2B-R-13 slider" below); the breakdown pair's segmented control swaps the chip legend. |
-| Bonus year axis (2B-R-2) | "2025*" is present in the yearly breakdown figure's own `x` data -- the old caption/banner is gone. |
-| SI value labels (2B-R-13) | The fields/subfields/ERC panels' SI marker carries a non-empty outer-end text label, and the axis's `showgrid` is `false` (the old per-integer unit grid is retired). |
-| Frontier slider, both modes (2B-R-13) | The single top-N slider changes the plotted point count in EACH mode independently (moved, then restored, in both Top and Emerging), and the panel is left in EXACTLY the state `check_profile_and_panels` handed off (mode=Emerging, slider=default) before the persistence checks run. |
-| A11 tab overflow | With BOTH optional lenses switched on (then back off), the tab count is 12 and `[role="tablist"]` (the element BaseWeb actually scrolls -- NOT the outer `[data-testid="stTabs"]` wrapper, which carries a few px of its own chrome) fits with no silent scroll at 1280px; every tab carries its bare code (`L0`..`L9`). |
-| Benchmark lens guide (A11) | The guide's header is exactly "How to read the lenses"; the first default-lens TAB carries only the bare code `L0`; clicking it reveals the full name ("L0 &middot; Field overlap") inside the tab BODY; the Overview caption points back at the guide. |
-| Tables / export | A lens's ranked table renders; its CSV carries `total_frac_2020_2024`, `country`, `evidence`, no `badge`; the Aspirational tab's table carries no "Interval" column (2B-R-11). |
-| Institution link (A10) | A REAL click on the Aspirational table's Institution cell (a canvas grid -- no DOM `<a>` to query) opens a popup whose URL contains `openalex.org/works` -- the URL-fragment display-text trick. |
-| Settings | Post-filters, depth-to-max, the tree's non-default DISPLAY label, and L7 all set here, giving the persistence check something real to lose. |
-| Persistence (load-bearing) | After 4 real Menu&harr;Find hops: basket, L7 tab, seed heading, strip (taxonomy/depth/type) all survive; the frontier panel's **topic-set SIGNATURE** (not raw point count -- 2B-R-13 made both modes capable of tying on count) still matches the Emerging-mode baseline; the breakdown chip legend still matches. Checked at baseline, after 2 hops (re-mount) and after 4. |
-| Type filter clear / Undefined lens | Unchanged mechanics; the undefined-lens tab is now located by its 2B-R-11a display code (`L4`, not the old literal `L2f` substring, which no longer appears anywhere in the rendered page). |
-| Screenshots | Menu/Find at 1920/1280/390 with the Top-subfields panel open, scrollWidth checked at each. |
-| Journey: Compare (2B-R-4/5/6/7/8/9/12) | A 4-item basket (Gdansk + its top-3 L1 peers) triggers the cap-3 (`COMPARE_CAP=3`) truncation notice and a 3-id deep link; overview cards carry international/company facts; the "Compare by" metric selector switches; the ERC section's option list is checked for the ruled "Volume" option (2B-R-8 -- **currently fails, a real UI gap, see the stream's progress note**); the frontier map's own slider changes its plotted count; the diverging "who holds the shared frontier" chart renders; >=4 legend strips render above their charts; the workbook carries exactly 11 sheets (`Methods` + 10); removing one shown institution refills the comparison to the cap and the truncation notice disappears. |
-| Journey: hand-off + Collaborate (2B-R-10) | The in-session `st.switch_page` hand-off keeps the basket and scenario; all four 2B-R-10 section headers render; the pulse chart's data carries "2025*"; the two "ranks number" lines read different numbers (asymmetric, proving no accidental swap); swap flips A/B; the shared-topics table (now inside the untapped section's own expander) and its CSV are unchanged from 2B. |
-| Journey: below-floor pair (2B-R-10) | A REAL sub-floor pair (Strasbourg &times; Bavarian Academy of Sciences and Humanities, 2 joint works < floor 3), reached via `?pair=` on a FRESH, standalone session (this asserts no persistence claim, so `page.goto()` is correct here) -- the honest notice renders, the topic table does not, pulse/links still do. |
-| Journey: Methods (2B-R-11) | >=14 section expanders (MU shipped 20), zero unresolved `{placeholder}`s, the "Reading the lens codes" concordance table names both optional lenses' internal ids (`C1`, `L7`). |
-| Journey: cross-page persistence + widths | Tree/basis/basket agree across Compare/Collaborate/Methods and back to Find; no horizontal body scroll at 1920/1280/390 on EVERY one of the four pages (Compare's own render check already covered all three; Collaborate/Methods are now also checked at 1920/390, not just 1280). |
+| Profile / cards (2B-R2-6/7/8) | `.st-key-profile` renders once; the wordcloud renders as a real `<img>`; exactly 6 `.benchup-kpi` cards carrying the ruled labels (title-first, proven via computed font-size/weight of the card's own first two children); 6 `.benchup-kpi-sub` lines, of which exactly 5 read "index median ..." and exactly 1 (Publications) carries the `.benchup-kpi-value2` fractional-counting note; the institution name links to its own OpenAlex works, the separate "What counts as a publication" link is gone; the six chart panels carry their exact labels; Top subfields/topics carry no sort control and are cut at 30; SDG y-ticks all start with "SDG"; the frontier panel's mode control changes the plotted TOPIC SET; the breakdown pair's segmented control swaps the chip legend. |
+| Bonus year axis | "2025*" is present in the yearly breakdown figure's own `x` data. |
+| SI value labels | The fields/subfields/ERC panels' SI marker carries a non-empty outer-end text label, `showgrid` is `false`. |
+| Ifremer crash seed (2B-R2-1a/7, standalone) | At 1920/1280/390px, fresh sessions: no exception; 6 cards; the inline `"<type>* (was: <type>)"` correction renders with the `*` as its own, reddish-coloured span; the name links to OpenAlex works; no separate publication-definition link; a real bounding-box proof that every SI outer-end value label stays inside the plot on Ifremer's own worst-measured panel (1280/1920 only -- see DOM facts); no horizontal scroll. |
+| Frontier slider, both modes | The single top-N slider changes the plotted point count in EACH mode independently, and the panel is left in EXACTLY the state handed to the persistence checks. |
+| A11 tab overflow | With BOTH optional lenses on (then back off), tab count is 12 and `[role="tablist"]` fits with no silent scroll at 1280px; every tab carries its bare code (`L0`..`L9`). |
+| Benchmark lens guide | Header exactly "How to read the lenses"; the first default-lens tab carries only `L0`; clicking it reveals the full name inside the tab body; the Overview caption points back at the guide. |
+| Tables / export | A lens's ranked table renders; its CSV carries the R1 columns, no `badge`; the Aspirational tab's table carries no "Interval" column. |
+| Institution link (A10) | A REAL click on a canvas-grid Institution cell opens a popup whose URL contains `openalex.org/works`. |
+| Settings / Persistence / Type filter clear / Undefined lens | Unchanged mechanics from 2B-R, re-verified. |
+| Journey: Compare (2B-R2-3/4/5/8/9/10/13) | Cap-3 truncation notice + deep link; overview cards carry all 6 KPI labels incl. intl/industrial, a best-value dot (painted background span), the name-as-link, no separate Publications button; the selector's exact vocabulary per level (no vol_top10 anywhere, Volume only on ERC/SDG); every subject option is clicked and redrawn; row order IDENTICAL between Share and Dynamics tabs (**load-bearing**), then proven to re-rank under "Largest first" and restore under "By subject area"; the volume gutter carries a number on (almost) every row; a low-volume dagger glyph found in a bar's own value-label text; reference-line shape counts rise on Dynamics/PP vs Share; the frontier map's pool selector and domain-colour toggle change the plotted signature and the map's own (scoped) legend; the plain-language "Not shown here, and why" disclosure renders and a forbidden-vocabulary scan finds nothing; the impact-floor toggle changes the page's markdown reading lines (moved off `st.caption` this round); the workbook carries 11 sheets; removing one shown institution refills the comparison to the cap. |
+| Journey: hand-off + Collaborate (persistence) | The in-session `st.switch_page` hand-off keeps the basket and scenario; all 5 current section headers render; the pulse chart carries "2025*"; the two "ranks number" lines read different numbers (no accidental swap); swap flips A/B. |
+| Collaborate anchor pair (2B-R2-11, standalone) | Universite de Strasbourg x CNRS, a fresh deterministic session: all 4 tables render as hand-built HTML (no canvas grid); the field-breakdown chart carries real bar values; every field/topic row carries its domain chip(s) and dynamics arrow; every shown row's link ANDs both institutions and carries the right taxon filter; the topic-depth and untapped-depth sliders change their own row counts; the two gap tables and their download are gone, disclosed in plain language; the 3 CSV downloads match the published column contracts. |
+| Collaborate below-floor pair (2B-R2-12, standalone) | A REAL sub-floor pair (Strasbourg x Bavarian Academy of Sciences and Humanities, 2 joint works < floor 5), reached via `?pair=` on a fresh session -- the honest notice renders with its own numbers, ONLY the untapped/adjacent tables render (field+topic are floor-gated), pulse/links still render. |
+| Journey: Methods | >=14 section expanders, zero unresolved `{placeholder}`s, the lens-concordance table names both optional lenses' internal ids. |
+| Journey: cross-page persistence + widths | Tree/basis/basket agree across Compare/Collaborate/Methods and back to Find; no horizontal body scroll at 1920/1280/390 on every page. |
 
 Every selector is locale-independent: `.st-key-<key>` classes, `[role="tab"]`,
-`[role="option"]`, `[data-testid="stRadioOption"]`,
+`[role="option"]`, `[data-testid="stRadioOption"]`, `[data-table="..."]`,
 `[data-testid="stSidebarNav"]`, `[data-testid="stException"]`. Text is read
 via `textContent` (never `innerText`) and only to **assert** content, never
 to locate an element -- and never against `st.dataframe`'s canvas grid.
 
 ## DOM facts (Streamlit 1.61.1)
 
-Carried forward from 2A/R1/R2/2B unchanged: tabs are `[role="tab"]`, a keyed
-checkbox is the first `label` under `.st-key-<key>`, a `st.radio(horizontal)`
-is `[data-testid="stRadioOption"]`, a multiselect opens via
-`.st-key-<key> input` + `.fill()`, a selectbox is a react-aria ComboBox
-(`.st-key-<key> [data-baseweb='select']`, falling back to the container, with
-an `ArrowDown` fallback for a second sequential use of the same widget), a
-selectbox's CURRENT value is its `input`'s own `value` property, an
-`st.expander`'s summary carries an icon-font ligature prefix requiring exact
-(not substring) comparison, an expander's body executes every rerun
+Carried forward from 2A/R1/R2/2B/2B-R unchanged: tabs are `[role="tab"]`, a
+keyed checkbox is the first `label` under `.st-key-<key>`, a
+`st.radio(horizontal)` is `[data-testid="stRadioOption"]`, a multiselect
+opens via `.st-key-<key> input` + `.fill()`, a selectbox is a react-aria
+ComboBox, an `st.expander`'s summary carries an icon-font ligature prefix
+requiring exact comparison, an expander's body executes every rerun
 regardless of visual state, a `st.segmented_control` is a row of real
-`<button>`s clicked by position, and `st.dataframe` is a canvas grid with no
-real per-cell text nodes.
+`<button>`s clicked by position, a slider's thumb is a visually-hidden real
+`<input type="range">` driven by `.press("ArrowLeft"/"ArrowRight")`, and
+`st.dataframe` is a canvas grid with no real per-cell text nodes.
 
-### New facts, measured against a standalone debug server (2026-08-31)
+### New facts, measured this round (2026-08-31)
 
-- **A Streamlit slider's thumb carries no `role="slider"`** on this pinned
-  build -- it is a visually-hidden real `<input type="range">` (react-aria's
-  accessible-hide pattern: zero visual size, `clip-path: inset(50%)`).
-  `.press("ArrowLeft"/"ArrowRight")` on that locator (which focuses the
-  element itself, no separate click) is what actually moves it; a click at
-  its own bounding box hits nothing, since the box has zero area.
-- **`[data-testid="stTabs"]` (the outer wrapper) is NOT the element that
-  scrolls.** It carries a few px of its own padding/border (measured:
-  scrollWidth 829 vs clientWidth 820, a false "overflow"), while
-  `[role="tablist"]` -- the element BaseWeb's own tab bar renders as, since
-  `[data-baseweb="tab-list"]` is absent on this build -- measures exactly
-  820==820, matching stream FC's own report. Always measure the tablist, not
-  the wrapper.
-- **A keyed widget whose key embeds spaces gets them turned into hyphens** in
-  its `st-key-` class (`frontier_topn_Top topics by volume` ->
-  `st-key-frontier_topn_Top-topics-by-volume`); a `[class*="st-key-<prefix>"]`
-  partial match still finds it without needing the exact sanitised string.
-- **2B-R-13's frontier panel shares ONE top-N slider between both modes.**
-  This means the plotted POINT COUNT can legitimately tie between Top and
-  Emerging (both capped at the same `top_n`, e.g. 200==200) even though the
-  underlying topic SET is completely different -- a raw count comparison is
-  no longer sufficient proof the mode control does anything, and is *not*
-  sufficient for the cross-page persistence check either (a mutation that
-  silently resets `frontier_mode` to its coded default can still show 200==200
-  if both pools have >=200 members). `_frontier_signature` (the live figure's
-  `x`/`y` arrays, JSON-stringified) is the only honest signal, used both for
-  the mode-switch check and for `_capture_persisted_state`/`_assert_persisted`.
-- **2B-R-11a renumbers `L2f`'s display code to `L4`.** The tab carries only
-  the bare code, and `UNDEFINED_LENS_TEMPLATE` now formats with
-  `copy.LENS_DISPLAY_NAMES["L2f"]` ("L4 &middot; Shared specialisations") --
-  the literal substring `"L2f"` no longer appears anywhere in the rendered
-  page. Locate the tab by `L4` and check the undefined message against the
-  full display name, never the old internal id.
-- **`SHARED_EXPANDER` (Collaborate's full-topic-overlap table, inside the
-  untapped section) carries no `key=`.** It is opened by its own summary
-  TEXT ("The full topic overlap, weighted by publications") -- a navigation
-  need, not a content assertion, so this does not reopen the non-vacuity
-  question the exact-label checks exist to answer.
-- **Compare's reorder buttons (`cmp_up_`/`cmp_down_`) and the frontier
-  facets/overlay toggle (`cmp_frontier_form`) are RETIRED in 2B-R.** Do not
-  look for them; the frontier section is now two independent charts
-  (`fig_cmp_frontier_map`, `fig_cmp_shared_frontier`), and the compared set's
-  order is fixed by the identity family's own slot order.
+- **A low-volume dagger glyph lives INSIDE the bar's own value-label text**
+  (a Plotly `text` trace entry, e.g. `"-16.4%†"`), never in the y-axis
+  tick text -- the tick carries only the row name and its volume-gutter
+  numbers. A check that reads `.ytick text` for the glyph will never find it
+  even where a real low-volume row exists; read `el.data[i].text` off the
+  live figure instead (`_fig_xy_text` in `smoke.py`).
+- **The frontier map's own legend and the "who holds the shared frontier"
+  chart's legend both carry the "held by more than one" chip.** A
+  page-wide text search for that phrase cannot prove the domain-colour
+  toggle did anything (it's always present in the OTHER chart's legend);
+  scope the read to the markdown block immediately preceding the map's own
+  `.st-key-fig_cmp_frontier_map` container (`previousElementSibling`).
+- **2B-R2-8 moved Compare's reading lines out of `st.caption` and into
+  markdown `chart_note` blocks.** The impact-floor toggle's own text change
+  shows up in `[data-testid="stMarkdownContainer"]`, not
+  `[data-testid="stCaptionContainer"]` (measured: captions identical
+  before/after, markdown differs).
+- **Collaborate's tables are hand-built HTML now, not `st.dataframe`.**
+  `[data-table="collab_fields|collab_topics|collab_untapped|collab_siblings"]`
+  with `tbody tr[data-row]`, `.bu-chip[data-domain]`,
+  `.bu-arrow[data-arrow]`, `.bu-link[href]` -- read rows/cells/links directly
+  instead of downloading a CSV to check row-level facts. Waiting for
+  `[data-table="collab_untapped"]` (not the old `[data-testid="stDataFrame"]`)
+  is what actually signals the page has landed after a hop.
+- **The Compare ERC section's own metric vocabulary is
+  Share/Specialisation/Volume -- it never offers Dynamics or PP**, and SDG's
+  is Share/Dynamics/Volume. A check that assumes every level offers every
+  `SELECTOR_METRICS` label will hang forever on `get_by_text(...).click()`
+  for a label that section never renders; read the level's own option list
+  first and branch on it.
+- Carried forward: a Streamlit slider's `role="slider"` is absent (use
+  `input[type="range"]`); `[role="tablist"]`, not `[data-testid="stTabs"]`,
+  is what actually scrolls; a keyed widget whose key embeds spaces gets them
+  turned into hyphens in its `st-key-` class; the frontier panel's ONE
+  top-N slider means point COUNT can tie across modes -- read the figure's
+  own `x`/`y` arrays (`_frontier_signature`) instead.
 
-## Real finding surfaced by this run (not a test bug)
+## The non-vacuity proofs (2B-R2, stream H2)
 
-**Compare's ERC section offers no "Volume" metric option (2B-R-8).**
-`compare_data.py` (`lib/compare_data.py::METRICS`) ships a `vol` metric
-(CD's post-commit addendum, verified at the data layer, 84/84), but
-`views_compare.py`'s `METRIC_LABELS`/`ERC_METRICS`/`SDG_METRICS` -- written
-before that addendum landed -- still enumerate only the original six metrics,
-so `vol` never reaches the UI's option list regardless of what
-`metric_frame_available` says. This shows up as one reliable FAIL every run:
-`Compare ERC (2B-R-8): a 'Volume' metric option is offered among
-'Share|Specialisation'`. It is real, reproducible, and out of this stream's
-fence (`tests/ui/*` only) -- flagged for CD/CP.
+Both ran against **throwaway copies** of `app/` (code dirs copied, `data/`
+junctioned read-only into each copy via `New-Item -ItemType Junction` --
+219 MB of parquet is never duplicated), one copy per mutation.
+`tests/ui/smoke.py` itself is always read from the REAL checkout (only
+`--app-dir` points at the throwaway copy), so both proofs run under the
+exact same test logic as the real run.
 
-## The non-vacuity proofs (2B-R, stream H)
-
-Both ran against **throwaway copies** of `app/` (never the real repo, one
-copy per mutation), built with the established
-`MSYS_NO_PATHCONV=1 robocopy ... /E /XD "tests\ui\screenshots" ".git"
-"__pycache__" /NFL /NDL /NJH /NJS /NC /NS /NP` idiom (exit code `1` means
-"files copied successfully", not failure). `tests/ui/smoke.py` itself is
-always read from the REAL checkout (only `--app-dir` points at the throwaway
-copy), so both proofs run under the exact same test logic as the real run.
-
-### Proof (a): remove `persist_state` from `frontier_mode` only -> exactly its persistence checks fail
+### Proof 1: drop the low-volume dagger glyph -> exactly its own check fails
 
 ```python
-# lib/views_find.py, in the throwaway copy only, _panel_frontier()
-st.segmented_control(copy.FIND["FRONTIER_MODE_LABEL"], [mode_top, mode_emerging],
-                     default=mode_top, required=True, key="frontier_mode")   # ** PERSIST removed
+# lib/charts_compare.py, throwaway copy only
+LOW_VOLUME_GLYPH = ""   # was "\N{DAGGER}"
 ```
 
-Result: **exit 1**. The frontier signature reads PASS at the baseline capture
-(before any hop) and FAIL at both the 2-hop and 4-hop marks -- exactly the 2
-checks this mechanism owns:
+Result: **exit 1**, 356 of 360 checks passed. The targeted check fails
+exactly where the glyph search runs; the other 3 are an unrelated, pre-
+existing Methods-download timeout flake (also seen, once, in proof 2's run
+below -- not present in the unmutated real-repo run, so it reads as
+throwaway-copy cold-cache slowness, not a consequence of this mutation):
 
 ```
-PASS: Persistence: baseline captured before any hop: frontier_mode still shows its off-default (emerging) topic set (signature match: True; ...)
-FAIL: Persistence: 2nd Find visit (re-mount check): frontier_mode still shows its off-default (emerging) topic set (signature match: False; ...)
-FAIL: Persistence: 3rd Find visit (after 4 hops): frontier_mode still shows its off-default (emerging) topic set (signature match: False; ...)
+FAILED: Compare (2B-R2-4): a low-volume marker (dagger glyph) renders on at least one bar's own value label, searched across subject/ERC/SDG on the Dynamics view
 ```
 
-(That same run also hit one unrelated infra timeout on the Compare hand-off's
-`cmp_pair_b` selectbox, cutting the journey short -- unrelated to
-`frontier_mode`; the mechanism's own before/after signal above is unambiguous
-on its own, and the unmutated real app passes that exact section cleanly on
-every other run in this stream, including a repeat run right before this
-proof.)
-
-### Proof (b): rename `PANEL_TOPICS` -> exactly the label check fails
+### Proof 2: drop the star from the type-corrected identity template -> exactly the Ifremer checks fail, at all 3 widths
 
 ```python
-# lib/copy.py, in the throwaway copy only
-"PANEL_TOPICS": "Top topics overview",   # was "Top topics"
+# lib/copy.py, throwaway copy only
+"IDENTITY_TYPE_CORRECTED": "{kind} (was: {was})",   # was "{kind}{star} (was: {was})"
 ```
 
-Result: **exit 1**, 255 of 257 checks passed -- exactly one NEW failure (plus
-the pre-existing, unrelated ERC finding above):
+Result: **exit 1**, 348 of 354 checks passed -- exactly the 6 Ifremer checks
+this template feeds (2 checks x 3 widths), plus the same unrelated download
+flake:
 
 ```
-FAILED: Panel 'topics': header label is exactly 'Top topics' (got 'keyboard_arrow_rightTop topics overview')
-FAILED: Compare ERC (2B-R-8): a 'Volume' metric option is offered among 'Share|Specialisation'
+FAILED: Ifremer 1920px: the inline type correction '<type>* (was: <type>)' renders (body has: None)
+FAILED: Ifremer 1920px: the '*' renders as its own span
+FAILED: Ifremer 1280px: the inline type correction '<type>* (was: <type>)' renders (body has: None)
+FAILED: Ifremer 1280px: the '*' renders as its own span
+FAILED: Ifremer 390px: the inline type correction '<type>* (was: <type>)' renders (body has: None)
+FAILED: Ifremer 390px: the '*' renders as its own span
 ```
 
 ### Then: the real app, unmutated
 
 ```
-python tests/ui/smoke.py --port 8622
+python tests/ui/smoke.py --port 8641
 ```
-Result: **256 of 257 checks passed** -- the one failure is the real ERC
-"Volume" finding above, reproduced identically across three separate runs.
-No orphan `python.exe`/`streamlit` process or LISTENING port left after any
-run in this stream.
+Result: **359 of 359 checks passed, exit 0**. No orphan `python.exe` /
+`streamlit` process or LISTENING port left after any run in this stream.

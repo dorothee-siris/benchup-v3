@@ -107,11 +107,46 @@ SUBFIELDS_TOP_N = 30
 # volume-ordered concept).
 TOPICS_TOP_N = 30
 
-# 2B-R-2: the profile's 2 x 2 KPI-card grid (replaces R2's eight-tile grid),
-# `lib/tiles.py`'s TILE_CLASS/SUBLINE_CLASS hooks. ONE subline per card now
-# (the index-baseline line only -- the second "companion figure" value, where
-# present, is its OWN `.benchup-kpi-value2` hook, not a second sub-line).
-N_TILES = 4
+# 2B-R2-6: the profile's cards column is a SIX-card 2 x 3 grid now (was the
+# 2B-R FOUR-tile grid) -- `lib/tiles.py`'s TILE_CLASS/SUBLINE_CLASS hooks. ONE
+# small line per card: the index-baseline line for five of them, and for
+# Publications the fractional-counting NOTE instead (own `.benchup-kpi-value2`
+# hook) -- both share the SAME `.benchup-kpi-sub` class, which is why the sub
+# count below is checked against N_CARDS, not N_CARDS - 1.
+N_CARDS = 6
+CARD_LABELS = ["Publications", "SDG-tagged share", "Frontier top-quartile share",
+              "PP(top10%)", "International co-publications", "Industrial co-publications"]
+# 2B-R2-1a: the Ifremer profile is BOTH an umbrella and type-corrected -- the
+# assert that crashed the app at gate 2B-R. Rendered as its own dedicated
+# check (fresh session, `?seed=`), never folded into the generic Gdansk walk.
+CRASH_SEED = "I154202486"
+IDENTITY_TYPE_CORRECTED_RE = re.compile(r"[A-Za-z_]+\*\s*\(was:\s*[A-Za-z_]+\)")
+NO_LONGER_ON_FIND = "What counts as a publication"
+
+# 2B-R2-13: a strategy officer must never meet a plan code, a build artefact,
+# a pipeline/table name or a stream name anywhere this file renders. Kept as a
+# short, hardcoded list here (never re-imported from the app's own forbidden-
+# vocabulary test) so a rename of that test's own list cannot silently widen
+# what this file is willing to accept.
+FORBIDDEN_VOCAB = ("2B-R", "BUILD_PLAN", "artefact", "pipeline", "parquet")
+FORBIDDEN_CODES_RE = re.compile(r"\b(MU3|CP3|LP3|VS3|FA3|CD3|WT2?|P6|G2|H2|I2)\b")
+
+# 2B-R2-3: the Compare selector's own vocabulary and order. "Publications in
+# the world top decile" (the old vol_top10 TAB) must never appear among the
+# options; "Volume" is offered only where a level actually defines one.
+SUBJECT_METRIC_LABELS = ["Share", "Specialisation", "PP(top10%)", "SDG-tagged share",
+                         "Change in mean annual volume"]
+VOL_TOP10_LABEL = "Publications in the world top decile"
+VOLUME_LABEL = "Volume"
+SORT_TAXONOMY_LABEL = "By subject area"
+SORT_VALUE_LABEL = "Largest first"
+POOL_VOLUME_LABEL = "Most published by this set"
+POOL_ELITE_LABEL = "The most emerging topics only"
+COLOR_OWNER_LABEL = "Who holds the topic"
+COLOR_DOMAIN_LABEL = "Broad subject area"
+LEGEND_SHARED_TEXT = "held by more than one"
+LOW_VOLUME_GLYPH = "\N{DAGGER}"
+NOT_OFFERED_HEADER = "Not shown here, and why"
 
 PANEL_LABELS = [
     ("fields", "Fields"),
@@ -149,10 +184,6 @@ BREAKDOWN_DOMAIN_IDX, BREAKDOWN_DOCTYPE_IDX = 0, 1
 # breakdown's own x-axis instead (config.yaml bonus_year: 2025).
 BONUS_YEAR_AXIS_LABEL = "2025*"
 
-# 2B-R-12: "n/a" (lib/palette.NA_MARK) hardcoded here rather than imported --
-# the whole point of the identity-facts check below is that this string is
-# GONE now that P2/P4 have landed real intl/company columns.
-NA_TEXT = "n/a"
 DATA_CAPTION_RE = re.compile(
     r"[\d,]+\s+institutions\s+" + re.escape(SEP) + r"\s+data from\s+[A-Za-z]+\s+\d{1,2},\s+\d{4}")
 
@@ -183,22 +214,43 @@ CAP_TRUNCATED_SUBSTR = "The basket holds more institutions than a comparison can
 XLSX_METHODS_SHEET = "Methods"
 XLSX_SHEET_COUNT = 11          # Methods + 10 view sheets (sheet_specs, 2B-R re-cut)
 
-SHARED_TOPICS_HEADER = ("topic_id,topic_name,subfield_name,share_a,share_b,"
-                        "min_share,keywords,top25pct_frontier")
-SHARED_EXPANDER_TITLE = "The full topic overlap, weighted by publications"
-
-# 2B-R-10 Collaborate section headers, hardcoded literals (non-vacuity).
+# 2B-R2-11a Collaborate section headers, hardcoded literals (non-vacuity).
+# NOTE: "What the two publish on together" (old order) is GONE -- the joint
+# corpus is now read off the field-breakdown chart+table FIRST, then the
+# top-shared-topics table; "The joint corpus, field by field" is the new
+# section this stream's field-breakdown chart lives under.
 COLLAB_SECTION_HEADERS = [
     "The relationship, year by year",
-    "What the two publish on together",
+    "The joint corpus, field by field",
+    "The topics the two publish on together",
     "Where the two overlap without publishing together",
     "Read the publications on OpenAlex",
 ]
-TOPIC_BELOW_FLOOR_SUBSTR = "the topic-by-topic breakdown needs to stay readable"
-# LP's own proven real sub-floor pair (progress/2BR_LP.md): 2 joint works,
-# under the topic floor of 3.
+COLLAB_TABLES = ("collab_fields", "collab_topics", "collab_untapped", "collab_siblings")
+COLLAB_TABLES_BELOW_FLOOR = ("collab_untapped", "collab_siblings")
+# 2B-R2-12: the pair tables ship at floor 5 now (was 3).
+PAIR_FLOOR = 5
+BELOW_FLOOR_NOTICE_RE = re.compile(
+    r"This pair holds \d+ publications, under the " + str(PAIR_FLOOR)
+    + r" a breakdown needs to stay readable")
+GAP_TABLE_HEADER_SUBSTR = "does not publish in"
+DOWNLOAD_GAPS_TEXT = "Download this gap list (CSV)"
+JOINT_TOPICS_CSV_HEADER = ("topic_id,topic_name,subfield_id,subfield_name,field_id,field_name,"
+                           "domain_id,domain_name,vol_w1,vol_w2,vol_2025,vol_total,n_covered,"
+                           "n_top10,sdg_tagged_n,arrow,url")
+FIELD_BREAKDOWN_CSV_HEADER = ("field_id,field_name,domain_id,domain_name,vol_w1,vol_w2,vol_2025,"
+                              "vol_total,n_covered,n_top10,mean_citations,arrow,url")
+UNTAPPED_CSV_HEADER = ("topic_id,topic_name,subfield_id,subfield_name,vol_a,vol_b,"
+                       "joint_observed,joint_expected,gap,url")
+TOPICS_TOP_N_CAP = 100
+TOPICS_ROWS_DEFAULT = 20
+TOPICS_ROWS_STEP = 10
+TAXON_FILTER_KEYS = ("primary_topic.id:", "primary_topic.subfield.id:", "primary_topic.field.id:")
+# LP's own proven real sub-floor pair: 2 joint works, under the floor of 5.
 BELOW_FLOOR_A_ID = "I68947357"     # Universite de Strasbourg
 BELOW_FLOOR_B_ID = "I109144446"    # Bavarian Academy of Sciences and Humanities
+COLLAB_PAIR_A = "I68947357"        # Universite de Strasbourg
+COLLAB_PAIR_B = "I1294671590"      # CNRS -- Strasbourg's own first partner
 
 METHODS_MIN_SECTIONS = 14      # MU shipped 20; 10 was the pre-2B-R floor
 LENS_CODES_TITLE = "Reading the lens codes"
@@ -453,6 +505,81 @@ def _frontier_signature(page) -> str:
         " return JSON.stringify(el.data.map(t => [t.x, t.y])); })()")
 
 
+def _fig_xy_text(page, selector: str) -> dict:
+    """Every trace's x/y/text arrays off a LIVE Plotly figure -- used to prove a
+    chart actually carries data (2B-R2-11's new field-breakdown chart), not
+    just that its container exists."""
+    return page.evaluate(
+        "(sel) => { const el = document.querySelector(sel); if (!el || !el.data) return null;"
+        " return el.data.map(t => ({x: t.x || [], y: t.y || [], text: t.text || []})); }",
+        selector)
+
+
+def _table_rows(page, name: str) -> int:
+    return page.locator(f'[data-table="{name}"] tbody tr[data-row]').count()
+
+
+def _table_cells(page, name: str, selector: str, attr: str) -> list:
+    return page.evaluate(
+        "([n, sel, a]) => Array.from(document.querySelectorAll("
+        "'[data-table=\"' + n + '\"] ' + sel)).map(e => e.getAttribute(a))",
+        [name, selector, attr])
+
+
+def _hrefs(page) -> list:
+    return page.evaluate(
+        "Array.from(document.querySelectorAll('a[href]')).map(a => a.getAttribute('href'))")
+
+
+def _no_forbidden_vocab(page, label: str) -> None:
+    """2B-R2-13: no plan code, build artefact, pipeline/table name or stream
+    code anywhere the page renders -- text, tooltips (`title=`) and captions
+    alike."""
+    text = (_full_page_text(page) + "|"
+            + page.evaluate("Array.from(document.querySelectorAll('[title]'))"
+                            ".map(e => e.getAttribute('title')).join('|')"))
+    low = text.lower()
+    hits = [w for w in FORBIDDEN_VOCAB if w.lower() in low]
+    check(not hits, f"{label}: no forbidden-vocabulary term renders ({hits})")
+    code_hit = FORBIDDEN_CODES_RE.search(text)
+    check(code_hit is None,
+          f"{label}: no stream code renders on the page (found {code_hit.group(1) if code_hit else None!r})")
+
+
+def _outer_label_bbox_check(page, fig_selector: str, label: str) -> None:
+    """2B-R2-7: the SI marker's own outer-end value label must stay fully
+    inside the figure's plot area at the widest measured cell (Ifremer's SI
+    0.17-21.35 at 1280px). Reads every non-empty Plotly TEXT node's real
+    bounding box against the figure's own `.main-svg` box -- a clip/overflow
+    is invisible to a DOM-presence check, only a geometry one catches it."""
+    fig = page.locator(fig_selector).first
+    if fig.count() == 0 or not fig.is_visible():
+        check(False, f"{label}: figure is visible for the outer-label bbox check")
+        return
+    plot_box = fig.locator(".main-svg").first.bounding_box()
+    if plot_box is None:
+        check(False, f"{label}: could not read the plot's own .main-svg bounding box")
+        return
+    texts = fig.locator(".scatterlayer text")
+    n = texts.count()
+    left, right = plot_box["x"], plot_box["x"] + plot_box["width"]
+    offenders = []
+    for i in range(n):
+        t = texts.nth(i)
+        content = (t.text_content() or "").strip()
+        if not content:
+            continue
+        box = t.bounding_box()
+        if box is None:
+            continue
+        if box["x"] < left - 1 or box["x"] + box["width"] > right + 1:
+            offenders.append(f"{content!r} at x={box['x']:.1f}..{box['x'] + box['width']:.1f} "
+                             f"(plot {left:.1f}..{right:.1f})")
+    check(n > 0 and not offenders,
+          f"{label}: every outer-end SI value label stays inside the plot ({n} checked)"
+          + (f" -- offenders: {offenders}" if offenders else ""))
+
+
 def _search_and_pick(page, query: str, pick_key: str = "seed_pick",
                       query_key: str = "seed_query", option_text: str | None = None) -> None:
     box = page.locator(f".st-key-{query_key} input").first
@@ -638,32 +765,59 @@ def check_profile_and_panels(page) -> dict:
     check(page.locator('.st-key-profile [data-testid="stImage"] img').count() >= 1,
           "Profile: subfield wordcloud renders as an <img>")
 
-    # ---- 2B-R-2: the FOUR KPI cards, one subline each --------------------
+    # ---- 2B-R2-6: the SIX cards, title-first, one small line each --------
     tiles = page.locator(".st-key-profile .benchup-kpi")
-    check(tiles.count() == N_TILES, f"Profile: {N_TILES} KPI cards render (found {tiles.count()})")
+    check(tiles.count() == N_CARDS, f"Profile: {N_CARDS} cards render (found {tiles.count()})")
+    full_text = _full_page_text(page)
+    for label in CARD_LABELS:
+        check(label in full_text, f"Profile: card {label!r} renders")
     sublines = page.locator(".st-key-profile .benchup-kpi-sub")
     n_sub = sublines.count()
-    check(n_sub == N_TILES, f"Profile: every card carries exactly one subline (found {n_sub})")
+    check(n_sub == N_CARDS, f"Profile: every card carries exactly one small line (found {n_sub})")
     sub_texts = [sublines.nth(i).text_content() or "" for i in range(n_sub)]
     n_baseline = sum(1 for t in sub_texts if "index median" in t)
-    check(n_baseline == N_TILES,
-          f"Profile: every card's subline reads 'index median ...' (found {n_baseline} of {N_TILES})")
-    check("Key figures" in _full_page_text(page), "Profile: 'Key figures' header renders")
-    check("ERC-classified share" not in _full_page_text(page),
+    check(n_baseline == N_CARDS - 1,
+          f"Profile: 5 of {N_CARDS} cards' lines read 'index median ...' (found {n_baseline})")
+    n_notes = page.locator(".st-key-profile .benchup-kpi-value2").count()
+    check(n_notes == 1,
+          f"Profile: exactly the Publications card carries the fractional-counting note "
+          f"(found {n_notes})")
+    check("in fractional counting" in "|".join(
+        sublines.nth(i).text_content() or "" for i in range(n_sub)),
+        "Profile: the fractional-counting note names its own basis")
+    check("Key figures" in full_text, "Profile: 'Key figures' header renders")
+    check("ERC-classified share" not in full_text,
           "Profile: the retired coverage-line phrase 'ERC-classified share' is nowhere on the page")
 
-    # ---- 2B-R-7: intl/company identity facts, now REAL values ------------
-    id_cap = page.locator('.st-key-profile [data-testid="stCaptionContainer"]').filter(
-        has_text="International co-publications").first
-    check(id_cap.count() >= 1, "Identity: the international/company caption renders")
-    id_text = id_cap.text_content() or ""
-    check("International co-publications" in id_text and "with a company" in id_text,
-          f"Identity: both co-publication facts are labelled (got {id_text!r})")
-    check(NA_TEXT not in id_text,
-          f"Identity (2B-R-7): intl/company facts show real percentages now that P2/P4 have "
-          f"landed the artefacts, not {NA_TEXT!r} (got {id_text!r})")
-    check(id_text.count("%") >= 2,
-          f"Identity: both facts render as percentages (got {id_text!r})")
+    # ---- title-first card anatomy (2B-R2-6): name is the FIRST child of the
+    # card, in a smaller/lighter weight than the bold value under it ---------
+    first_card = tiles.first
+    kids = first_card.locator("> div")
+    n_kids = kids.count()
+    check(n_kids >= 3, f"Profile: a card carries a label/value/subline stack ({n_kids} children)")
+    if n_kids >= 2:
+        label_size = kids.nth(0).evaluate("e => parseFloat(getComputedStyle(e).fontSize)")
+        value_size = kids.nth(1).evaluate("e => parseFloat(getComputedStyle(e).fontSize)")
+        label_weight = kids.nth(0).evaluate("e => parseInt(getComputedStyle(e).fontWeight)")
+        value_weight = kids.nth(1).evaluate("e => parseInt(getComputedStyle(e).fontWeight)")
+        check(value_size > label_size,
+              f"Profile (2B-R2-6): the card's SECOND element (the value, {value_size}px) is bigger "
+              f"than its FIRST (the name, {label_size}px) -- title-first, value bold under it")
+        check(value_weight >= label_weight,
+              f"Profile: the value is at least as bold as the name (value {value_weight} vs "
+              f"name {label_weight})")
+
+    # ---- 2B-R2-6: identity -- name-as-link, no separate publication link ---
+    id_box = page.locator(".st-key-profile")
+    name_link = id_box.locator("h3 a").first
+    check(name_link.count() >= 1, "Identity: the institution NAME renders as a link")
+    name_href = name_link.get_attribute("href") or ""
+    check("openalex.org/works" in name_href,
+          f"Identity: the institution name links to its own OpenAlex works ({name_href!r})")
+    id_text = id_box.inner_text()
+    check(NO_LONGER_ON_FIND not in id_text,
+          f"Identity (2B-R2-6): the separate {NO_LONGER_ON_FIND!r} link is gone")
+    check("ROR" in id_text, "Identity: the ROR link label still renders")
 
     # ---- the six panels, exact labels --------------------------------------
     for name, label in PANEL_LABELS:
@@ -1305,12 +1459,29 @@ def check_compare_journey(page, candidates: list[dict]) -> dict:
     check(len(ids3) == COMPARE_CAP,
           f"Compare (2B-R-4): the deep link is truncated to {COMPARE_CAP} ids (got {len(ids3)}: {ids3})")
 
-    # 2B-R-7: overview cards carry the two identity facts too.
-    metric_labels = _all_text(page, '.st-key-compare_strip [data-testid="stMetricLabel"]')
-    check("International co-publications" in metric_labels,
-          "Compare overview: an international-co-publications card renders (2B-R-7)")
-    check("with a company" in metric_labels,
-          "Compare overview: a with-a-company card renders (2B-R-7)")
+    # 2B-R2-9: overview cards (markup now, not st.metric) carry all six KPI
+    # facts incl. intl/industrial, a best-value dot, and the name-as-link.
+    strip_text = _all_text(page, ".st-key-compare_strip")
+    for label in CARD_LABELS:
+        check(label in strip_text, f"Compare overview: the {label!r} card renders (2B-R2-9)")
+    strip_html = page.evaluate(
+        "(() => { const e = document.querySelector('.st-key-compare_strip');"
+        " return e ? e.innerHTML : ''; })()")
+    check("benchup-kpi" in strip_html,
+          "Compare overview: cards render as markup, reusing the Find card class (2B-R2-9)")
+    dot_colors = page.evaluate(
+        "Array.from(document.querySelectorAll('.st-key-compare_strip span'))"
+        ".map(e => getComputedStyle(e).backgroundColor)"
+        ".filter(c => c && c !== 'rgba(0, 0, 0, 0)' && c !== 'transparent')")
+    check(len(dot_colors) >= 1,
+          f"Compare overview (2B-R2-9): at least one best-value dot is painted ({len(dot_colors)})")
+    name_hrefs = page.evaluate(
+        "Array.from(document.querySelectorAll('.st-key-compare_strip a')).map(a => a.href)")
+    check(any("openalex.org/works" in h for h in name_hrefs),
+          "Compare overview: an institution name links to its own OpenAlex works")
+    strip_buttons = _all_text(page, ".st-key-compare_strip button")
+    check("Publications" not in strip_buttons,
+          "Compare overview (2B-R2-9): the separate Publications button is gone")
 
     # 2B-R-12: a legend strip above every chart section.
     legend_hits = page.evaluate(
@@ -1333,23 +1504,121 @@ def check_compare_journey(page, candidates: list[dict]) -> dict:
     check(n_figs >= COMPARE_MIN_FIGURES,
           f"Compare: >= {COMPARE_MIN_FIGURES} plotly figures render ({n_figs})")
 
-    # --- 2B-R-5: the "Compare by" metric selector actually switches --------
-    subj_opts = page.locator('.st-key-cmp_metric_subject [data-testid="stRadioOption"]')
-    n_subj_opts = subj_opts.count()
-    check(n_subj_opts >= 2, f"Compare subject: the metric selector offers >= 2 options ({n_subj_opts})")
-    if n_subj_opts >= 2:
-        subj_opts.nth(1).click(timeout=ACTION_TIMEOUT_MS)
-        _settle(page, 2500)
-        _no_exception(page, "Compare (after metric switch)")
-        check(page.locator(".st-key-fig_cmp_subject .js-plotly-plot").count() >= 1,
-              "Compare subject: a chart still renders after switching the metric")
-        subj_opts.nth(0).click(timeout=ACTION_TIMEOUT_MS)
+    # --- 2B-R2-3: the metric selector's own vocabulary, per level -----------
+    def _opt_texts(key: str) -> list:
+        return [t.strip() for t in
+                page.locator(f'.st-key-{key} [data-testid="stRadioOption"]').all_text_contents()
+                if t.strip()]
+
+    def _click_opt(key: str, text: str) -> None:
+        page.locator(f".st-key-{key}").get_by_text(text, exact=True).first.click(
+            timeout=ACTION_TIMEOUT_MS)
         _settle(page, 2500)
 
-    # --- 2B-R-8: ERC "Volume" option -- a real finding either way ----------
-    erc_opts_text = _all_text(page, '.st-key-cmp_metric_erc [data-testid="stRadioOption"]')
-    check("Volume" in erc_opts_text,
-          f"Compare ERC (2B-R-8): a 'Volume' metric option is offered among {erc_opts_text!r}")
+    subj_opts, erc_opts, sdg_opts = (_opt_texts("cmp_metric_subject"), _opt_texts("cmp_metric_erc"),
+                                     _opt_texts("cmp_metric_sdg"))
+    for level, opts in (("subject", subj_opts), ("ERC", erc_opts), ("SDG", sdg_opts)):
+        check(VOL_TOP10_LABEL not in opts,
+              f"Compare {level} (2B-R2-3): the retired top-decile TAB is not offered ({opts})")
+    check(set(SUBJECT_METRIC_LABELS) <= set(subj_opts),
+          f"Compare subject (2B-R2-3): offers Share/Specialisation/PP/SDG/Dynamics ({subj_opts})")
+    check(VOLUME_LABEL in erc_opts, f"Compare ERC (2B-R2-3): 'Volume' is offered ({erc_opts})")
+    check(VOLUME_LABEL in sdg_opts, f"Compare SDG (2B-R2-3): 'Volume' is offered ({sdg_opts})")
+
+    # THE 2B-R LESSON, reapplied: every option the SUBJECT selector offers is
+    # actually clicked and its chart redrawn -- "option visible, render path
+    # unreached" is the bug class that survived last round.
+    for label in subj_opts:
+        _click_opt("cmp_metric_subject", label)
+        check(page.locator(".st-key-fig_cmp_subject .js-plotly-plot").count() >= 1,
+              f"Compare subject = {label!r}: the chart renders")
+    _no_exception(page, "Compare (after the full subject metric sweep)")
+
+    # --- 2B-R2-5: row order IDENTICAL across two metric switches (load-     -
+    #     bearing check) + the "sort by value" toggle really re-ranks --------
+    def _tick_labels(key: str) -> list:
+        return page.evaluate(
+            "(sel) => { const p = document.querySelector(sel); if (!p) return [];"
+            " return Array.from(p.querySelectorAll('.yaxislayer-above .ytick text'))"
+            ".map(t => t.textContent); }",
+            f".st-key-{key} .js-plotly-plot")
+
+    def _row_names(labels) -> list:
+        return [re.split(r"\d", str(t))[0].strip() for t in labels]
+
+    _click_opt("cmp_metric_subject", "Share")
+    labels_share = _tick_labels("fig_cmp_subject")
+    rows_share = _row_names(labels_share)
+    check(len(rows_share) > 5, f"Compare subject (Share): a full set of rows draws ({len(rows_share)})")
+    with_numbers = [t for t in labels_share if re.search(r"\d", str(t))]
+    check(len(with_numbers) >= len(labels_share) - 1,
+          f"Compare subject (2B-R2-3): the volume gutter carries a number on every row "
+          f"({len(with_numbers)} of {len(labels_share)})")
+    n_refs_share = page.evaluate(
+        "(() => { const p = document.querySelector('.st-key-fig_cmp_subject .js-plotly-plot');"
+        " return p ? p.querySelectorAll('.shapelayer path').length : 0; })()")
+
+    _click_opt("cmp_metric_subject", "Change in mean annual volume")
+    rows_dyn = _row_names(_tick_labels("fig_cmp_subject"))
+    common = [t for t in rows_share if t in set(rows_dyn)]
+    check(len(common) > 5 and common == [t for t in rows_dyn if t in set(rows_share)],
+          f"Compare (2B-R2-5, LOAD-BEARING): row order is IDENTICAL between Share and Dynamics "
+          f"({len(common)} common rows)")
+    n_refs_dyn = page.evaluate(
+        "(() => { const p = document.querySelector('.st-key-fig_cmp_subject .js-plotly-plot');"
+        " return p ? p.querySelectorAll('.shapelayer path').length : 0; })()")
+    check(n_refs_dyn > n_refs_share,
+          f"Compare (2B-R2-4): the Dynamics view draws its reference line, Share does not "
+          f"({n_refs_dyn} vs {n_refs_share} shapes)")
+
+    # --- 2B-R2-5: the "sort by value" toggle, tested on the SAME metric/view
+    #     it was just captured on (Dynamics has the widest value spread, so
+    #     it is the least likely metric to tie its way back to taxonomy order)
+    if page.locator(".st-key-cmp_sort_subject").count() >= 1:
+        _click_opt("cmp_sort_subject", SORT_VALUE_LABEL)
+        ranked = _row_names(_tick_labels("fig_cmp_subject"))
+        check(set(ranked) == set(rows_dyn) and ranked != rows_dyn,
+              "Compare (2B-R2-5): the row-order toggle re-ranks the same rows by value")
+        _click_opt("cmp_sort_subject", SORT_TAXONOMY_LABEL)
+        back = _row_names(_tick_labels("fig_cmp_subject"))
+        check(back == rows_dyn, "Compare (2B-R2-5): switching back restores the taxonomy order")
+
+    # The dagger lives INSIDE the bar's own value-label text (e.g. "-16.4%†"),
+    # a Plotly trace `text` entry -- not the y-axis tick label, which carries
+    # only the row name and its volume-gutter numbers (measured: DOM ytick
+    # text never contains the glyph even where a real low-volume row exists).
+    def _bar_texts(key: str) -> list:
+        data = _fig_xy_text(page, f".st-key-{key} .js-plotly-plot")
+        return [t for tr in (data or []) for t in tr["text"]]
+
+    dagger_hits = [LOW_VOLUME_GLYPH in str(t) for t in _bar_texts("fig_cmp_subject")]
+    if not any(dagger_hits) and "Change in mean annual volume" in erc_opts:
+        _click_opt("cmp_metric_erc", "Change in mean annual volume")
+        dagger_hits += [LOW_VOLUME_GLYPH in str(t) for t in _bar_texts("fig_cmp_erc")]
+    if not any(dagger_hits) and "Change in mean annual volume" in sdg_opts:
+        _click_opt("cmp_metric_sdg", "Change in mean annual volume")
+        dagger_hits += [LOW_VOLUME_GLYPH in str(t) for t in _bar_texts("fig_cmp_sdg")]
+    check(any(dagger_hits),
+          "Compare (2B-R2-4): a low-volume marker (dagger glyph) renders on at least one bar's "
+          "own value label, searched across subject/ERC/SDG on the Dynamics view")
+
+    _click_opt("cmp_metric_subject", "PP(top10%)")
+    n_refs_pp = page.evaluate(
+        "(() => { const p = document.querySelector('.st-key-fig_cmp_subject .js-plotly-plot');"
+        " return p ? p.querySelectorAll('.shapelayer path').length : 0; })()")
+    check(n_refs_pp > n_refs_share,
+          f"Compare (2B-R2-4): the PP view draws its index reference too ({n_refs_pp} shapes)")
+
+    _click_opt("cmp_metric_subject", "Share")
+    _no_exception(page, "Compare (after the row-order / gutter / reference checks)")
+
+    # --- 2B-R2-13: plain-language "not shown here" disclosures --------------
+    caps = _all_text(page, '[data-testid="stCaptionContainer"]')
+    check(NOT_OFFERED_HEADER in caps,
+          f"Compare (2B-R2-13): the shared header {NOT_OFFERED_HEADER!r} renders")
+    check(": " in caps.replace(NOT_OFFERED_HEADER, ""),
+          "Compare: at least one 'Measure: reason' disclosure line renders in plain language")
+    _no_forbidden_vocab(page, "Compare page")
 
     # --- 2B-R-9: the frontier map's own top-N slider ------------------------
     map_before = _plotly_point_count(page, ".st-key-fig_cmp_frontier_map .js-plotly-plot")
@@ -1369,13 +1638,66 @@ def check_compare_journey(page, candidates: list[dict]) -> dict:
     check(page.locator(".st-key-fig_cmp_shared_frontier .js-plotly-plot").count() >= 1,
           "Compare frontier (2B-R-9): the diverging 'who holds the shared frontier' chart renders")
 
+    # --- 2B-R2-10: pool selector + domain-colour toggle, by TOPIC-SET
+    #     SIGNATURE (never just point count -- a mode swap can tie on count) --
+    def _frontier_map_sig() -> str:
+        data = _fig_xy_text(page, ".st-key-fig_cmp_frontier_map .js-plotly-plot")
+        return "" if not data else "|".join(
+            ",".join(f"{v:.4f}" for v in tr["x"]) for tr in data)
+
+    if page.locator(".st-key-cmp_frontier_pool").count() >= 1:
+        sig_volume = _frontier_map_sig()
+        page.locator(".st-key-cmp_frontier_pool").get_by_text(
+            POOL_ELITE_LABEL, exact=True).first.click(timeout=ACTION_TIMEOUT_MS)
+        _settle(page, 3000)
+        sig_elite = _frontier_map_sig()
+        check(bool(sig_volume) and bool(sig_elite) and sig_volume != sig_elite,
+              "Compare frontier (2B-R2-10): the pool selector changes the plotted topic set")
+        page.locator(".st-key-cmp_frontier_pool").get_by_text(
+            POOL_VOLUME_LABEL, exact=True).first.click(timeout=ACTION_TIMEOUT_MS)
+        _settle(page, 3000)
+
+    def _frontier_map_legend() -> str:
+        # The map's OWN legend strip (`map_legend_strip`) is the markdown block
+        # immediately BEFORE the map's own keyed container -- scoped there
+        # rather than to the whole page, since the diverging "who holds the
+        # shared frontier" chart carries the SAME "held by more than one" chip
+        # in its own, unrelated legend and would otherwise false-negative this
+        # check regardless of the colour toggle.
+        return page.evaluate(
+            "(() => { const fig = document.querySelector('.st-key-fig_cmp_frontier_map');"
+            " const prev = fig ? fig.previousElementSibling : null;"
+            " return prev ? prev.textContent : ''; })()")
+
+    if page.locator(".st-key-cmp_frontier_color").count() >= 1:
+        check(LEGEND_SHARED_TEXT in _frontier_map_legend(),
+              "Compare frontier: the map's own ownership legend carries the shared chip by default")
+        page.locator(".st-key-cmp_frontier_color").get_by_text(
+            COLOR_DOMAIN_LABEL, exact=True).first.click(timeout=ACTION_TIMEOUT_MS)
+        _settle(page, 3000)
+        domain_legend = _frontier_map_legend()
+        check(LEGEND_SHARED_TEXT not in domain_legend and bool(domain_legend.strip()),
+              f"Compare frontier (2B-R2-10): the domain-colour toggle replaces the map's own "
+              f"ownership legend with the broad subject areas (got {domain_legend[:200]!r})")
+        check(page.locator(".st-key-fig_cmp_frontier_map .js-plotly-plot").count() >= 1,
+              "Compare frontier: the map still renders under the domain-colour toggle")
+        page.locator(".st-key-cmp_frontier_color").get_by_text(
+            COLOR_OWNER_LABEL, exact=True).first.click(timeout=ACTION_TIMEOUT_MS)
+        _settle(page, 3000)
+        check(LEGEND_SHARED_TEXT in _frontier_map_legend(),
+              "Compare frontier: switching back restores the map's own ownership legend")
+
     # --- the impact floor toggle ----------------------------------------------
-    before_caps = _all_text(page, '[data-testid="stCaptionContainer"]')
+    # 2B-R2-8 moved this page's reading lines out of `st.caption` and into
+    # markdown `chart_note` blocks -- the floor's own descriptive text (and
+    # the cell counts it reports) live there now, not in a caption.
+    before_md = _all_text(page, '[data-testid="stMarkdownContainer"]')
     page.locator('.st-key-cmp_impact_floor [data-testid="stRadioOption"]').last.click(
         timeout=ACTION_TIMEOUT_MS)
     _settle(page, 2500)
-    after_caps = _all_text(page, '[data-testid="stCaptionContainer"]')
-    check(before_caps != after_caps, "Compare: the impact floor toggle changes the page's captions")
+    after_md = _all_text(page, '[data-testid="stMarkdownContainer"]')
+    check(before_md != after_md,
+          "Compare (2B-R2-8): the impact floor toggle changes the page's reading lines")
     page.locator('.st-key-cmp_impact_floor [data-testid="stRadioOption"]').first.click(
         timeout=ACTION_TIMEOUT_MS)
     _settle(page, 2500)
@@ -1438,7 +1760,10 @@ def check_handoff(page) -> None:
           f"Compare: sidebar basket count is readable before the hop (caption gave {n_before!r})")
 
     page.locator(".st-key-cmp_handoff_open button").first.click(timeout=ACTION_TIMEOUT_MS)
-    page.wait_for_selector('[data-testid="stDataFrame"]', timeout=ACTION_TIMEOUT_MS)
+    # 2B-R2-11: Collaborate's tables are hand-built HTML now, not a canvas
+    # `st.dataframe` -- the untapped table's own `data-table` hook is what
+    # actually signals the page has finished landing.
+    page.wait_for_selector('[data-table="collab_untapped"]', timeout=ACTION_TIMEOUT_MS)
     _settle(page, 2500)
 
     landed_ids = _pair_deeplink_ids(page)
@@ -1481,26 +1806,228 @@ def check_handoff(page) -> None:
     swapped_ids = _pair_deeplink_ids(page)
     check(swapped_ids == list(reversed(landed_ids)),
           f"Collaborate: swap flips A and B ({landed_ids} -> {swapped_ids})")
+    _no_exception(page, "Collaborate (hand-off + swap)")
 
-    # --- the shared-topics table (inside the untapped section's expander) --
-    _ensure_expander_open_by_text(page, SHARED_EXPANDER_TITLE, ".st-key-tbl_shared")
-    _settle(page, 1500)
-    caps = _all_text(page, '[data-testid="stCaptionContainer"]')
-    check(bool(re.search(r"\d\.\d{3}", caps)),
-          "Collaborate: a shared-topics caption carries the 3-decimal overlap score")
-    header = _download_csv_header(page, ".st-key-dl_shared button")
-    check(header.strip() == SHARED_TOPICS_HEADER,
-          f"Collaborate: shared-topics CSV header matches the K contract ({header!r})")
+
+def check_collab_anchor_pair(app_dir: Path, port: int) -> None:
+    """2B-R2-11: the field-breakdown chart, its table's chips/arrows/links,
+    the shared-topics table and its slider, the untapped tables, and the two
+    deleted gap tables -- all driven on the manager-verified anchor pair
+    (Universite de Strasbourg x CNRS, CNRS's own first partner), a fresh
+    standalone session reached via `?pair=` exactly like the below-floor
+    check. Deliberately NOT run on the journey's hand-off pair (built from an
+    arbitrary L1 ranking): a small basket candidate could legitimately land
+    below the floor-5 pair-table cutoff, which would fail every one of these
+    checks for a reason that is not an app defect."""
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch()
+            page = browser.new_page(viewport={"width": 1280, "height": 1000})
+            page.set_default_timeout(ACTION_TIMEOUT_MS)
+            base = f"http://127.0.0.1:{port}"
+            page.goto(f"{base}/Collaborate?pair={COLLAB_PAIR_A},{COLLAB_PAIR_B}",
+                      wait_until="domcontentloaded")
+            page.wait_for_selector('[data-table="collab_untapped"]', timeout=ACTION_TIMEOUT_MS)
+            _settle(page, 3000)
+
+            found_tables = [t for t in COLLAB_TABLES if page.locator(f'[data-table="{t}"]').count() > 0]
+            check(found_tables == list(COLLAB_TABLES),
+                  f"Collaborate anchor pair (2B-R2-11): all four tables render ({found_tables})")
+            check(page.locator('[data-testid="stDataFrame"]').count() == 0,
+                  "Collaborate anchor pair: no canvas grid -- tables are hand-built HTML")
+
+            check(page.locator(".st-key-fig_fields").count() >= 1,
+                  "Collaborate anchor pair (2B-R2-11a): the field-breakdown chart renders")
+            fields_data = _fig_xy_text(page, ".st-key-fig_fields .js-plotly-plot")
+            n_field_vals = sum(len([v for v in tr["x"] if v not in (None, "")])
+                               for tr in (fields_data or []))
+            check(bool(fields_data) and n_field_vals > 0,
+                  f"Collaborate anchor pair: the field chart carries real values ({n_field_vals})")
+
+            field_domains = _table_cells(page, "collab_fields", ".bu-chip", "data-domain")
+            n_field_rows = _table_rows(page, "collab_fields")
+            check(len(field_domains) == n_field_rows and n_field_rows > 0,
+                  f"Collaborate anchor pair: every field row carries one domain chip "
+                  f"({len(field_domains)} chips, {n_field_rows} rows)")
+            field_arrows = set(_table_cells(page, "collab_fields", ".bu-arrow", "data-arrow"))
+            check(bool(field_arrows),
+                  f"Collaborate anchor pair: field rows carry a dynamics arrow ({field_arrows})")
+
+            hrefs = _hrefs(page)
+            field_hrefs = _table_cells(page, "collab_fields", ".bu-link", "href")
+            check(bool(field_hrefs) and all(h in hrefs for h in field_hrefs if h),
+                  "Collaborate anchor pair: every field row links its own pair+field co-publications")
+            if field_hrefs:
+                u = field_hrefs[0]
+                check(u.count("authorships.institutions.id:") == 2,
+                      f"Collaborate anchor pair: a field link ANDs both institutions ({u!r})")
+                check(any(k in u for k in TAXON_FILTER_KEYS),
+                      f"Collaborate anchor pair: a field link carries a taxon filter ({u!r})")
+
+            n_topics_default = _table_rows(page, "collab_topics")
+            check(n_topics_default == TOPICS_ROWS_DEFAULT,
+                  f"Collaborate anchor pair: the topic table opens at its default depth "
+                  f"({n_topics_default} rows)")
+            topic_domains = _table_cells(page, "collab_topics", ".bu-chip", "data-domain")
+            check(len(topic_domains) == 2 * n_topics_default,
+                  f"Collaborate anchor pair: each topic row carries a topic AND a subfield chip "
+                  f"({len(topic_domains)} of {2 * n_topics_default})")
+            topic_arrows = _table_cells(page, "collab_topics", ".bu-arrow", "data-arrow")
+            check(len(set(topic_arrows)) > 1,
+                  f"Collaborate anchor pair: topic arrows vary row to row ({set(topic_arrows)})")
+            topic_hrefs = [h for h in _table_cells(page, "collab_topics", ".bu-link", "href") if h]
+            check(bool(topic_hrefs) and all(h in hrefs for h in topic_hrefs),
+                  "Collaborate anchor pair: every shown topic row links its own pair+topic co-pubs")
+            if topic_hrefs:
+                u = topic_hrefs[0]
+                check(u.count("authorships.institutions.id:") == 2,
+                      f"Collaborate anchor pair: a topic link ANDs both institutions ({u!r})")
+                check("primary_topic.id:" in u,
+                      f"Collaborate anchor pair: a topic link carries the topic filter ({u!r})")
+
+            topics_slider = page.locator('.st-key-topics_n input[type="range"]').first
+            check(topics_slider.count() >= 1, "Collaborate anchor pair: the topic-depth slider renders")
+            if topics_slider.count() >= 1:
+                check(topics_slider.get_attribute("max") == str(TOPICS_TOP_N_CAP),
+                      f"Collaborate anchor pair: the slider's top stop is the shipped cap "
+                      f"({TOPICS_TOP_N_CAP})")
+                topics_slider.focus()
+                topics_slider.press("ArrowRight")
+                _settle(page, 3500)
+                n_after_step = _table_rows(page, "collab_topics")
+                check(n_after_step == n_topics_default + TOPICS_ROWS_STEP,
+                      f"Collaborate anchor pair (slider): one step right adds one step of rows "
+                      f"({n_topics_default} -> {n_after_step})")
+                topics_slider.press("Home")
+                _settle(page, 3500)
+                n_min = _table_rows(page, "collab_topics")
+                check(n_min < n_after_step,
+                      f"Collaborate anchor pair (slider): the minimum shrinks the table "
+                      f"({n_after_step} -> {n_min})")
+                topics_slider.press("End")
+                _settle(page, 3500)
+                n_max = _table_rows(page, "collab_topics")
+                check(n_max > n_min,
+                      f"Collaborate anchor pair (slider): the maximum grows it back ({n_max})")
+
+            n_untapped_default = _table_rows(page, "collab_untapped")
+            untapped_hrefs = [h for h in _table_cells(page, "collab_untapped", ".bu-link", "href") if h]
+            check(bool(untapped_hrefs) and all(h in hrefs for h in untapped_hrefs),
+                  "Collaborate anchor pair: every untapped row links its own topic")
+            untapped_slider = page.locator('.st-key-untapped_n input[type="range"]').first
+            if untapped_slider.count() >= 1 and n_untapped_default > 0:
+                untapped_slider.focus()
+                untapped_slider.press("ArrowRight")
+                _settle(page, 3500)
+                check(_table_rows(page, "collab_untapped") != n_untapped_default,
+                      "Collaborate anchor pair: the untapped-depth slider changes its own row count")
+
+            body_text = _full_page_text(page)
+            check(GAP_TABLE_HEADER_SUBSTR not in body_text.lower(),
+                  "Collaborate anchor pair (2B-R2-11f): no 'X does not publish in' gap table renders")
+            check(DOWNLOAD_GAPS_TEXT not in body_text,
+                  "Collaborate anchor pair (2B-R2-11f): no gap-list CSV download renders")
+            check(NOT_OFFERED_HEADER in body_text,
+                  f"Collaborate anchor pair (2B-R2-13): the shared {NOT_OFFERED_HEADER!r} header "
+                  f"discloses the deletion")
+            _no_forbidden_vocab(page, "Collaborate anchor pair page")
+
+            for key, header in (("dl_fields", FIELD_BREAKDOWN_CSV_HEADER),
+                                ("dl_topics", JOINT_TOPICS_CSV_HEADER),
+                                ("dl_untapped", UNTAPPED_CSV_HEADER)):
+                btn = page.locator(f".st-key-{key} button")
+                if btn.count() >= 1:
+                    # Re-anchored fresh on each pass, and settled first: the
+                    # slider interactions above triggered several reruns, and a
+                    # download button click that lands mid-rerun can silently
+                    # miss the event (measured flake, not an app defect).
+                    btn.scroll_into_view_if_needed(timeout=ACTION_TIMEOUT_MS)
+                    _settle(page, 1000)
+                    with page.expect_download(timeout=60_000) as dl_info:
+                        btn.first.click(timeout=ACTION_TIMEOUT_MS)
+                    with open(dl_info.value.path(), "r", encoding="utf-8") as fh:
+                        got = fh.readline()
+                    check(got.strip() == header,
+                          f"Collaborate anchor pair: {key} CSV header matches the contract ({got!r})")
+            _no_exception(page, "Collaborate (anchor pair, standalone session)")
+            browser.close()
+    except Exception as exc:
+        fail_section("Collaborate anchor pair", exc)
+
+
+def check_ifremer_crash_seed(app_dir: Path, port: int) -> None:
+    """2B-R2-1a: the profile that took the app down at gate 2B-R (Ifremer is
+    both an umbrella AND type-corrected). A dedicated, standalone check (fresh
+    session, `?seed=`) at all three widths -- the crash class this exists to
+    catch is "renders for the common seed, still crashes for the rare one",
+    so this must never share a page/session with the Gdansk walk above.
+
+    Also carries the 2B-R2-7 SI-padding bounding-box proof: Ifremer's top
+    subfields panel is FA3's own measured worst case (SI 0.17-21.35 at 1280
+    px), so this is where a clipped outer-end value label would actually
+    show up."""
+    base = f"http://127.0.0.1:{port}"
+    for width in WIDTHS:
+        try:
+            with sync_playwright() as p:
+                browser = p.chromium.launch()
+                page = browser.new_page(viewport={"width": width, "height": 900})
+                page.set_default_timeout(ACTION_TIMEOUT_MS)
+                page.goto(f"{base}/Find?seed={CRASH_SEED}", wait_until="domcontentloaded")
+                page.wait_for_selector('[role="tab"]', timeout=ACTION_TIMEOUT_MS)
+                _settle(page, 3000)
+                _no_exception(page, f"Ifremer crash seed {width}px")
+                check(page.locator(".st-key-profile .benchup-kpi").count() == N_CARDS,
+                      f"Ifremer {width}px: {N_CARDS} cards render")
+                body = _full_page_text(page)
+                m = IDENTITY_TYPE_CORRECTED_RE.search(body)
+                check(m is not None,
+                      f"Ifremer {width}px: the inline type correction "
+                      f"'<type>* (was: <type>)' renders (body has: {m.group(0) if m else None})")
+                star_color = page.evaluate(
+                    """() => { const spans = Array.from(document.querySelectorAll('.st-key-profile span'));
+                        for (const s of spans) { if ((s.textContent || '').trim() === '*') {
+                            return getComputedStyle(s).color; } } return null; }""")
+                check(star_color is not None, f"Ifremer {width}px: the '*' renders as its own span")
+                if star_color:
+                    rgbv = [int(x) for x in re.findall(r"\d+", star_color)[:3]]
+                    reddish = len(rgbv) == 3 and rgbv[0] > 150 and rgbv[0] > rgbv[1] + 40 and rgbv[0] > rgbv[2] + 40
+                    check(reddish, f"Ifremer {width}px: the '*' is coloured red ({star_color})")
+                name_href = page.locator(".st-key-profile h3 a").first.get_attribute("href") or ""
+                check("openalex.org/works" in name_href,
+                      f"Ifremer {width}px: the institution name links to OpenAlex works")
+                check(NO_LONGER_ON_FIND not in body,
+                      f"Ifremer {width}px: no separate {NO_LONGER_ON_FIND!r} link")
+                _ensure_expander_open(page, "panel_subfields", ".st-key-fig_subfields")
+                _settle(page, 1500)
+                if width >= 1280:
+                    # 2B-R2-7's padding fix targets the SI panel's own gutter,
+                    # measured by FA3 at 1280px (the worst case: SI 0.17-21.35).
+                    # At 390px the whole SI column is ~30px wide and labels
+                    # crowd regardless -- FA3's OWN documented pre-existing
+                    # issue (Find never passes `stacked=True`), unrelated to
+                    # this stream's fix, so this bbox proof is scoped to the
+                    # widths the fix actually targets.
+                    _outer_label_bbox_check(page, ".st-key-fig_subfields .js-plotly-plot",
+                                            f"Ifremer {width}px SI padding (worst-case panel)")
+                scroll = page.evaluate("document.documentElement.scrollWidth")
+                inner = page.evaluate("window.innerWidth")
+                check(scroll <= inner + 2,
+                      f"Ifremer {width}px: scrollWidth {scroll} <= innerWidth+2 {inner + 2}")
+                browser.close()
+        except Exception as exc:  # noqa: BLE001 -- one width's crash must not skip the rest
+            fail_section(f"Ifremer crash seed {width}px", exc)
 
 
 def check_below_floor_pair(app_dir: Path, port: int) -> None:
-    """2B-R-10: a REAL below-floor pair (Strasbourg x Bavarian Academy of
-    Sciences and Humanities, 2 joint works < floor 3) renders the honest
-    notice -- pulse, total and links stay, the topic-by-topic breakdown does
-    not. Deliberately a FRESH, standalone page/session (this asserts no
-    persistence claim), reached via `?pair=` -- the one case in this file
-    where `page.goto()` for something other than the very first load is
-    correct, per the module docstring."""
+    """2B-R2-11(g)/2B-R2-12: a REAL below-floor pair (Strasbourg x Bavarian
+    Academy of Sciences and Humanities, 2 joint works < the floor of 5)
+    renders the honest notice -- pulse, total and links stay, the field AND
+    topic breakdowns do not (untapped/adjacent are NOT floor-gated, so they
+    still render). Deliberately a FRESH, standalone page/session (this
+    asserts no persistence claim), reached via `?pair=` -- the one case in
+    this file where `page.goto()` for something other than the very first
+    load is correct, per the module docstring."""
     try:
         with sync_playwright() as p:
             browser = p.chromium.launch()
@@ -1513,16 +2040,19 @@ def check_below_floor_pair(app_dir: Path, port: int) -> None:
                                     timeout=ACTION_TIMEOUT_MS)
             _settle(page, 4000)
             body_text = _full_page_text(page)
-            check(TOPIC_BELOW_FLOOR_SUBSTR in body_text,
-                  "Collaborate below-floor pair: the honest notice renders (2B-R-10)")
+            check(BELOW_FLOOR_NOTICE_RE.search(body_text) is not None,
+                  f"Collaborate below-floor pair (2B-R2-12, floor {PAIR_FLOOR}): the honest "
+                  f"notice renders (looking for pattern {BELOW_FLOOR_NOTICE_RE.pattern!r})")
             check("The relationship, year by year" in body_text,
                   "Collaborate below-floor pair: the pulse section still renders")
             check("Read the publications on OpenAlex" in body_text,
                   "Collaborate below-floor pair: the link-outs section still renders")
             check(page.locator(".st-key-collab_links a").count() >= 3,
                   "Collaborate below-floor pair: all 3 OpenAlex link buttons still render")
-            check(page.locator(".st-key-tbl_joint_topics").count() == 0,
-                  "Collaborate below-floor pair: the topic-by-topic table is NOT rendered")
+            found = [t for t in COLLAB_TABLES if page.locator(f'[data-table="{t}"]').count() > 0]
+            check(found == list(COLLAB_TABLES_BELOW_FLOOR),
+                  f"Collaborate below-floor pair (2B-R2-12): only the untapped/adjacent tables "
+                  f"render, field+topic breakdowns are absent (found {found})")
             _no_exception(page, "Collaborate (below-floor pair, standalone session)")
             browser.close()
     except Exception as exc:
@@ -1766,8 +2296,10 @@ def main() -> int:
             check_screenshots(browser, shot_dir)
             browser.close()
 
-        # Isolated, standalone session -- deliberately outside the shared
-        # browser/page above (this check asserts no persistence claim).
+        # Isolated, standalone sessions -- deliberately outside the shared
+        # browser/page above (these checks assert no persistence claim).
+        check_ifremer_crash_seed(app_dir, PORT)
+        check_collab_anchor_pair(app_dir, PORT)
         check_below_floor_pair(app_dir, PORT)
     finally:
         _stop_server(server)
