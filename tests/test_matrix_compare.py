@@ -100,7 +100,9 @@ COLLAB_MATRIX = list(itertools.product(TREES, BASES))            # 6 cells
 # the 12-cell run, at the DATA layer (cheap: no extra AppTest rerun), rather
 # than repeating "share" 12 times.
 SUBJECT_METRICS = views_compare.SUBJECT_METRICS
-assert len(SUBJECT_METRICS) == 6
+# The selector vocabulary and the data layer's METRICS must be the same set --
+# a hardcoded length here broke the day a seventh metric (vol) landed.
+assert set(SUBJECT_METRICS) == set(K.METRICS)
 
 # Every section's subheader must render, in every cell, proving the whole
 # page -- including the two 2B-R-9 frontier charts -- survives the full

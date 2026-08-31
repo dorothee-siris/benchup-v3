@@ -82,6 +82,12 @@ import openpyxl
 from playwright.sync_api import TimeoutError as PWTimeoutError
 from playwright.sync_api import sync_playwright
 
+# Windows consoles default to cp1252, on which a bare print() of "Gdańsk"
+# raises UnicodeEncodeError and aborts the journey mid-flight (inspection I-2).
+for _stream in (sys.stdout, sys.stderr):
+    if getattr(_stream, "encoding", "").lower() not in ("utf-8", "utf8"):
+        _stream.reconfigure(encoding="utf-8")
+
 DEFAULT_APP_DIR = Path(__file__).resolve().parents[2]  # tests/ui/smoke.py -> app/
 WIDTHS = [1920, 1280, 390]
 GDANSK_QUERY = "gdansk"

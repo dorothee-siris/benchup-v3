@@ -59,6 +59,7 @@ SUB_B_ID = "I109144446"   # Bavarian Academy of Sciences and Humanities: 2 joint
 SHOT_DIR = APP_DIR / "tests" / "ui" / "screenshots"
 WIDTHS = [1920, 1280, 390]
 SHOT_HEIGHT_PX = 2400   # see _probe_widths in ops/_probe_find.py: full_page=True is a no-op
+TALL_SHOT_PX = 5600     # inspection I-4: match _probe_compare so all 4 sections ship in the artifact
 
 # joint fields + joint subfields + joint topics + untapped + siblings + the two
 # directional gap tables + the weighted topic overlap (2B-R-10 sections 2 and 3)
@@ -314,7 +315,7 @@ def _probe_download(page) -> None:
 def _probe_widths(browser) -> None:
     SHOT_DIR.mkdir(parents=True, exist_ok=True)
     for width in WIDTHS:
-        page = browser.new_page(viewport={"width": width, "height": SHOT_HEIGHT_PX})
+        page = browser.new_page(viewport={"width": width, "height": TALL_SHOT_PX if width >= 1280 else SHOT_HEIGHT_PX})
         _load(page)
         scroll = page.evaluate("document.documentElement.scrollWidth")
         inner = page.evaluate("window.innerWidth")

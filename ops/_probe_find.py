@@ -52,6 +52,7 @@ GOLD_SEED = "I40413290"   # University of Gdansk -- the seed the L1 golden pins
 SHOT_DIR = APP_DIR / "tests" / "ui" / "screenshots"
 WIDTHS = [1920, 1280, 390]
 SHOT_HEIGHT_PX = 2400   # see _probe_widths: full_page=True is a no-op here
+TALL_SHOT_PX = 5600     # inspection I-4: match _probe_compare so full pages ship in the artifact
 N_DEFAULT_TABS = 10   # Overview + the 8 default lenses + Aspirational
 N_TOGGLED_TABS = 12   # ... + C1 + L7
 N_PANELS = 6          # Fields, Top subfields, Top topics, Frontier, SDG, ERC
@@ -133,6 +134,18 @@ def _frontier_points(page) -> int:
         " return el.data.reduce((a, t) => a + ((t.x && t.x.length) || 0), 0); })()")
 
 
+def _frontier_signature(page) -> str:
+    """The plotted TOPIC SET's signature (per-trace x values, rounded), not the
+    point count: 2B-R-13's single shared top-N slider means both frontier modes
+    can tie on COUNT while plotting different topics (2BR_H.md; inspection I-3)."""
+    return page.evaluate(
+        "(() => { const el = document.querySelector("
+        "'.st-key-panel_frontier .js-plotly-plot');"
+        " if (!el || !el.data) return '';"
+        " return el.data.map(t => (t.x || []).map(v => Number(v).toFixed(4)).join(','))"
+        ".join('|'); })()")
+
+
 def _load(page, seed: str) -> None:
     page.goto(f"http://127.0.0.1:{PORT}/?seed={seed}", wait_until="domcontentloaded")
     page.wait_for_selector('[role="tab"]', timeout=180_000)
@@ -162,14 +175,14 @@ def _probe_profile(page) -> None:
     check(page.locator(".st-key-profile").count() == 1,
           "the profile container renders exactly once")
     cols = _row1_columns(page)
-    check(cols == 3, f"the profile's row 1 is three columns (found {cols})")
+    check(cols == 2, f"the profile's row 1 is two columns — identity+cloud | cards (found {cols})")
     imgs = _row1_images(page)
     check(imgs >= 1, f"the wordcloud <img> sits inside that row-1 block (found {imgs})")
     tiles = page.locator(".st-key-profile .benchup-kpi").count()
     check(tiles == N_TILES, f"the profile carries {N_TILES} KPI tiles (found {tiles})")
     subs = page.locator(".st-key-profile .benchup-kpi-sub").count()
-    check(subs == N_TILES * 2,
-          f"every tile carries two sublines (found {subs} for {N_TILES} tiles)")
+    check(subs == N_TILES,
+          f"every card carries its baseline subline (found {subs} for {N_TILES} cards)")
     check(_captions(page).find(ui_copy.FIND["COVERAGE_LINE"].split("{")[0].strip()) == -1,
           "the retired coverage line is nowhere on the page")
 
@@ -200,12 +213,14 @@ def _probe_profile(page) -> None:
     page.wait_for_timeout(3000)
     before_pts = _frontier_points(page)
     check(before_pts > 0, f"the frontier scatter plots points in its default mode ({before_pts})")
+    before_sig = _frontier_signature(page)
     page.locator(".st-key-frontier_mode button").nth(1).click()
     page.wait_for_timeout(5000)
     after_pts = _frontier_points(page)
-    check(after_pts > 0 and after_pts != before_pts,
-          f"the frontier mode control changes the plotted point count "
-          f"({before_pts} -> {after_pts})")
+    after_sig = _frontier_signature(page)
+    check(after_pts > 0 and after_sig != before_sig,
+          f"the frontier mode control changes the plotted topic set "
+          f"({before_pts} -> {after_pts} points; signatures differ)")
     page.locator(".st-key-frontier_mode button").nth(0).click()
     page.wait_for_timeout(3000)
 
@@ -288,7 +303,7 @@ def _probe_widths(browser) -> None:
     # -- into the screenshot a reviewer reads.
     SHOT_DIR.mkdir(parents=True, exist_ok=True)
     for width in WIDTHS:
-        page = browser.new_page(viewport={"width": width, "height": SHOT_HEIGHT_PX})
+        page = browser.new_page(viewport={"width": width, "height": TALL_SHOT_PX if width >= 1280 else SHOT_HEIGHT_PX})
         _load(page, SHOT_SEED)
         scroll = page.evaluate("document.documentElement.scrollWidth")
         inner = page.evaluate("window.innerWidth")
