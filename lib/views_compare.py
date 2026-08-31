@@ -33,6 +33,51 @@ colour still never moves -- it follows the institution, not the row -- while the
 gate found that a value ranking that cannot be turned OFF makes two metric tabs
 incomparable, which is the more expensive of the two problems.
 
+PHASE 2B-R3 (stream VC, BUILD_PLAN_2BR3.md SS1 item 5 / SS3 "VC", the
+"ruled WITHOUT grill" list in SIRIS/brainstorms/2026-08-31-benchup-gate2br3-
+refinement.md): a LAYOUT rework, not a new indicator. What changed and why:
+  * SELECTION moves to the sidebar (SEL, plan ruling 1): the old free-text
+    old free-text name-search box, the basket-vs-comparison cap message
+    and the inline share link are GONE from this page. The reader shortlists
+    from `selection.render_sidebar()` (called on every page) and this page
+    now opens on `selection.slots_row("compare", state.COMPARE_CAP)` -- three
+    side-by-side pickers over the basket, nothing more. There is no
+    "truncated, showing 3 of N" state any more: a slot either holds one of
+    the basket's own institutions or it does not, so the old cap-disclosure
+    prose has nothing left to disclose.
+  * LAYOUT COMPACTION (plan SS1.5): title + ONE promise line -> the three
+    slots -> KPI cards -> Coverage (MOVED UP from the bottom, "top generic
+    info first") -> the three "Compare by" sections -> the two frontier
+    charts -> impact -> a bottom meta block. Every paragraph that used to sit
+    between the title and the first chart (the index-size/data-date line,
+    this page's own method sentence, the share link) now lives in the bottom
+    meta block, mostly inside one collapsible ("About these figures") so a
+    reader opens it on purpose rather than scrolling past it -- the point
+    being that the FIRST comparison content is visible without scrolling
+    past meta prose.
+  * PER-CHART FURNITURE (plan SS3 VC item 2): every section now draws its
+    controls on ONE row (via `st.columns`, never stacked), then the legend,
+    then the chart -- and the "not shown here, and why" disclosure, which
+    used to sit as captions ABOVE the metric radio, is now a `st.expander`
+    BELOW the chart. Nothing in that disclosure changed; only where a reader
+    meets it did.
+  * the old per-subfield trends section is DELETED outright (CD4 deleted
+    `compare_data.trends_subfields`, the function it drew from) and the old
+    pair hand-off section is DELETED outright (the selection rework
+    supersedes it; Collaborate's own entry point is `lib/views_collab.py`'s
+    slots, not a button on this page).
+  * The shared-frontier chart gets its OWN top-twenty-by-combined-volume
+    default with a "Show all N" button (plan item 4) -- decoupled from the
+    pooled map's pre-existing "Topics plotted" slider, which stays exactly
+    as 2B-R2-10 shipped it and now sits on the SAME toggle row as the pool
+    and colour-by controls above the map.
+  * The impact-by-subfield reading line states the SELECTION RULE in plain
+    words (`compare_data.impact_subfields`'s own floor-clearing union)
+    instead of only naming a count with no rule behind it.
+Nothing above changes an INDICATOR: every frame still comes from
+`lib/compare_data.py` unmodified by this file, every figure from
+`lib/charts_compare.py`, every colour from `lib/palette.py`.
+
 COMPOSITION ONLY, the same rule as lib/views_find.py: every frame comes from
 `lib/compare_data.py`, every figure from `lib/charts_compare.py`, every colour
 from `lib/palette.py`, every id rule from `lib/selection.py`, every URL from
@@ -43,30 +88,32 @@ this file does own -- ranking a metric frame's rows and melting the wide
 shared-frontier frame into the long shape every builder takes -- move no
 value and invent none.
 
-PAGE ORDER
+PAGE ORDER (2BR3 VC, plan SS1.5)
   sidebar: counting & taxonomy (the SAME `tree` / `basis` widget keys Find and
-  Collaborate use) + the basket, read-only, with a link back to Find
-  main: title + lead + verdict + data line -> selection (add by name, the cap
-  line, the shareable deep link) -> OVERVIEW cards, one per institution, the
-  2B-R-7 KPI set with the interval's own coverage stated beside it -> subject
-  profile (the metric selector, fields with a subfield drill) -> ERC panels ->
-  SDG goals -> the two frontier charts -> impact (whole output, then by
-  subfield, with the floor toggle) -> trends -> coverage -> the workbook -> the
-  pair hand-off to Collaborate.
+  Collaborate use) + the shared search/basket (`selection.render_sidebar`).
+  main: title + ONE promise line -> the three slots (`selection.slots_row`)
+  -> OVERVIEW cards, one per institution, the 2B-R-7 KPI set -> Coverage ->
+  subject profile (the metric selector, fields with a subfield drill) -> ERC
+  panels -> SDG goals -> the two frontier charts -> impact (whole output,
+  then by subfield, with the floor toggle and the selection rule stated in
+  words) -> a bottom meta block (exports, "About these figures", the share
+  link).
 
 WHY THE COLOUR IS THE INSTITUTION (2B-1, narrowed once by 2B-R-8)
   Colour on a MARK is the institution and nothing else. A taxonomy's official
   hue may appear as a GLYPH in a row LABEL (ERC domains, UN goals) and never
   the other way round -- `charts_compare` routes that through
   `palette.label_accent_color`, and this file only supplies the accent KEY.
-  Slots come from `palette.institution_slots`, by ascending `inst_key`, so
-  removing an institution never repaints the survivors.
+  Slots follow PICKER position (slot 1 = darkest navy; manager merge fix), so
+  removing an institution never repaints the survivors (2BR3 plan item 6:
+  slot i always draws in `palette.INSTITUTION_COLORS[i]`, darkest = slot 1,
+  regardless of which slotbox a reader happened to put that institution in).
 
 LEGEND ABOVE EVERY CHART (2B-R-12)
   `charts_compare.legend_strip` is rendered immediately above each figure, not
-  once per page: the page scrolls through nine of them, and a legend the reader
-  has scrolled past is not a legend. It is also the secondary encoding the
-  palette validator's warnings oblige.
+  once per page: the page scrolls through several of them, and a legend the
+  reader has scrolled past is not a legend. It is also the secondary encoding
+  the palette validator's warnings oblige.
 
 PERFORMANCE (2B-14: warm rerun < 2 s; A10)
   `views_find._bundle` / `views_find._subs` are reused BY IMPORT, so the engine
@@ -82,7 +129,7 @@ import streamlit as st
 
 from lib import charts_compare as X
 from lib import compare_data as K
-from lib import copy, countries, profile_data, selection, state, tiles
+from lib import copy, countries, links, profile_data, selection, state, tiles
 from lib import palette as P
 from lib.app_config import CFG
 from lib.data_cache import manifest
@@ -90,10 +137,7 @@ from lib.exports import data_date_label
 from lib.exports_xlsx import XLSX_MIME, workbook_bytes, workbook_filename
 from lib.palette import NA_MARK
 from lib.ranked import works_link_named
-from lib.search import search
-from lib.views_find import (
-    DASH, SEP, _bundle, _hit_label, _count, _pct, _sidebar_scenario, _subs, _vol_col,
-)
+from lib.views_find import DASH, SEP, _bundle, _count, _pct, _sidebar_scenario, _subs
 
 # ---------------------------------------------------------------- constants --
 
@@ -119,12 +163,10 @@ METRIC_LABELS = {
 #
 # 2B-R2-3 narrows the vocabulary to `charts_compare.SELECTOR_METRICS`: Share,
 # Specialisation, PP(top10%), SDG-tagged share, Change in mean annual volume,
-# and Volume where a level defines one. "Publications in the world top decile"
-# is NOT a tab any more -- that mass now rides in the PP view's own gutter and
-# hover, where it qualifies the share instead of competing with it. The metric
-# still EXISTS (`compare_data.METRICS`, `charts_compare.METRICS`, the workbook's
-# own label); it is the SELECTOR that stopped offering it, which is why the
-# order lives in the chart module beside the builder that has to draw them all.
+# and Volume where a level defines one -- exactly the "Share . SI . PP . SDG
+# share . Dynamics . Volume" order BUILD_PLAN_2BR3.md SS1.5 names for the
+# "Compare by" family; 2BR3 changes nothing about this vocabulary or its
+# order, only where a reader meets the controls that pick from it.
 SUBJECT_METRICS = X.SELECTOR_METRICS
 ERC_METRICS = SUBJECT_METRICS
 SDG_METRICS = SUBJECT_METRICS
@@ -138,7 +180,7 @@ SORT_LABELS = {"taxonomy": copy.COMPARE["SORT_TAXONOMY"],
                "value": copy.COMPARE["SORT_VALUE"]}
 SORT_DEFAULT = X.SORT_MODES[0]
 
-# 2B-R2-10: the frontier map's two controls. The POOL is the producer's
+# 2B-R2-10: the frontier map's own controls. The POOL is the producer's
 # (`compare_data.FRONTIER_POOLS`: which topics are eligible at all); the chart
 # module has its own name for the matching RANKING (`charts_compare.POOLS`), so
 # the two vocabularies are mapped here, once, rather than each section guessing.
@@ -154,23 +196,26 @@ COLOR_BY_LABELS = {"owner": copy.COMPARE["FRONTIER_COLOR_OWNER"],
 COLOR_BY_DEFAULT = X.COLOR_BY[0]
 
 # The accent KEY column each level's builder call needs (2B-R-8). `metric_frame`
-# returns the six contract columns only, so the key is merged back on from the
+# returns the v4 contract columns only, so the key is merged back on from the
 # taxonomy's own long frame -- a join, not a recomputation.
 ACCENT_KEY = {"erc": "erc_domain", "sdg": "sdg_number"}
 
-# 2B-R-9 / A/B #8: the frontier slider. The default is VS's MEASURED value --
-# bubble occlusion on the real trio is 0.450 at N = 40 and N = 60, 0.588 at
-# N = 80, 0.708 at N = 120 -- i.e. sixty bubbles is the largest set that costs
-# nothing in occlusion.
+# 2B-R-9 / A/B #8: the pooled frontier map's own slider -- the LARGEST set that
+# costs nothing in occlusion (VS's MEASURED value: bubble occlusion on the real
+# trio is 0.450 at N = 40 and N = 60, 0.588 at N = 80, 0.708 at N = 120). This
+# is the POOLED MAP's own control (2B-R2-10); the SHARED-FRONTIER chart below
+# it has its own, unrelated top-N rule (2BR3 plan item 4, `SHARED_FRONTIER_TOP_N`).
 FRONTIER_TOPN_DEFAULT = 60
 FRONTIER_TOPN_MIN = 20
 FRONTIER_TOPN_MAX = 120
 FRONTIER_TOPN_STEP = 20
 
-# 2B-5 fixes the trends grid at six subfields; A3 fixes HOW the six are chosen
-# -- the largest SUMMED share across the compared set, never the intersection of
-# per-institution top lists, which collapses to one subfield.
-TRENDS_TOP_N = 6
+# 2BR3 VC item 4: "Who holds the shared frontier" shows the twenty topics with
+# the largest COMBINED volume by default, with a button (never a slider, and
+# never the pooled map's own "Topics plotted" control above) swapping in the
+# rest. `charts_compare.fig_diverging_shared` already takes `top_n=None` to
+# mean "show every row" (PAL wired this; see its own acceptance).
+SHARED_FRONTIER_TOP_N = 20
 
 # The subfields the impact panel draws out of the union it is handed (A1).
 IMPACT_ROWS_TOP_N = 20
@@ -181,28 +226,13 @@ IMPACT_ROWS_TOP_N = 20
 IMPACT_FLOORS = tuple(sorted(K.IMPACT_CELL_FLOORS, reverse=True))
 IMPACT_FLOOR_DEFAULT = IMPACT_FLOORS[0]
 
-# `?compare=` seeds the basket ONCE per session and then gets out of the way: a
-# link that kept winning would resurrect an institution the reader had just
-# removed. After the seed the basket is the single source of truth (2B-8).
-SEEDED_KEY = "compare_seeded"
-
-FIND_PAGE = "pages/1_\U0001F50E_Find.py"
-# `st.page_link` cannot carry a query string, so the SHAREABLE half of the
-# hand-off is still a printed deep link (`selection.deeplink`); `COLLAB_PAGE`
-# is the file path `st.switch_page` needs to hop IN-SESSION, which is what
-# keeps the basket and the tree/basis scenario alive.
-COLLAB_PAGE = "pages/3_\U0001F91D_Collaborate.py"
-
 # CSV file-name slugs. Code identifiers, never rendered copy -- the visible
-# labels are `copy.COMPARE["VIEW_*"]`.
+# labels are `copy.COMPARE["VIEW_*"]`. 2BR3 drops "trends" (the section is
+# deleted, plan SS1 item 3).
 SLUGS = {"overview": "overview", "subject": "subject", "erc": "erc", "sdg": "sdg",
          "frontier_map": "frontier_map", "shared_frontier": "shared_frontier",
          "impact": "impact", "impact_subfields": "impact_subfields",
-         "trends": "trends", "coverage": "coverage"}
-
-# The institution-normalised trends measure (V's needs_change 5): a subfield's
-# share of that institution's OWN publications for the year.
-TRENDS_VALUE_COL = "share_of_year"
+         "coverage": "coverage"}
 
 WINDOW_START, WINDOW_END = CFG["window"]
 
@@ -279,18 +309,6 @@ def _top_shared(ids: tuple, tree: str, basis: str, n: int) -> pd.DataFrame:
     return K.top_shared_subfields(_bundle()["ctx"], _subs(tree, basis), list(ids), n)
 
 
-@st.cache_data(show_spinner=False, max_entries=48)
-def _trends(iid: str, tree: str, basis: str) -> pd.DataFrame:
-    """One institution's per-year subfield volumes, PLUS the normalised measure
-    the shared-scale grid needs: the subfield's share of that institution's own
-    publications for that year, on the active basis."""
-    df = K.trends_subfields(_bundle()["ctx"], iid, tree).copy()
-    vol = _vol_col(basis)
-    totals = df.groupby("year")[vol].transform("sum")
-    df[TRENDS_VALUE_COL] = pd.to_numeric(df[vol], errors="coerce").div(totals).fillna(0.0)
-    return df
-
-
 @st.cache_data(show_spinner=False, max_entries=2)
 def _ci_sentence() -> str:
     """2B-R-12: the EXACT coverage of every interval on this page, in the words
@@ -318,9 +336,12 @@ def _names(ctx: dict, ids) -> dict:
 
 
 def _slots(ctx: dict, ids) -> dict:
-    """`{institution_id: slot}` from the identity family, by ascending
-    `inst_key` (A8) -- never by the order the basket happens to hold."""
-    return P.institution_slots({iid: ctx["index_by_id"].loc[iid, "inst_key"] for iid in ids})
+    """`{institution_id: slot}` by PICKER position (2BR3 plan item 6, manager
+    merge fix: slot 1 = the darkest navy -- the reader's own slot layout IS
+    the colour key, so the KPI cards and every legend follow the order the
+    slots show on screen, never an internal key). `ids` arrives in picker
+    order from `selection.slots_row` (see `render`)."""
+    return {iid: pos for pos, iid in enumerate(ids)}
 
 
 def _slot_order(ids, slots: dict) -> list:
@@ -347,6 +368,34 @@ def _note(reading: str, tooltip: str | None = None) -> None:
     st.markdown(X.chart_note(reading, tooltip), unsafe_allow_html=True)
 
 
+def _not_offered_expander(hidden: list, level: str) -> None:
+    """2BR3 VC item 2: "Not shown here, and why" moves to a COLLAPSIBLE BELOW
+    the chart (never captions stacked above the metric selector, which is
+    where it lived through 2B-R2). The header and each reason are the SAME
+    strings as before -- `copy.SHARED`'s wording, `compare_data`'s own
+    sentence -- only the container changed."""
+    if not hidden:
+        return
+    with st.expander(copy.SHARED["NOT_OFFERED_HEADER"]):
+        for m in hidden:
+            st.caption(_not_offered_line(METRIC_LABELS[m], K.UNAVAILABLE_REASON[(m, level)]))
+
+
+def _not_offered_line(label: str, reason: str) -> str:
+    """One "not shown here, and why" line, in `copy.SHARED`'s wording.
+
+    A reason that ALREADY opens with the measure's own name is printed as it
+    stands: 2B-R2-8's own example sentence is written that way ("Volume: shown
+    in the chart gutter instead of as a tab"), and pouring it into the shared
+    "{feature}: {reason}" template rendered "Volume: Volume: shown ..." on the
+    live page. Trimming the duplicate here keeps ONE wording for the situation
+    without editing a producer's sentence from a page."""
+    prefix = f"{label}:"
+    if reason.strip().lower().startswith(prefix.lower()):
+        return reason.strip()
+    return copy.SHARED["NOT_OFFERED_LINE"].format(feature=label, reason=reason)
+
+
 def _scenario_words(sc: dict) -> dict:
     return {"basis": copy.BASIS_LABELS[sc["basis"]], "tree": copy.TREE_LABELS[sc["tree"]]}
 
@@ -366,110 +415,18 @@ def _download(df: pd.DataFrame, *, slug: str, sc: dict, key: str) -> None:
                        mime="text/csv", file_name=name, key=f"dl_{key}")
 
 
-# ----------------------------------------------------------------- sidebar --
-
-def _sidebar_basket(bundle: dict) -> None:
-    """READ-ONLY here: this page edits the basket through the overview cards,
-    where the reader is looking, and the sidebar only reports the count against
-    the basket cap and links back to Find."""
-    sb, names = st.sidebar, bundle["ctx"]["index_by_id"]
-    sb.header(copy.FIND["BASKET_HEADER"])
-    items = state.items()
-    sb.caption(copy.FIND["BASKET_COUNT"].format(n=len(items), cap=state.BASKET_CAP))
-    if not items:
-        sb.caption(copy.FIND["BASKET_EMPTY"])
-    for iid in items:
-        sb.write(str(names.loc[iid, "display_name"]))
-    # The multi-page registry only exists when the app is entered through
-    # Menu.py; running this page alone (AppTest, the probe) makes `page_link`
-    # raise on Streamlit's own page table, so the link degrades to its label
-    # rather than taking the page down.
-    try:
-        sb.page_link(FIND_PAGE, label=copy.NAV["FIND_LABEL"])
-    except Exception:
-        sb.caption(copy.NAV["FIND_LABEL"])
-
-
 # ------------------------------------------------------------------ header --
 
-def _header(bundle: dict) -> None:
-    """2B-R-12: no snapshot stamp anywhere. What stays is the two facts a
-    reader uses -- how big the index is and how old the data is -- both
-    computed, never typed (the same `exports.data_date_label` the Find page and
-    the menu read)."""
+def _header() -> None:
+    """2BR3 VC item 1: title + ONE promise line, and nothing else -- the index
+    size, the data date and this page's own method sentence move to the
+    bottom meta block (`_footer`), inside "About these figures", so the first
+    comparison content is visible without scrolling past meta prose."""
     st.title(copy.NAV["COMPARE_LABEL"])
-    st.subheader(copy.NAV["COMPARE_LEAD"])
-    st.caption(copy.COMPARE["PAGE_INTRO"])
-    st.markdown(f"**{copy.VERDICT_LINE}**")
-    mf = manifest()
-    stamp = (mf.get("source_manifest_generated_at") or mf.get("generated_at")
-             or mf.get("deployed_at"))
-    st.caption(copy.FIND["DATA_CAPTION"].format(
-        n_institutions=f"{len(bundle['index_df']):,}", sep=SEP,
-        date=data_date_label(stamp, NA_MARK)))
+    st.caption(copy.NAV["COMPARE_LEAD"])
 
 
-# --------------------------------------------------------------- selection --
-
-def _add_by_name(bundle: dict) -> None:
-    """Find's own search idiom: a free-text box, a selectbox over the hits, and
-    an add button. `state.add` returns False only when the BASKET cap is
-    reached and nothing changed, so the page is not rerun in that case and the
-    cap message renders on this same run."""
-    query = st.text_input(copy.COMPARE["ADD_LABEL"], key="compare_query", **state.PERSIST)
-    hits = search(query, bundle["search_idx"]) if query else []
-    if query and not hits:
-        st.caption(copy.SEARCH_EMPTY_TEMPLATE.format(query=query))
-    if not hits:
-        return
-    pick = st.selectbox(copy.COMPARE["ADD_PICK"], [h["id"] for h in hits],
-                        format_func=lambda i: _hit_label(hits, i), key="compare_pick")
-    if st.button(copy.COMPARE["ADD_BUTTON"], key="compare_add") and pick:
-        if state.add(pick):
-            st.rerun()
-        else:
-            st.warning(copy.COMPARE["CAP_REACHED"].format(cap=state.BASKET_CAP))
-
-
-def seed_from_query(bundle: dict) -> None:
-    """`?compare=` -> the basket, ONCE per session, BEFORE anything is drawn.
-
-    The link may name more institutions than Compare shows (2B-R-4 caps the
-    COMPARISON at three; the basket is a six-slot shortlist). Seeding the
-    BASKET at the basket's own cap and truncating at the comparison's cap
-    downstream is what lets the page say, in `_selection`, exactly how many it
-    left out -- a link that silently dropped ids at parse time could not."""
-    if st.session_state.get(SEEDED_KEY):
-        return
-    st.session_state[SEEDED_KEY] = True
-    known = bundle["ctx"]["id_pos"]
-    query = selection.read_query(known)["compare"]
-    if not query:
-        return
-    ids = selection.compare_ids(state.items(), query, known, state.BASKET_CAP)
-    for iid in ids:
-        state.add(iid)
-    state.reorder(ids)
-
-
-def _selection(bundle: dict) -> list:
-    """The compared set, and the controls that change it. Returns the ids in
-    the reader's own basket order, truncated at `state.COMPARE_CAP` (2B-R-4)
-    with the truncation DISCLOSED rather than performed silently."""
-    known = bundle["ctx"]["id_pos"]
-    st.subheader(copy.COMPARE["SELECTION_HEADER"])
-    st.caption(copy.COMPARE["SELECTION_HELP"])
-    _add_by_name(bundle)
-    ids, n_dropped = selection.compare_ids_capped(state.items(), [], known, state.COMPARE_CAP)
-    st.caption(copy.COMPARE["CAP_HELP"].format(cap=state.COMPARE_CAP))
-    if n_dropped:
-        st.warning(copy.COMPARE["CAP_TRUNCATED"].format(cap=state.COMPARE_CAP, n=n_dropped))
-    st.caption(copy.COMPARE["DEEPLINK_LABEL"])
-    st.code(selection.deeplink("compare", ids), language=None)
-    return ids
-
-
-# ---------------------------------------------------- overview (VIZ 4.1) ----
+# --------------------------------------------------- overview (VIZ 4.1) -----
 
 CARD_COLUMNS = ("vol_full", "sdg_share", "frontier_top25_share", "pp",
                 "intl_share", "company_share")
@@ -570,14 +527,18 @@ def _view_overview(ctx: dict, ids: list, slots: dict) -> pd.DataFrame:
     a table's job, and drawing it would produce six mini-charts competing with
     the metric selector immediately underneath.
 
-    2B-R2-9 rewrites the surface: the institution NAME is the link to its own
+    2B-R2-9 rewrote the surface: the institution NAME is the link to its own
     publications in OpenAlex (the same `works_link_named` builder the Find
-    profile and the benchmark tables use), so the separate "Publications" button
-    that pointed at exactly that URL is gone; the leading institution's card
-    carries a dot in its own colour on the measure it leads; and the two grey
-    captions under the strip -- the interval coverage and the window -- moved
-    into the cards' own tooltips and onto the impact panel, which is where the
-    intervals are actually drawn."""
+    profile and the benchmark tables use); the leading institution's card
+    carries a dot in its own colour on the measure it leads.
+
+    2BR3 removes the per-card "Remove" button and the strip's "Clear the
+    comparison" button (plan item 1/8): an institution now leaves the
+    comparison by being set back to the empty option in its OWN slot picker
+    (`selection.slots_row`, drawn just above this section) or by being
+    removed from the basket in the sidebar (`selection.render_sidebar`,
+    always visible) -- a THIRD, page-local way to do the same thing was one
+    more place a reader had to look for "remove"."""
     st.subheader(copy.COMPARE["OVERVIEW_HEADER"])
     df = _overview(tuple(ids))
     cells = df.set_index("institution_id")
@@ -603,29 +564,25 @@ def _view_overview(ctx: dict, ids: list, slots: dict) -> pd.DataFrame:
                 with col.container(border=True):
                     st.markdown(_card_html(label, value, dot),
                                 unsafe_allow_html=True, help=tip)
-            if col.button(copy.COMPARE["REMOVE_BUTTON"], key=f"cmp_rm_{iid}"):
-                state.remove(iid)
-                st.rerun()
     _note(copy.COMPARE["OVERVIEW_NOTE"], copy.COMPARE["OVERVIEW_NOTE_TIP"])
-    if st.button(copy.COMPARE["CLEAR_BUTTON"], key="cmp_clear"):
-        state.clear()
-        st.rerun()
     _download(df, slug=SLUGS["overview"], sc={"tree": "", "basis": ""}, key="overview")
     return df
 
 
 # ----------------------------------------- the metric selector (VIZ 4.2-4.5) --
 
-def _metric_selector(key: str, level: str, metrics: tuple) -> str:
+def _metric_selector(key: str, level: str, metrics: tuple) -> tuple:
     """ONE "Compare by" control per section (2B-R-5). Options the data cannot
-    serve at this level are HIDDEN, never offered returning zero, and the
-    frame's own reason for each is disclosed under the control -- `compare_data`
-    owns both the availability call and the wording.
+    serve at this level are HIDDEN, never offered returning zero.
 
-    The stored choice is clamped BEFORE the widget is built: a level change (the
-    field drill) can retire the option a reader last picked, and Streamlit
-    raises on a session value that is not in the option list rather than falling
-    back."""
+    Returns `(picked_metric, hidden_metrics)` -- 2BR3 change: this function no
+    longer RENDERS the hidden-options disclosure itself (that used to sit as
+    captions directly under the radio, i.e. ABOVE the chart); the caller now
+    passes `hidden` to `_not_offered_expander`, which draws it as a
+    collapsible BELOW the chart (plan SS3 VC item 2). The stored choice is
+    still clamped BEFORE the widget is built: a level change (the field
+    drill) can retire the option a reader last picked, and Streamlit raises on
+    a session value that is not in the option list rather than falling back."""
     available = [m for m in metrics if K.metric_frame_available(m, level)]
     hidden = [m for m in metrics if m not in available]
     labels = [METRIC_LABELS[m] for m in available]
@@ -633,34 +590,7 @@ def _metric_selector(key: str, level: str, metrics: tuple) -> str:
         st.session_state[key] = labels[0]
     picked = st.radio(copy.COMPARE["METRIC_LABEL"], labels, horizontal=True, key=key,
                       help=copy.COMPARE["METRIC_HELP"], **state.PERSIST)
-    if hidden:
-        # Plainly on the page, not behind an expander: a disclosure a reader has
-        # to open is a disclosure most readers never see, and the missing option
-        # is exactly the thing someone comparing two levels will look for. The
-        # reason is `compare_data`'s own sentence, so the page cannot invent a
-        # softer one -- and the HEADER and the LINE are `copy.SHARED`'s, the
-        # same two strings the Collaborate page uses for the same situation
-        # (2B-R2-8: one wording for "not shown here, and why", not one per
-        # page).
-        st.caption(copy.SHARED["NOT_OFFERED_HEADER"])
-        for m in hidden:
-            st.caption(_not_offered_line(METRIC_LABELS[m], K.UNAVAILABLE_REASON[(m, level)]))
-    return available[labels.index(picked)]
-
-
-def _not_offered_line(label: str, reason: str) -> str:
-    """One "not shown here, and why" line, in `copy.SHARED`'s wording.
-
-    A reason that ALREADY opens with the measure's own name is printed as it
-    stands: 2B-R2-8's own example sentence is written that way ("Volume: shown
-    in the chart gutter instead of as a tab"), and pouring it into the shared
-    "{feature}: {reason}" template rendered "Volume: Volume: shown ..." on the
-    live page. Trimming the duplicate here keeps ONE wording for the situation
-    without editing a producer's sentence from a page."""
-    prefix = f"{label}:"
-    if reason.strip().lower().startswith(prefix.lower()):
-        return reason.strip()
-    return copy.SHARED["NOT_OFFERED_LINE"].format(feature=label, reason=reason)
+    return available[labels.index(picked)], hidden
 
 
 def _sort_toggle(key: str) -> str:
@@ -714,7 +644,7 @@ def _decorate(df: pd.DataFrame, level: str, long: pd.DataFrame, key_col: str,
               label_col: str | None = None) -> pd.DataFrame:
     """Merge the 2B-R-8 accent KEY (and, for the SDGs, the numbered label) back
     onto a metric frame from the taxonomy's own long frame. `metric_frame`
-    returns the six contract columns and nothing else, so without this join the
+    returns the v4 contract columns and nothing else, so without this join the
     ERC and SDG row labels would carry no official-colour glyph at all."""
     if df.empty or long.empty:
         return df
@@ -770,24 +700,30 @@ def _metric_tip(df: pd.DataFrame, metric: str, sc: dict, *, accent: bool = False
 
 def _view_subject(ids, slots, names, sc) -> tuple:
     """2B-R-5: fields by default, a drill into ONE field's subfields, one metric
-    selector over both. 2B-R2-5 adds the row-order control beside it, and 2B-R2-8
-    replaces the four grey captions under the chart with one reading line."""
+    selector over both. 2BR3 puts the drill, the metric selector and the sort
+    toggle on ONE row (`st.columns`, plan SS3 VC item 2) above the legend and
+    the chart, and moves the hidden-metric disclosure to a collapsible below."""
     st.subheader(copy.COMPARE["VIEW_SUBJECT"])
     fields = _fields(tuple(ids), sc["tree"], sc["basis"])
     options = [None] + [int(f) for f in sorted(fields["field_id"].unique())]
     labels = dict(zip(fields["field_id"], fields["field_name"]))
-    field_id = st.selectbox(
-        copy.COMPARE["DRILL_LABEL"], options,
-        format_func=lambda f: copy.COMPARE["DRILL_ALL"] if f is None else str(labels.get(f, f)),
-        key="cmp_field_drill", **state.PERSIST)
+    c_drill, c_metric, c_sort = st.columns([2, 4, 2])
+    with c_drill:
+        field_id = st.selectbox(
+            copy.COMPARE["DRILL_LABEL"], options,
+            format_func=lambda f: copy.COMPARE["DRILL_ALL"] if f is None else str(labels.get(f, f)),
+            key="cmp_field_drill", **state.PERSIST)
     level = "field" if field_id is None else "subfield"
-    metric = _metric_selector("cmp_metric_subject", level, SUBJECT_METRICS)
-    sort = _sort_toggle("cmp_sort_subject")
+    with c_metric:
+        metric, hidden = _metric_selector("cmp_metric_subject", level, SUBJECT_METRICS)
+    with c_sort:
+        sort = _sort_toggle("cmp_sort_subject")
     floor = int(st.session_state.get("cmp_impact_floor") or IMPACT_FLOOR_DEFAULT)
     df = _order_rows(_metric(tuple(ids), sc["tree"], sc["basis"], level, metric,
                              field_id, floor))
     if df.empty:
         st.caption(copy.COMPARE["EMPTY_METRIC"])
+        _not_offered_expander(hidden, level)
         return df, level, metric
     _metric_chart(df, metric, ids, slots, names, level, key="fig_cmp_subject", sort=sort)
     reading = copy.COMPARE["NOTE_SUBJECT"]
@@ -796,6 +732,7 @@ def _view_subject(ids, slots, names, sc) -> tuple:
         reading = copy.COMPARE["CAPTION_DRILL"].format(field=str(labels.get(field_id, field_id)))
         tip = f"{copy.COMPARE['NOTE_SUBJECT']} {tip}"
     _note(reading, tip)
+    _not_offered_expander(hidden, level)
     _download(df, slug=SLUGS["subject"], sc=sc, key="subject")
     return df, level, metric
 
@@ -831,36 +768,46 @@ def _taxon_tip(ctx, ids, slots, sc, df, metric, numerator: str, accent_key: str)
 
 def _view_erc(ctx, ids, slots, names, sc) -> tuple:
     st.subheader(copy.COMPARE["VIEW_ERC"])
-    metric = _metric_selector("cmp_metric_erc", "erc", ERC_METRICS)
-    sort = _sort_toggle("cmp_sort_erc")
+    c_metric, c_sort = st.columns([4, 2])
+    with c_metric:
+        metric, hidden = _metric_selector("cmp_metric_erc", "erc", ERC_METRICS)
+    with c_sort:
+        sort = _sort_toggle("cmp_sort_erc")
     df = _order_rows(_metric(tuple(ids), sc["tree"], sc["basis"], "erc", metric, None,
                              IMPACT_FLOOR_DEFAULT))
     df = _decorate(df, "erc", _erc(tuple(ids)), "panel_idx")
     if df.empty:
         st.caption(copy.COMPARE["EMPTY_METRIC"])
+        _not_offered_expander(hidden, "erc")
         return df, metric
     _metric_chart(df, metric, ids, slots, names, "erc", key="fig_cmp_erc", sort=sort)
     _note(copy.COMPARE["NOTE_ERC"],
           _taxon_tip(ctx, ids, slots, sc, df, metric, "erc_classified_mass_frac",
                      "CAPTION_ACCENT_ERC"))
+    _not_offered_expander(hidden, "erc")
     _download(df, slug=SLUGS["erc"], sc=sc, key="erc")
     return df, metric
 
 
 def _view_sdg(ctx, ids, slots, names, sc) -> tuple:
     st.subheader(copy.COMPARE["VIEW_SDG"])
-    metric = _metric_selector("cmp_metric_sdg", "sdg", SDG_METRICS)
-    sort = _sort_toggle("cmp_sort_sdg")
+    c_metric, c_sort = st.columns([4, 2])
+    with c_metric:
+        metric, hidden = _metric_selector("cmp_metric_sdg", "sdg", SDG_METRICS)
+    with c_sort:
+        sort = _sort_toggle("cmp_sort_sdg")
     df = _order_rows(_metric(tuple(ids), sc["tree"], sc["basis"], "sdg", metric, None,
                              IMPACT_FLOOR_DEFAULT))
     df = _decorate(df, "sdg", _sdg(tuple(ids)), "sdg_idx", label_col="sdg_label_numbered")
     if df.empty:
         st.caption(copy.COMPARE["EMPTY_METRIC"])
+        _not_offered_expander(hidden, "sdg")
         return df, metric
     _metric_chart(df, metric, ids, slots, names, "sdg", key="fig_cmp_sdg", sort=sort)
     _note(copy.COMPARE["NOTE_SDG"],
           _taxon_tip(ctx, ids, slots, sc, df, metric, "sdg_classified_mass_frac",
                      "CAPTION_ACCENT_SDG"))
+    _not_offered_expander(hidden, "sdg")
     _download(df, slug=SLUGS["sdg"], sc=sc, key="sdg")
     return df, metric
 
@@ -890,11 +837,14 @@ def _shared_long(df: pd.DataFrame, ids) -> pd.DataFrame:
 
 
 def _frontier_controls() -> tuple:
-    """2B-R2-10's two selectors, side by side above the map: WHICH topics are
-    eligible, and WHAT the colour means. Both return the producer's own
-    vocabulary (`compare_data.FRONTIER_POOLS`, `charts_compare.COLOR_BY`), never
-    a label."""
-    cols = st.columns(2)
+    """2BR3 puts all THREE of the pooled map's own controls -- WHICH topics are
+    eligible, WHAT the colour means, and HOW MANY are plotted -- on one row
+    (plan SS3 VC item 2). The first two return the producer's own vocabulary
+    (`compare_data.FRONTIER_POOLS`, `charts_compare.COLOR_BY`), never a label;
+    the third is the pre-existing 2B-R2-10 "Topics plotted" slider, unchanged
+    in range and default, only repositioned onto this same row. It has NOTHING
+    to do with the separate shared-frontier top-N below (`_shared_frontier_top_n`)."""
+    cols = st.columns([2, 2, 2])
     pools = list(K.FRONTIER_POOLS)
     with cols[0]:
         pool = st.radio(copy.COMPARE["FRONTIER_POOL_LABEL"], pools,
@@ -907,7 +857,12 @@ def _frontier_controls() -> tuple:
                             format_func=lambda c: COLOR_BY_LABELS[c], horizontal=True,
                             help=copy.COMPARE["FRONTIER_COLOR_HELP"], key="cmp_frontier_color",
                             **state.PERSIST)
-    return str(pool), str(color_by)
+    with cols[2]:
+        top_n = st.slider(copy.COMPARE["FRONTIER_TOPN_LABEL"], FRONTIER_TOPN_MIN,
+                          FRONTIER_TOPN_MAX, FRONTIER_TOPN_DEFAULT, FRONTIER_TOPN_STEP,
+                          help=copy.COMPARE["FRONTIER_TOPN_HELP"], key="cmp_frontier_topn",
+                          **state.PERSIST)
+    return str(pool), str(color_by), int(top_n)
 
 
 def _domain_items(pooled: pd.DataFrame) -> list:
@@ -925,17 +880,45 @@ def _domain_items(pooled: pd.DataFrame) -> list:
     return [(d, str(names.get(d, d))) for d in ordered]
 
 
-def _view_frontier(ids, slots, names, sc, top_n: int, pool: str, color_by: str) -> tuple:
-    """2B-R-9's two charts, with 2B-R2-10's pool and colour selectors wired in.
-    The map pools the compared institutions' eligible frontier topics into ONE
-    plane -- one bubble per topic, so the same topic can never be drawn twice in
-    two colours -- and the diverging list answers the question the map's
-    near-degenerate head cannot: who actually holds the topics they share."""
+def _shared_frontier_top_n(total: int) -> int | None:
+    """2BR3 plan item 4: the shared-frontier chart's OWN top-N rule, decoupled
+    from the pooled map's "Topics plotted" slider above it. Default is the
+    twenty topics with the largest COMBINED volume (`fig_diverging_shared`
+    ranks on `value_col` summed across institutions, PAL's own contract); a
+    button -- never a slider -- swaps in the rest. `total <=
+    SHARED_FRONTIER_TOP_N` needs no button at all: showing all of them IS
+    showing the top N."""
+    key = "cmp_shared_frontier_all"
+    if total <= SHARED_FRONTIER_TOP_N:
+        return None
+    show_all = bool(st.session_state.get(key, False))
+    if show_all:
+        if st.button(copy.COMPARE["SHARED_FRONTIER_SHOW_TOP"].format(n=SHARED_FRONTIER_TOP_N),
+                     key="cmp_shared_frontier_toggle"):
+            st.session_state[key] = False
+            st.rerun()
+        return None
+    if st.button(copy.COMPARE["SHARED_FRONTIER_SHOW_ALL"].format(n=f"{total:,}"),
+                 key="cmp_shared_frontier_toggle"):
+        st.session_state[key] = True
+        st.rerun()
+    return SHARED_FRONTIER_TOP_N
+
+
+def _view_frontier(ids, slots, names, sc) -> tuple:
+    """2B-R-9's two charts. The map pools the compared institutions' eligible
+    frontier topics into ONE plane -- one bubble per topic, so the same topic
+    can never be drawn twice in two colours -- and the diverging list answers
+    the question the map's near-degenerate head cannot: who actually holds the
+    topics they share. 2BR3 moves the pooled map's THREE controls onto one row
+    (`_frontier_controls`) and gives the shared list its OWN top-twenty/"show
+    all" control (`_shared_frontier_top_n`), independent of the map's slider."""
     st.subheader(copy.COMPARE["VIEW_FRONTIER_MAP"])
+    pool, color_by, top_n = _frontier_controls()
     pooled = _frontier_pooled(tuple(ids), sc["tree"], sc["basis"], top_n, pool)
     if pooled.empty:
         st.caption(copy.COMPARE["EMPTY_FRONTIER_POINTS"])
-        return pooled, pd.DataFrame()
+        return pooled, pd.DataFrame(), pool, color_by, top_n
     items = _domain_items(pooled)
     st.markdown(X.map_legend_strip(_slot_order(ids, slots), slots=slots, names=names,
                                    color_by=color_by, shared=True,
@@ -964,17 +947,18 @@ def _view_frontier(ids, slots, names, sc, top_n: int, pool: str, color_by: str) 
                                _slot_order(ids, slots))
     if shared_long.empty:
         st.caption(copy.COMPARE["EMPTY_SHARED_FRONTIER"])
-        return pooled, shared_long
+        return pooled, shared_long, pool, color_by, top_n
+    total_shared = int(shared_long["topic_id"].nunique())
+    shared_top_n = _shared_frontier_top_n(total_shared)
     _legend(ids, slots, names)
     st.plotly_chart(
         X.fig_diverging_shared(shared_long, _slot_order(ids, slots), slots=slots,
-                               names=names, value_col="vol", top_n=top_n),
+                               names=names, value_col="vol", top_n=shared_top_n),
         width="stretch", key="fig_cmp_shared_frontier")
-    _note(copy.COMPARE["NOTE_SHARED_FRONTIER"].format(
-        n=f"{shared_long['topic_id'].nunique():,}"),
+    _note(copy.COMPARE["NOTE_SHARED_FRONTIER"].format(n=f"{total_shared:,}"),
         copy.COMPARE["TIP_SHARED_FRONTIER"].format(basis=copy.BASIS_LABELS[sc["basis"]]))
     _download(shared_long, slug=SLUGS["shared_frontier"], sc=sc, key="shared_frontier")
-    return pooled, shared_long
+    return pooled, shared_long, pool, color_by, top_n
 
 
 # --------------------------------------------------------------- the impact --
@@ -993,6 +977,12 @@ def _impact_rows(union: pd.DataFrame, top: pd.DataFrame) -> pd.DataFrame:
 
 
 def _view_impact(ids, slots, names, sc) -> tuple:
+    """2BR3 keeps this section's shape (index intervals, then a subfield cut
+    with its own floor toggle) and rewrites only the subfield reading line:
+    plan item 3 replaces "showing the {n} of {n_union} subfields this set
+    publishes most in" (a count with no rule behind it) with the SELECTION
+    RULE in plain words -- `compare_data.impact_subfields`'s own floor-
+    clearing union -- alongside the same count."""
     st.subheader(copy.COMPARE["VIEW_IMPACT"])
     st.markdown(f"**{copy.COMPARE['IMPACT_INDEX_HEADER']}**")
     index_df = _impact_index(tuple(ids))
@@ -1024,45 +1014,11 @@ def _view_impact(ids, slots, names, sc) -> tuple:
     st.plotly_chart(X.fig_impact_subfields(shown, slots, names=names),
                     width="stretch", key="fig_cmp_impact_subfields")
     _note(copy.COMPARE["NOTE_IMPACT_SUBFIELDS"].format(
-        n=f"{shown['subfield_id'].nunique():,}", n_union=f"{union['subfield_id'].nunique():,}"),
+        floor=int(floor), n=f"{shown['subfield_id'].nunique():,}",
+        n_union=f"{union['subfield_id'].nunique():,}"),
         copy.COMPARE["TIP_IMPACT_SUBFIELDS"].format(ci=_ci_sentence()))
     _download(union, slug=SLUGS["impact_subfields"], sc=sc, key="impact_subfields")
     return index_df, union
-
-
-# --------------------------------------------------------------- the trends --
-
-def _view_trends(ids, slots, names, sc) -> pd.DataFrame:
-    top = _top_shared(tuple(ids), sc["tree"], sc["basis"], TRENDS_TOP_N)
-    st.subheader(copy.COMPARE["TRENDS_HEADER"].format(n=f"{len(top):,}"))
-    if top.empty:
-        st.caption(copy.COMPARE["EMPTY_TRENDS"])
-        return pd.DataFrame()
-    keys = list(top["subfield_id"])
-    frames, kept = {}, []
-    for iid in ids:
-        df = _trends(iid, sc["tree"], sc["basis"])
-        mine = df[df["subfield_id"].isin(keys)].assign(institution_id=iid)
-        if len(mine):
-            frames[iid] = mine
-            kept.append(mine)
-    if not frames:
-        st.caption(copy.COMPARE["EMPTY_TRENDS"])
-        return pd.DataFrame()
-    _legend(ids, slots, names)
-    # 2B-R-12: the bonus year is labelled `<year>*` on the axis and the footnote
-    # lives in the caption below, not in a banner of its own.
-    st.plotly_chart(
-        X.fig_trends_small_multiples(frames, slots, keys, names=names,
-                                     value_col=TRENDS_VALUE_COL,
-                                     bonus_year=str(CFG["bonus_year"])),
-        width="stretch", key="fig_cmp_trends")
-    _note(copy.COMPARE["NOTE_TRENDS"],
-          copy.COMPARE["TIP_TRENDS"].format(bonus_year=CFG["bonus_year"],
-                                            **_scenario_words(sc)))
-    out = pd.concat(kept, ignore_index=True)
-    _download(out, slug=SLUGS["trends"], sc=sc, key="trends")
-    return out
 
 
 # ------------------------------------------------------------- the coverage --
@@ -1078,6 +1034,9 @@ def _state_labels() -> dict:
 
 
 def _view_coverage(ids, slots, names, sc) -> pd.DataFrame:
+    """2BR3 plan item 1/3: MOVED UP, directly after the KPI cards -- "top
+    generic info first", and the classified share this section states is what
+    the Subject/ERC/SDG sections below rest their own denominators on."""
     st.subheader(copy.COMPARE["VIEW_COVERAGE"])
     df = _coverage(tuple(ids))
     if df.empty:
@@ -1156,10 +1115,11 @@ def methods_rows(ctx: dict, ids: list, sc: dict, floor: int, top_n: int,
 
 
 def sheet_specs(sc: dict, frames: dict, metrics: dict) -> list:
-    """`[(sheet label, what that sheet counts, frame)]`, in page order -- one
+    """`[(sheet label, what that sheet counts, frame)]`, in PAGE order -- one
     sheet per view the page actually drew, with the METRIC each selector was on
     named in the caption, so a workbook cannot claim a view the reader did not
-    see."""
+    see. 2BR3: Coverage moves up (it now sits right after Overview on the
+    page) and Trends is gone."""
     C = copy.COMPARE
     words = _scenario_words(sc)
     subject_label = C["XLSX_SHEET_SUBJECT_FIELD"] if metrics["level"] == "field" \
@@ -1167,6 +1127,7 @@ def sheet_specs(sc: dict, frames: dict, metrics: dict) -> list:
     return [
         (C["XLSX_SHEET_OVERVIEW"], C["OVERVIEW_WINDOW"].format(y0=WINDOW_START, y1=WINDOW_END),
          frames["overview"]),
+        (C["VIEW_COVERAGE"], C["CAPTION_COVERAGE"], frames["coverage"]),
         (subject_label,
          C["XLSX_CAPTION_METRIC"].format(metric=METRIC_LABELS[metrics["subject"]],
                                          **words),
@@ -1182,8 +1143,6 @@ def sheet_specs(sc: dict, frames: dict, metrics: dict) -> list:
         (C["XLSX_SHEET_IMPACT_INDEX"], C["CAPTION_IMPACT"].format(y0=WINDOW_START, y1=WINDOW_END),
          frames["impact"]),
         (C["XLSX_SHEET_IMPACT_SUBFIELDS"], C["IMPACT_UNION_CAPTION"], frames["impact_subfields"]),
-        (C["VIEW_TRENDS"], C["CAPTION_TRENDS_SHARE"].format(**words), frames["trends"]),
-        (C["VIEW_COVERAGE"], C["CAPTION_COVERAGE"], frames["coverage"]),
     ]
 
 
@@ -1206,58 +1165,46 @@ def _exports(ctx: dict, ids: list, sc: dict, floor: int, top_n: int, sheets: lis
                        key="dl_workbook")
 
 
-# ------------------------------------------------- hand-off to Collaborate --
+# --------------------------------------------------------- bottom meta block --
 
-def _handoff(ctx: dict, ids: list) -> None:
-    """2B-8's other half: any pair of the compared set opens on Collaborate.
-
-    The button stashes the chosen pair in `st.session_state["pair"]` -- a plain,
-    non-widget key, the basket's own idiom -- and then calls `st.switch_page`,
-    an IN-SESSION hop that keeps the basket and the scenario alive. That call
-    raises `StreamlitAPIException` (a plain `Exception`) when no multipage
-    registry exists to switch into, which is exactly the AppTest/probe case;
-    `switch_page`'s real navigation control flow raises `ScriptControlException`,
-    a `BaseException` FOR THIS REASON, so this guard cannot swallow it."""
-    st.subheader(copy.COMPARE["HANDOFF_HEADER"])
-    st.caption(copy.COMPARE["HANDOFF_HELP"])
-    default = selection.pair_from(ids)
-    if default is None:
-        return
-    cols = st.columns([2, 2, 1])
-    label = lambda i: _name(ctx, i)  # noqa: E731  (one-line format_func, both boxes)
-    a = cols[0].selectbox(copy.COMPARE["HANDOFF_A_LABEL"], ids, index=ids.index(default[0]),
-                          format_func=label, key="cmp_pair_a")
-    b = cols[1].selectbox(copy.COMPARE["HANDOFF_B_LABEL"], ids, index=ids.index(default[1]),
-                          format_func=label, key="cmp_pair_b")
-    pair = selection.pair_from(ids, a, b)
-    if pair is None:
-        return
-    link = selection.deeplink("pair", list(pair))
-    if cols[2].button(copy.COMPARE["HANDOFF_LINK"], key="cmp_handoff_open"):
-        st.session_state["pair"] = pair
-        try:
-            st.switch_page(COLLAB_PAGE)
-        except Exception:
-            pass
-    st.code(link, language=None)
+def _footer(bundle: dict, ctx: dict, ids: list, sc: dict, floor: int, top_n: int,
+           sheets: list, controls: dict) -> None:
+    """2BR3 VC item 1: everything that used to sit BETWEEN the title and the
+    first chart now lives HERE, at the foot of the page: the index-size and
+    data-date line and this page's own method sentence, inside one
+    collapsible ("About these figures", plan SS3 VC) so a reader opens it on
+    purpose; the export workbook and per-view CSVs (unchanged, 2B-13); and the
+    shareable link (`links.share_link_block`, SEL's factored-out component,
+    plan item 7) naming exactly the institutions in the three slots above."""
+    st.divider()
+    with st.expander(copy.COMPARE["ABOUT_HEADER"]):
+        st.caption(copy.COMPARE["PAGE_INTRO"])
+        mf = manifest()
+        stamp = (mf.get("source_manifest_generated_at") or mf.get("generated_at")
+                 or mf.get("deployed_at"))
+        st.caption(copy.FIND["DATA_CAPTION"].format(
+            n_institutions=f"{len(bundle['index_df']):,}", sep=SEP,
+            date=data_date_label(stamp, NA_MARK)))
+    _exports(ctx, ids, sc, floor, top_n, sheets, controls)
+    selection.share_link_block("compare", ids, caption=copy.COMPARE["DEEPLINK_LABEL"])
 
 
 # ------------------------------------------------------------------ render --
 
 def render() -> None:
-    """The whole Compare page. Order: sidebar scenario (so a tree/basis carried
-    from another page is read before anything is built) -> header -> selection
-    -> substrates behind the A10 spinner -> overview cards -> subject / ERC /
-    SDG selectors -> the two frontier charts -> impact -> trends -> coverage ->
-    exports -> the pair hand-off."""
+    """The whole Compare page (2BR3 VC rework, plan SS1.5/SS3 VC). Order:
+    sidebar scenario + the shared search/basket -> title + one promise line ->
+    the three slots (`selection.slots_row`) -> substrates behind the A10
+    spinner -> overview cards -> Coverage -> the three "Compare by" sections
+    (subject, ERC, SDG) -> the two frontier charts -> impact -> the bottom
+    meta block (exports, "About these figures", the share link)."""
     bundle = _bundle()
     scenario = _sidebar_scenario()
-    seed_from_query(bundle)
-    _sidebar_basket(bundle)
-    _header(bundle)
-    ids = _selection(bundle)
+    selection.render_sidebar()
+    _header()
+    slot_picks = selection.slots_row("compare", state.COMPARE_CAP)
+    ids = [i for i in slot_picks if i]
     if len(ids) < 2:
-        st.info(copy.COMPARE["EMPTY_TOO_FEW"])
         return
     # A10: a tree/basis flip pays `build_substrates` ONCE (measured 4.6 s,
     # cached); every other rerun finds it warm.
@@ -1268,21 +1215,16 @@ def render() -> None:
     names = _names(ctx, ids)
 
     frames = {"overview": _view_overview(ctx, ids, slots)}
+    frames["coverage"] = _view_coverage(ids, slots, names, scenario)
+
     subject, level, subject_metric = _view_subject(ids, slots, names, scenario)
     frames["subject"] = subject
     frames["erc"], erc_metric = _view_erc(ctx, ids, slots, names, scenario)
     frames["sdg"], sdg_metric = _view_sdg(ctx, ids, slots, names, scenario)
 
-    pool, color_by = _frontier_controls()
-    top_n = st.slider(copy.COMPARE["FRONTIER_TOPN_LABEL"], FRONTIER_TOPN_MIN,
-                      FRONTIER_TOPN_MAX, FRONTIER_TOPN_DEFAULT, FRONTIER_TOPN_STEP,
-                      help=copy.COMPARE["FRONTIER_TOPN_HELP"], key="cmp_frontier_topn",
-                      **state.PERSIST)
-    frames["frontier_map"], frames["shared_frontier"] = _view_frontier(
-        ids, slots, names, scenario, int(top_n), pool, color_by)
+    frames["frontier_map"], frames["shared_frontier"], pool, color_by, top_n = \
+        _view_frontier(ids, slots, names, scenario)
     frames["impact"], frames["impact_subfields"] = _view_impact(ids, slots, names, scenario)
-    frames["trends"] = _view_trends(ids, slots, names, scenario)
-    frames["coverage"] = _view_coverage(ids, slots, names, scenario)
 
     metrics = {"level": level, "subject": subject_metric, "erc": erc_metric,
                "sdg": sdg_metric}
@@ -1290,5 +1232,4 @@ def render() -> None:
     floor = int(st.session_state.get("cmp_impact_floor") or IMPACT_FLOOR_DEFAULT)
     controls = {"pool": pool, "color_by": color_by,
                 "sort": _current_sort("cmp_sort_subject")}
-    _exports(ctx, ids, scenario, floor, int(top_n), sheets, controls)
-    _handoff(ctx, ids)
+    _footer(bundle, ctx, ids, scenario, floor, top_n, sheets, controls)
