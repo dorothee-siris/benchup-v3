@@ -613,12 +613,15 @@ def _share_denom_value(ctx, subs, ids, level, base_filtered: pd.DataFrame) -> pd
 def _share_frame(ctx, subs, ids, level, field_id=None) -> pd.DataFrame:
     if level == "field":
         base = fields_long(ctx, subs, ids).rename(columns={"field_id": "taxon_id", "field_name": "taxon_label"})
-        denom = "own total mass across ALL fields in this scenario (Sigma_field share == 1)"
+        denom = ("own total mass across ALL fields in this scenario (Sigma_field share == 1); "
+                 "whole-run window (2020-2025), unlike the top-decile and SDG panels' 2020-2024 window")
     elif level == "subfield":
         base = subfields_long(ctx, subs, ids)
         base = base[base["field_id"] == field_id].rename(
             columns={"subfield_id": "taxon_id", "subfield_name": "taxon_label"})
-        denom = "own total mass across ALL subfields in this scenario (Sigma_subfield share == 1, not just this field's subfields)"
+        denom = ("own total mass across ALL subfields in this scenario (Sigma_subfield share == 1, "
+                 "not just this field's subfields); whole-run window (2020-2025), unlike the "
+                 "top-decile and SDG panels' 2020-2024 window")
     elif level == "erc":
         base = erc_long(ctx, ids).rename(columns={"panel_idx": "taxon_id", "panel_label": "taxon_label"})
         denom = "own ERC-classified fractional mass (index.erc_classified_mass_frac); Sigma(share) <= 1, single-label-dominant"

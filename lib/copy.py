@@ -266,6 +266,8 @@ FIND = {
     "SLOT_LABEL": "Slot {n}",
     "SLOT_NEED_COMPARE": ("Add at least two institutions to your basket, using the "
                           "sidebar search, to compare them."),
+    "SLOT_PICK_COMPARE": ("Your basket is ready — pick at least two of its institutions "
+                          "in the slots above to compare them."),
     "SLOT_NEED_COLLAB": ("Collaborate reads exactly two institutions. Pick two in the "
                         "slots above, adding more to your basket first if you need to."),
     "PAGE_TITLE": "Find",
@@ -1470,7 +1472,8 @@ COLLAB = {
 
     # ---- section three (2BR3): the topic deep dive -------------------------
     "TOPICS_HEADER": "The topics the two publish on together",
-    "TOPICS_READING": "The shared topics carrying the most joint publications, largest first.",
+    "TOPICS_READING": ("The shared topics carrying the most joint publications, largest first. "
+                       "Each topic name links to the pair's joint publications on OpenAlex."),
     "TOPICS_TOOLTIP": (
         "Each joint publication counts once, under the topic it is mainly about, so a publication is "
         "never spread over several rows. Only the pair's most-published shared topics are held, up to "
@@ -1825,7 +1828,10 @@ METHODS = {
             "the tool ships {n_trees} versions of the taxonomy: the original as OpenAlex publishes "
             "it, a conservative repair that moves only the clear cases, and a best-fit repair that "
             "moves more. Every topic keeps a subfield under all three, so subfield volumes always "
-            "sum to the institution's total.\n\n"
+            "sum to the institution's whole-run total, the corpus across every harvested year with "
+            "the bonus year included. The headline publication card counts the shorter core window "
+            "instead, so the subject charts sum to more than that card shows: two windows, both "
+            "correct, each named where it is used.\n\n"
             "Changing the version moves publications between subfields and fields, which shifts the "
             "profile charts and the subfield lenses; the topic, ERC and SDG views are untouched by "
             "it. The repair is a judgement in the arguable cases, and a share of the assignments in "

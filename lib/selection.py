@@ -390,7 +390,11 @@ def slots_row(view: str, n: int) -> list[str | None]:
         if len(filled) < 2:
             st.info(copy.FIND["SLOT_NEED_COLLAB"])
     elif len(filled) < 2:
-        st.info(copy.FIND["SLOT_NEED_COMPARE"])
+        # 2C manager fix (hostile-pass MAJOR): with 2+ institutions already in
+        # the basket the old message still said "add to your basket" -- the
+        # real blocker at that point is the unassigned slot pickers above.
+        st.info(copy.FIND["SLOT_NEED_COMPARE"] if len(basket) < 2
+                else copy.FIND["SLOT_PICK_COMPARE"])
 
     if filled:
         st.query_params[param] = ",".join(filled)
