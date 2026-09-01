@@ -433,7 +433,6 @@ def _joint_vol_by_topic(ctx: dict, a: str, b: str) -> dict:
 
 UNTAPPED_COLS = ["topic_id", "topic_name", "subfield_id", "subfield_name", "vol_a", "vol_b",
                 "joint_observed", "joint_expected", "gap", "url"]
-SIBLING_COLS = ["subfield_id", "subfield_name", "topic_id", "topic_name", "vol_a", "vol_b"]
 
 
 def untapped(ctx: dict, subs: dict, a: str, b: str, top_n: int = 100) -> dict:
@@ -458,26 +457,19 @@ def untapped(ctx: dict, subs: dict, a: str, b: str, top_n: int = 100) -> dict:
     here, not a data gap). Rows are kept only where `gap > 0`, sorted
     descending, capped at `top_n` (2B-R2-11: default 100, slider-ready --
     pass a smaller `top_n` for the page's slider). Each row carries a live
-    OpenAlex `url` restricted to this topic.
-
-    `siblings`: for the subfields appearing in the untapped list, every
-    OTHER topic in that subfield (`topics_dim`, tree-aware) that EITHER side
-    already holds nonzero volume in but which is NOT itself one of the
-    pair's `shared_topics` -- adjacent topics the pair could plausibly
-    extend collaboration into, uncapped, sorted by (subfield, vol_a, vol_b)
-    descending."""
+    OpenAlex `url` restricted to this topic. `subfield_id` rides along too
+    (UNTAPPED_COLS), tree-aware, for the table's own subfield column."""
     shared = shared_topics(ctx, subs, a, b)
     if shared.empty:
-        return {"topics": pd.DataFrame(columns=UNTAPPED_COLS), "siblings": pd.DataFrame(columns=SIBLING_COLS),
-               "k": np.nan}
+        return {"topics": pd.DataFrame(columns=UNTAPPED_COLS), "k": np.nan}
 
     vol_col = "vol_full" if subs["basis"] == "full" else "vol_frac"
     ta = P.topics_table(ctx, subs, a)[["topic_id", vol_col]].rename(columns={vol_col: "vol_a"})
     tb = P.topics_table(ctx, subs, b)[["topic_id", vol_col]].rename(columns={vol_col: "vol_b"})
     # `shared_topics`' own SHARED_TOPICS_COLS carries subfield_NAME only --
-    # this function additionally needs subfield_id (for the sibling lookup
-    # below), so join it back in via the same tree-aware map `shared_topics`
-    # itself uses internally.
+    # this function additionally needs subfield_id (carried in UNTAPPED_COLS
+    # for the table's own subfield column), so join it back in via the same
+    # tree-aware map `shared_topics` itself uses internally.
     subfield_ids = _topic_subfield_map(ctx, subs["tree"])
     df = shared[["topic_id", "topic_name", "subfield_name"]].merge(
         subfield_ids, on="topic_id", how="left").merge(
@@ -499,20 +491,7 @@ def untapped(ctx: dict, subs: dict, a: str, b: str, top_n: int = 100) -> dict:
     df["url"] = [_taxon_url(a, b, "topic", t) for t in df["topic_id"]]
     topics_out = df.reindex(columns=UNTAPPED_COLS)
 
-    subfield_ids = set(int(s) for s in topics_out["subfield_id"].dropna().unique())
-    tree_col = f"{subs['tree']}_subfield_id"
-    dim = ctx["topics_dim_df"][["topic_id", tree_col]].rename(columns={tree_col: "subfield_id"})
-    dim = dim[dim["subfield_id"].isin(subfield_ids) & ~dim["topic_id"].isin(set(shared["topic_id"]))]
-    extra = P._topics_dim_extra(ctx)[["topic_id", "topic_name"]]
-    sfd_names = P._subfield_field_domain_map(ctx)[["subfield_id", "subfield_name"]]
-    sib = dim.merge(extra, on="topic_id", how="left").merge(sfd_names, on="subfield_id", how="left") \
-             .merge(ta, on="topic_id", how="left").merge(tb, on="topic_id", how="left")
-    sib[["vol_a", "vol_b"]] = sib[["vol_a", "vol_b"]].fillna(0.0)
-    sib = sib[(sib["vol_a"] > 0) | (sib["vol_b"] > 0)]
-    siblings_out = sib.reindex(columns=SIBLING_COLS).sort_values(
-        ["subfield_id", "vol_a", "vol_b"], ascending=[True, False, False]).reset_index(drop=True)
-
-    return {"topics": topics_out, "siblings": siblings_out, "k": k}
+    return {"topics": topics_out, "k": k}
 
 
 def breadth_jaccard(ctx: dict, subs: dict, a: str, b: str, min_full: int = 0) -> dict:

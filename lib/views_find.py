@@ -102,9 +102,9 @@ from lib.exports import data_date_label, ranking_csv, ranking_filename
 from lib.filters import active_controls_strip, apply_filters, explain_empty
 from lib.palette import NA_MARK
 from lib.ranked import (
-    NAME_LINK_MODE, WORKS_LINK_FALLBACK_LABEL, concordance_caption, depth_caption,
-    format_concordance, format_rows, render_concordance_table, render_ranked_table,
-    works_link_named,
+    NAME_LINK_MODE, WORKS_LINK_FALLBACK_LABEL, _pct100, concordance_caption, depth_caption,
+    format_concordance, format_rows, pct_progress_column, render_concordance_table,
+    render_ranked_table, works_link_named,
 )
 from lib.search import build_search_index, normalize
 from lib.wordcloud_png import render_wordcloud_png
@@ -138,6 +138,16 @@ DASH = "–"  # en dash -- interval rendering
 
 WINDOW_START, WINDOW_END = CFG["window"]
 DEPTH_OPTIONS = [CFG["depth"]["default"], CFG["depth"]["max"]]
+
+# D5 (Phase 2C, stream VF): the two window labels the SDG/ERC panel basis
+# captions name, built from CFG so no digit is ever typed into a string
+# (BUILD_PLAN_2A.md L10) -- CORPUS_WINDOW_LABEL is the five-year window this
+# page states everywhere else; SDG_ERC_WINDOW_LABEL is the whole-run,
+# six-year window `sdg.parquet`/`erc.parquet` are actually denominated on
+# (window_conventions.sdg_mass_window, docs/data_contract.yaml) -- the bonus
+# year IS included there, unlike every impact indicator on this page.
+CORPUS_WINDOW_LABEL = f"{WINDOW_START}{DASH}{WINDOW_END}"
+SDG_ERC_WINDOW_LABEL = f"{WINDOW_START}{DASH}{CFG['bonus_year']}"
 
 # Layout constants (VIZ_SPEC S1.9 / S2.11 / S2.21). Streamlit collapses a
 # horizontal block to a vertical stack below its own small breakpoint, which is
@@ -480,6 +490,29 @@ def _count(value) -> str:
     if value is None or pd.isna(value):
         return NA_MARK
     return f"{float(value):,.0f}"
+
+
+def _esc(value) -> str:
+    return (str(value).replace("&", "&amp;").replace("<", "&lt;")
+            .replace(">", "&gt;").replace('"', "&quot;"))
+
+
+def _basis_caption(text: str, *, warning: bool = False) -> None:
+    """D5 (CHROME_CONTRACT.md S7, Phase 2C stream VF): a one-line basis or
+    coverage disclosure -- a fact about the DATA, read where the ratio it
+    qualifies is, never folded into a chart's own `?` (which states how to
+    READ the chart, a different job). Normal state matches every other
+    caption's small ink; switches to PAL's frontier red -- never bold, no
+    icon box -- when the fact is a warning (a floor bites, or a page-level
+    setting silently does not apply here). Same recipe as
+    `views_collab._basis_caption`, so the same kind of fact reads identically
+    on every page; kept local rather than imported because this file owns no
+    cross-page helper module this wave."""
+    color = P.WARNING_CAPTION_COLOR if warning else P.INK_SECONDARY
+    st.markdown(
+        f'<div style="font-size:{charts.FONT_PX}px;color:{color};'
+        f'margin:{charts.CHIP_GAP_PX}px {charts.NO_PX}px;">{_esc(text)}</div>',
+        unsafe_allow_html=True)
 
 
 def _identity_value(row, column: str):
@@ -1005,12 +1038,21 @@ def _panel_sdg(iid: str, ctl: dict, card: dict) -> None:
         st.caption(copy.FIND["PANEL_EMPTY"])
         return
     st.plotly_chart(charts.fig_sdg(df), width="stretch", key="fig_sdg")
-    # 2B-R2-8: one visible line. The fractional-only disclosure is a CONDITION
-    # of what is on screen, not background, so it joins the same line's tooltip
-    # rather than adding a second grey line under the figure.
-    tip = copy.FIND["FRACTIONAL_ONLY_PANEL"] if ctl["basis"] == "full" else None
     st.caption(copy.FIND["CAPTION_SDG"].format(
-        n_missing=", ".join(str(n) for n in P.SDG_UNCOVERED)), help=tip)
+        n_missing=", ".join(str(n) for n in P.SDG_UNCOVERED)))
+    # D5 (Phase 2C, CHROME_CONTRACT.md S7): this ratio surface states its OWN
+    # basis -- `sdg.parquet` is denominated on the whole-run, six-year window,
+    # not the five-year corpus window this page states everywhere else
+    # (window_conventions.sdg_mass_window, docs/data_contract.yaml). Disclosure
+    # only: the basis is unchanged, deliberately different from Compare's own
+    # SDG basis, and stays that way. The fractional-only disclosure moves from
+    # a silent `?` (2B-R2-8) to its own visible warning line -- a page-level
+    # setting silently not applying here is exactly the fact a reader needs to
+    # SEE, not discover by hovering.
+    _basis_caption(copy.FIND["RATIO_WHOLE_RUN_BASIS"].format(
+        window=SDG_ERC_WINDOW_LABEL, corpus=CORPUS_WINDOW_LABEL))
+    if ctl["basis"] == "full":
+        _basis_caption(copy.FIND["FRACTIONAL_ONLY_PANEL"], warning=True)
 
 
 def _panel_erc(iid: str, ctl: dict, card: dict) -> None:
@@ -1025,15 +1067,20 @@ def _panel_erc(iid: str, ctl: dict, card: dict) -> None:
     sort = _sort_control("erc", default=SORT_TAXONOMY)
     st.plotly_chart(charts.fig_erc(df, sort=sort), width="stretch", key="fig_erc")
     # R2/L30: the ERC-classified share moved off the retired coverage line into
-    # this caption, where the panel it qualifies is on screen. 2B-R2-8 makes it
-    # the panel's ONE visible line and folds the SI reading note (and the
-    # fractional-only disclosure, when it applies) into its `?`.
-    tip = copy.FIND["CAPTION_SI"]
-    if ctl["basis"] == "full":
-        tip = f"{tip} {copy.FIND['FRACTIONAL_ONLY_PANEL']}"
+    # this caption, where the panel it qualifies is on screen. 2B-R2-8 folds
+    # the SI reading note into its `?`.
     st.caption(copy.FIND["CAPTION_ERC"].format(n_panels=f"{len(df):,}",
                                                erc_share=_pct(card.get("_erc_share"))),
-               help=tip)
+               help=copy.FIND["CAPTION_SI"])
+    # D5 (Phase 2C): same whole-run, six-year basis as the SDG panel above
+    # (`erc.parquet` carries no year filter either -- data_contract.yaml erc
+    # .parquet.mass / index.erc_classified_mass_frac). Disclosure only, basis
+    # unchanged. The fractional-only disclosure (was folded into the caption's
+    # `?`) is now its own visible warning line, matching the SDG panel.
+    _basis_caption(copy.FIND["RATIO_WHOLE_RUN_BASIS"].format(
+        window=SDG_ERC_WINDOW_LABEL, corpus=CORPUS_WINDOW_LABEL))
+    if ctl["basis"] == "full":
+        _basis_caption(copy.FIND["FRACTIONAL_ONLY_PANEL"], warning=True)
 
 
 # The six panels of VIZ_SPEC S1.9 block 5, in their fixed order. The key is
@@ -1248,20 +1295,37 @@ def _gloss_values(bundle: dict) -> dict:
 
 def _lens_intro(lens: str, ranking: dict, subs: dict, basis: str, bundle: dict,
                 card: dict) -> None:
-    """Gloss + caveat + this seed's evidence line + the basis disclosure, all
-    above the table and never tooltip-only (VIZ_SPEC S2.4). R2/L30 adds the
-    L2f-eligible cell count here, on the L2f tab and nowhere else: it is a
-    precondition for THAT lens's ranking, so a reader meets it on the tab whose
-    list it explains rather than in the profile's retired coverage line.
+    """Gloss (visible) + caveat (its `?`) + this seed's evidence line(s) + the
+    basis disclosure, above the table. R2/L30 adds the L2f-eligible cell count
+    here, on the L2f tab and nowhere else: it is a precondition for THAT
+    lens's ranking, so a reader meets it on the tab whose list it explains
+    rather than in the profile's retired coverage line.
 
     A11 (2B-R-11a): the tab itself now carries only the bare display code, so
     the FULL lens name is the first line rendered INSIDE the tab -- this
     function's own opening line, `copy.LENS_DISPLAY_NAMES[lens]` (the renumbered
-    code + the same name `copy.LENS_NAMES` always carried)."""
+    code + the same name `copy.LENS_NAMES` always carried).
+
+    D10 fix (Phase 2C, CHROME-A audit rows "F14 vs Compare C6/C7/C8" and "F9
+    vs F14"): the gloss used to stay bold-visible with the CAVEAT stacked
+    under it as a second, always-visible `st.caption` line and no `?` at
+    all -- the one place on this page with no fold, right after six profile
+    panels two scrolls up that all DO fold their own methodology behind a
+    `?` (VIZ_SPEC S2.4's "never tooltip-only" instruction pre-dates that fold
+    pattern's own existence, CHROME_CONTRACT.md S6). The caveat is
+    methodology (how to read the lens), not a fact about this seed's data, so
+    it now travels in the gloss line's own `help=` -- the SAME
+    `st.markdown(text, help=tooltip)` idiom this file already uses for the
+    identity name (`_profile_identity`) and every profile-panel caption,
+    rather than a new cross-file dependency on `charts_compare.chart_note`.
+    The seed-specific evidence lines below (L2f eligibility, ERC/SDG/frontier/
+    catch-all share, the generic evidence line) stay visible exactly as
+    before -- they are what this lens SAYS about the seed, 2B-R2-8's other
+    half, which the fold pattern keeps on screen everywhere else too."""
     st.markdown(f"**{copy.LENS_DISPLAY_NAMES[lens]}**")
     vals = _gloss_values(bundle)
-    st.markdown(f"**{copy.LENS_GLOSS[lens].format(**vals)}**")
-    st.caption(copy.LENS_CAVEAT[lens].format(**vals))
+    st.markdown(f"**{copy.LENS_GLOSS[lens].format(**vals)}**",
+                help=copy.LENS_CAVEAT[lens].format(**vals))
     if lens == "L2f":
         st.caption(copy.FIND["EV_L2F"].format(
             value=f"{card['n_eligible_subfields_L2f']:,}"))
@@ -1296,7 +1360,11 @@ def _lens_intro(lens: str, ranking: dict, subs: dict, basis: str, bundle: dict,
     elif not shown_specific and lens != "L2f":
         st.caption(copy.FIND["EV_NONE"])
     if basis == "full" and not subs["basis_applies"][lens]:
-        st.caption(copy.FIND["BASIS_DISCLOSURE"])
+        # D5 (Phase 2C): a page-level setting the reader just touched silently
+        # not applying to THIS tab is exactly the kind of fact a warning
+        # colour exists for -- kept VISIBLE (never folded into a `?` nobody
+        # hovers) but recoloured, never bold, no icon box.
+        _basis_caption(copy.FIND["BASIS_DISCLOSURE"], warning=True)
 
 
 def _tail_and_export(lens: str, ranking: dict, bundle: dict, subs: dict, kept,
@@ -1434,7 +1502,11 @@ def _aspirational_frame(rows: list[dict], *, score_key: str = "lens_score_L1_ove
             "size_full": _count(r.get("total_full_2020_2024")),
             "size_frac": _count(r.get("total_frac_2020_2024")),
             "pp": _pct(r.get("pp_top10_frac")),
-            "score": r[score_key], "institution_id": iid})
+            # D9 (Phase 2C, locale fix, CHROME-F recipe in progress/2C_CHROME-F.md
+            # S1): pre-scaled 0-100, the SAME transform `lib/ranked.py::format_rows`
+            # applies to its own `score` column -- `_render_aspirational_table`'s
+            # ProgressColumn reads this already-scaled value.
+            "score": _pct100(r[score_key]), "institution_id": iid})
     df = pd.DataFrame(out)
     df.attrs["score_label_key"] = score_label_key
     return df
@@ -1469,11 +1541,17 @@ def _render_aspirational_table(df: pd.DataFrame) -> list:
             "size_full": st.column_config.TextColumn(copy.FIND["COL_SIZE_FULL"]),
             "size_frac": st.column_config.TextColumn(copy.FIND["COL_SIZE_FRAC"]),
             "pp": st.column_config.TextColumn(copy.FIND["COL_PP"]),
-            # format="percent" (not a printf "%.0f%%", which renders a 0-1
-            # overlap score as "1%" -- see the defect note on lib/ranked.py in
-            # progress/2A_E.md).
-            "score": st.column_config.ProgressColumn(score_label, min_value=0,
-                                                      max_value=1, format="percent")})
+            # D9 fix (Phase 2C): was the banned locale-sensitive ProgressColumn
+            # `format=` keyword (see CHROME_CONTRACT.md S9), which renders
+            # through the HOST BROWSER LOCALE --
+            # confirmed comma-decimal live (progress/2C_CHROME-F.md S1). The
+            # shared `ranked.pct_progress_column` builder is printf-style
+            # ("%.1f%%"), period-decimal regardless of locale; its column
+            # expects the value pre-scaled 0-100, which `_aspirational_frame`
+            # now does via `ranked._pct100` (the SAME transform
+            # `lib/ranked.py::format_rows` applies to the lens tables' own
+            # Score column, so both tables of this page share one convention).
+            "score": pct_progress_column(score_label)})
     rows_sel = event.selection.rows if event and event.selection else []
     return [df.iloc[i]["institution_id"] for i in rows_sel]
 

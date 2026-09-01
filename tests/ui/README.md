@@ -68,7 +68,7 @@ instead of the checkout it lives in.
 | Deep-link hydration (Compare `?compare=`, Collaborate `?pair=`) | Fresh sessions: the slots hydrate from the URL -- AND the FINDING below. |
 | Find profile body | Unchanged in shape this round (SEL/VC/VL all confirm it's byte-unchanged): the 6 KPI cards, the six chart panels, SI value labels, the frontier mode signature change, the breakdown chip-legend swap, A11 tab overflow, the lens guide, table/CSV export, settings, the type-filter clear, an undefined-L2f seed, the Ifremer crash seed (umbrella + type-corrected) at all three widths. |
 | Compare (fresh trio, standalone) | Old per-page add/hand-off UI gone; "Trends in the"/"Take one pair further" absent; the slots' own options are the basket + one empty sentinel (checked AFTER a real interaction -- see the hydration-gap DOM fact); section order KPI cards -> Coverage -> Subject/ERC/SDG -> both frontier charts -> Impact -> About (LOAD-BEARING); slot 1's own swatch paints the darkest navy `#192C41`; the metric selector's vocabulary + a sweep; the per-chart "Not shown here, and why" expander; the shared frontier's top-20/Show-all; the About block; no forbidden vocab / pastel hex / bare `NA` hover; the 9-sheet workbook; no horizontal scroll at three widths. |
-| Collaborate (Strasbourg x CNRS, standalone) | Momentum headline (big text, glyph, `p =`, both windows) + evidence lines; identity cards; the pulse chart's legend is the JOINT chip ONLY (no institution chips); the bonus year star (in the axis TICKTEXT, not the trace `x` -- see the DOM fact); the domain-coloured field CHART with no table; the reciprocity scatter (squared axes, one dotted diagonal, both axes sharing the same `[0, max]` range); >=2 native dataframes (topic + untapped), the topic table's own "Show all" hides itself once clicked (a before/after COUNT, not an absolute-absence check -- both sections' buttons share one copy template); no row sliders remain; the siblings hand-built table (the one surviving `[data-table=...]`); section order; every 2BR3 deletion asserted absent; no forbidden vocab / pastel hex / bare `NA` hover; no horizontal scroll. |
+| Collaborate (Strasbourg x CNRS, standalone) | Momentum headline (a real subheader, big text, glyph; `p =` and both windows folded into its own tooltip since 2C) + a basis chip per CORE-AR section; identity cards; the pulse chart's legend is the JOINT chip ONLY (no institution chips); the bonus year star (in the axis TICKTEXT, not the trace `x` -- see the DOM fact); the domain-coloured field CHART with no table; the reciprocity scatter (squared axes, one dotted diagonal, both axes sharing the same `[0, max]` range); >=2 native dataframes (topic + untapped, each with a name-as-link topic column since 2C), the topic table's own "Show all" hides itself once clicked (a before/after COUNT, not an absolute-absence check -- both sections' buttons share one copy template); no row sliders remain; the retired adjacent-topics expander asserted absent; section order; every 2BR3/2C deletion asserted absent; no forbidden vocab / pastel hex / bare `NA` hover; no horizontal scroll. |
 | Collaborate below-floor pair (standalone) | A REAL sub-floor pair (Strasbourg x Bavarian Academy, 2 joint works < floor 5): the honest notice, pulse still renders, the field chart and reciprocity chart are BOTH absent (below the topic floor). |
 | Cross-page persistence | The ONE shared sidebar basket count agrees across Compare/Collaborate/Methods/Find (Methods' own wiring is MT's job, not this stream's -- a missing caption there is reported as a FINDING, not failed). |
 | Methods | >=14 sections, no unresolved `{placeholder}`, the lens concordance table, no forbidden vocab. |
@@ -115,14 +115,15 @@ same gap a second time.
   dedicated section; it is a real app behaviour, not a test artefact, and
   every check that is not ITSELF proving the gap needs to be sequenced after
   a real interaction to avoid tripping over it by accident.
-- **Collaborate's topic and untapped tables are native `st.dataframe` again
-  (a canvas grid, DOM FACT below), NOT hand-built HTML any more** -- the
-  siblings table is the ONE surviving hand-built `[data-table="collab_
-  siblings"]` (a domain chip beside a taxon name still needs real per-cell
-  markup a canvas grid cannot give). Row-level facts for topics/untapped are
-  proved structurally (a "Show all" button's own before/after presence,
-  dataframe count) or via `probe.py`'s direct recompute against
-  `collab_data`, never by reading canvas cell text.
+- **Collaborate's topic and untapped tables are native `st.dataframe`
+  (a canvas grid, DOM FACT below) -- 2C (D8) retires the one hand-built HTML
+  table this page still carried ("Adjacent topics in the same subfields"),
+  so NO hand-built table remains on this page at all.** Both surviving
+  tables' topic column is now name-as-link (the app's one canonical row-link
+  idiom) rather than a separate trailing "Open" column. Row-level facts for
+  topics/untapped are proved structurally (a "Show all" button's own
+  before/after presence, dataframe count) or via `probe.py`'s direct
+  recompute against `collab_data`, never by reading canvas cell text.
 - **The topic and untapped sections' "Show all N topics" buttons share the
   EXACT SAME copy template** (`copy.COLLAB["SHOW_ALL_BUTTON"]`) -- a text
   search for that pattern matches BOTH when both have >20 rows to hide. A

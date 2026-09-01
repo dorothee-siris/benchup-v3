@@ -33,6 +33,7 @@ from __future__ import annotations
 import re
 import sys
 from pathlib import Path
+from urllib.parse import quote
 
 import numpy as np
 import pandas as pd
@@ -243,12 +244,16 @@ def test_reciprocity_section_renders_nothing_when_the_frame_is_empty():
 def test_topics_display_frame_shares_and_columns(ctx, subs_frac):
     prof = CL.joint_profile(ctx, subs_frac, IA, IB)
     disp = VC._topics_display_frame(prof["topics"])
+    # 2C chrome-audit fix (L8): no separate "url" column any more -- the
+    # topic name IS the link (name-as-link, `VC.NAME_LINK_DISPLAY_RE`).
     assert list(disp.columns) == ["topic_name", "domain_name", "vol", "top10_share",
-                                  "sdg_share", "sdg_n", "fwci_median", "momentum", "url"]
-    row_t1 = disp[disp["topic_name"] == "Topic One"].iloc[0]
+                                  "sdg_share", "sdg_n", "fwci_median", "momentum"]
+    row_t1 = disp[disp["topic_name"].str.contains(quote("Topic One", safe=""))].iloc[0]
     np.testing.assert_allclose(row_t1["vol"], 15.0)
-    np.testing.assert_allclose(row_t1["top10_share"], 3.0 / 15.0)   # n_top10 / vol, NOT / n_covered
-    np.testing.assert_allclose(row_t1["sdg_share"], 2.0 / 15.0)
+    # D9: pre-scaled 0-100 for `ranked.PCT_PROGRESS_FORMAT` -- was a bare 0-1
+    # fraction before the `format="percent"` locale fix.
+    np.testing.assert_allclose(row_t1["top10_share"], 3.0 / 15.0 * 100.0)   # n_top10 / vol, NOT / n_covered
+    np.testing.assert_allclose(row_t1["sdg_share"], 2.0 / 15.0 * 100.0)
     np.testing.assert_allclose(row_t1["sdg_n"], 2.0)
     np.testing.assert_allclose(row_t1["fwci_median"], 1.2)
     assert row_t1["momentum"].endswith("up") or "up" in row_t1["momentum"]
@@ -262,16 +267,23 @@ def test_topics_column_config_shapes_match_streamlits_native_widgets(ctx, subs_f
     assert cfg["vol"]["type_config"]["type"] == "number"
     assert cfg["top10_share"]["type_config"]["type"] == "progress"
     assert cfg["top10_share"]["type_config"]["min_value"] == 0
-    assert cfg["top10_share"]["type_config"]["max_value"] == 1
-    assert cfg["top10_share"]["type_config"]["format"] == "percent"
+    # D9 (locale fix): 0-100 scale, the shared printf-style spec -- never the
+    # banned `format="percent"` keyword (comma-decimal under fr-FR).
+    assert cfg["top10_share"]["type_config"]["max_value"] == 100
+    assert cfg["top10_share"]["type_config"]["format"] == VC.PCT_PROGRESS_FORMAT
+    assert "percent" != cfg["top10_share"]["type_config"]["format"]
     assert cfg["sdg_share"]["type_config"]["type"] == "progress"
+    assert cfg["sdg_share"]["type_config"]["format"] == VC.PCT_PROGRESS_FORMAT
     assert cfg["fwci_median"]["type_config"]["type"] == "number"
     assert cfg["momentum"]["type_config"]["type"] == "text"
-    assert cfg["url"]["type_config"]["type"] == "link"
-    assert cfg["url"]["type_config"]["display_text"] == copy.COLLAB["COL_LINK_DISPLAY"]
+    # 2C chrome-audit fix (L8): the topic NAME is the link column now (name-
+    # as-link, the app's one canonical row-link idiom) -- no separate "url".
+    assert cfg["topic_name"]["type_config"]["type"] == "link"
+    assert cfg["topic_name"]["type_config"]["display_text"] == VC.NAME_LINK_DISPLAY_RE
     # every label is copy.py's own string, never a bare technical column name
     assert cfg["vol"]["label"] == copy.COLLAB["JOINT_COL_VOL"]
     assert cfg["fwci_median"]["label"] == copy.COLLAB["DF_COL_FWCI"]
+    assert cfg["topic_name"]["label"] == copy.COLLAB["JOINT_COL_TOPIC"]
 
 
 def test_topics_deep_dive_carries_no_frontier_column():
@@ -288,12 +300,14 @@ def test_topics_deep_dive_carries_no_frontier_column():
 def test_untapped_display_frame_matches_untapped_and_stays_gap_descending(ctx, subs_frac):
     res = CL.untapped(ctx, subs_frac, IA, IB, top_n=50)
     disp = VC._untapped_display_frame(res["topics"])
+    # 2C chrome-audit fix (L8): no separate "url" column -- see the topic
+    # deep dive's own test above for the same convention.
     assert list(disp.columns) == ["topic_name", "subfield_name", "vol_a", "vol_b",
-                                  "joint_observed", "joint_expected", "gap", "url"]
+                                  "joint_observed", "joint_expected", "gap"]
     assert list(disp["gap"]) == sorted(disp["gap"], reverse=True)
     assert (disp["joint_expected"] >= disp["joint_observed"]).all()
     # the item-4 fix's own anchor: T3's true uncapped observed volume (2.0)
-    t3 = disp[disp["topic_name"] == "Topic Three"]
+    t3 = disp[disp["topic_name"].str.contains(quote("Topic Three", safe=""))]
     if len(t3):
         np.testing.assert_allclose(t3.iloc[0]["joint_observed"], 2.0, atol=1e-9)
 
@@ -304,7 +318,9 @@ def test_untapped_column_config_uses_the_per_side_names(ctx, subs_frac):
     assert copy.COLLAB["UNTAPPED_COL_VOL_SIDE"].format(name="Institution A") in \
         {v["label"] for v in cfg.values()}
     assert cfg["gap"]["type_config"]["type"] == "number"
-    assert cfg["url"]["type_config"]["type"] == "link"
+    # 2C chrome-audit fix (L8): the topic name is the link column now.
+    assert cfg["topic_name"]["type_config"]["type"] == "link"
+    assert cfg["topic_name"]["type_config"]["display_text"] == VC.NAME_LINK_DISPLAY_RE
 
 
 # ============================================================================
@@ -350,12 +366,29 @@ DELETED_FUNCTIONS = [
     "_sidebar_basket", "_fields_table", "_topics_table", "_untapped_table",
     "_arrow_cell", "_frontier_flags", "_frontier_glyph", "_top10_text",
     "_trend_help", "_rows_slider", "_download", "_extras",
+    # D8 (2C, grill ruling): the "Adjacent topics in the same subfields"
+    # expander and the small canvas-table primitives that existed only to
+    # draw it (its own table-builder function is pinned gone by
+    # `test_no_hand_built_html_tables_remain` below instead of by name here,
+    # since that name is itself the retired feature's own name).
+    "_with_domains", "_chip", "_taxon_cell", "_header_cell", "_table", "_vol",
 ]
 
 
 @pytest.mark.parametrize("name", DELETED_FUNCTIONS)
 def test_old_pair_picker_and_hand_table_functions_are_gone(name):
     assert not hasattr(VC, name), name
+
+
+def test_no_hand_built_html_tables_remain():
+    """D8 (2C): the one hand-built HTML table this page still carried
+    ("Adjacent topics in the same subfields") is retired end to end -- no
+    `data-table=` producer remains in the source at all (that attribute was
+    the retired table-builder function's own signature marker), so both
+    surviving tables (topic deep dive, untapped) are native `st.dataframe`
+    with nothing hand-built left beside them."""
+    src = (APP_DIR / "lib" / "views_collab.py").read_text(encoding="utf-8")
+    assert "data-table=" not in src
 
 
 def test_no_slider_widgets_remain_in_this_streams_file():
@@ -419,11 +452,13 @@ def test_no_digit_ban_violations_in_this_streams_files():
 def test_no_forbidden_vocabulary_in_the_new_collab_copy():
     from tests.test_forbidden_vocabulary import _violations
 
-    new_keys = ("MOMENTUM_LABEL", "MOMENTUM_EVIDENCE_SHARE", "MOMENTUM_EVIDENCE_COPUBS",
-                "MOMENTUM_EVIDENCE_SIGNIFICANCE", "RECIPROCITY_HEADER", "RECIPROCITY_HOW_TO_READ",
-                "RECIPROCITY_WHY", "RECIPROCITY_AXIS_X", "RECIPROCITY_AXIS_Y", "COL_TOP10_DF_HELP",
+    new_keys = ("MOMENTUM_LABEL", "MOMENTUM_READING", "MOMENTUM_EVIDENCE_SHARE",
+                "MOMENTUM_EVIDENCE_COPUBS", "MOMENTUM_EVIDENCE_SIGNIFICANCE", "RECIPROCITY_HEADER",
+                "RECIPROCITY_READING", "RECIPROCITY_HOW_TO_READ", "RECIPROCITY_WHY",
+                "RECIPROCITY_AXIS_X", "RECIPROCITY_AXIS_Y", "COL_TOP10_DF_HELP",
                 "COL_SDG_DF_HELP", "DF_COL_FWCI", "COL_FWCI_HELP", "DF_COL_MOMENTUM",
-                "DF_COL_MOMENTUM_HELP", "SHOW_ALL_BUTTON", "META_EXPANDER")
+                "DF_COL_MOMENTUM_HELP", "SHOW_ALL_BUTTON", "META_EXPANDER",
+                "PULSE_BASIS_CAPTION", "BASIS_CAPTION_CORE_AR")
     strings = [(k, copy.COLLAB[k]) for k in new_keys]
     assert not _violations(strings), _violations(strings)
 
@@ -478,7 +513,9 @@ class TestPageGroup:
     def test_momentum_headline_renders_for_a_real_pair(self):
         at = self._app(a=self.STRASBOURG, b=self.CNRS).run()
         assert not at.exception, [str(e) for e in at.exception]
-        assert copy.COLLAB["MOMENTUM_LABEL"] in " ".join(c.value for c in at.caption)
+        # 2C chrome-audit fix (L5): the headline is a REAL `st.subheader` now
+        # (it was a bare `st.caption` before), so this checks `at.subheader`.
+        assert copy.COLLAB["MOMENTUM_LABEL"] in [s.value for s in at.subheader]
 
     def test_identity_cards_render_before_the_pair_is_complete(self):
         """One slot filled -- that ONE institution's card must render

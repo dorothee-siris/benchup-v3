@@ -279,15 +279,6 @@ def test_untapped_k_formula_independent_recompute(ctx, subs_bestfit):
     np.testing.assert_allclose(got["k"], 0.012028869286287089, rtol=1e-9)
 
 
-def test_untapped_siblings_exclude_shared_topics_and_are_active_on_a_side(ctx, subs_bestfit):
-    got = CL.untapped(ctx, subs_bestfit, STRASBOURG, SORBONNE, top_n=15)
-    shared_ids = set(CL.shared_topics(ctx, subs_bestfit, STRASBOURG, SORBONNE)["topic_id"])
-    sib = got["siblings"]
-    assert list(sib.columns) == CL.SIBLING_COLS
-    assert set(sib["topic_id"]).isdisjoint(shared_ids)
-    assert ((sib["vol_a"] > 0) | (sib["vol_b"] > 0)).all()
-
-
 def test_untapped_self_pair_never_raises_and_types_are_frames(ctx, subs_bestfit):
     """Defensive edge case: a self-pair (a==b, k undefined via pulse since a
     pair never co-publishes 'with itself' in collab_pairs -- absent from the
@@ -295,8 +286,15 @@ def test_untapped_self_pair_never_raises_and_types_are_frames(ctx, subs_bestfit)
     pulse row -> smaller==0 guard) rather than NaN propagating into gap."""
     got = CL.untapped(ctx, subs_bestfit, STRASBOURG, STRASBOURG)
     assert isinstance(got["topics"], pd.DataFrame) and list(got["topics"].columns) == CL.UNTAPPED_COLS
-    assert isinstance(got["siblings"], pd.DataFrame) and list(got["siblings"].columns) == CL.SIBLING_COLS
     assert got["k"] == 0.0
+
+
+def test_untapped_return_shape_is_topics_and_k_only(ctx, subs_bestfit):
+    """D8 (2C, grill ruling): the extra 'adjacent topics' frame this
+    function used to also return is REMOVED end to end -- this pins the
+    function's own return shape structurally, not just the render side."""
+    got = CL.untapped(ctx, subs_bestfit, STRASBOURG, SORBONNE, top_n=15)
+    assert set(got) == {"topics", "k"}
 
 
 def test_breadth_jaccard_min_full_floor_shrinks_sets(ctx, subs_bestfit):

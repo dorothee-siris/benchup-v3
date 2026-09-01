@@ -49,9 +49,9 @@ multi-step picker:
      with a "Show all" button (no slider -- a slider was a performance
      device, not a control the reader meant to turn);
   6. untapped potential -- the same 20-then-show-all dataframe treatment,
-     same fixed gap-descending ranking, with the adjacent-subfield siblings
-     kept beside it (unchanged, still a hand-built HTML table: see the note
-     below);
+     same fixed gap-descending ranking (2C VL: the "Adjacent topics in the
+     same subfields" expander that used to sit beside it is REMOVED -- D8, a
+     grill ruling -- the untapped table itself is unchanged);
   7. bottom meta, collapsed by default: the page's own method note, the
      "not shown here, and why" block, and the shareable link
      (`lib.links.share_link_block`).
@@ -65,13 +65,16 @@ closing section (per-row OpenAlex links already sit on every topic and
 gap row; the two whole-corpus and one co-publication link buttons this
 section used to carry are gone with it).
 
-WHY THE SIBLINGS TABLE ALONE STAYS HAND-BUILT HTML. Nothing in this round's
-brief touches it, and it still needs what `st.dataframe` cannot give: a
-domain chip beside a taxon name (the grid paints cells on a canvas, no
-per-cell markup). The topic deep dive and untapped tables do NOT keep this
-form: neither needs a coloured chip inline with its label texts (the topic
-table's domain rides in its own plain column instead), and both need
-click-to-sort, which the canvas table never had.
+DELETED THIS ROUND (2C VL, D8): "Adjacent topics in the same subfields",
+the one hand-built HTML table this page still carried -- its own expander,
+its own data-layer output (`collab_data.untapped` produced an extra frame
+for exactly this table, now gone from that function entirely) and every
+render helper that existed only to draw it (the table builder itself, its
+row-building helper, and the small canvas-table primitives underneath both --
+a chip span, a taxon-name-plus-chip cell and a sticky header cell --
+unreferenced once the table above them is gone). Both surviving tables (the
+topic deep dive and untapped) were already native, sortable `st.dataframe`
+grids before this round and needed no rework for the removal itself.
 
 WHY A SMALL NEW CHART BUILDER LIVES HERE, TWICE, RATHER THAN IN
 `lib/charts.py`. `charts.fig_topics`/`fig_share_si` colour marks by OpenAlex
@@ -98,6 +101,8 @@ PERFORMANCE (2B-14: warm rerun < 1.5 s)
 """
 from __future__ import annotations
 
+from urllib.parse import quote
+
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
@@ -110,6 +115,7 @@ from lib import palette as P
 from lib.app_config import CFG
 from lib.compare_data import DYNAMICS_W1, DYNAMICS_W2
 from lib.palette import NA_MARK
+from lib.ranked import PCT_PROGRESS_FORMAT
 from lib.views_find import BONUS_STAR, SEP, _bundle, _sidebar_scenario, _subs
 
 # The en dash between the two ends of a window label ("2020-2025" rendered
@@ -119,6 +125,11 @@ from lib.views_find import BONUS_STAR, SEP, _bundle, _sidebar_scenario, _subs
 # imported above, already follows).
 DASH = "\N{EN DASH}"
 ARROW = "\N{RIGHTWARDS ARROW}"
+
+# D4/D5 (Phase 2C): the CORE-AR window every section on this page reads
+# EXCEPT the pulse (`copy.COLLAB["PULSE_BASIS_CAPTION"]` states that one
+# exception explicitly, in its own caption, never silently).
+WINDOW_START, WINDOW_END = CFG["window"]
 
 # A pulse difference smaller than this reads as "the same annual rate"
 # rather than as a direction: the two windows are 3 and 2 years long, so a
@@ -160,17 +171,23 @@ ROWS_DEFAULT = 20           # rows shown before a reader asks for the rest
 VOL_FORMAT = "%d"           # a whole joint-publication count
 FRAC_VOL_FORMAT = "%.1f"    # untapped's own fractional-volume grain
 FWCI_FORMAT = "%.2f"
-PROGRESS_FORMAT = "percent"  # Streamlit's own 0-1-fraction keyword -- NOT a
-                              # printf spec, which prints a 0-1 value as "0%"
-                              # or "1%" (measured and fixed once already in
-                              # lib/ranked.py's own score column)
-PROGRESS_MIN, PROGRESS_MAX = 0, 1
+# D9 (Phase 2C, CHROME-F): `format="percent"` is BANNED (locale-dependent,
+# confirmed rendering comma-decimals live) -- `lib.ranked.PCT_PROGRESS_FORMAT`
+# is the ONE shared printf-style spec every such column in the app uses, so
+# this page's own progress columns render identically to the rest of the
+# tool rather than inventing a second convention. Its contract: the
+# CALLER'S OWN dataframe column carries the value already scaled 0-100 (see
+# `_topics_display_frame`'s `top10_share`/`sdg_share`), never the raw 0-1
+# fraction `PROGRESS_MIN`/`PROGRESS_MAX` used to describe before this fix.
+PROGRESS_MIN, PROGRESS_MAX = 0, 100
 
-# --- the hand-built siblings table (see the module docstring) --------------
-CHIP_PX = 10
-TABLE_MAX_PX = 520
-CELL_PAD_PX = 6
-ALIGN_LEFT, ALIGN_RIGHT, ALIGN_CENTER = "left", "right", "center"
+# D10/CHROME_CONTRACT.md S8: the app's ONE canonical row-link idiom
+# (`ranked.py`'s A10 fragment trick) -- a `#<urlencoded name>` fragment on an
+# already-built URL, read back by `LinkColumn`'s `display_text=` regex so the
+# row's own subject becomes the clickable link. Mirrored here (2C VL,
+# chrome-audit L8) so the topic/untapped tables' link column stops being a
+# second, different idiom from every other ranked table in the app.
+NAME_LINK_DISPLAY_RE = r"#(.*)$"
 
 
 # ------------------------------------------------------------- frames -------
@@ -233,12 +250,14 @@ def _count(value) -> str:
     return f"{value:,.0f}"
 
 
-def _vol(value) -> str:
-    """A FRACTIONAL volume keeps one decimal (the siblings table's own
-    grain); `_count` stays the integer form for whole publications."""
-    if value is None or pd.isna(value):
-        return NA_MARK
-    return f"{float(value):,.1f}"
+def _named_link(url: str, name) -> str:
+    """The app's ONE canonical row-link idiom (`NAME_LINK_DISPLAY_RE`'s own
+    docstring above): appends a `#<urlencoded name>` fragment to an
+    already-built OpenAlex URL -- inert for OpenAlex itself (a fragment
+    never reaches the server) -- so a `LinkColumn`'s `display_text=
+    NAME_LINK_DISPLAY_RE` renders the row's own subject, here a topic name,
+    as the clickable text instead of a separate trailing "Open" column."""
+    return f"{url}#{quote(str(name), safe='')}"
 
 
 def _band(value) -> str:
@@ -339,81 +358,30 @@ def _erc_panel_label(ctx: dict, panel_code) -> str:
     return f"{panel_code} {SEP} {hit.iloc[0]['panel_label']}"
 
 
-# ---------------------------------------------- the hand-built siblings table
-# HTML, because a domain chip beside a taxon name is impossible in
-# Streamlit's canvas grid (module docstring). Nothing here writes a colour
-# of its own: every hue is `lib/palette.py`'s, and every word is
-# `lib/copy.py`'s.
-
 def _esc(value) -> str:
     return (str(value).replace("&", "&amp;").replace("<", "&lt;")
             .replace(">", "&gt;").replace('"', "&quot;"))
 
 
-def _chip(domain_id) -> str:
-    return (f'<span class="bu-chip" data-domain="{_esc(domain_id)}" '
-            f'style="display:inline-block;flex:none;width:{CHIP_PX}px;height:{CHIP_PX}px;'
-            f'border-radius:{CHIP_PX}px;background:{P.domain_color(domain_id)};'
-            f'margin-right:{C.CHIP_GAP_PX}px;"></span>')
-
-
-def _taxon_cell(name, domain_id) -> str:
-    return (f'<span style="display:inline-flex;align-items:center;">{_chip(domain_id)}'
-            f'<span>{_esc(name)}</span></span>')
-
-
-def _header_cell(label: str, help_text: str | None, align: str) -> str:
-    mark = ""
-    if help_text:
-        mark = (f'<span style="margin-left:{C.CHIP_GAP_PX}px;cursor:help;">'
-                f'{X.NOTE_HELP_GLYPH}</span>')
-    return (f'<th title="{_esc(help_text or label)}" '
-            f'style="text-align:{align};padding:{CELL_PAD_PX}px;position:sticky;top:0;'
-            f'background:{P.SURFACE};color:{P.INK_SECONDARY};font-weight:600;'
-            f'border-bottom:{P.OUTLINE_WIDTH}px solid {P.BORDER};white-space:nowrap;">'
-            f'{_esc(label)}{mark}</th>')
-
-
-def _table(name: str, columns, rows) -> str:
-    """ONE scrollable table. `columns` is a sequence of `(label, help,
-    align)` and `rows` a sequence of already-built cell markup, in the same
-    order.
-
-    The wrapper scrolls in BOTH directions and the page body therefore
-    never does: the SIRIS house rule for a wide table."""
-    head = "".join(_header_cell(label, help_text, align) for label, help_text, align in columns)
-    body = []
-    for i, cells in enumerate(rows):
-        tds = "".join(
-            f'<td style="padding:{CELL_PAD_PX}px;text-align:{align};'
-            f'border-bottom:{C.HAIRLINE_PX}px solid {P.BORDER};'
-            f'{"white-space:nowrap;" if align != ALIGN_LEFT else ""}">{cell}</td>'
-            for cell, (_, _, align) in zip(cells, columns))
-        body.append(f'<tr data-row="{i}">{tds}</tr>')
-    return (f'<div class="bu-table" style="overflow:auto;max-height:{TABLE_MAX_PX}px;'
-            f'border:{C.HAIRLINE_PX}px solid {P.BORDER};border-radius:{C.CHIP_GAP_PX}px;">'
-            f'<table data-table="{_esc(name)}" style="width:100%;border-collapse:collapse;'
-            f'font-size:{C.FONT_PX}px;color:{P.INK};">'
-            f'<thead><tr>{head}</tr></thead><tbody>{"".join(body)}</tbody></table></div>')
-
-
-def _siblings_table(name_a: str, name_b: str, siblings: pd.DataFrame) -> str:
-    columns = [
-        (copy.COLLAB["SIBLINGS_COL_TOPIC"], None, ALIGN_LEFT),
-        (copy.COLLAB["SIBLINGS_COL_SUBFIELD"], None, ALIGN_LEFT),
-        (copy.COLLAB["UNTAPPED_COL_VOL_SIDE"].format(name=name_a), None, ALIGN_RIGHT),
-        (copy.COLLAB["UNTAPPED_COL_VOL_SIDE"].format(name=name_b), None, ALIGN_RIGHT),
-    ]
-    rows = [[_taxon_cell(r["topic_name"], r["domain_id"]),
-             _taxon_cell(r["subfield_name"], r["domain_id"]),
-             _vol(r["vol_a"]), _vol(r["vol_b"])]
-            for _, r in siblings.iterrows()]
-    return _table("collab_siblings", columns, rows)
-
-
 def _note(reading: str, tooltip: str | None = None) -> None:
     """ONE short reading line, the methodology behind its `?`."""
     st.markdown(X.chart_note(reading, tooltip), unsafe_allow_html=True)
+
+
+def _basis_caption(text: str, *, warning: bool = False) -> None:
+    """D5's new one-line disclosure (CHROME_CONTRACT.md S7): corpus basis
+    (and, where it applies, a floor or a coverage gap), sitting ABOVE the
+    legend/chart -- a NEW line, never merged into `_note`'s single reading
+    line, since the two say different things (this states a fact about the
+    DATA, `_note` states how to read the chart). Same small type as `_note`'s
+    own reading line in the normal state (`INK_SECONDARY`, `FONT_PX`, regular
+    weight); switches to PAL's frontier red -- never bold, no icon box -- when
+    the fact itself is a warning (a below-floor or coverage caveat)."""
+    color = P.WARNING_CAPTION_COLOR if warning else P.INK_SECONDARY
+    st.markdown(
+        f'<div style="font-size:{C.FONT_PX}px;color:{color};'
+        f'margin:{C.CHIP_GAP_PX}px {C.NO_PX}px;">{_esc(text)}</div>',
+        unsafe_allow_html=True)
 
 
 def _rows_note(n_shown: int, n_total: int) -> None:
@@ -507,24 +475,35 @@ def _momentum_block(ctx: dict, mom: dict) -> None:
     here is hardcoded."""
     facts = collab_data._load_collab_facts(ctx)
     with st.container(key="collab_momentum"):
-        st.caption(copy.COLLAB["MOMENTUM_LABEL"])
+        # 2C chrome-audit fix (L5): a real `st.subheader`, not a `st.caption`
+        # label -- this headline is a SECTION, the same level as every other
+        # section on the page, not a small aside above one. The three
+        # evidence lines that used to stack as separate `st.caption`s below
+        # the big number are folded into ONE `_note` reading+tooltip instead
+        # (the SAME fold this file's own `chart_note` already gives every
+        # other section) -- exactly the "grey paragraph" pattern 2B-R2-8
+        # deleted from Compare, now deleted here too.
+        st.subheader(copy.COLLAB["MOMENTUM_LABEL"])
         st.markdown(
             f'<div style="font-size:{MOMENTUM_TEXT_PX}px;font-weight:{MOMENTUM_WEIGHT};'
             f'color:{mom["color"]};">{_esc(mom["glyph"])} {_esc(mom["text"])}</div>',
             unsafe_allow_html=True)
         w1_share = (mom["c1"] / mom["d1"]) if mom["d1"] else float("nan")
         w2_share = (mom["c2"] / mom["d2"]) if mom["d2"] else float("nan")
-        st.caption(copy.COLLAB["MOMENTUM_EVIDENCE_SHARE"].format(
-            w1=_window(DYNAMICS_W1), share1=_pct(w1_share),
-            w2=_window(DYNAMICS_W2), share2=_pct(w2_share), sep=SEP))
         # Annual means (windows are 3y vs 2y -- raw totals always read as a
         # drop); year counts derived from the window tuples, never typed.
         n1 = DYNAMICS_W1[1] - DYNAMICS_W1[0] + 1
         n2 = DYNAMICS_W2[1] - DYNAMICS_W2[0] + 1
-        st.caption(copy.COLLAB["MOMENTUM_EVIDENCE_COPUBS"].format(
-            c1=_count(mom["c1"] / n1), c2=_count(mom["c2"] / n2), arrow=ARROW))
-        st.caption(copy.COLLAB["MOMENTUM_EVIDENCE_SIGNIFICANCE"].format(
-            p=_pval(mom["mom_p"]), alpha=_pct(facts["alpha"])))
+        tooltip = " ".join([
+            copy.COLLAB["MOMENTUM_EVIDENCE_SHARE"].format(
+                w1=_window(DYNAMICS_W1), share1=_pct(w1_share),
+                w2=_window(DYNAMICS_W2), share2=_pct(w2_share), sep=SEP) + ".",
+            copy.COLLAB["MOMENTUM_EVIDENCE_COPUBS"].format(
+                c1=_count(mom["c1"] / n1), c2=_count(mom["c2"] / n2), arrow=ARROW) + ".",
+            copy.COLLAB["MOMENTUM_EVIDENCE_SIGNIFICANCE"].format(
+                p=_pval(mom["mom_p"]), alpha=_pct(facts["alpha"])) + ".",
+        ])
+        _note(copy.COLLAB["MOMENTUM_READING"], tooltip)
 
 
 def _render_header_block(bundle: dict, a: str | None, b: str | None) -> None:
@@ -575,6 +554,11 @@ def _render_pulse(bundle: dict, a: str, b: str) -> dict | None:
         st.info(copy.COLLAB["EMPTY_PULSE"].format(a=_name(ctx, a), b=_name(ctx, b)))
         return None
 
+    # D4/D5 chrome-audit fix (L7): the pulse's own basis EXCEPTION, stated
+    # ABOVE the legend, before a reader can mistake this chart's window for
+    # the CORE-AR one every section below it uses.
+    _basis_caption(copy.COLLAB["PULSE_BASIS_CAPTION"].format(
+        w1=_window(collab_data.PULSE_YEARS), y0=WINDOW_START, y1=WINDOW_END))
     with st.container(key="collab_legend"):
         st.markdown(X.legend_strip([], slots={}, shared=True,
                                    shared_label=copy.COLLAB["LEGEND_JOINT"]),
@@ -654,6 +638,9 @@ def _render_fields(bundle: dict, a: str, b: str, pulse_row: dict | None) -> None
         _below_floor_notice(pulse_row["copubs_total"] if pulse_row else 0)
         return
 
+    # D4/D5 chrome-audit basis chip: this chart, like every other CORE-AR
+    # section on this page, is pinned to articles and reviews, full counting.
+    _basis_caption(copy.COLLAB["BASIS_CAPTION_CORE_AR"].format(y0=WINDOW_START, y1=WINDOW_END))
     st.markdown(X.map_legend_strip([], slots={}, color_by="domain",
                                    domain_items=_domain_items(fields)),
                 unsafe_allow_html=True)
@@ -723,19 +710,31 @@ def _render_reciprocity(bundle: dict, a: str, b: str, scenario: dict) -> None:
     """Section 4 (2BR3 task 4): renders nothing at all when the frame is
     empty -- section 3 already carries the one below-floor notice, and this
     frame is empty for exactly the same pairs (both read `field_breakdown`),
-    so repeating the notice would read as two failures."""
+    so repeating the notice would read as two failures.
+
+    2C chrome-audit fix (L6): the two full, always-visible paragraphs this
+    section used to carry ("How to read" above the chart, "Why this figure"
+    below it) are folded into ONE reading line + tooltip (`_note`, the SAME
+    fold every Compare section already uses), in the contract's own order --
+    subheader -> basis caption -> legend -> chart -> note -- the legend
+    moves ABOVE the chart to match (it used to sit between chart and the old
+    "Why" paragraph)."""
     ctx = bundle["ctx"]
     df = _reciprocity_frame(a, b, scenario["tree"], scenario["basis"])
     if df.empty:
         return
     name_a, name_b = _name(ctx, a), _name(ctx, b)
     st.subheader(copy.COLLAB["RECIPROCITY_HEADER"])
-    st.caption(copy.COLLAB["RECIPROCITY_HOW_TO_READ"].format(name_a=name_a, name_b=name_b))
-    st.plotly_chart(_reciprocity_chart(df, name_a, name_b), width="stretch", key="fig_reciprocity")
+    _basis_caption(copy.COLLAB["BASIS_CAPTION_CORE_AR"].format(y0=WINDOW_START, y1=WINDOW_END))
     st.markdown(X.map_legend_strip([], slots={}, color_by="domain",
                                    domain_items=_domain_items(df)),
                 unsafe_allow_html=True)
-    st.caption(copy.COLLAB["RECIPROCITY_WHY"])
+    st.plotly_chart(_reciprocity_chart(df, name_a, name_b), width="stretch", key="fig_reciprocity")
+    tooltip = " ".join([
+        copy.COLLAB["RECIPROCITY_HOW_TO_READ"].format(name_a=name_a, name_b=name_b),
+        copy.COLLAB["RECIPROCITY_WHY"],
+    ])
+    _note(copy.COLLAB["RECIPROCITY_READING"], tooltip)
 
 
 # ------------------------------------------------- 5. the topic deep dive ---
@@ -749,37 +748,40 @@ def _topics_display_frame(topics: pd.DataFrame) -> pd.DataFrame:
     safe_vol = vol.replace(0.0, np.nan)
     mom = [_momentum_cell(c) for c in topics["mom_class"]]
     return pd.DataFrame({
-        "topic_name": topics["topic_name"].astype(str).to_numpy(),
+        # 2C chrome-audit fix (L8): the topic NAME is the clickable link (the
+        # app's ONE canonical row-link idiom, `_named_link`/`NAME_LINK_
+        # DISPLAY_RE`), not a separate trailing "Open" column.
+        "topic_name": [_named_link(u, n) for u, n in
+                      zip(topics["url"].astype(str), topics["topic_name"].astype(str))],
         "domain_name": topics["domain_name"].astype(str).to_numpy(),
         "vol": vol.to_numpy(),
-        "top10_share": (pd.to_numeric(topics["n_top10"], errors="coerce") / safe_vol).to_numpy(),
-        "sdg_share": (pd.to_numeric(topics["n_sdg"], errors="coerce") / safe_vol).to_numpy(),
+        # D9: pre-scaled 0-100 for `PCT_PROGRESS_FORMAT` (see PROGRESS_MIN/MAX).
+        "top10_share": ((pd.to_numeric(topics["n_top10"], errors="coerce") / safe_vol) * 100.0).to_numpy(),
+        "sdg_share": ((pd.to_numeric(topics["n_sdg"], errors="coerce") / safe_vol) * 100.0).to_numpy(),
         "sdg_n": pd.to_numeric(topics["n_sdg"], errors="coerce").to_numpy(),
         "fwci_median": pd.to_numeric(topics["fwci_median"], errors="coerce").to_numpy(),
         "momentum": [f"{glyph} {text}" for text, _color, glyph in mom],
-        "url": topics["url"].astype(str).to_numpy(),
     })
 
 
 def _topics_column_config() -> dict:
     return {
-        "topic_name": st.column_config.TextColumn(copy.COLLAB["JOINT_COL_TOPIC"]),
+        "topic_name": st.column_config.LinkColumn(
+            copy.COLLAB["JOINT_COL_TOPIC"], help=copy.COLLAB["COL_LINK_HELP"],
+            display_text=NAME_LINK_DISPLAY_RE),
         "domain_name": st.column_config.TextColumn(copy.COLLAB["DF_COL_DOMAIN"]),
         "vol": st.column_config.NumberColumn(copy.COLLAB["JOINT_COL_VOL"], format=VOL_FORMAT),
         "top10_share": st.column_config.ProgressColumn(
             copy.COLLAB["COL_TOP10"], help=copy.COLLAB["COL_TOP10_DF_HELP"],
-            min_value=PROGRESS_MIN, max_value=PROGRESS_MAX, format=PROGRESS_FORMAT),
+            min_value=PROGRESS_MIN, max_value=PROGRESS_MAX, format=PCT_PROGRESS_FORMAT),
         "sdg_share": st.column_config.ProgressColumn(
             copy.COLLAB["JOINT_COL_SDG"], help=copy.COLLAB["COL_SDG_DF_HELP"],
-            min_value=PROGRESS_MIN, max_value=PROGRESS_MAX, format=PROGRESS_FORMAT),
+            min_value=PROGRESS_MIN, max_value=PROGRESS_MAX, format=PCT_PROGRESS_FORMAT),
         "sdg_n": st.column_config.NumberColumn(copy.COLLAB["JOINT_COL_SDG_RAW"], format=VOL_FORMAT),
         "fwci_median": st.column_config.NumberColumn(
             copy.COLLAB["DF_COL_FWCI"], help=copy.COLLAB["COL_FWCI_HELP"], format=FWCI_FORMAT),
         "momentum": st.column_config.TextColumn(
             copy.COLLAB["DF_COL_MOMENTUM"], help=copy.COLLAB["DF_COL_MOMENTUM_HELP"]),
-        "url": st.column_config.LinkColumn(
-            copy.COLLAB["COL_LINK"], help=copy.COLLAB["COL_LINK_HELP"],
-            display_text=copy.COLLAB["COL_LINK_DISPLAY"]),
     }
 
 
@@ -793,6 +795,7 @@ def _render_topics(bundle: dict, a: str, b: str, scenario: dict, pulse_row: dict
     if prof is None:
         return
     st.subheader(copy.COLLAB["TOPICS_HEADER"])
+    _basis_caption(copy.COLLAB["BASIS_CAPTION_CORE_AR"].format(y0=WINDOW_START, y1=WINDOW_END))
     all_topics = prof["topics"]
     key = "topics_show_all"
     show_all = _show_all_flag(len(all_topics), key)
@@ -829,20 +832,24 @@ def _render_topics(bundle: dict, a: str, b: str, scenario: dict, pulse_row: dict
 
 def _untapped_display_frame(topics: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame({
-        "topic_name": topics["topic_name"].astype(str).to_numpy(),
+        # 2C chrome-audit fix (L8): same name-as-link convention as the topic
+        # deep dive above -- one idiom for the same affordance on both tables.
+        "topic_name": [_named_link(u, n) for u, n in
+                      zip(topics["url"].astype(str), topics["topic_name"].astype(str))],
         "subfield_name": topics["subfield_name"].astype(str).to_numpy(),
         "vol_a": pd.to_numeric(topics["vol_a"], errors="coerce").to_numpy(),
         "vol_b": pd.to_numeric(topics["vol_b"], errors="coerce").to_numpy(),
         "joint_observed": pd.to_numeric(topics["joint_observed"], errors="coerce").to_numpy(),
         "joint_expected": pd.to_numeric(topics["joint_expected"], errors="coerce").to_numpy(),
         "gap": pd.to_numeric(topics["gap"], errors="coerce").to_numpy(),
-        "url": topics["url"].astype(str).to_numpy(),
     })
 
 
 def _untapped_column_config(name_a: str, name_b: str) -> dict:
     return {
-        "topic_name": st.column_config.TextColumn(copy.COLLAB["UNTAPPED_COL_TOPIC"]),
+        "topic_name": st.column_config.LinkColumn(
+            copy.COLLAB["UNTAPPED_COL_TOPIC"], help=copy.COLLAB["COL_LINK_HELP"],
+            display_text=NAME_LINK_DISPLAY_RE),
         "subfield_name": st.column_config.TextColumn(copy.COLLAB["UNTAPPED_COL_SUBFIELD"]),
         "vol_a": st.column_config.NumberColumn(
             copy.COLLAB["UNTAPPED_COL_VOL_SIDE"].format(name=name_a), format=FRAC_VOL_FORMAT),
@@ -853,29 +860,18 @@ def _untapped_column_config(name_a: str, name_b: str) -> dict:
         "joint_expected": st.column_config.NumberColumn(
             copy.COLLAB["UNTAPPED_COL_EXPECTED"], format=FRAC_VOL_FORMAT),
         "gap": st.column_config.NumberColumn(copy.COLLAB["UNTAPPED_COL_GAP"], format=FRAC_VOL_FORMAT),
-        "url": st.column_config.LinkColumn(
-            copy.COLLAB["COL_LINK"], help=copy.COLLAB["COL_LINK_HELP"],
-            display_text=copy.COLLAB["COL_LINK_DISPLAY"]),
     }
-
-
-def _with_domains(ctx: dict, df: pd.DataFrame) -> pd.DataFrame:
-    """`domain_id` for the siblings frame, which carries `subfield_id`
-    only -- the fixed subfield -> field -> domain map the profile page
-    already reads, joined here so every taxon name in that table can carry
-    its chip."""
-    names = profile_data._subfield_field_domain_map(ctx)[["subfield_id", "domain_id"]]
-    return df.merge(names, on="subfield_id", how="left")
 
 
 def _render_untapped(bundle: dict, a: str, b: str, scenario: dict) -> None:
     """Section 6: topics both institutions hold where the joint output is
-    below what the pair's OWN overall collaboration rate would predict, with
-    the adjacent topics kept beside them. This section does NOT depend on
-    the topic floor -- it is built on the shared-topic substrate. Ranking is
-    fixed in the data (gap descending on the TRUE, uncapped observed
-    volume, `collab_data.untapped`'s own `collab_topic_vols` fix) -- this
-    page adds no ranking control of its own."""
+    below what the pair's OWN overall collaboration rate would predict. This
+    section does NOT depend on the topic floor -- it is built on the
+    shared-topic substrate. Ranking is fixed in the data (gap descending on
+    the TRUE, uncapped observed volume, `collab_data.untapped`'s own
+    `collab_topic_vols` fix) -- this page adds no ranking control of its
+    own. (D8, 2C: the "Adjacent topics in the same subfields" expander that
+    used to sit below this table is REMOVED -- see the module docstring.)"""
     ctx = bundle["ctx"]
     name_a, name_b = _name(ctx, a), _name(ctx, b)
     st.subheader(copy.COLLAB["UNTAPPED_HEADER"])
@@ -884,6 +880,7 @@ def _render_untapped(bundle: dict, a: str, b: str, scenario: dict) -> None:
     if all_topics.empty:
         st.info(copy.COLLAB["EMPTY_UNTAPPED"])
     else:
+        _basis_caption(copy.COLLAB["BASIS_CAPTION_CORE_AR"].format(y0=WINDOW_START, y1=WINDOW_END))
         key = "untapped_show_all"
         show_all = _show_all_flag(len(all_topics), key)
         n = _visible_row_count(len(all_topics), show_all)
@@ -899,12 +896,6 @@ def _render_untapped(bundle: dict, a: str, b: str, scenario: dict) -> None:
               + copy.COLLAB["UNTAPPED_RATE_NOTE"].format(
                   window=_window(collab_data.PULSE_YEARS)))
         _rows_note(len(topics), len(all_topics))
-
-    siblings = _with_domains(ctx, res["siblings"])
-    if not siblings.empty:
-        with st.expander(copy.COLLAB["SIBLINGS_HEADER"]):
-            st.caption(copy.COLLAB["SIBLINGS_CAPTION"].format(n=_count(len(siblings))))
-            st.markdown(_siblings_table(name_a, name_b, siblings), unsafe_allow_html=True)
 
 
 # ------------------------------------------------------- 7. bottom meta -----

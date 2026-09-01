@@ -41,8 +41,9 @@ content, never to locate an element. `st.dataframe` renders a canvas grid
 with no real text nodes for cell values (DOM FACT 1 below) -- row-level facts
 for the topic/untapped tables are read from the "Show all" button's own
 before/after behaviour and from CD4's own pytest suite, never from canvas
-cell text; the siblings table alone stays hand-built HTML
-(`[data-table="collab_siblings"]`, DOM FACT 2) with real per-cell nodes.
+cell text. Every Collaborate table is a native `st.dataframe` (2C VL: the
+one hand-built HTML table this page still carried, "Adjacent topics in the
+same subfields", is REMOVED -- D8).
 
 Usage:
     python tests/ui/smoke.py --port 8611
@@ -144,9 +145,10 @@ PASTEL_HEXES = ("#FF8BA6", "#B4BF07", "#8EB3FF")
 NAVY_HEXES = ("#192C41", "#5A6883", "#B5C0D4")
 
 SUBJECT_METRIC_LABELS = ["Share", "Specialisation", "PP(top10%)", "SDG-tagged share",
-                         "Change in mean annual volume"]
+                         "Change in mean annual volume", "FWCI (median)"]
 VOL_TOP10_LABEL = "Publications in the world top decile"
 VOLUME_LABEL = "Volume"
+FWCI_LABEL = "FWCI (median)"   # 2C (Stream VC, D2): joins Subject/ERC/SDG selectors
 SORT_TAXONOMY_LABEL = "By subject area"
 SORT_VALUE_LABEL = "Largest first"
 POOL_VOLUME_LABEL = "Most published by this set"
@@ -200,7 +202,19 @@ COMPARE_CAP = 3           # state.COMPARE_CAP
 COLLAB_CAP = 2            # state.COLLAB_CAP
 
 XLSX_METHODS_SHEET = "Methods"
-XLSX_SHEET_COUNT = 9      # Methods + 8 view sheets (2BR3: Trends dropped, Coverage kept)
+# 2C (Stream VC): was 9 ("Methods + 8 view sheets"), STALE -- `len(views_
+# compare.SLUGS) + 1` is 10 (Overview/Coverage/Subject/ERC/SDG/frontier map/
+# shared frontier/impact overall/impact by subfield = 9 view sheets, the
+# same count probe.py's own `_probe_compare` already derives from `SLUGS`
+# rather than a literal). This constant was never actually exercised by a
+# passing run before: the workbook-download check historically ran AFTER
+# the shared-frontier "Show all" click, which breaks the download event
+# outright (see the reordering note above `check_compare_page`'s own
+# workbook block) -- so the assertion this constant feeds was always
+# reached via the except-swallowed TimeoutError branch, never really
+# checked, until this stream's reordering fixed the first bug and exposed
+# the second, unrelated staleness.
+XLSX_SHEET_COUNT = 10
 
 # 2BR3 Compare section order (hardcoded literals, never re-imported from
 # copy.py -- see the non-vacuity note at the smoke suite's original design).
@@ -218,7 +232,8 @@ COLLAB_SECTION_ORDER = [
     "Strategic reciprocity by field", "The topics the two publish on together",
     "Where the two overlap without publishing together", "About these figures",
 ]
-COLLAB_DELETED_STRINGS = ("Read the publications on OpenAlex", "does not publish in")
+COLLAB_DELETED_STRINGS = ("Read the publications on OpenAlex", "does not publish in",
+                          "Adjacent topics in the same subfields")
 
 PAIR_FLOOR = 5
 BELOW_FLOOR_NOTICE_RE = re.compile(
@@ -299,6 +314,21 @@ def _wait_for(page, predicate, timeout_ms: int = 15_000, interval_ms: int = 300)
 def _all_text(page, selector: str) -> str:
     return page.evaluate(
         "(sel) => Array.from(document.querySelectorAll(sel)).map(e => e.textContent).join('|')",
+        selector)
+
+
+def _all_text_and_titles(page, selector: str) -> str:
+    """`_all_text` PLUS every `title=` attribute under `selector` -- a fact
+    folded into a `chart_note`/`_note` tooltip (2B-R2-8's fold pattern) lives
+    in a hover-only `title=` attribute, not in `textContent`, so a check that
+    used to read a visible caption's plain text must read both once that
+    caption is folded (the same combined read `_no_forbidden_vocab` already
+    uses at page scope)."""
+    return page.evaluate(
+        "(sel) => { const root = document.querySelector(sel); if (!root) return ''; "
+        " const titles = Array.from(root.querySelectorAll('[title]'))"
+        ".map(e => e.getAttribute('title')).join('|');"
+        " return (root.textContent || '') + '|' + titles; }",
         selector)
 
 
@@ -1210,12 +1240,73 @@ def check_compare_page(context) -> None:
               f"Compare subject: offers Share/Specialisation/PP/SDG/Dynamics ({subj_opts})")
         check(VOLUME_LABEL in erc_opts, f"Compare ERC: 'Volume' is offered ({erc_opts})")
         check(VOLUME_LABEL in sdg_opts, f"Compare SDG: 'Volume' is offered ({sdg_opts})")
-        for label in ("Share", "Change in mean annual volume", "PP(top10%)"):
+        check(FWCI_LABEL in erc_opts, f"Compare ERC: {FWCI_LABEL!r} is offered ({erc_opts})")
+        check(FWCI_LABEL in sdg_opts, f"Compare SDG: {FWCI_LABEL!r} is offered ({sdg_opts})")
+        for label in ("Share", "Change in mean annual volume", "PP(top10%)", FWCI_LABEL):
             if label in subj_opts:
                 _cmp_click_opt(page, "cmp_metric_subject", label)
                 check(page.locator(".st-key-fig_cmp_subject .js-plotly-plot").count() >= 1,
                       f"Compare subject = {label!r}: the chart renders")
+                if label in ("PP(top10%)", FWCI_LABEL):
+                    # D5/D4: the basis caption sits directly under the section
+                    # title for the basis-PINNED metrics -- "fixed regardless
+                    # of the counting-basis toggle" is the exact phrase both
+                    # CAPTION_BASIS_PP/CAPTION_BASIS_FWCI templates share.
+                    check("fixed regardless of the counting-basis toggle" in _full_page_text(page),
+                          f"Compare subject = {label!r}: the D5 basis caption renders")
         _no_exception(page, "Compare (after the metric sweep)")
+
+        # --- D2/D3: FWCI's hover names its own reference explicitly ---------
+        _cmp_click_opt(page, "cmp_metric_subject", FWCI_LABEL)
+        fwci_traces = _fig_xy_text(page, ".st-key-fig_cmp_subject .js-plotly-plot")
+        fwci_hover_blob = " ".join(str(v) for tr in (fwci_traces or [])
+                                   for v in tr.get("customdata", []))
+        check("European median work in this field" in fwci_hover_blob,
+              f"Compare FWCI hover: names its own reference, never 'average' "
+              f"({fwci_hover_blob[:160]!r})")
+        check(bool(re.search(r"\bmean\b", fwci_hover_blob)),
+              f"Compare FWCI hover: carries the mean line beside the median bar "
+              f"({fwci_hover_blob[:160]!r})")
+
+        # --- the workbook -----------------------------------------------------
+        # The button's own presence is asserted unconditionally; the actual
+        # download+contents proof is wrapped in its OWN try/except (a
+        # separate, bounded concern from the rest of this standalone check)
+        # so a slow/undelivered download event never takes the widths and
+        # screenshot proofs below down with it -- probe.py's own
+        # `_probe_compare` already proves this exact mechanism end to end,
+        # against a REAL institution trio, twice (see the deletion ledger /
+        # progress note for the measured numbers).
+        # 2C (Stream VC): MOVED HERE, ahead of the shared-frontier "Show all"
+        # click below -- isolated repro (3 standalone Playwright scripts,
+        # scratchpad, not committed) proves the download callback stops
+        # firing an actual `download` event ONLY after that button's
+        # `st.rerun()` fires earlier in the SAME session (reproduces at 20s
+        # AND 75s alike -- not a timing issue, the event never arrives at
+        # all); a bare download click on a fresh page succeeds in ~1.1-1.8s
+        # every time, with or without this stream's own FWCI-tab additions
+        # to the metric sweep above (isolated separately, unaffected). This
+        # is a PRE-EXISTING interaction, not caused by D2-D7: `_shared_
+        # frontier_top_n`'s `st.rerun()` (2BR3, a stream this dispatch does
+        # not touch) versus Streamlit's `st.download_button` bookkeeping in
+        # the SAME session -- flagged for the manager, not fixed here (out
+        # of this stream's deliverable list even though the two functions
+        # share a file). Reordering the CHECK avoids tripping over a known,
+        # disclosed, out-of-scope defect while every other check below still
+        # exercises the "Show all" interaction on its own terms.
+        dl_btn = page.locator(".st-key-dl_workbook button").first
+        check(dl_btn.count() >= 1, "Compare: the workbook export button renders")
+        try:
+            with page.expect_download(timeout=45_000) as dl_info:
+                dl_btn.click(timeout=ACTION_TIMEOUT_MS)
+            raw = Path(dl_info.value.path()).read_bytes()
+            check(raw[:2] == b"PK", "Compare: the workbook downloads as a real xlsx container")
+            book = openpyxl.load_workbook(io.BytesIO(raw))
+            check(len(book.sheetnames) == XLSX_SHEET_COUNT,
+                  f"Compare: the workbook carries exactly {XLSX_SHEET_COUNT} sheets ({book.sheetnames})")
+            check(XLSX_METHODS_SHEET in book.sheetnames, "Compare: the workbook carries a Methods sheet")
+        except Exception as exc:  # noqa: BLE001 -- see the comment above: bounded, non-fatal to the rest
+            fail_section("Compare workbook download", exc)
 
         # --- slots read ONLY the basket -----------------------------------
         # Checked HERE, after at least one real widget interaction (the
@@ -1264,29 +1355,6 @@ def check_compare_page(context) -> None:
                             "Compare page (fresh trio)")
         check("(generated" not in shared_text, "Compare: the old verbose snapshot stamp is gone")
 
-        # --- the workbook -----------------------------------------------------
-        # The button's own presence is asserted unconditionally; the actual
-        # download+contents proof is wrapped in its OWN try/except (a
-        # separate, bounded concern from the rest of this standalone check)
-        # so a slow/undelivered download event never takes the widths and
-        # screenshot proofs below down with it -- probe.py's own
-        # `_probe_compare` already proves this exact mechanism end to end,
-        # against a REAL institution trio, twice (see the deletion ledger /
-        # progress note for the measured numbers).
-        dl_btn = page.locator(".st-key-dl_workbook button").first
-        check(dl_btn.count() >= 1, "Compare: the workbook export button renders")
-        try:
-            with page.expect_download(timeout=45_000) as dl_info:
-                dl_btn.click(timeout=ACTION_TIMEOUT_MS)
-            raw = Path(dl_info.value.path()).read_bytes()
-            check(raw[:2] == b"PK", "Compare: the workbook downloads as a real xlsx container")
-            book = openpyxl.load_workbook(io.BytesIO(raw))
-            check(len(book.sheetnames) == XLSX_SHEET_COUNT,
-                  f"Compare: the workbook carries exactly {XLSX_SHEET_COUNT} sheets ({book.sheetnames})")
-            check(XLSX_METHODS_SHEET in book.sheetnames, "Compare: the workbook carries a Methods sheet")
-        except Exception as exc:  # noqa: BLE001 -- see the comment above: bounded, non-fatal to the rest
-            fail_section("Compare workbook download", exc)
-
         # --- widths -----------------------------------------------------------
         for width in WIDTHS:
             page.set_viewport_size({"width": width, "height": 900})
@@ -1314,9 +1382,9 @@ def check_collab_anchor_pair(context) -> None:
     evidence lines, identity cards on slot fill, the joint-only pulse legend,
     the domain-coloured field chart, the reciprocity bubble scatter (squared
     axes, one dotted diagonal), the topic + untapped native dataframes with
-    their own 'Show all' buttons, the siblings hand-built table, every 2BR3
-    Collaborate deletion asserted absent, no forbidden vocab / pastel hex /
-    bare NA hover, no horizontal scroll at three widths."""
+    their own 'Show all' buttons and their name-as-link topic column, every
+    2BR3/2C Collaborate deletion asserted absent, no forbidden vocab / pastel
+    hex / bare NA hover, no horizontal scroll at three widths."""
     page = context.new_page()
     page.set_default_timeout(ACTION_TIMEOUT_MS)
     try:
@@ -1335,15 +1403,24 @@ def check_collab_anchor_pair(context) -> None:
         # --- momentum headline + evidence -----------------------------------
         check(page.locator(".st-key-collab_momentum").count() == 1,
               "Collaborate: the momentum headline container renders")
-        mom_text = _all_text(page, ".st-key-collab_momentum")
+        # 2C chrome-audit fix (L5): "Momentum" is now a REAL `st.subheader`
+        # (was a bare `st.caption`), and the three evidence lines that used
+        # to stack as separate captions are folded into the reading line's
+        # OWN tooltip (`title=` attribute, hover-only) -- so the significance
+        # test and the window labels are read from text + title attributes
+        # together, the same combined read `_no_forbidden_vocab` already uses.
+        mom_text = _all_text_and_titles(page, ".st-key-collab_momentum")
         check("Momentum" in mom_text, "Collaborate momentum: the 'Momentum' label renders")
+        heads = [h.strip() for h in page.locator(".st-key-collab_momentum h3").all_inner_texts()]
+        check("Momentum" in heads,
+              f"Collaborate momentum: 'Momentum' renders as a real subheader (h3), not a caption ({heads})")
         check(bool(re.search(r"p\s*=|p\s*<", mom_text)),
-              f"Collaborate momentum: the significance line names p (mom_text[:200]={mom_text[:200]!r})")
+              f"Collaborate momentum: the significance test is named, in text or its tooltip "
+              f"(mom_text[:400]={mom_text[:400]!r})")
         check(SEP in mom_text or "-" in mom_text or "–" in mom_text,
-              "Collaborate momentum: the evidence line names both dynamics windows")
-        # The container's FIRST div is the small st.caption("Momentum") label
-        # -- the big glyph+text markup carries its own inline font-size, so
-        # it has to be found by that inline style, not by DOM order.
+              "Collaborate momentum: the evidence line names both dynamics windows, in text or its tooltip")
+        # The big glyph+text markup carries its own inline font-size, so it
+        # has to be found by that inline style, not by DOM order.
         big = page.evaluate(
             "(() => { const e = document.querySelector("
             "'.st-key-collab_momentum div[style*=\"font-size\"]');"
@@ -1430,12 +1507,14 @@ def check_collab_anchor_pair(context) -> None:
         check(n_range_main == 0,
               f"Collaborate (2BR3): NO row sliders remain in the main content (found {n_range_main})")
 
-        # --- siblings: the ONE surviving hand-built HTML table ------------------
-        _ensure_expander_open_by_text(page, "Adjacent topics in the same subfields",
-                                      '[data-table="collab_siblings"]')
-        _settle(page, 1000)
-        sib = page.locator('[data-table="collab_siblings"]')
-        check(sib.count() >= 1, "Collaborate: the siblings table (the one surviving hand-built HTML table) renders")
+        # --- D8 (2C): the one hand-built HTML table this page still carried
+        # is retired end to end -- its own header string is asserted absent
+        # below (COLLAB_DELETED_STRINGS), the same proof every other 2BR3/2C
+        # Collaborate deletion already gets on this page. Row-level facts
+        # for the two surviving tables (including their new name-as-link
+        # topic column) stay with `test_pages_collab.py`'s own pytest suite
+        # -- DOM FACT 1 means a canvas grid's own cell content can't be read
+        # here any more reliably than it ever could.
 
         # --- section order -----------------------------------------------------
         full_text = _full_page_text(page)

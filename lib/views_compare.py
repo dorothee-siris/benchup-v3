@@ -152,6 +152,7 @@ METRIC_LABELS = {
     "dynamics": copy.COMPARE["METRIC_DYNAMICS"],
     "si": copy.COMPARE["METRIC_SI"],
     "vol": copy.COMPARE["METRIC_VOL"],
+    "fwci": copy.COMPARE["METRIC_FWCI"],
 }
 # Every section starts from the SAME vocabulary and lets the level filter it
 # (2B-R-5). Starting each section from a hand-written short list would hide the
@@ -656,17 +657,86 @@ def _decorate(df: pd.DataFrame, level: str, long: pd.DataFrame, key_col: str,
     return out.drop(columns=[c for c in (key_col, label_col) if c and c in out.columns])
 
 
+_RATIO_CAPTION_METRICS = ("share", "pp", "sdg_share", "dynamics", "fwci")
+# D5 (CHROME_CONTRACT.md §7, normative list under §0/§7): the ratio-chart
+# families that get the one-line basis/floor/coverage caption directly under
+# the section title. `si` and `vol` are excluded -- the contract's own list
+# names Share, PP, SDG-tagged share, Dynamics and FWCI only; `si` already
+# carries an equivalent basis/floor disclosure through `_metric_tip`'s own
+# `CAPTION_SI`/`CAPTION_SI_FLOOR` lines and `vol` is a raw count with no
+# basis or floor to disclose.
+
+
+def _basis_caption(text: str, *, warn: bool = False) -> None:
+    st.markdown(X.basis_caption(text, warn=warn), unsafe_allow_html=True)
+
+
+def _ratio_caption(df: pd.DataFrame, metric: str, level: str, sc: dict, *,
+                   ids, tree: str, basis: str, field_id: int | None, floor: int) -> None:
+    """D5: one line, directly under the section title, stating the chart's
+    own basis/floor/unscored-count -- read off the FRAME and computed from
+    real rows, never hand-typed (this kills the "2130-vs-1699" / "only 5
+    fields" confusion class at the source, CHROME_CONTRACT.md §7).
+
+    PP and FWCI are BASIS-PINNED (D4): their line states the FIXED basis they
+    are always drawn on (articles & reviews), never the page's full/frac
+    toggle -- this doubles as D4's "explicit small chip naming the pinned
+    basis". Their unscored count is `taxa this basket has SOME share in`
+    (the `share` metric frame, which never drops a row for a floor reason)
+    MINUS `taxa this chart actually draws` -- the same union/floor idiom the
+    Impact section's own `NOTE_IMPACT_SUBFIELDS` caption already uses.
+
+    Every other covered metric (share/sdg_share/dynamics) states the page's
+    CURRENT basis (it follows the toggle) and never warns -- these families
+    have no floor that can drop a taxon."""
+    if metric not in _RATIO_CAPTION_METRICS:
+        return
+    words = _scenario_words(sc)
+    if metric in ("pp", "fwci"):
+        universe = _metric(tuple(ids), tree, basis, level, "share", field_id, floor)
+        n_have = int(universe["taxon_id"].nunique()) if not universe.empty else 0
+        n_scored = int(df["taxon_id"].nunique()) if not df.empty else 0
+        n_unscored = max(0, n_have - n_scored)
+        if metric == "pp":
+            key = "CAPTION_BASIS_PP_UNSCORED" if n_unscored else "CAPTION_BASIS_PP"
+            text = copy.COMPARE[key].format(y0=WINDOW_START, y1=WINDOW_END,
+                                            floor=int(floor), n=n_unscored)
+        else:
+            grain = K.FWCI_GRAIN_WORD[level]
+            key = "CAPTION_BASIS_FWCI_UNSCORED" if n_unscored else "CAPTION_BASIS_FWCI"
+            text = copy.COMPARE[key].format(y0=WINDOW_START, y1=WINDOW_END,
+                                            n=n_unscored, grain=grain)
+            if level == "erc":
+                text += copy.COMPARE["CAPTION_BASIS_FWCI_ERC_GAP"]
+        _basis_caption(text, warn=bool(n_unscored))
+        return
+    if metric == "dynamics":
+        text = copy.COMPARE["CAPTION_BASIS_DYNAMICS"].format(
+            w1=_window(K.DYNAMICS_W1), w2=_window(K.DYNAMICS_W2), basis=words["basis"])
+    else:  # share / sdg_share
+        text = copy.COMPARE["CAPTION_BASIS_SHARE"].format(
+            basis=words["basis"], y0=WINDOW_START, y1=WINDOW_END)
+    _basis_caption(text, warn=False)
+
+
 def _metric_chart(df: pd.DataFrame, metric: str, ids, slots, names, level: str,
                   *, key: str, sort: str = SORT_DEFAULT) -> None:
+    # D2/D3: FWCI's reference line is the European corpus-median WORK-FWCI per
+    # taxon -- a different aggregation unit than the generic "index reference"
+    # (institution mean) PP/SDG-share/Dynamics share, so the hover names it
+    # explicitly (`compare_data.fwci_ref_label`, never hand-typed) rather than
+    # falling back to `charts_compare.HOVER_REFERENCE`.
+    ref_label = K.fwci_ref_label(level) if metric == "fwci" else None
     _legend(ids, slots, names)
     st.plotly_chart(
         X.fig_metric_bars(df, metric, _slot_order(ids, slots), slots=slots, names=names,
                           level=level, sort=sort, accent_col=ACCENT_KEY.get(level),
-                          metric_label=METRIC_LABELS[metric]),
+                          metric_label=METRIC_LABELS[metric], ref_label=ref_label),
         width="stretch", key=key)
 
 
-def _metric_tip(df: pd.DataFrame, metric: str, sc: dict, *, accent: bool = False) -> str:
+def _metric_tip(df: pd.DataFrame, metric: str, sc: dict, *, accent: bool = False,
+                level: str | None = None) -> str:
     """Everything that used to be a stack of grey captions under a metric chart,
     assembled into ONE tooltip (2B-R2-8): the scenario, the frame's own
     denominator, what the gutter numbers are, what the dashed reference is and
@@ -677,17 +747,24 @@ def _metric_tip(df: pd.DataFrame, metric: str, sc: dict, *, accent: bool = False
 
     The DENOMINATOR sentence is read off the frame, never written here: a
     hand-typed denominator is a second opinion about a number this page does not
-    own, and for Dynamics it is also where both windows are named verbatim."""
+    own, and for Dynamics it is also where both windows are named verbatim.
+
+    2C (D2/D3): `metric="fwci"` never uses the generic `TIP_REFERENCE` line
+    (the "average across every institution" wording is WRONG for a corpus-
+    median-of-works reference, WT_2C.md claim 1) -- it names the grain-specific
+    label instead (`compare_data.fwci_ref_label(level)`, requires `level`)."""
     parts = [copy.COMPARE["TIP_SCENARIO"].format(**_scenario_words(sc))]
     if not df.empty and "denominator" in df.columns:
         parts.append(str(df["denominator"].iloc[0]))
     parts.append(copy.COMPARE["TIP_GUTTER"])
-    if metric in X.REF_METRICS:
+    if metric == "fwci" and level:
+        parts.append(copy.COMPARE["TIP_REFERENCE_FWCI"].format(ref_label=K.fwci_ref_label(level)))
+    elif metric in X.REF_METRICS:
         parts.append(copy.COMPARE["TIP_REFERENCE"])
     if not df.empty and "vol_full_annual_mean" in df.columns \
             and pd.to_numeric(df["vol_full_annual_mean"], errors="coerce").notna().any():
         parts.append(copy.COMPARE["TIP_LOW_VOLUME"].format(
-            floor=f"{X.LOW_VOLUME_FLOOR:,.0f}"))
+            floor=f"{P.RATIO_HATCH_FLOOR:,.0f}", y0=WINDOW_START, y1=WINDOW_END))
     if accent:
         parts.append(copy.COMPARE["TIP_ACCENT"])
     if metric == "si":
@@ -725,9 +802,11 @@ def _view_subject(ids, slots, names, sc) -> tuple:
         st.caption(copy.COMPARE["EMPTY_METRIC"])
         _not_offered_expander(hidden, level)
         return df, level, metric
+    _ratio_caption(df, metric, level, sc, ids=ids, tree=sc["tree"], basis=sc["basis"],
+                   field_id=field_id, floor=floor)
     _metric_chart(df, metric, ids, slots, names, level, key="fig_cmp_subject", sort=sort)
     reading = copy.COMPARE["NOTE_SUBJECT"]
-    tip = _metric_tip(df, metric, sc)
+    tip = _metric_tip(df, metric, sc, level=level)
     if level == "subfield":
         reading = copy.COMPARE["CAPTION_DRILL"].format(field=str(labels.get(field_id, field_id)))
         tip = f"{copy.COMPARE['NOTE_SUBJECT']} {tip}"
@@ -751,13 +830,15 @@ def _shares_line(ctx: dict, ids, slots: dict, numerator: str) -> str:
     return f" {SEP} ".join(parts)
 
 
-def _taxon_tip(ctx, ids, slots, sc, df, metric, numerator: str, accent_key: str) -> str:
+def _taxon_tip(ctx, ids, slots, sc, df, metric, numerator: str, accent_key: str,
+               level: str) -> str:
     """The ERC/SDG tooltip: the metric tooltip, plus the per-institution
     classified/tagged shares (each of these two views rests on a denominator
     that differs from one institution to the next, so one figure could not
     stand for the set), plus the accent rule and the fractional-only note when
-    the reader is on the full basis."""
-    parts = [_metric_tip(df, metric, sc, accent=True),
+    the reader is on the full basis. `level` ("erc"/"sdg") threads through to
+    `_metric_tip` for the fwci-specific reference wording (D2/D3)."""
+    parts = [_metric_tip(df, metric, sc, accent=True, level=level),
              copy.COMPARE[accent_key],
              copy.COMPARE["CAPTION_CLASSIFIED_SHARES"].format(
                  shares=_shares_line(ctx, ids, slots, numerator))]
@@ -780,10 +861,12 @@ def _view_erc(ctx, ids, slots, names, sc) -> tuple:
         st.caption(copy.COMPARE["EMPTY_METRIC"])
         _not_offered_expander(hidden, "erc")
         return df, metric
+    _ratio_caption(df, metric, "erc", sc, ids=ids, tree=sc["tree"], basis=sc["basis"],
+                   field_id=None, floor=IMPACT_FLOOR_DEFAULT)
     _metric_chart(df, metric, ids, slots, names, "erc", key="fig_cmp_erc", sort=sort)
     _note(copy.COMPARE["NOTE_ERC"],
           _taxon_tip(ctx, ids, slots, sc, df, metric, "erc_classified_mass_frac",
-                     "CAPTION_ACCENT_ERC"))
+                     "CAPTION_ACCENT_ERC", "erc"))
     _not_offered_expander(hidden, "erc")
     _download(df, slug=SLUGS["erc"], sc=sc, key="erc")
     return df, metric
@@ -803,10 +886,12 @@ def _view_sdg(ctx, ids, slots, names, sc) -> tuple:
         st.caption(copy.COMPARE["EMPTY_METRIC"])
         _not_offered_expander(hidden, "sdg")
         return df, metric
+    _ratio_caption(df, metric, "sdg", sc, ids=ids, tree=sc["tree"], basis=sc["basis"],
+                   field_id=None, floor=IMPACT_FLOOR_DEFAULT)
     _metric_chart(df, metric, ids, slots, names, "sdg", key="fig_cmp_sdg", sort=sort)
     _note(copy.COMPARE["NOTE_SDG"],
           _taxon_tip(ctx, ids, slots, sc, df, metric, "sdg_classified_mass_frac",
-                     "CAPTION_ACCENT_SDG"))
+                     "CAPTION_ACCENT_SDG", "sdg"))
     _not_offered_expander(hidden, "sdg")
     _download(df, slug=SLUGS["sdg"], sc=sc, key="sdg")
     return df, metric
@@ -888,21 +973,27 @@ def _shared_frontier_top_n(total: int) -> int | None:
     button -- never a slider -- swaps in the rest. `total <=
     SHARED_FRONTIER_TOP_N` needs no button at all: showing all of them IS
     showing the top N."""
+    # 2C manager fix (VC blocker, root cause): the old body flipped session
+    # state inside the click run and called st.rerun() -- and that explicit
+    # rerun left every st.download_button on the page broken for the REST of
+    # the browser session (reproduced in isolation; the long-disclosed
+    # "workbook-download smoke timeout" was this bug's shadow). An on_click
+    # callback runs BEFORE the script body of the rerun the click itself
+    # triggers, so the state is already flipped when this function reads it:
+    # same one-click behaviour, no st.rerun() anywhere on the page.
     key = "cmp_shared_frontier_all"
     if total <= SHARED_FRONTIER_TOP_N:
         return None
     show_all = bool(st.session_state.get(key, False))
-    if show_all:
-        if st.button(copy.COMPARE["SHARED_FRONTIER_SHOW_TOP"].format(n=SHARED_FRONTIER_TOP_N),
-                     key="cmp_shared_frontier_toggle"):
-            st.session_state[key] = False
-            st.rerun()
-        return None
-    if st.button(copy.COMPARE["SHARED_FRONTIER_SHOW_ALL"].format(n=f"{total:,}"),
-                 key="cmp_shared_frontier_toggle"):
-        st.session_state[key] = True
-        st.rerun()
-    return SHARED_FRONTIER_TOP_N
+
+    def _toggle() -> None:
+        st.session_state[key] = not bool(st.session_state.get(key, False))
+
+    label = (copy.COMPARE["SHARED_FRONTIER_SHOW_TOP"].format(n=SHARED_FRONTIER_TOP_N)
+             if show_all else
+             copy.COMPARE["SHARED_FRONTIER_SHOW_ALL"].format(n=f"{total:,}"))
+    st.button(label, key="cmp_shared_frontier_toggle", on_click=_toggle)
+    return None if show_all else SHARED_FRONTIER_TOP_N
 
 
 def _view_frontier(ids, slots, names, sc) -> tuple:

@@ -1207,10 +1207,15 @@ BAR_PX = 13                 # target thickness of ONE institution's bar in a
                             # the number `metric_row_height` sizes the row band
                             # from -- so a bar can never be thinner than this by
                             # arithmetic, whatever the row count.
-BAR_GROUP_SPAN = 0.82       # the share of a row band the bar group occupies
-BAR_GROUP_FILL = 0.86       # the share of a group slot one bar occupies (the
-                            # remainder is the SURFACE gap the dataviz mark
-                            # specs ask for between adjacent bars)
+BAR_GROUP_SPAN = C.DEFAULT_GROUP_SPAN   # 2C CHROME-F (progress/2C_CHROME-F.md
+BAR_GROUP_FILL = C.DEFAULT_GROUP_FILL   # S2): single-sourced from charts.py --
+                            # the two constant pairs (this module's and the
+                            # Find profile panels') are now IDENTICAL values
+                            # read from one place, never two literals that can
+                            # drift apart again. The share of a row band the
+                            # bar group occupies / the share of a group slot
+                            # one bar occupies (the remainder is the SURFACE
+                            # gap the dataviz mark specs ask for between bars).
 AXIS_PAD_FRAC = 0.20        # x-range headroom so an outer-end label never
                             # collides with the plot frame (measured need, A/B #9)
 ROW_RULE_PX = 1             # hairline between two category rows
@@ -1242,8 +1247,10 @@ SHARED_OWNER = "shared"
 # (contract section 4, `frontier_pooled`). Its colour is `palette.SHARED_FRONTIER`,
 # which is deliberately not an institution slot.
 
-METRICS = ("share", "vol_top10", "pp", "sdg_share", "dynamics", "si", "vol")
-# EVERY metric `fig_metric_bars` accepts. `vol` is 2B-R2-1b's fix: the selector
+METRICS = ("share", "vol_top10", "pp", "sdg_share", "dynamics", "si", "vol", "fwci")
+# EVERY metric `fig_metric_bars` accepts. 2C (Stream VC, D2): `fwci` joins at
+# ALL FOUR levels (CD5 ships `fwci_mean`/`ref_value` on every grain's frame).
+# `vol` is 2B-R2-1b's fix: the selector
 # offered it, `views_compare.METRIC_LABELS` named it, and this tuple did not --
 # so `vol x erc` and `vol x sdg` raised `ValueError` on a path no test drove
 # (wind tunnel 2BR2 claim #18 enumerated exactly those two crashes out of a
@@ -1254,22 +1261,32 @@ METRICS = ("share", "vol_top10", "pp", "sdg_share", "dynamics", "si", "vol")
 # builder refusing a metric the page can still ask for is precisely the class of
 # bug above. What the selector offers is `SELECTOR_METRICS`.
 
-SELECTOR_METRICS = ("share", "si", "pp", "sdg_share", "dynamics", "vol")
+SELECTOR_METRICS = ("share", "si", "pp", "sdg_share", "dynamics", "vol", "fwci")
 # 2B-R2-3's ruled selector ORDER: Share, Specialisation, PP(top10%), SDG-tagged,
-# Dynamics, Volume-where-defined. `vol_top10` is absent by ruling (its mass
-# moved into the PP view's gutter); the page hides the rest per level through
-# its own availability map, and this tuple is what its sweep iterates.
+# Dynamics, Volume-where-defined, and (2C, D2) FWCI last. `vol_top10` is absent
+# by ruling (its mass moved into the PP view's gutter); the page hides the
+# rest per level through its own availability map, and this tuple is what its
+# sweep iterates.
 
 LEVELS = ("field", "subfield", "erc", "sdg")
 
-REF_METRICS = ("pp", "sdg_share", "dynamics")
-# 2B-R2-4: a reference line is drawn for these three ONLY -- the population mean
-# among institutions with nonzero mass, per taxon x tree. Share and Volume get
-# none (there is no "expected share": the shares of a partition sum to one by
-# construction, so a mean share is an artefact of how many taxa exist, not a
-# benchmark). `si` is not in the list because its reference is not data at all
-# (see `_METRIC_DEFAULT_REF`). A frame may carry `ref_value` for any metric; a
-# metric outside this tuple simply does not draw it.
+REF_METRICS = ("pp", "sdg_share", "dynamics", "fwci")
+# 2B-R2-4: a reference line is drawn for these ONLY -- PP/SDG-tagged share/
+# Dynamics reference the population mean among institutions with nonzero mass,
+# per taxon x tree. Share and Volume get none (there is no "expected share":
+# the shares of a partition sum to one by construction, so a mean share is an
+# artefact of how many taxa exist, not a benchmark). `si` is not in the list
+# because its reference is not data at all (see `_METRIC_DEFAULT_REF`). A
+# frame may carry `ref_value` for any metric; a metric outside this tuple
+# simply does not draw it.
+#
+# 2C (Stream VC, D3): `fwci` joins with a DIFFERENT reference semantics than
+# the other three -- the European corpus-level MEDIAN work-FWCI per taxon
+# (never an institution mean), so its hover line is never the generic
+# `HOVER_REFERENCE` text (see `fig_metric_bars`'s `ref_label` parameter and
+# `_metric_hover`). A 0.0 reference (27 taxa, WT_2C.md claim 2) is real data
+# and draws exactly like any other value -- `_add_reference` already tests
+# `np.isfinite`, never truthiness, so this needed no fix here.
 
 SORT_MODES = ("taxonomy", "value")
 # 2B-R2-5. `taxonomy` (the default) groups the rows under their domains in the
@@ -1281,6 +1298,31 @@ LOW_VOLUME_FLOOR = 10.0
 # 2B-R2-4: a cell whose mean annual FULL volume is below this is drawn HOLLOW
 # and daggered. Not a data filter -- the value is still true, it is just built
 # on so few publications that a reader should not race it against a neighbour.
+#
+# 2C AMENDMENT (D6, decisions log 2026-09-01, WT_2C.md claim 4): the
+# ONE-SENTENCE user-facing rule stays "a bar hatches when it rests on fewer
+# than `palette.RATIO_HATCH_FLOOR` works over the counted window" for EVERY
+# metric -- `LOW_VOLUME_FLOOR * N_CORE_YEARS` (10/yr x 5 yr) already equals
+# `palette.RATIO_HATCH_FLOOR` (50), so the two mechanisms below are the SAME
+# threshold in different units, never two different floors. The
+# IMPLEMENTATION still forks by metric family (`_is_low_volume`): PP and FWCI
+# carry a genuinely per-row `denom_value` (n_works_full / n_covered) and hatch
+# on THAT directly against `palette.RATIO_HATCH_FLOOR`; every other metric
+# keeps hatching on `low_vol_col` (`vol_full_annual_mean`) against this
+# constant -- their own `denom_value` is an INSTITUTION-CONSTANT column
+# (share's own total mass), and re-keying it would silently disable hatching
+# for those families entirely (measured: share denominators run 400-1,200,
+# never below 50).
+
+RATIO_HATCH_METRICS = ("pp", "fwci")
+# The metrics whose `denom_value` is a genuinely per-row, diagnostic count
+# (2C D6 amendment) -- these hatch on `denom_value < palette.RATIO_HATCH_FLOOR`
+# instead of on `low_vol_col`. See `LOW_VOLUME_FLOOR`'s own docstring above.
+
+CAPTION_FONT_WEIGHT = 400   # D5 (CHROME_CONTRACT.md §7): the basis caption is
+                            # NEVER bold, in either its normal or warning
+                            # colour state -- an int constant so the literal
+                            # never has to sit inside a banned string digit.
 
 LOW_VOLUME_GLYPH = "\N{DAGGER}"
 # The visible half of the low-volume marker (the hatched bar, below, is the
@@ -1312,12 +1354,29 @@ AX_SDG_TAGGED = "Share of publications tagged to a goal"
 AX_DYNAMICS = "Change in mean annual volume"
 AX_COPUBS = "Joint publications"
 AX_JOINT_VOLUME = "Joint publications on the topic"
+AX_FWCI = "FWCI (median)"
+# 2C (D2): the FWCI axis/metric-label fallback. `views_compare.METRIC_LABELS`
+# always passes its own `copy.COMPARE["METRIC_FWCI"]` string explicitly, so
+# this constant is the safety net for a caller (a test, a future page) that
+# does not -- same role `AX_SI`/`AX_WORKS` already play for their metrics.
 
 HOVER_REFERENCE = "index reference"
 HOVER_DENOMINATOR = "denominator"
 HOVER_OWNER = "held by"
 HOVER_COMBINED = "combined volume"
-HOVER_LOW_VOLUME = "few publications a year on average, read with care"
+HOVER_MEAN = "mean"
+# 2C (D2): the FWCI hover's second statistic, beside the median bar value --
+# `_metric_hover`'s `fwci_mean_col` param renders this line ONLY when that
+# column is present and non-null, which (v5 metric_frame contract) is true on
+# the `fwci` frame alone.
+HOVER_LOW_VOLUME = "rests on fewer than {floor} works over the counted window, read with care"
+# 2C AMENDMENT (D6): ONE sentence for every hatched bar, whichever mechanism
+# triggered it (see `LOW_VOLUME_FLOOR`'s own docstring) -- `{floor}` is filled
+# at hover-build time from `palette.RATIO_HATCH_FLOOR` (never a digit literal
+# in this module, per its own digit-ban). Never says "a year on average" any
+# more: PP/FWCI hatch on a window TOTAL, not an annual mean, so the old
+# per-year framing was already wrong for them and is now dropped for every
+# metric in favour of the one true number every reader can check.
 HOVER_DOMAIN = "domain"
 LABEL_SHARED = "shared"
 NOTE_HELP_GLYPH = "?"
@@ -1330,10 +1389,11 @@ _METRIC_AXIS = {
     "dynamics": AX_DYNAMICS,
     "si": C.AX_SI,
     "vol": C.AX_WORKS,
+    "fwci": AX_FWCI,
 }
 _METRIC_KIND = {"share": "pct", "vol_top10": "vol", "pp": "pct",
                 "sdg_share": "pct", "dynamics": "pct", "si": "si",
-                "vol": "vol"}
+                "vol": "vol", "fwci": "fwci"}
 # `vol` takes the INTEGER branch (2B-R2-1b): `charts._fmt_vol` prints a whole
 # number with thin-space thousands separators and no decimal, because a count
 # of publications has none. It is the same branch `vol_top10` has always used --
@@ -1387,6 +1447,12 @@ def _fmt_metric(v, metric: str) -> str:
             return _fmt_dynamics_pct(v)
         return _fmt_pct(v)
     if kind == "si":
+        return _fmt_si(v)
+    if kind == "fwci":
+        # 2C (D2): same two-decimal, NA-safe convention as SI (both cluster
+        # near the neutral value), reused rather than a new format function --
+        # matches `views_collab.FWCI_FORMAT = "%.2f"`, the CHROME_CONTRACT
+        # D9-compliant precedent for this exact number.
         return _fmt_si(v)
     return _fmt_vol(v)
 
@@ -1512,11 +1578,23 @@ def _domain_key(v) -> str:
     return str(int(f)) if np.isfinite(f) else str(v)
 
 
-def _is_low_volume(r: pd.Series, low_vol_col: str) -> bool:
-    """2B-R2-4's marker test. A frame with no `low_vol_col`, or a cell with no
-    value in it, is NOT low volume -- an unmeasured thing is never flagged, the
-    same direction as `n/a` never being zero."""
-    if low_vol_col not in getattr(r, "index", []):
+def _is_low_volume(r: pd.Series, metric: str, low_vol_col: str, denom_value_col: str) -> bool:
+    """2B-R2-4's marker test, PER-METRIC forked by the 2C D6 amendment
+    (`RATIO_HATCH_METRICS`'s own docstring): PP and FWCI hatch on their own
+    per-row `denom_value` (n_works_full / n_covered) against
+    `palette.RATIO_HATCH_FLOOR`; every other metric keeps hatching on
+    `low_vol_col` (mean annual FULL volume) against `LOW_VOLUME_FLOOR` -- the
+    same numeric threshold in different units (WT_2C.md claim 4). A frame
+    missing the relevant column, or a cell with no value in it, is NOT low
+    volume -- an unmeasured thing is never flagged, the same direction as
+    `n/a` never being zero."""
+    index = getattr(r, "index", [])
+    if metric in RATIO_HATCH_METRICS:
+        if denom_value_col not in index:
+            return False
+        v = _num(r[denom_value_col])
+        return bool(np.isfinite(v) and v < P.RATIO_HATCH_FLOOR)
+    if low_vol_col not in index:
         return False
     v = _num(r[low_vol_col])
     return bool(np.isfinite(v) and v < LOW_VOLUME_FLOOR)
@@ -1581,6 +1659,8 @@ def fig_metric_bars(
     low_vol_col: str = "vol_full_annual_mean",
     domain_col: str = "domain_id",
     domain_order_col: str = "domain_order",
+    fwci_mean_col: str = "fwci_mean",
+    ref_label: str | None = None,
 ) -> go.Figure:
     """ONE metric, one taxonomy level, up to three institutions: horizontal
     grouped bars, one row per taxon, the value written on the mark.
@@ -1647,6 +1727,21 @@ def fig_metric_bars(
     either -- a zero-length bar cannot be drawn -- but it does get its value
     label at the origin, so "measured, and it is zero" and "not measured" look
     different rather than identical.
+
+    2C ADDITIONS for `metric="fwci"` (D2/D3/D6, Stream VC):
+      * bar = the frame's `value` (the MEDIAN, D2); `fwci_mean_col` adds a
+        "mean" hover line beside it -- never a second bar, never the axis.
+      * `ref_label` overrides the generic `HOVER_REFERENCE` text for the
+        reference line (`fwci` is in `REF_METRICS`) -- pass
+        `compare_data.fwci_ref_label(level)`, never hand-typed, so the hover
+        says "European median work in this field" and never "average".
+      * a 0.0 `ref_value` (27 taxa, WT_2C.md claim 2) is real data and draws
+        exactly like any other row -- `_add_reference` tests `np.isfinite`,
+        never truthiness.
+      * hatching keys off `denom_value` (`n_covered`), same mechanism as `pp`
+        (`RATIO_HATCH_METRICS`), NOT off `low_vol_col` -- see
+        `LOW_VOLUME_FLOOR`'s own docstring for why the two families cannot
+        share one column.
     """
     if metric not in METRICS:
         raise ValueError(f"metric must be one of {METRICS}, got {metric!r}")
@@ -1702,7 +1797,7 @@ def fig_metric_bars(
             v = _num(r[value_col])
             if not np.isfinite(v):
                 continue
-            low = _is_low_volume(r, low_vol_col)
+            low = _is_low_volume(r, metric, low_vol_col, denom_value_col)
             xs.append(v)
             ys.append(ri)
             text = _fmt_metric(v, metric) + (LOW_VOLUME_GLYPH if low else "")
@@ -1720,7 +1815,9 @@ def fig_metric_bars(
             patterns.append(LOW_VOLUME_PATTERN_SHAPE if low else "")
             hovers.append(_metric_hover(r, iid, names, label_col, value_col,
                                         metric, ref_col, denom_value_col,
-                                        metric_label, gutter_col, low))
+                                        metric_label, gutter_col, low,
+                                        fwci_mean_col=fwci_mean_col,
+                                        ref_label=ref_label))
         fig.add_trace(go.Bar(
             x=xs, y=ys, orientation="h", offset=offset, width=bar_w,
             marker=dict(color=fills, line=dict(color=color, width=widths),
@@ -1758,7 +1855,8 @@ def fig_metric_bars(
 
 def _metric_hover(r, iid, names, label_col, value_col, metric, ref_col,
                   denom_value_col, metric_label, gutter_col: str | None = None,
-                  low: bool = False) -> str:
+                  low: bool = False, *, fwci_mean_col: str | None = None,
+                  ref_label: str | None = None) -> str:
     """2B-R3 (user ruling 5, §2.5): the hover's `denominator` line prints
     `denom_value_col` -- a NUMBER, formatted with `_fmt_vol` -- and NEVER the
     old `denominator` NOTE STRING (a sentence like "articles+reviews,
@@ -1766,15 +1864,30 @@ def _metric_hover(r, iid, names, label_col, value_col, metric, ref_col,
     a sentence is not `None` and not a NaN float, so `_fmt_vol` did not treat
     it as missing, it tried to coerce it as a number and lost. The note string
     itself moves to a tooltip/collapsible OUTSIDE this hover (the caller's
-    page copy, not this chart) -- it never reaches `_fmt_vol` again."""
+    page copy, not this chart) -- it never reaches `_fmt_vol` again.
+
+    2C (D2/D3): `fwci_mean_col` adds ONE extra line -- the metric's mean,
+    beside its median bar value -- rendered ONLY when that column exists AND
+    is non-null on this row (v5 contract: null on every metric except `fwci`,
+    so this is a no-op for every other caller with no per-metric branch
+    needed here). `ref_label`, when given, REPLACES the generic
+    `HOVER_REFERENCE` ("index reference") text for the reference line -- FWCI's
+    reference is a European corpus-level MEDIAN work-FWCI, a different
+    aggregation than the institution-mean reference PP/SDG-share/Dynamics
+    draw, and WT_2C.md claim 1 rules the hover must say so explicitly rather
+    than reuse the generic wording (which would misread as "average" and be
+    mistaken for a neutral 1.0 baseline)."""
     title = (metric_label or _METRIC_AXIS[metric]).lower()
     parts = [_name_of(names, iid), str(r[label_col]),
              f"{title}{C.THIN_SPACE}{_fmt_metric(r[value_col], metric)}"]
     index = list(getattr(r, "index", []))
+    if fwci_mean_col and fwci_mean_col in index and pd.notna(r[fwci_mean_col]):
+        parts.append(f"{HOVER_MEAN}{C.THIN_SPACE}{_fmt_metric(r[fwci_mean_col], metric)}")
     if gutter_col and gutter_col in index:
         parts.append(f"{C.AX_WORKS.lower()}{C.THIN_SPACE}{_gutter_value(r[gutter_col])}")
     if ref_col in index and metric in REF_METRICS:
-        parts.append(f"{HOVER_REFERENCE}{C.THIN_SPACE}{_fmt_metric(r[ref_col], metric)}")
+        label = ref_label or HOVER_REFERENCE
+        parts.append(f"{label}{C.THIN_SPACE}{_fmt_metric(r[ref_col], metric)}")
     if denom_value_col in index:
         # `_fmt_vol` already turns a genuinely nullable denom_value into
         # NA_MARK -- that is honest disclosure ("no denominator for this
@@ -1782,9 +1895,10 @@ def _metric_hover(r, iid, names, label_col, value_col, metric, ref_col,
         # `denom_value` is a number by contract (§2.5), so this is now safe.
         parts.append(f"{HOVER_DENOMINATOR}{C.THIN_SPACE}{_fmt_vol(_num(r[denom_value_col]))}")
     if low:
-        # the other half of the low-volume marker: the hollow bar says THAT, the
-        # hover says WHY (2B-R2-4). Never a reason to hide the value.
-        parts.append(f"{LOW_VOLUME_GLYPH}{C.THIN_SPACE}{HOVER_LOW_VOLUME}")
+        # the other half of the low-volume marker: the hatched bar says THAT,
+        # the hover says WHY (2B-R2-4). Never a reason to hide the value.
+        reason = HOVER_LOW_VOLUME.format(floor=_fmt_vol(P.RATIO_HATCH_FLOOR))
+        parts.append(f"{LOW_VOLUME_GLYPH}{C.THIN_SPACE}{reason}")
     return "<br>".join(parts)
 
 
@@ -1860,6 +1974,20 @@ def fig_frontier_map(
     both axes: the quadrant split is the figure's frame of reference, so it is
     the one line allowed to out-weigh the grid. A top-quartile topic takes an
     INK outline -- a shape flag, never a new hue.
+
+    2C D7 -- the shared-frontier HALO. `palette.FRONTIER_SHARED_HALO` (a
+    slightly heavier SURFACE ring) marks EVERY shared-frontier mark, on BOTH
+    `color_by` modes: in "owner" mode `SHARED_FRONTIER`'s dark red already
+    names it, but WT_2C.md measured the real complaint as LUMINANCE, not hue
+    (two dark marks read as "similarly dark blobs" even though they are
+    colorimetrically distinct) -- the halo is the non-colour compensating
+    signal palette.py's own re-measurement asks for. In "domain" mode a
+    shared topic's FILL carries no ownership information at all (colour is
+    the topic's OA domain there), so the halo is the ONLY visual cue that
+    survives the toggle. A mark that is both shared and top-quartile keeps
+    its INK outline (the stronger flag) at `OUTLINE_WIDTH`; a merely-shared,
+    non-top mark gets the halo's own width, which sits strictly between
+    `HAIRLINE_PX` and `OUTLINE_WIDTH` so the two flags never read as one.
 
     AUTOSCALED, with the origin forced inside the range. A pooled top-N set can
     sit entirely in one quadrant, and a quadrant plot whose quadrant lines are
@@ -1943,6 +2071,16 @@ def fig_frontier_map(
             who_label = HOVER_OWNER
         top = (mine["top25pct_frontier"].fillna(False).to_numpy(dtype=bool)
                if "top25pct_frontier" in mine.columns else np.zeros(len(mine), dtype=bool))
+        # 2C D7: the shared-frontier HALO -- a per-ROW flag off `owner_col`
+        # itself, independent of `color_by`. In "owner" mode every mark of
+        # this trace already IS shared (the whole `shared` boolean above); in
+        # "domain" mode a shared topic's FILL carries no ownership signal at
+        # all (colour is the domain there), so the halo is the only thing
+        # that still says "held by more than one" on that toggle -- palette.py's
+        # own docstring calls this out explicitly ("apply to every shared mark,
+        # not just the owner-coloured ones").
+        is_shared_row = (mine[owner_col] == SHARED_OWNER).to_numpy()
+        halo_w = P.FRONTIER_SHARED_HALO["width"]
         sizes = MAP_BUBBLE_MIN_PX + (MAP_BUBBLE_MAX_PX - MAP_BUBBLE_MIN_PX) * np.sqrt(
             mine["_m"].to_numpy(dtype=float) / mmax)
         hovers = ["<br>".join([
@@ -1957,8 +2095,9 @@ def fig_frontier_map(
             marker=dict(color=color, size=sizes, sizemode="diameter",
                         opacity=OVERLAY_OPACITY,
                         line=dict(color=[P.INK if t else P.SURFACE for t in top],
-                                  width=[P.OUTLINE_WIDTH if t else C.HAIRLINE_PX
-                                         for t in top])),
+                                  width=[P.OUTLINE_WIDTH if t else
+                                        (halo_w if sh else C.HAIRLINE_PX)
+                                        for t, sh in zip(top, is_shared_row)])),
             customdata=hovers, hovertemplate="%{customdata}<extra></extra>",
             showlegend=False))
 
@@ -2319,6 +2458,30 @@ def chart_note(reading: str, tooltip: str | None = None) -> str:
             f'font-size:{C.FONT_PX}px;color:{P.INK_SECONDARY};'
             f'margin:{C.CHIP_GAP_PX}px {C.NO_PX}px;">'
             f'<span>{esc(text)}</span>{help_span}</div>')
+
+
+def basis_caption(text: str, *, warn: bool = False) -> str:
+    """D5 (CHROME_CONTRACT.md §7, 2C Stream VC): the ratio-chart basis/floor/
+    coverage line -- ONE per chart, directly under the section title, ABOVE
+    the legend and the chart. Same visual family as `chart_note`'s reading
+    line (`INK_SECONDARY`, `FONT_PX`, weight 400) in its normal state; this is
+    a SEPARATE `<div>`, never merged into `chart_note`'s own 160-character
+    cap, because it states a fact about the DATA (basis, floor, how many taxa
+    are unscored) where `chart_note` states how to READ the chart -- keeping
+    the two apart is what keeps `chart_note` short.
+
+    `warn=True` (a floor bites, or a taxon is unscored) switches the colour to
+    `palette.WARNING_CAPTION_COLOR` -- D5's own wording: red, NEVER bold
+    (weight stays 400), NEVER a `st.warning`/`st.error` banner (those carry an
+    icon+box chrome this contract does not otherwise use for a one-line
+    caption). The normal state never uses this colour."""
+    def esc(s: str) -> str:
+        return (str(s).replace("&", "&amp;").replace("<", "&lt;")
+                .replace(">", "&gt;").replace('"', "&quot;"))
+
+    color = P.WARNING_CAPTION_COLOR if warn else P.INK_SECONDARY
+    return (f'<div style="font-size:{C.FONT_PX}px;font-weight:{CAPTION_FONT_WEIGHT};'
+            f'color:{color};margin:{C.CHIP_GAP_PX}px {C.NO_PX}px;">{esc(text)}</div>')
 
 
 def best_value_dot(slot, label: str | None = None) -> str:

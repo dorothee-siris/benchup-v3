@@ -704,6 +704,17 @@ FIND = {
     # chart is ONE reading line, and the second and third grey lines move --
     # verbatim, same keys -- into that line's own `?` tooltip. A relocation is
     # not a rewrite; rewriting these sentences is stream MU3's pass.
+
+    # Phase 2C, stream VF (D5/D4, CHROME_CONTRACT.md S7): the SDG and ERC
+    # profile panels read `sdg.parquet`/`erc.parquet`, both denominated on the
+    # WHOLE-RUN window (window_conventions.sdg_mass_window, data_contract.yaml
+    # -- six years, the bonus year included), never the five-year corpus
+    # window this page states everywhere else. Disclosure only: the basis
+    # itself is unchanged, this just says it in words where the ratio it
+    # qualifies is on screen.
+    "RATIO_WHOLE_RUN_BASIS": ("This panel's shares are computed on the {window} window (the whole "
+                              "run, including the bonus year), not the {corpus} window used "
+                              "elsewhere on this page."),
 }
 
 # 2B-R-11a: the two dicts above, hoisted to module level so `lib/ranked.py`
@@ -973,6 +984,8 @@ COMPARE = {
     "METRIC_DYNAMICS": "Change in mean annual volume",
     "METRIC_SI": "Specialisation",
     "METRIC_VOL": "Volume",
+    # 2C (Stream VC, D2): FWCI joins the Subject/ERC/SDG "Compare by" selector.
+    "METRIC_FWCI": "FWCI (median)",
     "METRIC_HIDDEN_HEADER": "Measures not offered here, and why",
     "METRIC_HIDDEN_LINE": "{metric}: {reason}",
 
@@ -1090,11 +1103,41 @@ COMPARE = {
                       "index that publishes there. The world top decile behind PP(top10%) is a "
                       "different reference: it is set on world publications, per topic and year, "
                       "not on the institutions compared here."),
-    "TIP_LOW_VOLUME": ("A hollow bar with a dagger rests on fewer than {floor} publications a year "
-                       "on average: the figure is real, but too thin to race against its "
-                       "neighbour."),
+    # 2C (Stream VC, D2/D3): FWCI's own reference wording -- never "average"
+    # (WT_2C.md claim 1: the corpus mean sits near one by construction and
+    # would misread as a neutral baseline beside a median bar).
+    "TIP_REFERENCE_FWCI": ("The dashed mark on a row is {ref_label}: the same statistic, a median, "
+                          "over the same works as the bar, never the corpus mean, which sits near "
+                          "one by construction and would misread as neutral beside a median bar."),
+    # 2C AMENDMENT (D6): ONE sentence for every hatched bar app-wide, hatched
+    # rather than hollow (2B-R3), and stated as a WINDOW TOTAL rather than a
+    # per-year average -- PP and FWCI hatch on a window total already, and
+    # the old per-year framing read as a second, different number next to it.
+    "TIP_LOW_VOLUME": ("A hatched bar with a dagger rests on fewer than {floor} works over {y0} to "
+                       "{y1}: the figure is real, but too thin to race against its neighbour."),
     "TIP_ACCENT": ("The mark beside each row name is that taxonomy's own colour. Colour on a bar "
                    "is always the institution."),
+
+    # 2C (Stream VC, D5/D4): the one-line basis/floor/coverage caption every
+    # ratio chart gets directly under its section title (CHROME_CONTRACT.md
+    # §7). PP and FWCI state a FIXED basis (D4: pinned, never the page's
+    # full/frac toggle); share/sdg_share/dynamics state the CURRENT toggle.
+    # `{n}`/`{floor}` are always a real, computed value -- never hand-typed.
+    "CAPTION_BASIS_PP": ("Articles and reviews, {y0} to {y1}, fixed regardless of the "
+                        "counting-basis toggle; fields with at least {floor} works are scored."),
+    "CAPTION_BASIS_PP_UNSCORED": ("Articles and reviews, {y0} to {y1}, fixed regardless of the "
+                                 "counting-basis toggle; fields with at least {floor} works are "
+                                 "scored -- {n} more fields fall below that floor and are not "
+                                 "shown."),
+    "CAPTION_BASIS_FWCI": ("Best-fit taxonomy, covered articles and reviews, {y0} to {y1}, full "
+                          "counting, fixed regardless of the counting-basis toggle."),
+    "CAPTION_BASIS_FWCI_UNSCORED": ("Best-fit taxonomy, covered articles and reviews, {y0} to {y1}, "
+                                   "full counting, fixed regardless of the counting-basis toggle -- "
+                                   "{n} {grain}s hold too few covered works to be scored."),
+    "CAPTION_BASIS_FWCI_ERC_GAP": (" Coverage on this grain is incomplete for a measured share of "
+                                  "works; the exact gap is in the icon below."),
+    "CAPTION_BASIS_SHARE": "{basis} counting, {y0} to {y1}.",
+    "CAPTION_BASIS_DYNAMICS": "{w1} against {w2}, {basis} counting.",
 
     # 2B-R2-10: the frontier map's two controls, and the pool rule in words.
     "FRONTIER_POOL_LABEL": "Topics shown",
@@ -1335,12 +1378,11 @@ COLLAB = {
     "EMPTY_UNTAPPED": (
         "Every topic the two share already carries as much joint output as the pair's overall rate "
         "would predict."),
-    "SIBLINGS_HEADER": "Adjacent topics in the same subfields",
-    "SIBLINGS_CAPTION": (
-        "Other topics inside the subfields listed above, held by one institution or the other but "
-        "shared by neither: the nearest ground the partnership has not yet covered. {n} of them."),
-    "SIBLINGS_COL_TOPIC": "Topic",
-    "SIBLINGS_COL_SUBFIELD": "Subfield",
+    # The four keys for the "Adjacent topics in the same subfields" expander
+    # (its own header, caption, and two column labels) are DELETED 2C (D8,
+    # grill ruling): that expander is retired end to end -- its data-layer
+    # frame, its render helper and these keys. Confirmed zero usage across
+    # lib/ and tests/ by grep.
 
     # ======================================================================
     # 2B-R2-11 / stream LP3: the re-cut Collaborate page (field breakdown as
@@ -1357,12 +1399,31 @@ COLLAB = {
     # ---- section one: the pulse, its prose folded into the chart tooltip --
     "PULSE_CHART_READING": (
         "Publications signed by both institutions, counted in full, one bar per year."),
+    # D4/D5 (2C, chrome-audit fix L7): the pulse is the ONE section on this
+    # page that does NOT read the articles-and-reviews window every other
+    # section is pinned to -- this basis chip says so explicitly, in its own
+    # caption, rather than leaving a reader to assume every chart shares one
+    # basis.
+    "PULSE_BASIS_CAPTION": (
+        "All publication types, {w1}, full counting. Every other section on this page reads "
+        "articles and reviews only, {y0} to {y1}."),
+    # D4 (2C): the shared basis chip every CORE-AR section on this page
+    # carries -- the field chart, the reciprocity chart, and both the topic
+    # and untapped tables, all pinned to the SAME basis.
+    "BASIS_CAPTION_CORE_AR": "Articles and reviews, {y0} to {y1}, full counting.",
 
     # ---- the pair momentum headline (2BR3 task 1) --------------------------
     # Windows, shares, counts and the significance threshold all come from
     # `collab_data.pair_momentum` / `collab_facts.json` at render time -- no
     # window and no number is typed into any of these three.
     "MOMENTUM_LABEL": "Momentum",
+    # 2C chrome-audit fix (L5): the one reading line that stays visible --
+    # the three evidence lines below (share, per-year rate, significance)
+    # fold into this line's own tooltip instead of stacking as separate
+    # captions.
+    "MOMENTUM_READING": (
+        "Whether the pair's co-publication rate is rising, falling or holding steady, tested for "
+        "significance between two windows."),
     "MOMENTUM_EVIDENCE_SHARE": (
         "{w1}: co-publications made up {share1} of the pair's combined output {sep} {w2}: {share2}"),
     # Annual means, not raw window totals: the two windows are unequal (three
@@ -1383,6 +1444,13 @@ COLLAB = {
 
     # ---- "Strategic reciprocity by field" (2BR3 task 4, Lorraine port) -----
     "RECIPROCITY_HEADER": "Strategic reciprocity by field",
+    # 2C chrome-audit fix (L6): the one reading line that stays visible --
+    # RECIPROCITY_HOW_TO_READ and RECIPROCITY_WHY below fold into this
+    # line's own tooltip instead of standing as two separate always-visible
+    # paragraphs either side of the chart.
+    "RECIPROCITY_READING": (
+        "Each bubble is a shared field; its position shows how central that field is to each side, "
+        "its size the joint volume there."),
     "RECIPROCITY_HOW_TO_READ": (
         "How to read: each bubble is a field the pair has published in together. Its horizontal "
         "position is that field's share of {name_b}'s own portfolio; its vertical position is the "
@@ -1440,8 +1508,12 @@ COLLAB = {
         "Whether joint output in this topic is growing, shrinking or steady between the two windows "
         "the tool reads momentum on, at class grain only. See the pair's own momentum figure above "
         "for the full reading, with its percentage and its significance test."),
-    "COL_LINK": "Read",
-    "COL_LINK_DISPLAY": "Open",
+    # COL_LINK ("Read") / COL_LINK_DISPLAY ("Open") DELETED 2C (chrome-audit
+    # fix, D10): the topic name itself is now the row's clickable link (the
+    # app's one canonical name-as-link convention), not a separate trailing
+    # column, so neither a link LABEL nor a fixed display string is needed
+    # any more. COL_LINK_HELP survives, unchanged, as that link's own help
+    # text.
     "COL_LINK_HELP": (
         "Opens the publications the two institutions signed together on this row's subject, live on "
         "OpenAlex, with the same filters this page counts on."),

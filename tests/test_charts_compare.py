@@ -1215,7 +1215,14 @@ def test_low_volume_cells_are_hatched_daggered_and_explained(cids, cslots):
     for tr in fig.data:
         widths = list(tr.marker.line.width)
         assert P.OUTLINE_WIDTH in widths and C.HAIRLINE_PX in widths
-    assert X.HOVER_LOW_VOLUME in "".join(
+    # 2C D6 amendment: HOVER_LOW_VOLUME is now a `{floor}` TEMPLATE (never a
+    # digit literal in this digit-banned module), formatted at hover-build
+    # time from `palette.RATIO_HATCH_FLOOR` -- the SAME numeric floor as
+    # `LOW_VOLUME_FLOOR * N_CORE_YEARS` for a non-ratio-hatch metric like
+    # "share" here (WT_2C.md claim 4: one user-facing sentence, two
+    # implementations, same number).
+    expected_reason = X.HOVER_LOW_VOLUME.format(floor=X._fmt_vol(P.RATIO_HATCH_FLOOR))
+    assert expected_reason in "".join(
         c for tr in fig.data for c in tr.customdata)
     # no marker column -> no flag at all (an unmeasured thing is never flagged)
     bare = X.fig_metric_bars(d.drop(columns=["vol_full_annual_mean"]), "share",
@@ -1225,10 +1232,13 @@ def test_low_volume_cells_are_hatched_daggered_and_explained(cids, cslots):
                if s == X.LOW_VOLUME_PATTERN_SHAPE]
 
 
-def test_reference_lines_are_drawn_for_exactly_the_three_ruled_metrics(cids, cslots):
+def test_reference_lines_are_drawn_for_exactly_the_four_ruled_metrics(cids, cslots):
     """2B-R2-4: PP, SDG-tagged share and Dynamics get the population reference;
     Share and Volume get none EVEN WHEN the frame carries `ref_value`, because
-    a mean share is an artefact of how many taxa exist, not a benchmark."""
+    a mean share is an artefact of how many taxa exist, not a benchmark. 2C
+    (D3) adds `fwci` as a FOURTH ruled metric -- a different reference
+    semantics (corpus-median-of-works, never an institution mean) but the
+    same "a dashed mark is drawn" mechanics this test checks."""
     d = metric_frame_r2(cids, ref=0.06)
     for metric in X.SELECTOR_METRICS:
         fig = X.fig_metric_bars(d, metric, cids, slots=cslots, names=NAMES)
@@ -1237,7 +1247,7 @@ def test_reference_lines_are_drawn_for_exactly_the_three_ruled_metrics(cids, csl
         drawn = bool(dashes) or any(
             getattr(sh.line, "dash", None) == "dash" for sh in fig.layout.shapes)
         assert drawn == (metric in X.REF_METRICS or metric == "si"), metric
-    assert set(X.REF_METRICS) == {"pp", "sdg_share", "dynamics"}
+    assert set(X.REF_METRICS) == {"pp", "sdg_share", "dynamics", "fwci"}
 
 
 # ------------------------------------------------- the frontier map, v2 -----
