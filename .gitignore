@@ -5,3 +5,15 @@ __pycache__/
 .env*
 tests/ui/screenshots/
 .streamlit/secrets.toml
+
+# Defensive additions (2C MT .gitignore audit, 2026-09-01): nothing on disk currently
+# violates these -- audit found zero secrets/logs/raw-data tracked -- added to close the
+# gap before it happens, not to fix an existing leak. Never add _TO_DELETE_*/ here: that
+# folder is deliberately kept visible in git for review until a human signs off on deleting
+# it (see README.md "Repo hygiene").
+*.log
+*.tmp
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
