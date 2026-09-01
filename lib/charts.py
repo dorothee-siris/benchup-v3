@@ -220,8 +220,25 @@ GUTTER_FONT_PX = 11
 BUBBLE_MIN_PX = 6
 BUBBLE_MAX_PX = 34
 
-DEFAULT_GROUP_SPAN = 0.8    # Lorraine VIZ_SPEC_pass6 S1.5 geometry, verbatim
-DEFAULT_GROUP_FILL = 0.9
+DEFAULT_GROUP_SPAN = 0.82   # D10/CHROME-F reconciliation (chrome_audit_2C.md,
+                            # "bar-group span"): was 0.8/0.9, Lorraine
+                            # VIZ_SPEC_pass6 S1.5 verbatim -- `charts_compare.py`
+                            # independently carried its OWN pair for the SAME
+                            # `_series_offset_width` geometry (0.82/0.86, its
+                            # `BAR_GROUP_SPAN`/`BAR_GROUP_FILL`). CHROME_CONTRACT.md
+                            # SS0 names Compare's `fig_metric_bars` chrome as the
+                            # app's reference to converge ON, not away from, so
+                            # this pair now matches Compare's exactly and IS the
+                            # single source -- `charts_compare.py` should import
+                            # these two names rather than redefine its own (one-
+                            # line change recorded for stream VC in
+                            # progress/2C_CHROME-F.md; charts_compare.py is
+                            # outside this stream's fence). Changes the Find
+                            # panels' own yearly-breakdown geometry fractionally
+                            # (was 0.8/0.9); Compare's own geometry is UNCHANGED
+                            # since the values it already used are what this
+                            # constant now equals.
+DEFAULT_GROUP_FILL = 0.86
 
 SI_NEUTRAL = 1.0            # SI/ESI reference: at the neutral value the institution's
                             # share equals the reference population's share

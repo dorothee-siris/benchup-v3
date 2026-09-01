@@ -53,6 +53,42 @@ WORKS_LINK_FALLBACK_LABEL = "See works ↗"
 # fallback was dropped once lib/links.py landed (progress/R1_F2.md NEEDS_CHANGE).
 from lib.links import works_url as _works_link
 
+# D9 (locale fix, Phase 2C, CHROME-F): the shared 0-100 progress-column idiom.
+# Streamlit's OWN `format="percent"` keyword scales a 0-1 value to a percentage
+# internally but renders it through the HOST BROWSER LOCALE -- confirmed live,
+# comma-decimal ("76,04 %") -- which is exactly the D9-banned behaviour. A
+# printf spec applied directly to the raw 0-1 value does not fix this: it has
+# no scaling of its own, so "%.0f%%" on 0.76 prints "1%" (the value rounded to
+# the nearest whole FRACTION, not a percentage) -- the trap the retired
+# "manager fix 2026-08-29" comment on the old `score` config named correctly
+# but then still shipped the banned keyword as its workaround. The fix needs
+# BOTH halves in the right place: the caller's own dataframe column carries the
+# value already multiplied by 100 (`_pct100` below feeds `format_rows`'s own
+# `score` column), and this ONE printf format string is shared by every such
+# column in the app so they render identically. `views_find.py`'s Aspirational
+# `L1 overlap` column (line ~1476) is the other live call site -- CHROME-F does
+# not own that file; the one-line swap it needs is recorded in
+# `progress/2C_CHROME-F.md`.
+PCT_PROGRESS_FORMAT = "%.1f%%"
+
+
+def pct_progress_column(label: str) -> "st.column_config.Column":
+    """A `ProgressColumn` for a percentage already scaled 0-100 -- printf-style,
+    period-decimal regardless of host locale (D9). The caller's OWN dataframe
+    column must carry the *100 value; this function only builds the column
+    config, since Streamlit's column_config has no value-transform hook of its
+    own (`_pct100` is the transform half, applied where the column is built)."""
+    return st.column_config.ProgressColumn(label, min_value=0, max_value=100,
+                                            format=PCT_PROGRESS_FORMAT)
+
+
+def _pct100(v):
+    """D9: pre-scale a 0-1 score to 0-100 for `pct_progress_column`. Stays a
+    plain float/None (never a formatted string) -- `ProgressColumn` draws the
+    bar's fill fraction from the numeric value itself; only the DISPLAY text
+    goes through `PCT_PROGRESS_FORMAT`."""
+    return None if v is None or pd.isna(v) else float(v) * 100.0
+
 
 def works_link_named(iid: str, display_name: str) -> str:
     """A10 (2B-R-11): the works URL plus a `#<urlencoded display name>`
@@ -120,7 +156,7 @@ def format_rows(rows: list[dict], *, lens: str, depth: int) -> pd.DataFrame:
             "type": str(row["type"]),
             "size_full": _fmt_size(row.get("total_full_2020_2024")),
             "size_frac": _fmt_size(row.get("total_frac_2020_2024")),
-            "score": row.get("lens_score"),
+            "score": _pct100(row.get("lens_score")),  # D9: pre-scaled 0-100, see pct_progress_column
             "evidence": row.get("evidence_text") or NA_MARK,
             "rank_under": _rank_under_text(row),
             "institution_id": iid,
@@ -189,8 +225,7 @@ def render_ranked_table(df: pd.DataFrame, *, key: str, score_form: str = "progre
             "type": st.column_config.TextColumn("Type"),
             "size_full": st.column_config.TextColumn(copy.FIND["COL_SIZE_FULL"]),
             "size_frac": st.column_config.TextColumn(copy.FIND["COL_SIZE_FRAC"]),
-            "score": st.column_config.ProgressColumn(
-                "Score", min_value=0, max_value=1, format="percent"),  # manager fix 2026-08-29: printf spec on a 0-1 score printed "1%"
+            "score": pct_progress_column("Score"),  # D9 fix: was format="percent" (comma-decimal live)
             "evidence": st.column_config.TextColumn(copy.FIND["COL_EVIDENCE"]),
             "rank_under": st.column_config.TextColumn("Rank under"),
         },

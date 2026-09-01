@@ -2532,3 +2532,77 @@ ruling, now measured rather than assumed.
 labels, 78 gutter numbers in three inks, 3 domain separators, 2 hollow
 low-volume rows with daggers, 0 label collisions, no horizontal overflow. Read
 and described in `V3/progress/2BR2_VS3.md`.
+
+## 9. Chrome contract convergence — Phase 2C (stream CHROME-F, D9/D10)
+
+Normative source: `design-system/CHROME_CONTRACT.md` (D10, derived from an audit
+of every rendered chart/table — `evals/chrome_audit_2C.md`). This section folds
+the two binding conventions that section produced into VIZ_SPEC's own record,
+since both change how numbers and grouped bars are built by this document's own
+prior sections (§1.2, §2.14/§2.15's `_series_offset_width` geometry).
+
+### 9.1 Number-format policy (D9): printf-style, period-decimal, everywhere
+
+**Rule, superseding any prior silence on this point:** every number the app
+renders — a share, a score, an SI value, a count — is composed with a
+printf-style format string (`"%.1f"`, `"%.2f"`, `".1%"` via Python's own
+`format()`) or an equivalent locale-INDEPENDENT spec, never a keyword whose
+rendering the host locale can change. `st.column_config`'s `format="percent"`
+is the one keyword this rule specifically bans: it looks like a formatting
+convenience, but it renders through the browser's own locale (confirmed live,
+comma-decimal — `76,04 %` — on the exact column the app's Find lens tabs are
+built around) rather than through anything the app's own code controls.
+`views_collab.py`'s `FWCI_FORMAT = "%.2f"` was already the compliant pattern to
+copy (CHROME_CONTRACT.md §9); Phase 2C generalises it to every
+`ProgressColumn` that shows a score or a share.
+
+**The scaling trap, so the next editor does not reintroduce it:** a
+`ProgressColumn` bound to a raw 0–1 value cannot simply switch to a printf
+`format=` string, because the format string has no scaling step of its own —
+`"%.0f%%"` applied to `0.76` prints `"1%"` (the value rounded to the nearest
+whole FRACTION, not a percentage), which is the exact defect a since-retired
+`# manager fix` comment on `lib/ranked.py`'s score column named correctly but
+then still shipped `format="percent"` as its workaround. The fix has two
+halves that both have to be in place: **the underlying dataframe column must
+already carry the value ×100**, and the column config's format string then
+formats that 0–100 number. `lib/ranked.py` ships both halves as one shared
+pair — `ranked.PCT_PROGRESS_FORMAT` (`"%.1f%%"`) and `ranked.pct_progress_column(label)`
+(the `ProgressColumn` builder, `min_value=0, max_value=100`) — plus
+`ranked._pct100(v)`, the ×100 transform `format_rows`'s own `score` column now
+applies. Any other 0–1 score rendered as a `ProgressColumn` elsewhere in the
+app should import and reuse this pair rather than hand-roll a second one.
+
+**Fixed in Phase 2C (this stream's fence):** `lib/ranked.py`'s lens-table
+`Score` column (`render_ranked_table`) — the app's single most-read column
+(§2.4 above). **Fixed by other streams from the same shared pair (not this
+stream's file fence, tracked in `progress/2C_CHROME-F.md`):**
+`lib/views_find.py`'s Aspirational-tab `L1 overlap` column (owner VF);
+`lib/views_collab.py`'s topic-table `top10_share`/`sdg_share` columns, which
+share ONE `PROGRESS_FORMAT = "percent"` constant feeding two `ProgressColumn`
+calls (owner VL). A whole-`app/lib` grep for `format="percent"`, `toLocaleString`,
+`Intl.NumberFormat` and a locale-sensitive `{:n}`/`,n` spec found no other hit
+of any of the four shapes.
+
+### 9.2 Bar-group spacing (D10): one constant pair, not two
+
+**Superseded by this section:** §2.14's `fig_breakdown_yearly` and every
+`fig_share_si`/`fig_topics` caller of `_series_offset_width` (§2.15–§2.17)
+previously drew from `charts.DEFAULT_GROUP_SPAN`/`DEFAULT_GROUP_FILL` = **0.8 /
+0.9** (Lorraine's original pass-6 values, carried over verbatim at the Phase 2A
+build). `lib/charts_compare.py`'s `fig_metric_bars` (Compare's Subject/ERC/SDG
+sections, §2 ter) independently defined its OWN pair for the identical
+geometry helper, `BAR_GROUP_SPAN`/`BAR_GROUP_FILL` = **0.82 / 0.86**, so the
+same grouped-bar idiom drew at two fractionally different pitches depending on
+which page it appeared on (`chrome_audit_2C.md`, "bar-group span" row).
+
+CHROME_CONTRACT.md §0 names Compare's `fig_metric_bars` chrome as the chart the
+rest of the app should converge ON (the newest chrome, reused three times
+verbatim with zero copy-paste drift) — so **0.82 / 0.86 is the value that
+wins**. `lib/charts.py`'s `DEFAULT_GROUP_SPAN`/`DEFAULT_GROUP_FILL` are now
+**0.82 / 0.86**, the single source for both pages; `charts_compare.py` should
+import these two names rather than keep its own copies (a one-line change
+recorded for stream VC in `progress/2C_CHROME-F.md` — `charts_compare.py` is
+outside this stream's file fence). Consequence: Compare's own geometry is
+UNCHANGED (it already drew at 0.82/0.86); the Find yearly-breakdown pair now
+draws fractionally tighter than before Phase 2C — visually the same idiom, one
+constant pair instead of two.
