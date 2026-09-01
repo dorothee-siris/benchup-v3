@@ -35,22 +35,50 @@ No token above 32 px in Phase 2A — this is a working dashboard, not a marketin
 (ui-ux-pro-max's persisted "Enterprise Gateway" hero-section pattern is explicitly
 **rejected**, §5).
 
-## 3. Type scale (base 16 px, line-height 1.5)
+## 3. Type scale — measured, not aspirational (corrected 2026-09-01, stream PAL)
 
-| Token | px | Weight | Use |
+**2026-09-01 finding (chrome_audit_2C.md, "App-wide / Page-section headings",
+owner PAL):** the hand-built CSS scale this section documented through Phase 2B
+(`text-xs 12 / text-sm 14 / text-base 16 / text-lg 18 / text-xl 22 / text-2xl
+28`) was **never implemented anywhere** — `grep -rn "18px|text-lg|text-xl|:root|<style>" app/lib`
+returns zero matches. Every heading and cell the app actually renders is
+Streamlit's bare default, not this table. A future editor who came here for
+"the contract" would be reading a scale that describes nothing on screen — the
+deviation the audit flagged. This section now leads with what the RENDERED app
+measures (cross-referenced to `design-system/CHROME_CONTRACT.md`, the
+render-verified, authoritative source going forward), and keeps the old
+aspirational scale below for provenance only.
+
+| Element | Measured | Weight | Source |
+|---|---:|---:|---|
+| Page title (`st.title`) | 44px | 700 | Streamlit default — identical across Find/Compare/Collaborate/Methods (`CHROME_CONTRACT.md` §1) |
+| Subsection header (`st.subheader`) | 28px | 600 | Streamlit default (`h3`) — the level every chart/table section intro uses |
+| Figure-wide default font (`FONT_PX`, `lib/charts.py`) | 12px | 400 | chart layout font; the D5 caption and the `_note` reading line both use this |
+| Bar text / tick labels / "?" glyph (`GUTTER_FONT_PX`, `lib/charts.py`) | 11px | 400 | measured live at `rgb(90,95,102)` = `INK_SECONDARY`, matching spec exactly |
+| Table header cell (`st.dataframe`) | 16px | 700 | Streamlit default — consistent across Find/Collaborate |
+| Table body cell (`st.dataframe`) | 16px | 400 | Streamlit default |
+| KPI tile label / value / subline (`lib/tiles.py`) | 15 / 22 / 12px | — | **the one place a hand-set type scale IS real** — `LABEL_PX`/`VALUE_PX`/`META_PX`, explicitly imported by `charts_compare._card_html` "so the two card families cannot drift apart" (its own docstring). Cite THIS as the pattern to generalise, never the retired table below. |
+
+Line-height 1.5 on all body/table text (WCAG 1.4.8 baseline) remains the binding
+rule regardless of which scale is real. Numeric labels: one precision level per
+measure (RULES §5), thousands separator, percentages state their denominator
+inline (never a bare "24.7%" without "of 26 subfields" or equivalent alongside)
+— unchanged, still correctly followed app-wide (`CHROME_CONTRACT.md` §9).
+
+**Retired (2026-09-01) — kept for provenance only, no longer this app's contract:**
+
+| Retired token | px | Weight | Would-have-been use |
 |---|---:|---|---|
 | `text-xs` | 12 | 400 | table footnotes, "Filtered by…" strip, evidence-line caveats |
 | `text-sm` | 14 | 400 | table body cells, badge text, tab labels |
-| `text-base` | 16 | 400 | page body copy, sidebar control labels — **floor, never smaller** (ui-ux-pro-max ux-guidelines.csv "Readable Font Size": "Minimum 16px body text on mobile," Severity High — adopted app-wide, not mobile-only, because the SIRIS density budget already runs dense) |
+| `text-base` | 16 | 400 | page body copy, sidebar control labels — the "16px floor" finding itself stays a valid house rule (ui-ux-pro-max ux-guidelines.csv "Readable Font Size," Severity High) even though no CSS token enforces it today |
 | `text-lg` | 18 | 600 | tab-panel section headers ("Overview", "L1 — Subfield overlap") |
 | `text-xl` | 22 | 600 | seed card institution name |
 | `text-2xl` | 28 | 600 | page title ("Find") |
 
-Line-height 1.5 on all body/table text (WCAG 1.4.8 baseline, also the ui-ux-pro-max
-"Fira Sans" pairing's own recommendation — see §5). Numeric labels: one precision
-level per measure (RULES §5), thousands separator, percentages state their
-denominator inline (never a bare "24.7%" without "of 26 subfields" or equivalent
-alongside).
+A future editor who wants this scale to become real should add it as actual CSS
+and re-run the chrome audit's font-probe script against it — not edit this table
+again, which is exactly how it drifted from reality the first time.
 
 ## 4. Table density rules
 
@@ -109,6 +137,29 @@ validator run.
   catch-all share number) — RULES §6 "tooltips repeat labels and expose
   provenance/detail; they never carry information essential to the static read"
   — so the badge's own visible text must stand alone without the hover.
+
+## 5b. Phase 2C tokens (D5/D6/D7, stream PAL, 2026-09-01)
+
+Three new `lib/palette.py` exports, contracted by name for the streams that
+consume them (VC, CD5) — do not rename on a future edit without updating both
+sides.
+
+| Export | Value | Role |
+|---|---|---|
+| `palette.SHARED_FRONTIER` | `#821D13` | **D7 ratified.** Retires old `#7A1600` (2026-09-01) — full validator pass, no exception needed: vs vermillion 22.8/23.0 (normal/deutan), vs navy trio min 20.5/16.0, contrast on white 9.84:1. See `palette.py`'s own provenance comment and `palette_validation.txt` run 37 for every number, the two rejected candidates, and the disclosed residual below. |
+| `palette.FRONTIER_SHARED_HALO` | `{"color": SURFACE, "width": 1.5}` | The non-colour differentiator on a "held by more than one institution" mark — a white/`SURFACE` outline ring, shaped as a Plotly `marker.line` dict so VC can drop it straight into the frontier scatter's marker spec. Exists because D7's own re-measurement found the residual below has no colour-only fix. |
+| `palette.WARNING_CAPTION_COLOR` | `= SHARED_FRONTIER` (by reference, not a second literal) | D5's ratio-chart warning-caption colour (CHROME_CONTRACT.md §7): red, **not bold**, 12px (`FONT_PX`), same visual weight as an ordinary `_note` reading line. Composition (never bold, never a `st.warning` banner) is the caller's job — this file exports only the hex. |
+| `palette.RATIO_HATCH_FLOOR` | `50` | **D6 AMENDED.** One user-facing sentence — "a bar hatches when it rests on fewer than 50 works over 2020–2024" — two implementations: PP and FWCI charts hatch a ROW when its own `denom_value < 50` (per-row, varies bar to bar); Share/SI/SDG-share/ERC/Dynamics charts keep their existing `vol_full_annual_mean < 10/yr` numerator trigger, because THEIR `denom_value` is the institution's constant total, not a per-row count, and applying the floor to that column would silently disable hatching (WT_2C.md claim 4: share denominators measured at 400–1,200, never below 50). |
+
+**D7 residual, disclosed rather than hidden (do not let a future edit drop
+this):** `#821D13` clears every ΔE check with margin, but the luminance/contrast
+separation from navy slot 2 barely moves and is marginally WORSE than the old
+colour (1.75:1 vs 1.93:1) — the whole gain is a modest lightness lift capped by
+a hard deutan-vs-navy floor (any candidate at L≥0.50 fails that floor outright,
+measured). If the user's original complaint is really about two dark marks
+reading as "similarly dark blobs" (a luminance problem) rather than about hue,
+no ΔE-passing red fully solves it alone — `FRONTIER_SHARED_HALO` is the
+compensating SHAPE signal for exactly that gap.
 
 ## 6. Reconciliation vs `design-system/benchup-v3/MASTER.md`
 

@@ -674,12 +674,12 @@ INSTITUTION_SLOT_MAX = len(INSTITUTION_COLORS)
 # `institution_color` hands back COMPARISON grey rather than cycling.
 
 
-SHARED_FRONTIER = "#7A1600"
+SHARED_FRONTIER = "#821D13"
 # **NOT a fourth institution slot** -- deliberately kept OUT of
 # `INSTITUTION_COLORS` so `institution_color` can never hand it to an
 # institution and `INSTITUTION_SLOT_MAX` keeps meaning what it says.
 #
-# WHAT IT MEANS (2B-R-9, unchanged by 2B-R3): in the pooled Compare frontier
+# WHAT IT MEANS (2B-R-9, unchanged by 2B-R3/2C): in the pooled Compare frontier
 # map a topic is painted in an institution's own hue when ONLY that institution
 # holds it, and in this hue when EVERY compared institution holds it --
 # "shared" is the intersection, so it takes a hue no entity owns. It paints the
@@ -695,17 +695,117 @@ SHARED_FRONTIER = "#7A1600"
 # candidates against `#D55E00` with `evals/wind_tunnel_2BR3/
 # wt_task2_pal_remeasure.mjs` (both normal AND deutan required >= 15):
 #     candidate 1  L=0.501  normal ΔE 13.05  deutan ΔE 12.10   FAIL (both < 15)
-#     candidate 2  L=0.377  normal ΔE 24.93  deutan ΔE 25.20   PASS  <- SHIPPED
-# The winner clears every other cross-family floor too (isolated pairwise,
-# normal-vision): vs OA min 30.4, vs SDG min 11.2 (FAIL -- same coexistence
-# disposition as the rest of this file: SHARED_FRONTIER is a MARK in its own
-# two figures, never alongside an SDG fill), vs ERC min 21.8, vs FOCAL 30.2,
-# vs COMPARISON 31.3. Contrast on white: 10.81:1.
+#     candidate 2  L=0.377  normal ΔE 24.93  deutan ΔE 25.20   PASS  <- SHIPPED,
+#                                                                  old #7A1600 retired 2026-09-01
+#
+# --- PHASE 2C (2026-09-01, stream PAL, D7) -- old #7A1600 retired 2026-09-01,
+# REPLACED by `#821D13`. The 2B-R3 hex above cleared every check but the USER kept
+# reporting "not enough contrast" against the navy dots; D7 asked PAL to try a
+# LIGHTER hue (hue shift toward crimson/rose allowed). WT_2C.md claim 5
+# measured three lighter candidates (L raised above 0.3771, hue rotated from
+# 33.5° toward 0-15°) against vermillion + the navy trio, both normal AND
+# deutan, floor >= 15 on all four:
+#     #821D13  L=0.40 C=0.1375 H=30°    vermillion 22.8/23.0   navy min 20.5/16.0   PASS <- SHIPPED
+#     #801D06  L=0.395 C=0.1375 H=33.5° vermillion 23.1/23.4   navy min 20.6/16.8   PASS (near-identical hue to the old colour)
+#     #82182E  L=0.40 C=0.14 H=15°      vermillion 23.9/24.1   navy min 20.0/13.9   FAIL (deutan-vs-slot-2 13.9 < 15)
+# `#821D13` ships: the largest deutan-vs-navy margin (16.0) at the smallest hue
+# shift off the original (30° vs the old 33.5°) -- rose/crimson hues (H<=15°)
+# were MEASURED to collapse toward navy under the deutan transform (WT_2C.md's
+# "trade-off curve": normal-vision separation from vermillion improves as hue
+# rotates toward crimson, but deutan separation from navy slot 2 gets WORSE,
+# monotonically, for every candidate tried). PAL's own full re-derivation
+# (`design-system/ab/pal_2c_shared_frontier_2c.mjs`, palette_validation.txt run
+# 37) reproduces WT's two headline numbers exactly and extends the screen to
+# every other hue this mark can share a screen with: vs OA domains min 28.2, vs
+# ERC (label accents) min 20.5, vs SDG-6 cyan 43.1, vs momentum grey 20.5, vs
+# FOCAL 28.9, vs COMPARISON 29.2 -- all comfortably clear. Contrast on white:
+# 9.84:1 (old was 10.81:1, still far above the ~3:1 mark-fill floor and the
+# 4.5:1 body-text floor). The one FAIL in run 37 (vs `JOINT_COLOR`, deutan
+# 13.82) is the SAME coexistence disposition as every other cross-family pair
+# in this file: `JOINT_COLOR` paints ONLY the Collaborate pulse chart and
+# `SHARED_FRONTIER` paints ONLY the two Compare frontier figures, never one
+# screen (see `JOINT_COLOR`'s own docstring below).
+#
+# RESIDUAL, DISCLOSED HONESTLY (WT_2C.md claim 5, binding -- do not silently
+# drop this on a future edit): luminance/contrast SEPARATION vs navy slot 2
+# barely moves and is actually marginally WORSE (1.75:1 new vs 1.93:1 old)
+# because the whole gain is a modest lightness lift (L 0.3771 -> 0.4004) that a
+# HARD deutan-vs-navy-slot-2 floor caps -- WT measured that ANY candidate at
+# L>=0.50 (which WOULD fix "two dark blobs read alike" via luminance) fails the
+# deutan-vs-navy floor outright. No hex that still clears every ΔE check fully
+# solves a complaint that is really about LUMINANCE rather than hue. The
+# COMPENSATING MECHANISM is therefore not colour at all: `FRONTIER_SHARED_HALO`
+# below, a non-colour (shape) differentiator on every shared-frontier mark.
 #
 # RELIEF the SDG-coexistence and "colour never alone" rules oblige: the
 # frontier map's chip legend carries a "shared" chip beside the institution
 # chips (`charts_compare.legend_strip`), every bubble's hover names its owner
 # in words, and the map's own export column carries the owner as text.
+
+
+FRONTIER_SHARED_HALO = {"color": SURFACE, "width": 1.5}
+# Contracted export name (2026-09-01, manager decisions log): CONSUMED BY VC,
+# not drawn by this module. Every mark on the pooled frontier map already
+# carries a marker outline (`OUTLINE_WIDTH` in `SURFACE` or `INK` -- the
+# top-quartile-topic flag, see `charts_compare.fig_frontier_pooled`'s own
+# marker `line=` dict); this is a SEPARATE, additional non-colour signal for
+# the "held by more than one institution" case, because D7's own re-measurement
+# (above) found that no ΔE-passing red fully fixes the dark-navy-vs-dark-red
+# luminance collision the user actually complained about. A `{"color",
+# "width"}` dict was chosen (rather than a bare hex) because that is the exact
+# shape Plotly's own `marker.line` already expects -- VC composes it into
+# whichever ring/underlay it draws for a `SHARED_OWNER` bubble without a second
+# constant to invent. `color` is `SURFACE` (this file's own white, not a new
+# literal) so the halo always matches the chart's paper/plot background,
+# exactly like the existing top-quartile ring; `width` sits between the
+# existing `HAIRLINE_PX` (1, too thin to read as an intentional ring against a
+# same-lightness navy bubble) and `OUTLINE_WIDTH` (2, already claimed by the
+# top-quartile flag on this same figure) so the two flags remain visually
+# distinct when a topic is BOTH shared and top-quartile.
+
+# ---------------------------------------------------------------------------
+# PHASE 2C ratio-chart tokens (D5 warning caption, D6 hatch floor) -- stream PAL
+# ---------------------------------------------------------------------------
+
+WARNING_CAPTION_COLOR = SHARED_FRONTIER
+# Contracted export name (2026-09-01, manager decisions log). D5's own wording,
+# CHROME_CONTRACT.md §7: every ratio chart's basis/floor/coverage caption is
+# `INK_SECONDARY` in its normal state and, when taxa are unscored or a floor
+# bites, switches to "red, NOT bold, small" -- colour changes, weight (400) and
+# size (12px, `FONT_PX`) do not. This IS `SHARED_FRONTIER` by reference, not a
+# second red literal: CHROME_CONTRACT.md names D7's new frontier red as the
+# hex to use once ratified, and a second independent red constant would be a
+# second thing to keep in sync with the validator run above every time this
+# hue moves. Contrast on white 9.84:1 -- clears the 4.5:1 body-text floor with
+# room to spare (run 37, same measurement as `SHARED_FRONTIER`'s own).
+# Composition is the CALLER's job (never bold, never a `st.warning`/`st.error`
+# banner -- D5's own ban, CHROME_CONTRACT.md §7): this file exports only the
+# colour, the same "hex in, style applied by the chart/copy layer" split every
+# other chrome token in this module already follows (`INK_SECONDARY`, `GRID`).
+
+RATIO_HATCH_FLOOR = 50
+# Contracted export name (2026-09-01, manager decisions log). D6 AMENDED
+# (BUILD_PLAN_2C.md §7, 2026-09-01): the USER-FACING rule stays ONE sentence --
+# "a bar hatches when it rests on fewer than 50 works over 2020-2024" -- but the
+# IMPLEMENTATION is per metric family, because `denom_value` means two
+# different things across the app's metric frames:
+#   * PP and FWCI charts: `denom_value` is the ROW's own covered-works count
+#     (it varies bar to bar), so THESE families hatch a row when
+#     `denom_value < RATIO_HATCH_FLOOR` -- the constant this module exports.
+#   * Share / SI / SDG-share / ERC / Dynamics charts: `denom_value` is the
+#     INSTITUTION'S TOTAL (constant across every row of that institution's
+#     bars) -- applying this floor to THAT column would silently disable
+#     hatching for those families entirely (WT_2C.md claim 4, measured: share
+#     denominators run 400-1,200, never below 50). Those families KEEP their
+#     existing numerator-based trigger (`vol_full_annual_mean < 10/yr`, i.e.
+#     <50 over the 2020-2024 window -- already the same threshold in different
+#     units, so the one-sentence user-facing rule stays true for every family
+#     even though two different columns feed it).
+# No `metric_frame` contract change follows from this (BUILD_PLAN_2C §7): this
+# is one new named constant for the two families whose `denom_value` is
+# per-row, not a new frame column. WT_2C.md claim 4 measured PP's own hatch
+# rate at this floor (6.1 %) and FWCI-subfield's (~83 %, heavy but accepted as
+# honest disclosure -- one constant to change if gate feedback objects).
 
 JOINT_COLOR = "#2F3B52"
 # The Collaborate relationship-pulse bars and other JOINT-corpus accents (2B-R3,

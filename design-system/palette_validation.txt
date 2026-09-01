@@ -1302,3 +1302,76 @@ Palette (light, surface #FFFFFF, categorical): 10 slots
   DISPOSITION: every FAIL/WARN above is dispositioned individually in runs 26/28/29/34/35;
   none of it is new. institution-monochrome-family covers the navy self-pairs; the
   COMPARISON/momentum-stable lines are chrome-vs-chrome, excluded by convention.
+
+--- PHASE 2C (2026-09-01, stream PAL). D7 ratified: SHARED_FRONTIER moves from
+#7A1600 to #821D13 -- WT_2C.md claim 5 measured three candidates
+(#821D13/#801D06/#82182E) against vermillion + the navy trio and found all three
+pass, #821D13 preferred as the largest deutan-vs-navy margin with the smallest
+hue shift off the original (H 33.5 deg -> 30 deg). PAL re-derives the winner's
+full cross-family numbers below, against every hue it can share a screen with in
+the shipped app (this exceeds WT's own claim-5 script, which only checked
+vermillion + navy + a compressed JOINT/SDGcyan/momentumGrey column).
+
+--- RUN 37: SHARED_FRONTIER NEW #821D13 -- full cross-family screen, one pair at
+a time (OKLab-Euclidean dE, Machado/Oliveira/Fernandes 2009 deutan simulation,
+identical method to runs 14-16 and WT_2C.md claim 5). Floor >=15 both normal AND
+deutan, the convention runs 14-16 already established for this hue.
+$ node design-system/ab/pal_2c_shared_frontier_2c.mjs
+
+SHARED_FRONTIER NEW #821D13 in OKLCH: L=0.4004 C=0.1377 H=29.9 deg
+(old #7A1600 was L=0.3771 C=0.1375 H=33.5 deg)
+
+=== SHARED_FRONTIER #821D13 vs every hue it can share a screen with (floor >=15 normal AND deutan) ===
+  vs vermillion (ERC-SH/momentum-down) #D55E00: normal  22.82  deutan  23.04  -> PASS
+  vs navy slot 1 (institution) #192C41: normal  20.79  deutan  17.88  -> PASS
+  vs navy slot 2 (institution) #5A6883: normal  20.51  deutan  16.02  -> PASS
+  vs navy slot 3 (institution) #B5C0D4: normal  43.50  deutan  40.60  -> PASS
+  vs JOINT_COLOR (Collaborate pulse) #2F3B52: normal  17.43  deutan  13.82  -> FAIL
+  vs SDG-6 cyan (label accent) #26BDE2: normal  43.07  deutan  36.04  -> PASS
+  vs momentum grey 'stable' #727272: normal  20.49  deutan  16.06  -> PASS
+  vs OA Life                #0CA750: normal  35.86  deutan  22.77  -> PASS
+  vs OA Social              #FFCB3A: normal  48.69  deutan  47.17  -> PASS
+  vs OA Physical            #8190FF: normal  38.58  deutan  35.83  -> PASS
+  vs OA Health              #F85C32: normal  28.18  deutan  28.43  -> PASS
+  vs ERC PE (label accent)  #6A3D9A: normal  20.47  deutan  20.17  -> PASS
+  vs ERC LS (label accent)  #009E73: normal  33.06  deutan  21.40  -> PASS
+  vs ERC SH (label accent)  #D55E00: normal  22.82  deutan  23.04  -> PASS
+  vs FOCAL                  #0072B2: normal  28.88  deutan  22.94  -> PASS
+  vs COMPARISON             #8C9196: normal  29.23  deutan  25.67  -> PASS
+
+=== contrast vs white #FFFFFF (bars/bubbles must read; floor ~3:1 for a filled mark) ===
+  NEW #821D13: 9.84:1
+  OLD #7A1600: 10.81:1  (for comparison)
+
+=== contrast vs navy dots specifically (the user's original complaint) ===
+  NEW vs slot 1 #192C41: 1.44:1   OLD vs slot 1: 1.31:1
+  NEW vs slot 2 #5A6883: 1.75:1   OLD vs slot 2: 1.93:1
+  NEW vs slot 3 #B5C0D4: 5.37:1   OLD vs slot 3: 5.90:1
+
+=== OVERALL: SOME CHECKS FAILED (one pair, dispositioned below) ===
+
+  DISPOSITION: the ONE FAIL (vs JOINT_COLOR, deutan 13.82, just below the 15
+  floor) is the SAME coexistence class run 33 already dispositioned for the OLD
+  red -- JOINT_COLOR paints ONLY the Collaborate relationship-pulse chart and
+  SHARED_FRONTIER paints ONLY the Compare pooled-frontier map and "who holds the
+  shared frontier" bar chart (lib/palette.py's own JOINT_COLOR docstring: "the
+  Collaborate pulse chart moved to JOINT_COLOR... so this hue [SHARED_FRONTIER]
+  and the vermillion ERC-SH/momentum-down hue are no longer both reachable from
+  the same Collaborate page"). The two hues are never two marks in one figure or
+  one page, so this is DESCRIPTIVE, not a blocking fail -- recorded rather than
+  suppressed per this file's own convention (runs 6b/10/16/33).
+  EVERY OTHER PAIR PASSES WITH MARGIN, including the two pairs D7 actually cared
+  about (navy trio: min normal 20.5 / min deutan 16.0; vermillion: 22.8/23.0),
+  matching WT_2C.md claim 5's reported numbers exactly. Contrast vs white
+  9.84:1 (floor ~3:1 for a filled mark, 4.5:1 body-text floor also cleared).
+
+RESIDUAL, disclosed per WT_2C.md claim 5 (binding, carried in lib/palette.py):
+luminance/contrast separation from navy slot 2 barely moves (1.75:1 new vs
+1.93:1 old, marginally WORSE) because #821D13's whole gain comes from a small
+lightness lift (L 0.377 -> 0.400) that a HARD deutan-vs-navy floor caps -- any
+candidate at L>=0.50 (a real fix for "two dark blobs read alike") fails the
+deutan-vs-navy-slot-2 floor outright (measured, WT_2C.md claim 5's trade-off
+curve). The compensating mechanism is NOT colour: `palette.FRONTIER_SHARED_HALO`,
+a white/SURFACE outline ring on every shared-frontier mark, so a reader tells a
+shared bubble from a same-lightness navy bubble by SHAPE (a ring) rather than by
+asking hue or luminance alone to do more work than either can.
