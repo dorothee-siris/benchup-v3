@@ -17,6 +17,13 @@ owns: the `*_long` builders are thin per-institution loops over
 `si_status`/unfloored-si machinery the Find profile already ships), and
 `frontier_mix`/`impact_subfields`/`coverage` read the shipped `index.parquet`
 / `impact_cells.parquet` columns directly (S8 "no new artefact table in 2B").
+
+2C (Stream CD5, BUILD_PLAN_2C.md S3 CD5): `metric_frame` v5 adds the `fwci`
+metric at all four grains, reading `fwci_taxa.parquet`/`fwci_taxa_ref.
+parquet` (pipeline step 18, Stream P8) -- and adds ONE new `METRIC_FRAME_COLS`
+column, `fwci_mean` (hover-only, D2), which every OTHER metric ships as
+`None`. See the "2C additions" section above `metric_frame` for the `fwci`
+machinery itself.
 """
 from __future__ import annotations
 
@@ -395,10 +402,21 @@ def overview(ctx: dict, ids: list[str]) -> pd.DataFrame:
 # publications in the world top decile" without a second lookup). A metric/
 # level that cannot derive one of the five (see each builder's own docstring)
 # ships NaN/None there, never a fabricated number -- absence, not zero.
-METRIC_FRAME_COLS = ["institution_id", "taxon_id", "taxon_label", "value", "ref_value", "denominator",
-                     "denom_value", "domain_id", "domain_order", "vol_display", "vol_full_annual_mean",
-                     "vol_top10"]
-METRICS = ("share", "vol_top10", "pp", "sdg_share", "dynamics", "si", "vol")
+#
+# v5 (2C, Stream CD5, D2): ONE column added, `fwci_mean` -- the FWCI metric's
+# hover-only mean (median is the bar, `value`; mean rides beside it for the
+# hover's "mean + covered works" line, D2 ruling). Float64 nullable, populated
+# ONLY on the `fwci` metric's own frame; every other builder ships `None`
+# here (mechanical -- absence, not zero, same convention as `vol_top10`
+# above). `fwci` itself is BASIS-PINNED (full/binary attribution always,
+# decisions log 2026-09-01): unlike PP (whose `value` is basis-invariant but
+# whose gutter still toggles between two pre-existing columns), FWCI's
+# `value`/`vol_display`/`denominator` never move with `subs['basis']` at all
+# -- `_fwci_frame` below does not even read `subs`.
+METRIC_FRAME_COLS = ["institution_id", "taxon_id", "taxon_label", "value", "fwci_mean", "ref_value",
+                     "denominator", "denom_value", "domain_id", "domain_order", "vol_display",
+                     "vol_full_annual_mean", "vol_top10"]
+METRICS = ("share", "vol_top10", "pp", "sdg_share", "dynamics", "si", "vol", "fwci")
 LEVELS = ("field", "subfield", "erc", "sdg")
 
 # --------------------------------------------------------- taxonomy order ---
@@ -617,6 +635,7 @@ def _share_frame(ctx, subs, ids, level, field_id=None) -> pd.DataFrame:
     out["vol_full_annual_mean"] = (base["vol_full"].map(_vol_full_annual_mean_from_col)
                                    if level in ("field", "subfield") else np.nan)
     out["vol_top10"] = None
+    out["fwci_mean"] = None  # v5: hover-only, fwci metric only (D2)
     return out.reindex(columns=METRIC_FRAME_COLS)
 
 
@@ -642,6 +661,7 @@ def _si_frame(ctx, subs, ids, level, field_id=None) -> pd.DataFrame:
     out["vol_full_annual_mean"] = (base["vol_full"].map(_vol_full_annual_mean_from_col)
                                    if level in ("field", "subfield") else np.nan)
     out["vol_top10"] = None
+    out["fwci_mean"] = None  # v5: hover-only, fwci metric only (D2)
     return out.reindex(columns=METRIC_FRAME_COLS)
 
 
@@ -718,6 +738,7 @@ def _vol_frame(ctx, subs, ids, level) -> pd.DataFrame:
     out["vol_display"] = out["value"]  # this metric IS the raw volume -- gutter mirrors the bar
     out["vol_full_annual_mean"] = np.nan  # no by-year full-count table at erc/sdg TAXON grain (not derivable)
     out["vol_top10"] = None
+    out["fwci_mean"] = None  # v5: hover-only, fwci metric only (D2)
     return out.reindex(columns=METRIC_FRAME_COLS)
 
 
@@ -838,7 +859,7 @@ def _field_dynamics_frame(ctx, subs, ids) -> pd.DataFrame:
             w1_full, w2_full = _window_mean(full_by_year, DYNAMICS_W1), _window_mean(full_by_year, DYNAMICS_W2)
             dom = field_domain.get(int(fid))
             rows.append({"institution_id": iid, "taxon_id": int(fid), "taxon_label": fname,
-                        "value": _dynamics_value(vol_by_year), "ref_value": None,
+                        "value": _dynamics_value(vol_by_year), "fwci_mean": None, "ref_value": None,
                         "denominator": DYNAMICS_DENOM_NOTE, "denom_value": w1 if w1 > 0 else np.nan,
                         "domain_id": dom, "domain_order": _OA_DOMAIN_ORDER_MAP.get(dom),
                         "vol_display": _dynamics_delta_str(w1, w2),
@@ -870,7 +891,7 @@ def _subfield_dynamics_frame(ctx, subs, ids, field_id) -> pd.DataFrame:
             w1_full, w2_full = _window_mean(full_by_year, DYNAMICS_W1), _window_mean(full_by_year, DYNAMICS_W2)
             dom = sub_domain.get(int(sid))
             rows.append({"institution_id": iid, "taxon_id": int(sid), "taxon_label": g["subfield_name"].iloc[0],
-                        "value": _dynamics_value(vol_by_year), "ref_value": None,
+                        "value": _dynamics_value(vol_by_year), "fwci_mean": None, "ref_value": None,
                         "denominator": DYNAMICS_DENOM_NOTE, "denom_value": w1 if w1 > 0 else np.nan,
                         "domain_id": dom, "domain_order": _OA_DOMAIN_ORDER_MAP.get(dom),
                         "vol_display": _dynamics_delta_str(w1, w2),
@@ -911,8 +932,8 @@ def _sdg_dynamics_frame(ctx, subs, ids) -> pd.DataFrame:
             w1, w2 = _window_mean(vol_by_year, DYNAMICS_W1), _window_mean(vol_by_year, DYNAMICS_W2)
             w1_full, w2_full = _window_mean(full_by_year, DYNAMICS_W1), _window_mean(full_by_year, DYNAMICS_W2)
             rows.append({"institution_id": iid, "taxon_id": sidx, "taxon_label": lab["sdg_label"],
-                        "value": _dynamics_value(vol_by_year), "ref_value": None, "denominator": note,
-                        "denom_value": w1 if w1 > 0 else np.nan,
+                        "value": _dynamics_value(vol_by_year), "fwci_mean": None, "ref_value": None,
+                        "denominator": note, "denom_value": w1 if w1 > 0 else np.nan,
                         "domain_id": SDG_DOMAIN_ID, "domain_order": int(lab["sdg_number"]),
                         "vol_display": _dynamics_delta_str(w1, w2),
                         "vol_full_annual_mean": _annual_full_mean(w1_full, w2_full),
@@ -974,6 +995,19 @@ def _field_pp_frame(ctx, ids, tree, floor, want_vol: bool, basis: str = "frac") 
                 ref = None
                 vt10 = None
                 denom_value = None  # vol_top10 IS the count -- no separate ratio denominator (v4 SS2.5)
+                # D4 audit fix (2C/CD5): `value` here is ALWAYS n_full-derived
+                # (the denom note above says so), regardless of `basis` -- the
+                # shared `gutter` variable, however, toggles to
+                # pp_denominator_frac under basis="frac", a DIFFERENT count on
+                # a DIFFERENT basis than the bar it would sit under. That is
+                # exactly the class of silent value/gutter basis mix D4 rules
+                # out. `vol_top10` has no selector tab (SELECTOR_METRICS
+                # excludes it) so this was inert for any rendered chart, but
+                # the frame is a real, callable, testable surface -- gutter
+                # now mirrors the bar directly (the same "vol_display = value"
+                # convention `_vol_frame` already uses for raw-count metrics),
+                # never a second, basis-toggled number.
+                vol_display = value
             else:
                 value = float(row["pp_top10_frac"])
                 denom = (f"pp_denominator_frac / n_works_full (articles+reviews, 2020-2024, field grain, "
@@ -981,10 +1015,12 @@ def _field_pp_frame(ctx, ids, tree, floor, want_vol: bool, basis: str = "frac") 
                 ref = float(ref_means.get(fid, np.nan))
                 vt10 = vol_top10
                 denom_value = gutter  # literally what pp_top10_frac divides by, on the current basis
+                vol_display = gutter
             rows.append({"institution_id": iid, "taxon_id": fid, "taxon_label": fname,
-                        "value": value, "ref_value": ref, "denominator": denom, "denom_value": denom_value,
+                        "value": value, "fwci_mean": None, "ref_value": ref, "denominator": denom,
+                        "denom_value": denom_value,
                         "domain_id": dom, "domain_order": _OA_DOMAIN_ORDER_MAP.get(dom),
-                        "vol_display": gutter, "vol_full_annual_mean": n_full / N_CORE_YEARS,
+                        "vol_display": vol_display, "vol_full_annual_mean": n_full / N_CORE_YEARS,
                         "vol_top10": vt10})
     return pd.DataFrame(rows, columns=METRIC_FRAME_COLS)
 
@@ -1077,7 +1113,7 @@ def _sdg_share_field_frame(ctx, subs, ids, tree) -> pd.DataFrame:
             fname = name_row["field_name"].iloc[0] if len(name_row) else str(fid)
             dom = int(name_row["domain_id"].iloc[0]) if len(name_row) else None
             rows.append({"institution_id": iid, "taxon_id": fid, "taxon_label": fname,
-                        "value": value, "ref_value": float(ref_means.get(fid, np.nan)),
+                        "value": value, "fwci_mean": None, "ref_value": float(ref_means.get(fid, np.nan)),
                         "denominator": SDG_SHARE_FIELD_DENOM_NOTE, "denom_value": fm if fm > 0 else np.nan,
                         "domain_id": dom, "domain_order": _OA_DOMAIN_ORDER_MAP.get(dom),
                         "vol_display": fm, "vol_full_annual_mean": fm_full / N_CORE_YEARS,
@@ -1085,15 +1121,175 @@ def _sdg_share_field_frame(ctx, subs, ids, tree) -> pd.DataFrame:
     return pd.DataFrame(rows, columns=METRIC_FRAME_COLS)
 
 
+# ============================================================================
+# 2C additions (Stream CD5, BUILD_PLAN_2C.md S3 CD5; D2/D3/D4/D14) -- the
+# `fwci` metric, all FOUR grains, from `fwci_taxa.parquet`/`fwci_taxa_ref.
+# parquet` (pipeline step 18, Stream P8, untouched here -- CD5 only READS
+# what P8 shipped). BASIS-PINNED throughout: `_fwci_frame` takes no `subs`
+# argument at all, so `value`/`vol_display`/`denominator` cannot vary with
+# the page's full/frac toggle even by accident (decisions log 2026-09-01:
+# FWCI is FULL/binary attribution always, "matches Collaborate's shipped
+# FWCI-median convention"). Field/subfield are additionally TREE-PINNED
+# (bestfit only, WT_2C.md claim 2 adjustment #1) -- disclosed in
+# `FWCI_DENOM_NOTE`, never silently ignored.
+# ============================================================================
+
+FWCI_GRAIN_WORD = {"field": "field", "subfield": "subfield", "sdg": "goal", "erc": "panel"}
+# D3/WT_2C.md claim 1: the hover reference label names the GRAIN, never says
+# "average" (the corpus MEAN is pinned near 1.0 by construction and would
+# misread as a neutral baseline next to a MEDIAN bar). `sdg`/`erc` use the
+# reader-facing words ("goal"/"panel") the rest of Compare already uses for
+# those taxa, not the internal grain code.
+
+
+def fwci_ref_label(level: str) -> str:
+    """VC hover hook (D2 item 2/D3): the exact, grain-specific reference-line
+    sentence -- "European median work in this field/subfield/goal/panel".
+    This is a PER-FRAME constant, not a per-row column (every row of one
+    `_fwci_frame(..., level)` call shares the same grain), so it rides beside
+    the frame rather than inside `METRIC_FRAME_COLS` -- VC calls this
+    directly (or reads `FWCI_REF_LABEL[level]`) instead of `charts_compare.
+    HOVER_REFERENCE` (the generic, hardcoded "index reference" string PP/
+    SDG-share/Dynamics share -- not swappable per grain, and wrong for a
+    work-level median statistic, WT_2C.md claim 1's own recommendation)."""
+    assert level in LEVELS, f"unknown level {level!r}"
+    return f"European median work in this {FWCI_GRAIN_WORD[level]}"
+
+
+FWCI_REF_LABEL = {level: fwci_ref_label(level) for level in LEVELS}  # VC convenience: a plain dict, same strings
+
+
+def _fwci_denom_note(level: str) -> str:
+    """The full FWCI disclosure sentence (D2 item 1): covered CORE-AR works
+    only, articles+reviews 2020-2024, FULL/binary attribution, bestfit-only
+    at field/subfield (the tree toggle does not move this metric), the
+    ERC-grain 7.3% coverage gap named on ERC frames only, n_covered<3 never
+    shown (a property of `fwci_taxa.parquet` itself, P8 -- restated here so
+    the caption never has to guess why a taxon is simply absent)."""
+    note = (
+        "Median FWCI (Field-Weighted Citation Impact) over this institution's covered CORE-AR "
+        "works (articles & reviews, 2020-2024, FULL/binary attribution -- a work counts once per "
+        "institution present regardless of collaboration weight); taxa covered by fewer than 3 "
+        "such works are not shown."
+    )
+    if level in ("field", "subfield"):
+        note += (" Field and subfield FWCI use the bestfit taxonomy only -- unlike every other "
+                 "metric here, the tree toggle does not change this figure.")
+    if level == "erc":
+        note += (" ERC-panel FWCI carries a measured ~7.3% coverage gap: not every CORE-AR work "
+                 "has a matching ERC-panel classification.")
+    return note
+
+
+FWCI_DENOM_NOTE = {level: _fwci_denom_note(level) for level in LEVELS}
+
+
+def _load_fwci_taxa(ctx: dict) -> pd.DataFrame:
+    """Lazy, ctx-cached: `fwci_taxa.parquet` (P8) -- one row per (institution_
+    id, grain, taxon_id), n_covered>=3 only (the source table's own floor,
+    never re-applied here)."""
+    if "fwci_taxa_df" not in ctx:
+        ctx["fwci_taxa_df"] = pd.read_parquet(Path(ctx["data_dir"]) / "fwci_taxa.parquet")
+    return ctx["fwci_taxa_df"]
+
+
+def _load_fwci_taxa_ref(ctx: dict) -> pd.DataFrame:
+    """Lazy, ctx-cached: `fwci_taxa_ref.parquet` (P8, D3) -- the European
+    corpus-wide reference MEDIAN per (grain, taxon_id), NOT institution
+    filtered, no floor (every taxon that appears at least once in the CORE-AR
+    corpus ships a row here, INCLUDING the 27 rows where `eu_median_work_
+    fwci == 0.0` -- a genuine humanities citation-practice fact, P8 deviation
+    #2/WT_2C.md claim 1, never dropped, coerced or treated as missing)."""
+    if "fwci_taxa_ref_df" not in ctx:
+        ctx["fwci_taxa_ref_df"] = pd.read_parquet(Path(ctx["data_dir"]) / "fwci_taxa_ref.parquet")
+    return ctx["fwci_taxa_ref_df"]
+
+
+def _fwci_taxon_labels(ctx: dict, level: str) -> pd.DataFrame:
+    """taxon_id -> taxon_label (+ the ONE extra column `_domain_cols_for`
+    needs at this level: `domain_id` for field, `domain_id`+`field_id` for
+    subfield, `erc_domain` for erc, `sdg_number` for sdg) -- the SAME source
+    tables `_share_frame`/`_si_frame` already read for their own taxon names,
+    so a label never drifts between metrics. Full (unfiltered by any one
+    field), so subfield drilling happens the SAME way `_share_frame` does it
+    -- filter the MERGED frame by `field_id` afterwards, not this lookup."""
+    if level == "field":
+        m = P._field_domain_map(ctx)[["field_id", "field_name", "domain_id"]]
+        return m.rename(columns={"field_id": "taxon_id", "field_name": "taxon_label"})
+    if level == "subfield":
+        m = P._subfield_field_domain_map(ctx)[["subfield_id", "subfield_name", "field_id", "domain_id"]]
+        return m.rename(columns={"subfield_id": "taxon_id", "subfield_name": "taxon_label"})
+    if level == "sdg":
+        m = P._sdg_labels(ctx)[["sdg_idx", "sdg_label", "sdg_number"]]
+        return m.rename(columns={"sdg_idx": "taxon_id", "sdg_label": "taxon_label"})
+    # erc
+    m = P._erc_panels(ctx)[["panel_idx", "panel_label", "erc_domain"]]
+    return m.rename(columns={"panel_idx": "taxon_id", "panel_label": "taxon_label"})
+
+
+def _fwci_frame(ctx: dict, ids: list[str], level: str, field_id: int | None = None) -> pd.DataFrame:
+    """FWCI metric frame, all four grains (D2/D3/D4). BASIS-PINNED: no `subs`
+    argument at all -- `value`/`vol_display`/`denominator` cannot move with
+    the page's full/frac toggle (decisions log 2026-09-01).
+
+    `value` = `fwci_median` (the bar, D2 ruling). `fwci_mean` = the hover-only
+    companion (v5 new column). `denom_value` = `vol_display` =
+    `vol_full_annual_mean`-input = `n_covered` (the hover denominator AND the
+    D6 hatch-trigger column, decisions log 2026-09-01 D6 amendment -- FWCI
+    behaves like PP's `n_works_full`, genuinely per-row, never like Share's
+    institution-constant `denom_value`). `ref_value` is the SAME (grain,
+    taxon_id) row of `fwci_taxa_ref.parquet`, merged (never back-computed, so
+    a real 0.0 flows through a plain join untouched -- no truthiness test
+    anywhere near it, per the 27-taxa-are-legitimately-zero fact above)."""
+    taxa = _load_fwci_taxa(ctx)
+    sub = taxa[(taxa["grain"] == level) & (taxa["institution_id"].isin(ids))]
+    labels = _fwci_taxon_labels(ctx, level)
+    base = sub.merge(labels, on="taxon_id", how="left", validate="m:1")
+    missing = base[base["taxon_label"].isna()]
+    assert missing.empty, (
+        f"fwci_taxa.parquet ships a {level} taxon_id with no matching label: "
+        f"{sorted(missing['taxon_id'].unique().tolist())}")
+    if level == "subfield":
+        assert field_id is not None, "level='subfield' needs field_id (drill within one field)"
+        base = base[base["field_id"] == field_id]
+
+    ref = _load_fwci_taxa_ref(ctx)
+    ref = ref[ref["grain"] == level][["taxon_id", "eu_median_work_fwci"]]
+    base = base.merge(ref, on="taxon_id", how="left", validate="m:1")
+
+    n_covered = base["n_covered"].astype("float64")
+    out = pd.DataFrame({
+        "institution_id": base["institution_id"],
+        "taxon_id": base["taxon_id"].astype(int),
+        "taxon_label": base["taxon_label"],
+        "value": base["fwci_median"].astype("float64"),
+        "fwci_mean": base["fwci_mean"].astype("float64"),
+        "ref_value": base["eu_median_work_fwci"].astype("float64"),
+        "denominator": FWCI_DENOM_NOTE[level],
+        "denom_value": n_covered,
+        "vol_display": n_covered,
+        "vol_full_annual_mean": n_covered / N_CORE_YEARS,
+        "vol_top10": None,
+    }, index=base.index)
+    out["domain_id"], out["domain_order"] = _domain_cols_for(base, level)
+    return out.sort_values(["institution_id", "taxon_id"]).reset_index(drop=True).reindex(columns=METRIC_FRAME_COLS)
+
+
 def metric_frame(ctx: dict, subs: dict, ids: list[str], level: str, metric: str, *,
                  field_id: int | None = None, tree: str | None = None, floor: int = 30) -> pd.DataFrame:
     """2B-R-5/6/8 the ONE 'Compare by' metric selector, generalised over
     every (level, metric) combination the Compare page needs:
 
-      level='field'                -> taxon = 26 fields, all of {share,vol_top10,pp,sdg_share,dynamics,si}.
-      level='subfield'             -> taxon = subfields of ONE `field_id` (required); share/si/dynamics only.
-      level='erc'                  -> taxon = 28 ERC panels; share/si/vol (2B-R-8 'Volume').
-      level='sdg'                  -> taxon = 16 SDGs; share/dynamics/vol (2B-R-8 'Volume tagged').
+      level='field'                -> taxon = 26 fields, all of {share,vol_top10,pp,sdg_share,dynamics,si,fwci}.
+      level='subfield'             -> taxon = subfields of ONE `field_id` (required); share/si/dynamics/fwci only.
+      level='erc'                  -> taxon = 28 ERC panels; share/si/vol/fwci (2B-R-8 'Volume').
+      level='sdg'                  -> taxon = 16 SDGs; share/dynamics/vol/fwci (2B-R-8 'Volume tagged').
+
+    `fwci` (2C, Stream CD5, D2/D3) is available at ALL FOUR grains, is
+    BASIS-PINNED (ignores `subs['basis']` entirely -- decisions log
+    2026-09-01) and field/subfield are additionally bestfit-tree-only
+    (`tree`/`subs['tree']` have no effect on this metric, disclosed in its
+    own `denominator` note, never silently ignored).
 
     An unavailable (metric, level) pair (see `UNAVAILABLE_REASON`) returns an
     EMPTY `METRIC_FRAME_COLS` frame with `.attrs["reason"]` set -- check
@@ -1136,6 +1332,8 @@ def metric_frame(ctx: dict, subs: dict, ids: list[str], level: str, metric: str,
         return _sdg_share_field_frame(ctx, subs, ids, tree)
     if metric == "vol":
         return _vol_frame(ctx, subs, ids, level)  # level in {"erc", "sdg"} only (field/subfield marked unavailable)
+    if metric == "fwci":
+        return _fwci_frame(ctx, ids, level, field_id)  # basis-pinned (D4/D2): subs never reaches this branch
     raise AssertionError("unreachable")  # pragma: no cover
 
 

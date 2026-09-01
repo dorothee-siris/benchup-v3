@@ -117,9 +117,17 @@ SUBJECT_METRICS = views_compare.SUBJECT_METRICS
 # view's volume gutter, 2B-R2-3) and was deliberately retired as a pickable
 # tab; `vol` is the opposite direction, a metric CD3 added to both. So the
 # live contract is: every selector option must have a data path (subset,
-# not equality), and the ONLY data-layer extra is the one named exception.
+# not equality), and the data-layer-only extras are the named exceptions.
 # A hardcoded length/equality here is exactly what broke the day `vol_top10`
 # was retired as a selector option while staying in `K.METRICS` as data.
+#
+# 2C (Stream CD5, BUILD_PLAN_2C.md S3 CD5) RE-TIGHTENED (Stream VC): `fwci`
+# joined `K.METRICS` a wave ahead of `charts_compare.SELECTOR_METRICS` being
+# wired to offer it -- VC's own wave (BUILD_PLAN_2C.md S3 VC, D2) has now
+# added `fwci` to `SELECTOR_METRICS` (Subject/ERC/SDG "Compare by" selector,
+# all four grains), so the vocabulary is back in sync and the exclusion set
+# narrows to its pre-2C shape: `vol_top10` alone (2B-R2-3, data-only by
+# ruling -- its mass rides the PP view's own gutter/hover instead of a tab).
 assert set(SUBJECT_METRICS) <= set(K.METRICS), (SUBJECT_METRICS, K.METRICS)
 assert set(K.METRICS) - set(SUBJECT_METRICS) == {"vol_top10"}, (
     "the only data-only, non-selectable metric should be vol_top10 (2B-R2-3); "

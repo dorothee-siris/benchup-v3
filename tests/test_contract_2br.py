@@ -63,7 +63,7 @@ def test_new_table_exists_with_exact_columns(contract: dict, fname: str) -> None
     )
 
 
-def test_contract_declares_19_files(contract: dict) -> None:
+def test_contract_declares_21_files(contract: dict) -> None:
     # 17 (2B-R) -> 18 (2B-R2-12): NEW `collab_pair_fields.parquet` (pair x
     # field, uncapped, bestfit-only -- feeds the 2B-R2-11(a) field-breakdown
     # chart). `collab_pair_topics.parquet` itself is a REGEN, not a new file.
@@ -78,7 +78,11 @@ def test_contract_declares_19_files(contract: dict) -> None:
     # "not contract-checked", fwci_ref.parquet "pipeline-internal, NOT
     # deployed" -- neither is a parquet table this app/data/ directory ships
     # with a column schema to check).
-    assert len(contract["files"]) == 19, sorted(contract["files"])
+    # 19 -> 21 (BUILD_PLAN_2C.md, P8, 2026-09-01): NEW `fwci_taxa.parquet` +
+    # `fwci_taxa_ref.parquet` (institution x grain x taxon FWCI medians/means
+    # + the EU corpus-median reference, D2/D3). Live-verified against
+    # `ops/deploy.py --check-only` -> "21 file(s) verified".
+    assert len(contract["files"]) == 21, sorted(contract["files"])
 
 
 # ---------------------------------------------------------------------------

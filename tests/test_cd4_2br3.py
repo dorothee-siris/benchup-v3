@@ -47,8 +47,12 @@ IDS3 = [IA, IB, IC]
 # ============================================================================
 
 def test_metric_frame_v4_column_contract():
+    """RE-PINNED 2C (Stream CD5): v4 -> v5 adds ONE column, `fwci_mean`
+    (D2 -- the FWCI metric's hover-only mean; every other metric ships
+    `None` here). The name is 'v4' in this test's own title for history --
+    the docstring above `compare_data.METRIC_FRAME_COLS` names the v5 bump."""
     assert CD.METRIC_FRAME_COLS == [
-        "institution_id", "taxon_id", "taxon_label", "value", "ref_value", "denominator",
+        "institution_id", "taxon_id", "taxon_label", "value", "fwci_mean", "ref_value", "denominator",
         "denom_value", "domain_id", "domain_order", "vol_display", "vol_full_annual_mean", "vol_top10",
     ]
 
@@ -434,9 +438,14 @@ def _load_raw_pair_topics_cols():
 # ============================================================================
 
 def test_metrics_vocabulary_unchanged_by_this_plan():
-    """CD4 does not touch METRICS/LEVELS vocabulary -- the SUBJECT_METRICS
-    subset check in tests/test_matrix_compare.py (K.METRICS minus
-    SUBJECT_METRICS == {'vol_top10'}) survives unmodified because the
-    left-hand side it compares against (K.METRICS) is unchanged here."""
-    assert CD.METRICS == ("share", "vol_top10", "pp", "sdg_share", "dynamics", "si", "vol")
+    """CD4 (2BR3) did not touch METRICS/LEVELS vocabulary -- the
+    SUBJECT_METRICS subset check in tests/test_matrix_compare.py (at the
+    time, K.METRICS minus SUBJECT_METRICS == {'vol_top10'}) survived
+    unmodified because the left-hand side it compares against (K.METRICS)
+    was unchanged by CD4.
+
+    RE-PINNED 2C (Stream CD5, BUILD_PLAN_2C.md S3 CD5, D2): `fwci` is a
+    genuinely NEW metric (all four grains) -- METRICS grows by one, LEVELS
+    is untouched (fwci reuses the same four grains, no fifth taxonomy)."""
+    assert CD.METRICS == ("share", "vol_top10", "pp", "sdg_share", "dynamics", "si", "vol", "fwci")
     assert CD.LEVELS == ("field", "subfield", "erc", "sdg")

@@ -26,6 +26,8 @@ STRASBOURG, IFPEN, GDANSK, ISCTE, SORBONNE, ETH = (
     "I68947357", "I265217849", "I40413290", "I110026055", "I39804081", "I35440088")
 IDS6 = [STRASBOURG, IFPEN, GDANSK, ISCTE, SORBONNE, ETH]
 ORFEO_CINQA = "I4210143641"  # WT-2B #3: only institution shipping 3 of 4 quadrant entries
+IFREMER = "I154202486"        # P8's own golden institution (field 11, n_covered=1700, 2C CD5)
+ZERO_REF_INST = "I100063501"  # ships a field-12 (Arts and Humanities) row -- eu_median_work_fwci==0.0 there
 
 
 @pytest.fixture(scope="module")
@@ -824,3 +826,228 @@ def test_unavailable_reason_is_plain_language():
     for (metric, level), text in CD.UNAVAILABLE_REASON.items():
         for token in forbidden:
             assert token not in text, f"{(metric, level)} reason contains forbidden token {token!r}: {text}"
+
+
+# ============================================================================
+# 2C (Stream CD5, BUILD_PLAN_2C.md S3 CD5, D2/D3/D4) -- the `fwci` metric, all
+# four grains, from `fwci_taxa.parquet`/`fwci_taxa_ref.parquet` (pipeline step
+# 18, Stream P8, untouched by this stream). Anchors independently recomputed
+# 2026-09-01 straight off the shipped parquet files (fresh `pd.read_parquet`,
+# never through `compare_data`'s own loaders) -- see V3/progress/2C_CD5.md.
+# ============================================================================
+
+def test_metric_frame_fwci_field_golden_anchor(ctx):
+    """P8's own byte-identical golden (progress/2C_P8.md, hand-recomputed
+    straight from fwci_work.parquet x attribution_long.pkl): I154202486
+    (Ifremer) x field_id=11 (Agricultural and Biological Sciences) -- median
+    0.8149413466453552, mean 1.3476839065551758, n_covered 1700. `denom_value`
+    == `vol_display` == n_covered (D2/D6 hatch key); `vol_full_annual_mean` ==
+    n_covered / N_CORE_YEARS (makes FWCI equivalent to the existing
+    low-volume machinery at n_covered < 50 exactly, per the amended D6)."""
+    df = CD.metric_frame(ctx, None, [IFREMER], "field", "fwci")
+    assert list(df.columns) == CD.METRIC_FRAME_COLS
+    row = df[df["taxon_id"] == 11].iloc[0]
+    np.testing.assert_allclose(float(row["value"]), 0.8149413466453552, atol=1e-6)
+    np.testing.assert_allclose(float(row["fwci_mean"]), 1.3476839065551758, atol=1e-6)
+    assert int(row["denom_value"]) == 1700
+    assert int(row["vol_display"]) == 1700
+    np.testing.assert_allclose(float(row["vol_full_annual_mean"]), 1700.0 / CD.N_CORE_YEARS, rtol=1e-9)
+    assert row["taxon_label"] == "Agricultural and Biological Sciences"
+    assert int(row["domain_id"]) == 1     # Life Sciences
+    assert int(row["domain_order"]) == 0  # OA_DOMAIN_ORDER = (1,2,3,4) -> index 0
+
+
+def test_metric_frame_fwci_ref_value_independent_recompute(ctx):
+    """`ref_value` matches a FRESH, independent read of `fwci_taxa_ref.
+    parquet` (never through `compare_data._load_fwci_taxa_ref`) for every
+    field row a 7-institution basket carries, including the golden
+    institution's own field-11 reference (0.531757, data_contract.yaml)."""
+    ref = pd.read_parquet(Path(ctx["data_dir"]) / "fwci_taxa_ref.parquet")
+    ref_field = ref[ref["grain"] == "field"].set_index("taxon_id")["eu_median_work_fwci"]
+
+    ids = [IFREMER] + IDS6
+    df = CD.metric_frame(ctx, None, ids, "field", "fwci")
+    got = df.drop_duplicates("taxon_id").set_index("taxon_id")["ref_value"]
+    common = got.index.intersection(ref_field.index)
+    assert len(common) > 10
+    np.testing.assert_allclose(got.reindex(common).to_numpy(dtype="float64"),
+                               ref_field.reindex(common).to_numpy(dtype="float64"), atol=1e-6)
+
+    row11 = df[(df["institution_id"] == IFREMER) & (df["taxon_id"] == 11)]
+    assert len(row11) == 1
+    np.testing.assert_allclose(float(row11.iloc[0]["ref_value"]), 0.531757, atol=1e-5)
+
+
+def test_metric_frame_fwci_zero_ref_is_preserved_not_dropped(ctx):
+    """P8 deviation #2 / WT_2C.md claim 1: field 12 (Arts and Humanities) has
+    a GENUINE `eu_median_work_fwci == 0.0` (62.9% zero-citation works) -- this
+    must survive the join as an ACTUAL 0.0, never NaN, never a dropped row,
+    and never treated as falsy anywhere in `_fwci_frame` (the brief's own
+    'never drop or coerce a 0.0 ref via truthiness' rule)."""
+    df = CD.metric_frame(ctx, None, [ZERO_REF_INST], "field", "fwci")
+    row = df[df["taxon_id"] == 12]
+    assert len(row) == 1, "field 12 row must not be dropped"
+    assert row.iloc[0]["ref_value"] == 0.0
+    assert pd.notna(row.iloc[0]["ref_value"]), "a real 0.0 must not read as missing"
+    ref = pd.read_parquet(Path(ctx["data_dir"]) / "fwci_taxa_ref.parquet")
+    hand = ref[(ref["grain"] == "field") & (ref["taxon_id"] == 12)]["eu_median_work_fwci"].iloc[0]
+    assert float(hand) == 0.0
+
+
+def test_metric_frame_fwci_all_four_grains_available():
+    """D2: fwci is offered at ALL four grains -- P8 shipped every one, so
+    (unlike vol_top10/pp/sdg_share/si/dynamics/vol) `fwci` needs NO
+    `UNAVAILABLE_REASON` entry anywhere."""
+    for level in CD.LEVELS:
+        assert CD.metric_frame_available("fwci", level), level
+        assert ("fwci", level) not in CD.UNAVAILABLE_REASON
+
+
+def test_metric_frame_fwci_erc_and_sdg_grains_nonempty_and_typed(ctx):
+    erc = CD.metric_frame(ctx, None, [IFREMER], "erc", "fwci")
+    sdg = CD.metric_frame(ctx, None, [IFREMER], "sdg", "fwci")
+    assert list(erc.columns) == CD.METRIC_FRAME_COLS
+    assert list(sdg.columns) == CD.METRIC_FRAME_COLS
+    assert len(erc) > 0 and len(sdg) > 0
+    assert erc["taxon_id"].between(0, 27).all()  # 28 ERC panels
+    assert sdg["taxon_id"].between(0, 15).all()  # 16 SDGs (SDG17 not covered)
+    assert (erc["denom_value"] == erc["vol_display"]).all()
+    assert (sdg["denom_value"] == sdg["vol_display"]).all()
+    assert (erc["denom_value"] >= 3).all()  # fwci_taxa.parquet's own n_covered>=3 floor, never re-applied here
+    assert (sdg["denom_value"] >= 3).all()
+
+
+def test_metric_frame_fwci_subfield_drill_matches_field_map(ctx):
+    """Subfield grain follows the SAME drill convention as share/si/dynamics
+    (2B-R-5/6): taxon set is exactly the subfields of ONE field, per the
+    FIXED subfield->field map -- independently recomputed here, never through
+    `compare_data._fwci_taxon_labels`. Rejects a missing `field_id`, same as
+    every other subfield-grain metric."""
+    field_id = 11
+    sfd = P._subfield_field_domain_map(ctx)
+    wanted = set(sfd.loc[sfd["field_id"] == field_id, "subfield_id"])
+    df = CD.metric_frame(ctx, None, [IFREMER], "subfield", "fwci", field_id=field_id)
+    assert len(df) > 0
+    assert set(df["taxon_id"]) <= wanted
+    with pytest.raises(AssertionError):
+        CD.metric_frame(ctx, None, [IFREMER], "subfield", "fwci")
+
+
+def test_metric_frame_fwci_domain_cols_match_share_convention(ctx):
+    """fwci reuses the SAME `_domain_cols_for` machinery share/si already
+    use -- field/ERC domain_id must be IDENTICAL to the share frame's own
+    values for the same taxon, and SDG carries the same constant sentinel --
+    so a chart's row-accent colours never drift between the fwci tab and any
+    other tab at the same level."""
+    fwci_erc = CD.metric_frame(ctx, None, [IFREMER], "erc", "fwci")
+    share_erc = CD.metric_frame(ctx, {"tree": "bestfit"}, [IFREMER], "erc", "share")
+    common = set(fwci_erc["taxon_id"]) & set(share_erc["taxon_id"])
+    assert len(common) > 0
+    f = fwci_erc.set_index("taxon_id")["domain_id"]
+    s = share_erc.set_index("taxon_id")["domain_id"]
+    for tid in common:
+        assert f.loc[tid] == s.loc[tid], (tid, f.loc[tid], s.loc[tid])
+
+    fwci_sdg = CD.metric_frame(ctx, None, [IFREMER], "sdg", "fwci")
+    assert (fwci_sdg["domain_id"] == CD.SDG_DOMAIN_ID).all()
+
+
+def test_metric_frame_fwci_is_basis_pinned(ctx):
+    """D4: the full/frac toggle must NOT move value, gutter or denominator at
+    ANY grain -- a STRONGER pin than PP's (whose gutter still toggles between
+    two pre-existing columns; only PP's `value` is basis-invariant)."""
+    frac = {"tree": "bestfit", "basis": "frac"}
+    full = {"tree": "bestfit", "basis": "full"}
+    for level, kwargs in (("field", {}), ("erc", {}), ("sdg", {}), ("subfield", {"field_id": 11})):
+        a = CD.metric_frame(ctx, frac, [IFREMER], level, "fwci", **kwargs)
+        b = CD.metric_frame(ctx, full, [IFREMER], level, "fwci", **kwargs)
+        assert len(a) > 0, level
+        pd.testing.assert_frame_equal(a.reset_index(drop=True), b.reset_index(drop=True))
+
+
+def test_metric_frame_fwci_is_tree_pinned_at_field_and_subfield(ctx):
+    """WT_2C.md claim 2 adjustment #1: field/subfield fwci NEVER varies with
+    `tree` (bestfit-only in the source table, P8) -- the ONLY metric at this
+    level with that property, disclosed in its own `denominator` note, never
+    a silent no-op."""
+    for tree in ("bestfit", "original", "conservative"):
+        df = CD.metric_frame(ctx, {"tree": tree, "basis": "frac"}, [IFREMER], "field", "fwci")
+        row = df[df["taxon_id"] == 11].iloc[0]
+        np.testing.assert_allclose(float(row["value"]), 0.8149413466453552, atol=1e-6)
+    assert "tree toggle does not change this figure" in CD.FWCI_DENOM_NOTE["field"]
+    assert "tree toggle does not change this figure" in CD.FWCI_DENOM_NOTE["subfield"]
+    assert "tree toggle does not change this figure" not in CD.FWCI_DENOM_NOTE["sdg"]
+    assert "tree toggle does not change this figure" not in CD.FWCI_DENOM_NOTE["erc"]
+
+
+def test_metric_frame_fwci_denominator_discloses_erc_coverage_gap():
+    """WT_2C.md claim 2 adjustment #2: the ~7.3% ERC coverage gap is named
+    ONLY on the ERC frame's own note -- field/subfield/sdg have no such gap
+    and must not claim one."""
+    assert "7.3" in CD.FWCI_DENOM_NOTE["erc"]
+    for level in ("field", "subfield", "sdg"):
+        assert "7.3" not in CD.FWCI_DENOM_NOTE[level]
+
+
+def test_fwci_ref_label_names_the_grain_never_average():
+    """VC hover hook (D2 item 2/D3): the exact hover sentence per grain, and
+    NEVER the word 'average' (WT_2C.md claim 1 -- the corpus mean is pinned
+    near 1.0 by construction and would misread as a neutral baseline next to
+    a median bar)."""
+    want = {"field": "field", "subfield": "subfield", "sdg": "goal", "erc": "panel"}
+    assert set(want) == set(CD.LEVELS)
+    for level, word in want.items():
+        label = CD.fwci_ref_label(level)
+        assert label == f"European median work in this {word}"
+        assert "average" not in label.lower()
+        assert CD.FWCI_REF_LABEL[level] == label
+    with pytest.raises(AssertionError):
+        CD.fwci_ref_label("bogus")
+
+
+def test_metric_frame_fwci_mean_is_none_on_every_other_metric(ctx, subs_bestfit):
+    """v5 (D2): `fwci_mean` is the ONE new METRIC_FRAME_COLS column --
+    populated ONLY on the fwci metric's own frame, `None`/NaN everywhere else
+    (mechanical update, every builder touched)."""
+    checks = [
+        ("field", "share", {}), ("field", "si", {}), ("field", "dynamics", {}),
+        ("field", "pp", {}), ("field", "vol_top10", {}), ("field", "sdg_share", {}),
+        ("erc", "vol", {}), ("sdg", "vol", {}), ("subfield", "share", {"field_id": 27}),
+    ]
+    for level, metric, kwargs in checks:
+        df = CD.metric_frame(ctx, subs_bestfit, [STRASBOURG], level, metric, **kwargs)
+        assert df["fwci_mean"].isna().all(), (level, metric)
+    fwci = CD.metric_frame(ctx, subs_bestfit, [STRASBOURG], "field", "fwci")
+    assert len(fwci) > 0 and fwci["fwci_mean"].notna().all()
+
+
+def test_metrics_tuple_gains_fwci():
+    assert CD.METRICS == ("share", "vol_top10", "pp", "sdg_share", "dynamics", "si", "vol", "fwci")
+
+
+# ---------------------------------------------------------- D4 basis audit --
+# CD5's sweep of every EXISTING metric_frame builder for a value/gutter/
+# denominator basis mix (the "2130-vs-1699" failure class, D4): every
+# builder except `_field_pp_frame`'s `want_vol=True` branch was already
+# either basis-consistent by construction or a disclosed, tested convention
+# (share/si/dynamics/sdg_share/vol -- see progress/2C_CD5.md for the full
+# found-or-clean list). The one live finding is fixed and pinned here.
+
+def test_pp_vol_top10_gutter_no_longer_mixes_bases_with_the_bar(ctx):
+    """D4 audit finding (fixed at the source, 2C/CD5): `_field_pp_frame`'s
+    `want_vol=True` branch computes `value` ALWAYS from `n_works_full` (its
+    own `denominator` note says so) -- but PRE-FIX, `vol_display` used the
+    SAME basis-toggled `gutter` variable the `pp` branch uses, so under
+    basis='frac' the gutter (pp_denominator_frac, a FRACTIONAL count) and the
+    bar (an n_full-derived count) silently disagreed within the same frame,
+    with no disclosure of the mismatch. Currently inert for any rendered
+    chart (`vol_top10` has no selector tab), but the frame is a real,
+    callable API surface. FIXED: `vol_display` now mirrors `value` directly
+    (the same convention `_vol_frame` already uses for raw-count metrics),
+    so the frame is basis-invariant end to end."""
+    frac = CD.metric_frame(ctx, {"basis": "frac"}, [STRASBOURG], "field", "vol_top10", tree="bestfit", floor=30)
+    full = CD.metric_frame(ctx, {"basis": "full"}, [STRASBOURG], "field", "vol_top10", tree="bestfit", floor=30)
+    assert len(frac) > 0
+    diff = (frac["value"].to_numpy(dtype="float64") - frac["vol_display"].to_numpy(dtype="float64"))
+    assert np.nanmax(np.abs(diff)) < 1e-9, "vol_top10's own gutter must mirror its own bar exactly"
+    pd.testing.assert_frame_equal(frac.reset_index(drop=True), full.reset_index(drop=True))
