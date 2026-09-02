@@ -144,11 +144,12 @@ PASTEL_HEXES = ("#FF8BA6", "#B4BF07", "#8EB3FF")
 # legends actually paint by SLOT POSITION, not by internal institution key.
 NAVY_HEXES = ("#192C41", "#5A6883", "#B5C0D4")
 
-SUBJECT_METRIC_LABELS = ["Share", "Specialisation", "PP(top10%)", "SDG-tagged share",
-                         "Change in mean annual volume", "FWCI (median)"]
+# 2D (E3, stream VC4): PP(top10%) -> PP10_WD, FWCI (median) -> FWCI_EU.
+SUBJECT_METRIC_LABELS = ["Share", "Specialisation", "PP10_WD", "SDG-tagged share",
+                         "Change in mean annual volume", "FWCI_EU"]
 VOL_TOP10_LABEL = "Publications in the world top decile"
 VOLUME_LABEL = "Volume"
-FWCI_LABEL = "FWCI (median)"   # 2C (Stream VC, D2): joins Subject/ERC/SDG selectors
+FWCI_LABEL = "FWCI_EU"   # 2C (Stream VC, D2): joins Subject/ERC/SDG selectors; 2D (E3) relabelled
 SORT_TAXONOMY_LABEL = "By subject area"
 SORT_VALUE_LABEL = "Largest first"
 POOL_VOLUME_LABEL = "Most published by this set"
@@ -196,14 +197,15 @@ NAV_COMPARE, NAV_COLLAB, NAV_METHODS = "Compare", "Collaborate", "Methods"
 
 # 2BR3: cap-3 truncation prose is GONE (slots either hold a basket pick or
 # they don't) -- the old CAP_TRUNCATED_SUBSTR constant is retired with it.
-COMPARE_MIN_FIGURES = 7   # subject/erc/sdg/frontier-map/shared-frontier/impact-index/impact-subfields
+# 2D (E10) adds "Change over time" (dynamics, field grain).
+COMPARE_MIN_FIGURES = 8   # subject/erc/sdg/dynamics/frontier-map/shared-frontier/impact-index/impact-subfields
 BASKET_CAP = 10           # state.BASKET_CAP (2BR3 SEL ruling 1, was 6)
 COMPARE_CAP = 3           # state.COMPARE_CAP
 COLLAB_CAP = 2            # state.COLLAB_CAP
 
 XLSX_METHODS_SHEET = "Methods"
 # 2C (Stream VC): was 9 ("Methods + 8 view sheets"), STALE -- `len(views_
-# compare.SLUGS) + 1` is 10 (Overview/Coverage/Subject/ERC/SDG/frontier map/
+# compare.SLUGS) + 1` was 10 (Overview/Coverage/Subject/ERC/SDG/frontier map/
 # shared frontier/impact overall/impact by subfield = 9 view sheets, the
 # same count probe.py's own `_probe_compare` already derives from `SLUGS`
 # rather than a literal). This constant was never actually exercised by a
@@ -214,7 +216,10 @@ XLSX_METHODS_SHEET = "Methods"
 # reached via the except-swallowed TimeoutError branch, never really
 # checked, until this stream's reordering fixed the first bug and exposed
 # the second, unrelated staleness.
-XLSX_SHEET_COUNT = 10
+# 2D (E10, stream VC4): "Change over time" adds a TENTH view sheet
+# (Overview/Coverage/Subject/ERC/SDG/Dynamics/frontier map/shared frontier/
+# impact overall/impact by subfield) -- Methods + 10 = 11.
+XLSX_SHEET_COUNT = 11
 
 # 2D (Stream VF4): Find's own all-lenses workbook (E7) -- Profile + Overview
 # + one sheet per ALL_LENSES code (10) + Aspirational = 13, measured against
@@ -229,8 +234,8 @@ FIND_XLSX_SHEET_MIN = 13
 # copy.py -- see the non-vacuity note at the smoke suite's original design).
 COMPARE_SECTION_ORDER = [
     "Key figures, side by side", "Coverage", "Subject profile", "ERC panels",
-    "SDG profile", "The frontier, pooled", "Who holds the shared frontier",
-    "Impact", "About these figures",
+    "SDG profile", "Change over time", "The frontier, pooled",
+    "Who holds the shared frontier", "Impact", "About these figures",
 ]
 # 2BR3 deletions this page must never render again.
 COMPARE_DELETED_STRINGS = ("Trends in the", "Take one pair further")
@@ -636,14 +641,44 @@ def check_menu(page) -> None:
     nav = page.locator(".st-key-nav_cards")
     check(nav.count() >= 1, "Menu: .st-key-nav_cards container present")
     cards = nav.locator("[class*='st-key-nav_card_']")
-    try:
-        cards.first.wait_for(state="visible", timeout=ACTION_TIMEOUT_MS)
-    except Exception:  # noqa: BLE001 -- the count check reports the failure
-        pass
+    # 2D (stream TEV5, granted smoke.py exception, BUILD_PLAN_2D.md S7): the
+    # nav cards mount PROGRESSIVELY (a live re-run of this exact quiet check,
+    # this stream's own session, caught it directly: "Menu: exactly 4 nav
+    # cards render (found 2)" -- only two of the four had mounted at read
+    # time) -- `cards.first.wait_for(state="visible")` (the ORIGINAL 2A fix,
+    # BUILD_PLAN_2A.md line 289: "the first cold run failed the two Menu
+    # nav-card checks -- mount timing") only proves the FIRST card exists,
+    # not that all four have. POLL for the real, expected count instead of
+    # waiting on a proxy signal.
+    _wait_for(page, lambda: cards.count() == len(NAV_CARD_LABELS),
+             timeout_ms=ACTION_TIMEOUT_MS, interval_ms=300)
     check(cards.count() == len(NAV_CARD_LABELS),
           f"Menu: exactly {len(NAV_CARD_LABELS)} nav cards render (found {cards.count()})")
+    # The CARD container divs can mount before their own `st.page_link` <a>
+    # anchors finish hydrating underneath them, so the same race recurs one
+    # level down -- a bare, one-shot `live_links.count()` read right after
+    # the cards themselves settle has produced a FALSE FAILURE three
+    # separate times under concurrent harness load, never once on an
+    # isolated/warm rerun:
+    #   (1) BUILD_PLAN_2A.md line 289 -- "the first cold run failed the two
+    #       Menu nav-card checks -- mount timing" (the ORIGINAL incident;
+    #       it got `cards.first.wait_for` added above, which fixed the CARD
+    #       check but left this sibling ANCHOR check on a one-shot read);
+    #   (2) GATE_2C_MEMO.md / CODEX_SOL_REVIEW_PROMPT.md's own recorded,
+    #       standing harness debt -- "a cold-start settle flake in 3 smoke
+    #       checks (Menu cards + Find prompt -- passes warm)";
+    #   (3) progress/2D_VF4.md's own 2D run -- "4x Menu: ... live
+    #       st.page_link anchors / a live card links to 'X' -- Menu.py's
+    #       own nav cards render 0 live st.page_link anchors", chased,
+    #       confirmed foreign to VF4's own fence, and routed here.
+    # Fix: POLL `.st-key-nav_cards a` for the expected count with a
+    # generous timeout BEFORE asserting anything about labels -- this
+    # changes ONLY the wait mechanics; the expected count and every label
+    # check below are unchanged.
     live_links = nav.locator("a")
-    check(live_links.count() == len(NAV_CARD_LABELS),
+    settled = _wait_for(page, lambda: live_links.count() == len(NAV_CARD_LABELS),
+                        timeout_ms=ACTION_TIMEOUT_MS, interval_ms=300)
+    check(settled and live_links.count() == len(NAV_CARD_LABELS),
           f"Menu: all {len(NAV_CARD_LABELS)} cards are live st.page_link anchors "
           f"(found {live_links.count()})")
     for label in NAV_CARD_LABELS:
@@ -1274,12 +1309,12 @@ def check_compare_page(context) -> None:
         check(VOLUME_LABEL in sdg_opts, f"Compare SDG: 'Volume' is offered ({sdg_opts})")
         check(FWCI_LABEL in erc_opts, f"Compare ERC: {FWCI_LABEL!r} is offered ({erc_opts})")
         check(FWCI_LABEL in sdg_opts, f"Compare SDG: {FWCI_LABEL!r} is offered ({sdg_opts})")
-        for label in ("Share", "Change in mean annual volume", "PP(top10%)", FWCI_LABEL):
+        for label in ("Share", "Change in mean annual volume", "PP10_WD", FWCI_LABEL):
             if label in subj_opts:
                 _cmp_click_opt(page, "cmp_metric_subject", label)
                 check(page.locator(".st-key-fig_cmp_subject .js-plotly-plot").count() >= 1,
                       f"Compare subject = {label!r}: the chart renders")
-                if label in ("PP(top10%)", FWCI_LABEL):
+                if label in ("PP10_WD", FWCI_LABEL):
                     # D5/D4: the basis caption sits directly under the section
                     # title for the basis-PINNED metrics -- "fixed regardless
                     # of the counting-basis toggle" is the exact phrase both
@@ -1328,6 +1363,16 @@ def check_compare_page(context) -> None:
         # exercises the "Show all" interaction on its own terms.
         dl_btn = page.locator(".st-key-dl_workbook button").first
         check(dl_btn.count() >= 1, "Compare: the workbook export button renders")
+        # 2D (E7, stream VC4): every per-section CSV button (`_download`, keyed
+        # `dl_overview`/`dl_subject`/`dl_erc`/`dl_sdg`/`dl_frontier_map`/
+        # `dl_shared_frontier`/`dl_impact`/`dl_impact_subfields`/`dl_coverage`)
+        # is deleted outright -- none of those keys renders any more, so the
+        # workbook is the ONLY download on the page.
+        for dead_key in ("dl_overview", "dl_subject", "dl_erc", "dl_sdg",
+                         "dl_frontier_map", "dl_shared_frontier", "dl_impact",
+                         "dl_impact_subfields", "dl_coverage"):
+            check(page.locator(f".st-key-{dead_key}").count() == 0,
+                  f"Compare (E7): the retired per-section download {dead_key!r} is gone")
         try:
             with page.expect_download(timeout=45_000) as dl_info:
                 dl_btn.click(timeout=ACTION_TIMEOUT_MS)
@@ -1353,10 +1398,11 @@ def check_compare_page(context) -> None:
               f"Compare slots: slot 1's own options are the basket ({n_basket}) + the empty "
               f"sentinel (got {n_opts} options)")
 
-        # --- per-chart 'Not shown here, and why' expander --------------------
-        caps = _all_text(page, '[data-testid="stCaptionContainer"]') + full_text
-        check(NOT_OFFERED_HEADER in _full_page_text(page),
-              f"Compare: the per-chart {NOT_OFFERED_HEADER!r} expander renders")
+        # 2D (E12, stream VC4): the "Not shown here, and why" expander is
+        # RETIRED app-wide (`_not_offered_expander` deleted) -- it must never
+        # render on Compare any more.
+        check(NOT_OFFERED_HEADER not in _full_page_text(page),
+              f"Compare (E12): the retired {NOT_OFFERED_HEADER!r} expander renders nowhere")
 
         # --- shared frontier top-20 + Show all --------------------------------
         shared_text = _full_page_text(page)

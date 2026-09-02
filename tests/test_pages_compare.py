@@ -119,9 +119,11 @@ BASIS = "frac"
 SCENARIO = {"tree": TREE, "basis": BASIS}
 
 # 2BR3 plan SS1.5: the page's own subheader order, title first. One list, read
-# by both the order test and this file's own JSON report.
+# by both the order test and this file's own JSON report. 2D (E10) inserts
+# "Change over time" right after SDG, before the frontier charts.
 SECTION_HEADER_KEYS = ("OVERVIEW_HEADER", "VIEW_COVERAGE", "VIEW_SUBJECT", "VIEW_ERC",
-                       "VIEW_SDG", "VIEW_FRONTIER_MAP", "VIEW_SHARED_FRONTIER", "VIEW_IMPACT")
+                       "VIEW_SDG", "VIEW_DYNAMICS", "VIEW_FRONTIER_MAP",
+                       "VIEW_SHARED_FRONTIER", "VIEW_IMPACT")
 
 
 def _app(ids=None, **extra_state) -> AppTest:
@@ -419,41 +421,33 @@ def test_each_level_offers_exactly_the_metrics_the_data_can_serve():
                for m in views_compare.SUBJECT_METRICS)
 
 
-def test_a_hidden_metric_carries_the_frames_own_reason_inside_a_collapsible():
-    """2BR3 plan item 2: the disclosure is now a `st.expander` labelled
-    `copy.SHARED["NOT_OFFERED_HEADER"]`, drawn BELOW the chart, never captions
-    stacked above the metric selector. The reason text itself is unchanged
-    from 2B-R2-8/13 -- `copy.SHARED`'s wording, the frame's own sentence."""
+# 2D (E12, BUILD_PLAN_2D.md S1, PRESS-A U1): `test_a_hidden_metric_carries_
+# the_frames_own_reason_inside_a_collapsible` and `test_the_not_offered_
+# disclosure_is_a_collapsible_below_the_chart` (2BR3) are DELETED outright,
+# not adapted -- the mechanism they pinned (`_not_offered_expander`/
+# `_not_offered_line`, a `st.expander` labelled `copy.SHARED[
+# "NOT_OFFERED_HEADER"]`) is retired app-wide this round. U1 shows it was
+# already carrying two sentences about to go FALSE the moment E2 shipped
+# ("PP10_WD... not available for ERC/SDG" -- E2 makes it available at
+# exactly those grains) -- a case where the scheduled deletion is not just
+# tidiness, leaving it one more release would have shipped a wrong sentence.
+# Replaced by the one test below, confirming the mechanism is actually gone
+# from the rendered page, not merely unreachable in a code path.
+def test_the_not_offered_mechanism_is_gone_from_compare():
+    """2D (E12): confirms the DELETION, not merely its absence from a code
+    path -- a real page, at a level (sdg) that genuinely still hides at
+    least one metric (`sdg_share`/`dynamics` are still unavailable there),
+    renders no "Not shown here, and why" expander anywhere, and the helper
+    functions themselves no longer exist on the module."""
+    assert not hasattr(views_compare, "_not_offered_expander")
+    assert not hasattr(views_compare, "_not_offered_line")
     at = _app(ids=TRIO).run()
-    labels = _expander_labels(at)
-    assert labels.count(copy.SHARED["NOT_OFFERED_HEADER"]) >= 1, labels
-    text = _captions(at)
     hidden = [m for m in views_compare.SUBJECT_METRICS
               if not compare_data.metric_frame_available(m, "sdg")]
-    assert hidden
-    for m in hidden:
-        line = views_compare._not_offered_line(
-            views_compare.METRIC_LABELS[m], compare_data.UNAVAILABLE_REASON[(m, "sdg")])
-        assert line in text, m
-    # a reason that already opens with the measure's own name is not printed
-    # twice -- the live page once read "Volume: Volume: shown in the gutter"
-    assert views_compare._not_offered_line(
-        "Volume", "Volume: shown in the chart gutter instead of as a tab."
-    ) == "Volume: shown in the chart gutter instead of as a tab."
-    at2 = _app(ids=TRIO).run()
-    assert "Volume: Volume" not in _captions(at2)
-
-
-def test_the_not_offered_disclosure_is_a_collapsible_below_the_chart():
-    """The container-level half of the item-2 acceptance: the expander is
-    what carries the disclosure, not a caption sitting where the radio used
-    to have one directly under it."""
-    at = _app(ids=TRIO).run()
+    assert hidden, "vacuity check: SDG must still hide something for this test to mean anything"
     labels = _expander_labels(at)
-    # one "not shown here" expander per section that actually hides something
-    # at this level (subject/field, erc, sdg all hide at least one metric on
-    # the real data this test runs against)
-    assert labels.count(copy.SHARED["NOT_OFFERED_HEADER"]) == 3, labels
+    assert copy.SHARED["NOT_OFFERED_HEADER"] not in labels, labels
+    assert copy.SHARED["NOT_OFFERED_HEADER"] not in _captions(at)
     assert copy.COMPARE["ABOUT_HEADER"] in labels, labels
 
 
@@ -469,8 +463,9 @@ def test_the_top_decile_volume_is_not_a_tab_any_more():
     assert "vol_top10" not in views_compare.SUBJECT_METRICS
     assert "vol_top10" in compare_data.METRICS and "vol_top10" in charts_compare.METRICS
     # and the field-level frame still carries that mass, for the PP gutter
-    frame = views_compare._metric(tuple(TRIO), TREE, BASIS, "field", "pp", None,
-                                  views_compare.IMPACT_FLOOR_DEFAULT)
+    # 2D RE-PIN (E4): `_metric` dropped its `floor` argument -- vestigial,
+    # never read by the pp/vol_top10 path any more (compare_data's own note).
+    frame = views_compare._metric(tuple(TRIO), TREE, BASIS, "field", "pp", None)
     assert frame["vol_top10"].notna().any()
 
 
@@ -855,9 +850,14 @@ def test_the_impact_subfield_note_states_the_selection_rule():
     """2BR3 plan item 3: the reading line under the by-subfield chart states
     the SELECTION RULE (the floor-clearing union `compare_data.
     impact_subfields` itself implements) in plain words, not only a bare
-    "showing N of M" count -- the exact floor value in force is named."""
+    "showing N of M" count -- the exact floor value in force is named.
+
+    2D RE-PIN (E4): the floor RADIO is retired -- there is no more
+    `cmp_impact_floor` widget to read a value back from; the floor is now
+    the fixed `views_compare.IMPACT_FLOOR_DEFAULT` the page always uses."""
     at = _app(ids=TRIO).run()
-    floor = int(at.radio(key="cmp_impact_floor").value)
+    assert "cmp_impact_floor" not in at.session_state
+    floor = views_compare.IMPACT_FLOOR_DEFAULT
     union = views_compare._impact_subfields(tuple(TRIO), TREE, floor)
     top = views_compare._top_shared(tuple(TRIO), TREE, BASIS, views_compare.IMPACT_ROWS_TOP_N)
     shown = views_compare._impact_rows(union, top)
@@ -929,15 +929,16 @@ def test_the_snapshot_string_is_gone_from_this_page():
 # ------------------------------------------------------------- workbook ----
 
 def _frames_for(ids) -> dict:
+    # 2D RE-PIN (E4): `_metric` dropped its `floor` argument (three call sites
+    # below); `dynamics` (E10) is a new frame `sheet_specs`/the workbook now
+    # expect.
     return {
         "overview": views_compare._overview(tuple(ids)),
         "coverage": views_compare._coverage(tuple(ids)),
-        "subject": views_compare._metric(tuple(ids), TREE, BASIS, "field", "share", None,
-                                         views_compare.IMPACT_FLOOR_DEFAULT),
-        "erc": views_compare._metric(tuple(ids), TREE, BASIS, "erc", "share", None,
-                                     views_compare.IMPACT_FLOOR_DEFAULT),
-        "sdg": views_compare._metric(tuple(ids), TREE, BASIS, "sdg", "share", None,
-                                     views_compare.IMPACT_FLOOR_DEFAULT),
+        "subject": views_compare._metric(tuple(ids), TREE, BASIS, "field", "share", None),
+        "erc": views_compare._metric(tuple(ids), TREE, BASIS, "erc", "share", None),
+        "sdg": views_compare._metric(tuple(ids), TREE, BASIS, "sdg", "share", None),
+        "dynamics": views_compare._metric(tuple(ids), TREE, BASIS, "field", "dynamics", None),
         "frontier_map": views_compare._frontier_pooled(
             tuple(ids), TREE, BASIS, views_compare.FRONTIER_TOPN_DEFAULT),
         "shared_frontier": views_compare._shared_long(
@@ -1045,11 +1046,15 @@ def test_workbook_filename_is_self_describing():
     assert TREE in name and BASIS in name
 
 
-def test_every_view_offers_its_own_csv_and_the_one_workbook():
+def test_the_one_workbook_is_the_only_download_on_the_page():
+    """2D RE-PIN (E7): every per-section CSV button (`DOWNLOAD_VIEW`, `_download`,
+    9 call sites) is deleted -- the single end-of-page workbook button is now
+    the ONLY download on the whole page."""
     at = _app(ids=TRIO).run()
     labels = [d.label for d in at.get("download_button")]
-    assert labels.count(copy.COMPARE["EXPORT_XLSX_BUTTON"]) == 1, labels
-    assert labels.count(copy.COMPARE["DOWNLOAD_VIEW"]) == len(views_compare.SLUGS), labels
+    assert labels == [copy.COMPARE["EXPORT_XLSX_BUTTON"]], labels
+    assert "DOWNLOAD_VIEW" not in copy.COMPARE
+    assert not hasattr(views_compare, "_download")
 
 
 # ------------------------------------------------------------ digit ban ----

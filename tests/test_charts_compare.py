@@ -1275,13 +1275,20 @@ def test_low_volume_cells_get_caution_text_not_a_pattern(cids, cslots):
                if c == P.WARNING_CAPTION_COLOR]
 
 
-def test_reference_lines_are_drawn_for_exactly_the_four_ruled_metrics(cids, cslots):
+def test_reference_lines_are_drawn_for_exactly_the_five_ruled_metrics(cids, cslots):
     """2B-R2-4: PP, SDG-tagged share and Dynamics get the population reference;
-    Share and Volume get none EVEN WHEN the frame carries `ref_value`, because
-    a mean share is an artefact of how many taxa exist, not a benchmark. 2C
-    (D3) adds `fwci` as a FOURTH ruled metric -- a different reference
-    semantics (corpus-median-of-works, never an institution mean) but the
-    same "a dashed mark is drawn" mechanics this test checks."""
+    Volume gets none EVEN WHEN the frame carries `ref_value` (a raw count has
+    no population average worth drawing). 2C (D3) adds `fwci` as a FOURTH
+    ruled metric -- a different reference semantics (corpus-median-of-works,
+    never an institution mean) but the same "a reference mark is drawn"
+    mechanics this test checks. 2D (E8) adds `share` as the FIFTH: the
+    pre-2D "a mean share is an artefact of how many taxa exist" exclusion is
+    superseded by E8's own locked ruling (`REF_METRICS`'s own 2D-amendment
+    comment) -- this fixture's constant `ref=0.06` drives the CONSTANT-
+    reference path (`_ref_line`, a dashed rule) for every metric checked
+    here, so `share` now behaves exactly like `pp`/`sdg_share`/`dynamics`/
+    `fwci` under this fixture, not like `si`'s OWN default-constant path
+    (`_METRIC_DEFAULT_REF`, checked separately below)."""
     d = metric_frame_r2(cids, ref=0.06)
     for metric in X.SELECTOR_METRICS:
         fig = X.fig_metric_bars(d, metric, cids, slots=cslots, names=NAMES)
@@ -1290,7 +1297,7 @@ def test_reference_lines_are_drawn_for_exactly_the_four_ruled_metrics(cids, cslo
         drawn = bool(dashes) or any(
             getattr(sh.line, "dash", None) == "dash" for sh in fig.layout.shapes)
         assert drawn == (metric in X.REF_METRICS or metric == "si"), metric
-    assert set(X.REF_METRICS) == {"pp", "sdg_share", "dynamics", "fwci"}
+    assert set(X.REF_METRICS) == {"pp", "sdg_share", "dynamics", "fwci", "share"}
 
 
 # ------------------------------------------------- the frontier map, v2 -----

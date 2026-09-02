@@ -810,10 +810,19 @@ NAV = {
 # for the same two situations: a measure this page does not show, and a row
 # too thin to break down further. Neither names a plan code, a stream, or a
 # table or file name: tests/test_forbidden_vocabulary.py scans this dict
-# like every other constant in this file. Additive: COMPARE's own
-# METRIC_HIDDEN_HEADER/METRIC_HIDDEN_LINE and COLLAB's own
-# TOPIC_BELOW_FLOOR_NOTICE stay exactly where they are and say the same
-# thing in the same voice; a page may read either its own key or this one.
+# like every other constant in this file.
+#
+# 2D note (stream VC4, disclosed minimal touch -- this comment sits outside
+# the COMPARE dict this stream otherwise owns, but the staleness is a direct
+# consequence of a COMPARE-side deletion): COMPARE's own METRIC_HIDDEN_HEADER/
+# METRIC_HIDDEN_LINE, named below as the precedent for this pattern, are
+# DELETED (E12 -- they were already dead, `_not_offered_expander` never
+# actually read them; see `copy.py`'s own COMPARE-section comment beside
+# where they used to sit). `NOT_OFFERED_HEADER`/`_LINE` themselves are now
+# unused by any live page too (Compare's own call sites removed this round;
+# Find/Collaborate each keep their own, unrelated not-offered keys) --
+# flagged for TEV5's dead-key sweep, not deleted here (this dict is outside
+# this stream's fence).
 # ==========================================================================
 
 SHARED = {
@@ -882,11 +891,19 @@ COMPARE = {
     # ---- impact: the union frame, the missing cells, the floor toggle -----
     "IMPACT_INDEX_HEADER": "Across the whole output",
     "IMPACT_SUBFIELD_HEADER": "By subfield",
-    "IMPACT_FLOOR_LABEL": "Minimum publications behind a cell",
+    # 2D (E4, stream VC4): the 10/30 floor RADIO is retired -- the by-subfield
+    # panel below reads `impact_cells.parquet` (CD6's own "kept, untouched, a
+    # different system" ruling: unlike PP10_WD/impact_taxa, this bootstrap-CI
+    # union genuinely still needs a floor to mean anything, it is simply no
+    # longer a reader's CHOICE, `views_compare.IMPACT_FLOOR_FIXED`). Deleted:
+    # IMPACT_FLOOR_LABEL (the radio's own on-screen label) and IMPACT_FLOOR_HELP
+    # (its "lowering the floor..." tooltip, describing an action nobody can take
+    # any more) -- both confirmed dead by grep once the widget itself is gone.
+    # KEPT: IMPACT_FLOOR_OPTION, a plain disclosure fragment ("at least {floor}
+    # fractional publications") the workbook's Methods sheet still uses to name
+    # the fixed floor in force -- true whether or not a control ever let a
+    # reader change it.
     "IMPACT_FLOOR_OPTION": "at least {floor} fractional publications",
-    "IMPACT_FLOOR_HELP": ("Lowering the floor brings more subfields into the view and widens the "
-                          "intervals around them, because fewer publications sit behind each "
-                          "figure."),
     "IMPACT_NA_LABEL": "n/a",
     "IMPACT_UNION_CAPTION": ("Every subfield at least one of the compared institutions clears at this "
                              "floor is shown. Where an institution does not clear it, the cell reads "
@@ -944,8 +961,10 @@ COMPARE = {
                      "no bar in this view."),
     "EMPTY_NO_SDG": ("{institution} has no SDG-tagged publications in this snapshot, so it holds no "
                      "bar in this view."),
+    # 2D (E4): "Lower the floor" pointed at the retired radio -- dropped, the
+    # floor itself (fixed now, not a choice) is unchanged.
     "EMPTY_IMPACT_FLOOR": ("No subfield is cleared by any of the compared institutions at this floor. "
-                           "Lower the floor, or read the figure for the whole output above."),
+                           "Read the figure for the whole output above."),
     "EMPTY_FRONTIER_POINTS": ("None of the compared institutions holds publications in topics that "
                               "carry a frontier score."),
 
@@ -972,7 +991,9 @@ COMPARE = {
                              "holds the most publications in."),
     "CAPTION_CLASSIFIED_SHARES": ("Share of each institution's output behind these bars, in the "
                                   "order of the legend: {shares}."),
-    "DOWNLOAD_VIEW": "Download the figures behind this view",
+    # DOWNLOAD_VIEW DELETED 2D (E7): every per-section download button is
+    # gone (`_download`/its 9 call sites removed from `views_compare.py`);
+    # `EXPORT_XLSX_BUTTON` below is now the ONE download on the page.
     "STRIP_LINK_PUBS": "Publications",
     "XLSX_SHEET_IMPACT_INDEX": "Impact overall",
     "XLSX_SHEET_IMPACT_SUBFIELDS": "Impact by subfield",
@@ -1006,15 +1027,22 @@ COMPARE = {
                     "the ranking the caption names."),
     "METRIC_SHARE": "Share",
     "METRIC_VOL_TOP10": "Publications in the world top decile",
-    "METRIC_PP": "PP(top10%)",
+    # 2D (E3, stream VC4): the suffix-naming ruling -- PP10_WD on the axis, the
+    # selector and every caption, project-wide (the metric id "pp" is unchanged
+    # internally). See METHODS["two_baselines"] for the fixed explainer.
+    "METRIC_PP": "PP10_WD",
     "METRIC_SDG_SHARE": "SDG-tagged share",
     "METRIC_DYNAMICS": "Change in mean annual volume",
     "METRIC_SI": "Specialisation",
     "METRIC_VOL": "Volume",
     # 2C (Stream VC, D2): FWCI joins the Subject/ERC/SDG "Compare by" selector.
-    "METRIC_FWCI": "FWCI (median)",
-    "METRIC_HIDDEN_HEADER": "Measures not offered here, and why",
-    "METRIC_HIDDEN_LINE": "{metric}: {reason}",
+    # 2D (E3): relabelled to the suffix form, FWCI_EU.
+    "METRIC_FWCI": "FWCI_EU",
+    # METRIC_HIDDEN_HEADER/METRIC_HIDDEN_LINE DELETED 2D (E12): the
+    # "_not_offered_expander" mechanism these fed was never actually wired to
+    # THESE two keys (it read `copy.SHARED["NOT_OFFERED_HEADER"/"_LINE"]`
+    # instead) -- confirmed dead by grep BEFORE this stream too, and the
+    # mechanism itself is retired now regardless (E12, `views_compare.py`).
 
     # 2B-R-5: the subject section (fields, with a drill into one field).
     "VIEW_SUBJECT": "Subject profile",
@@ -1126,22 +1154,53 @@ COMPARE = {
     "TIP_SCENARIO": "Read on the {basis} basis and the {tree} taxonomy.",
     "TIP_GUTTER": ("The figures beside each row name are that institution's own publications in "
                    "that row, each written in its own colour."),
-    "TIP_REFERENCE": ("The dashed mark on a row is the average across every institution in this "
-                      "index that publishes there. The world top decile behind PP(top10%) is a "
-                      "different reference: it is set on world publications, per topic and year, "
-                      "not on the institutions compared here."),
+    # 2D (E6, stream VC4): the gutter column's own small header, naming the
+    # basis it follows -- the caller's word, per `fig_metric_bars`'s own
+    # `gutter_header` contract (CHROME_CONTRACT.md S10 row 1). Two words only
+    # (matching CH2's own proof script, `evals/ch2_2D_shots/capture.py`), not
+    # the longer "Full/Fractional counting" phrase `BASIS_LABELS` carries
+    # elsewhere -- a column header has no room for it.
+    "GUTTER_HEADER_FULL": "Publications",
+    "GUTTER_HEADER_FRAC": "Fractional",
+    # 2D (E8): the mark itself changed from a per-row dashed segment to a
+    # diamond MARKER for every VARYING reference (refC, CHROME_CONTRACT.md
+    # S10 row 3) -- "dashed mark" is corrected to "diamond mark" everywhere
+    # below. Share joins this round too (its own European-mean reference,
+    # E8) so the generic PP aside is dropped here -- PP now names its own
+    # reference explicitly, see TIP_REFERENCE_PP.
+    "TIP_REFERENCE": "The diamond mark on a row is the average across every institution in this index that publishes there.",
+    # 2D (E8, stream VC4): PP10_WD's own reference wording, mirroring FWCI_EU's
+    # (below) -- names the mark as a plain European population average,
+    # explicitly NOT the world top-decile threshold the bar itself reads
+    # against (compare_data.pp_ref_label's own two-axes reasoning).
+    "TIP_REFERENCE_PP": ("The diamond mark on a row is {ref_label}: a plain population average, "
+                        "never the world top-decile threshold PP10_WD is itself measured against."),
     # 2C (Stream VC, D2/D3): FWCI's own reference wording -- never "average"
     # (WT_2C.md claim 1: the corpus mean sits near one by construction and
-    # would misread as a neutral baseline beside a median bar).
-    "TIP_REFERENCE_FWCI": ("The dashed mark on a row is {ref_label}: the same statistic, a median, "
+    # would misread as a neutral baseline beside a median bar). 2D: "dashed"
+    # -> "diamond" (E8).
+    "TIP_REFERENCE_FWCI": ("The diamond mark on a row is {ref_label}: the same statistic, a median, "
                           "over the same works as the bar, never the corpus mean, which sits near "
                           "one by construction and would misread as neutral beside a median bar."),
-    # 2C AMENDMENT (D6): ONE sentence for every hatched bar app-wide, hatched
-    # rather than hollow (2B-R3), and stated as a WINDOW TOTAL rather than a
-    # per-year average -- PP and FWCI hatch on a window total already, and
-    # the old per-year framing read as a second, different number next to it.
-    "TIP_LOW_VOLUME": ("A hatched bar with a dagger rests on fewer than {floor} works over {y0} to "
-                       "{y1}: the figure is real, but too thin to race against its neighbour."),
+    # 2D (E3, stream VC4): the fixed two-axes explainer every impact tooltip
+    # (PP10_WD and FWCI_EU alike) carries, reusing METHODS["two_baselines"]'s
+    # own wording rather than inventing new prose -- Methods states it once,
+    # in full, as the definition; this is the same statement, condensed for a
+    # tooltip that already carries several other sentences.
+    "TIP_TWO_BASELINES": ("FWCI_EU reads a typical citation level against the tool's European "
+                         "baseline; PP10_WD reads the excellence tail against the whole world "
+                         "instead. The two answer different questions on purpose and are never "
+                         "averaged into one figure."),
+    # 2C AMENDMENT (D6): ONE sentence for every cautioned bar app-wide, stated
+    # as a WINDOW TOTAL rather than a per-year average -- PP and FWCI hatch on
+    # a window total already, and the old per-year framing read as a second,
+    # different number next to it.
+    # 2D (E5, PRESS-A U3, applied verbatim): the mark itself is no longer a
+    # hatch -- every bar is solid, and the caution is the VALUE + GUTTER TEXT
+    # turning red with a dagger (CHROME_CONTRACT.md S10 row 2).
+    "TIP_LOW_VOLUME": ("A row in red with a dagger (\N{DAGGER}) rests on fewer than {floor} works "
+                       "over {y0} to {y1}: the figure is real, but too thin to race against its "
+                       "neighbour."),
     "TIP_ACCENT": ("The mark beside each row name is that taxonomy's own colour. Colour on a bar "
                    "is always the institution."),
 
@@ -1150,11 +1209,17 @@ COMPARE = {
     # §7). PP and FWCI state a FIXED basis (D4: pinned, never the page's
     # full/frac toggle); share/sdg_share/dynamics state the CURRENT toggle.
     # `{n}`/`{floor}` are always a real, computed value -- never hand-typed.
+    # 2D (E4): PP10_WD carries no display floor any more -- every taxon with
+    # at least one covered publication is scored (`impact_taxa.parquet`,
+    # stream P9/CD6). The "{floor}" language is dropped; "unscored" now means
+    # a genuine zero -- this basket holds no publication with a matching
+    # world benchmark in that field at all -- not "below a threshold".
     "CAPTION_BASIS_PP": ("Articles and reviews, {y0} to {y1}, fixed regardless of the "
-                        "counting-basis toggle; fields with at least {floor} works are scored."),
+                        "counting-basis toggle; every field with at least one covered "
+                        "publication is scored."),
     "CAPTION_BASIS_PP_UNSCORED": ("Articles and reviews, {y0} to {y1}, fixed regardless of the "
-                                 "counting-basis toggle; fields with at least {floor} works are "
-                                 "scored -- {n} more fields fall below that floor and are not "
+                                 "counting-basis toggle; every field with at least one covered "
+                                 "publication is scored -- {n} more fields hold none and are not "
                                  "shown."),
     "CAPTION_BASIS_FWCI": ("Best-fit taxonomy, covered articles and reviews, {y0} to {y1}, full "
                           "counting, fixed regardless of the counting-basis toggle."),
@@ -1163,8 +1228,12 @@ COMPARE = {
                                    "{n} {grain}s hold too few covered works to be scored."),
     "CAPTION_BASIS_FWCI_ERC_GAP": (" Coverage on this grain is incomplete for a measured share of "
                                   "works; the exact gap is in the icon below."),
-    "CAPTION_BASIS_SHARE": "{basis} counting, {y0} to {y1}.",
-    "CAPTION_BASIS_DYNAMICS": "{w1} against {w2}, {basis} counting.",
+    # 2D (PRESS-A U2, applied verbatim): `basis` is already the full phrase
+    # ("Fractional counting"/"Full counting", `copy.BASIS_LABELS`), so the
+    # template's own trailing "counting" doubled it live ("Fractional
+    # counting counting, 2020 to 2024.") -- dropped from both templates.
+    "CAPTION_BASIS_SHARE": "{basis}, {y0} to {y1}.",
+    "CAPTION_BASIS_DYNAMICS": "{w1} against {w2}, {basis}.",
 
     # 2B-R2-10: the frontier map's two controls, and the pool rule in words.
     "FRONTIER_POOL_LABEL": "Topics shown",
@@ -1199,20 +1268,49 @@ COMPARE = {
                             "the row and the axis carries counts on both sides."),
 
     # 2B-R2-8: the impact, trends and coverage panels lose their grey stacks.
+    # 2D (E10, stream VC4, press_audit_2D.md (a) caveat 2): Menu promises
+    # Compare a "trends" section ("Frontier positioning, impact intervals,
+    # trends and coverage", `copy.NAV["COMPARE_BLURB"]`), but Dynamics lived
+    # only as one option among several in the Subject/ERC/SDG "Compare by"
+    # selector, with no titled place of its own -- the narrative-arc gap the
+    # audit flagged, closed here by giving it its OWN subheader-labelled
+    # section (the audit's own preferred fix), field grain, reusing the
+    # existing `dynamics` frame/chart machinery unchanged. The metric stays
+    # offered in the three selectors too (a reader comparing, say, SDGs may
+    # still want Dynamics at that grain); this section is additive, not a
+    # replacement.
+    "VIEW_DYNAMICS": "Change over time",
+    "NOTE_DYNAMICS": "Change in each field's mean annual volume, one bar per institution.",
+    # 2D note (checked, NOT rewritten): PRESS-A's own C11/C12 row suggested
+    # adding the "(PP10_WD)" suffix here, but this panel reads
+    # `impact_cells.parquet` -- the OLD, untouched, fractional-basis,
+    # bootstrap-CI `pp_top10_frac` statistic (CD6's own "kept, different
+    # system" ruling), NOT the new full/binary PP10_WD the Compare-by
+    # selector offers. Appending the suffix would mislabel a different
+    # number as the new metric; instead `TIP_IMPACT` below gains a clause
+    # disambiguating the two, and NOTE_IMPACT/CAPTION_IMPACT are left as
+    # they were (already correct for the statistic they actually describe).
     "NOTE_IMPACT": "Share of each institution's articles and reviews in the world top decile of citations.",
     "TIP_IMPACT": ("Counted over the {y0} to {y1} window, against the world distribution for the "
                    "publication's own subject, year and document type; fractional counting "
-                   "throughout, and {bonus_year} is left out. {ci}"),
+                   "throughout, and {bonus_year} is left out. This is a different figure from "
+                   "PP10_WD in the Compare-by selector above: fractional counting here, with an "
+                   "interval, against full counting and no interval there. {ci}"),
     # 2BR3 VC item 3: the selection rule stated in plain words, not "showing
     # {n} of {n_union}" alone -- the rule is `compare_data.impact_subfields`'s
     # own floor-clearing union, read out here rather than left implicit.
     "NOTE_IMPACT_SUBFIELDS": ("Showing the {n} of {n_union} subfields where at least one institution "
                               "holds {floor} or more fractional publications."),
-    "TIP_IMPACT_SUBFIELDS": ("Every subfield at least one of the compared institutions clears at "
-                             "the chosen floor is in the frame. Where an institution does not "
-                             "clear it the cell reads n/a: it publishes too little there to "
-                             "measure, which is a different thing from a low figure. Lowering the "
-                             "floor brings in more subfields and widens every interval. {ci}"),
+    # 2D (E4): "the chosen floor" and the "lowering the floor" sentence both
+    # pointed at the retired radio -- dropped. This panel is a SEPARATE,
+    # untouched bootstrap-CI system (`impact_cells.parquet`, CD6's own "kept,
+    # different system" ruling) that genuinely still filters by a floor, now
+    # fixed rather than a reader's choice, so the rest of the sentence stays
+    # true unedited.
+    "TIP_IMPACT_SUBFIELDS": ("Every subfield where at least one of the compared institutions clears "
+                             "the floor is in the frame. Where an institution does not clear it the "
+                             "cell reads n/a: it publishes too little there to measure, which is a "
+                             "different thing from a low figure. {ci}"),
     "NOTE_COVERAGE": "Share of each institution's whole output in each state; the states cover everything.",
     "TIP_COVERAGE": ("The states are exclusive and sum to the institution's whole fractional "
                      "output, so the classified share is what the subject, ERC and SDG views above "

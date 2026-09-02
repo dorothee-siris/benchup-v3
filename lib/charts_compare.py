@@ -1276,15 +1276,13 @@ SELECTOR_METRICS = ("share", "si", "pp", "sdg_share", "dynamics", "vol", "fwci")
 
 LEVELS = ("field", "subfield", "erc", "sdg")
 
-REF_METRICS = ("pp", "sdg_share", "dynamics", "fwci")
-# 2B-R2-4: a reference line is drawn for these ONLY -- PP/SDG-tagged share/
+REF_METRICS = ("pp", "sdg_share", "dynamics", "fwci", "share")
+# 2B-R2-4: a reference line is drawn for these -- PP/SDG-tagged share/
 # Dynamics reference the population mean among institutions with nonzero mass,
-# per taxon x tree. Share and Volume get none (there is no "expected share":
-# the shares of a partition sum to one by construction, so a mean share is an
-# artefact of how many taxa exist, not a benchmark). `si` is not in the list
-# because its reference is not data at all (see `_METRIC_DEFAULT_REF`). A
-# frame may carry `ref_value` for any metric; a metric outside this tuple
-# simply does not draw it.
+# per taxon x tree. Volume gets none (a raw count carries no population
+# average worth drawing). `si` is not in the list because its reference is
+# not data at all (see `_METRIC_DEFAULT_REF`). A frame may carry `ref_value`
+# for any metric; a metric outside this tuple simply does not draw it.
 #
 # 2C (Stream VC, D3): `fwci` joins with a DIFFERENT reference semantics than
 # the other three -- the European corpus-level MEDIAN work-FWCI per taxon
@@ -1293,6 +1291,18 @@ REF_METRICS = ("pp", "sdg_share", "dynamics", "fwci")
 # `_metric_hover`). A 0.0 reference (27 taxa, WT_2C.md claim 2) is real data
 # and draws exactly like any other value -- `_add_reference` already tests
 # `np.isfinite`, never truthiness, so this needed no fix here.
+#
+# 2D AMENDMENT (E8, BUILD_PLAN_2D.md S1, decisions log 2026-09-02; disclosed
+# out-of-fence touch, stream VC4): `share` JOINS this round -- the pre-2D
+# exclusion ("a mean share is an artefact of how many taxa exist, not a
+# benchmark") is SUPERSEDED by E8's own locked ruling, "the Share tab gains
+# the European mean share as per-row reference." CD6 shipped `ref_value` on
+# every share frame, at all four grains, specifically for this (`compare_
+# data.py`'s own "for VC4 to wire into the Share tab's diamond marker" note);
+# this one-line tuple addition is the wiring E8 asked for and CD6 was
+# waiting on -- `_add_reference` itself needed no change, it was already
+# metric-agnostic. Re-pinned: `test_reference_lines_are_drawn_for_exactly_
+# the_five_ruled_metrics` (was "four").
 
 SORT_MODES = ("taxonomy", "value")
 # 2B-R2-5. `taxonomy` (the default) groups the rows under their domains in the
@@ -1460,8 +1470,9 @@ _SIGNED_METRICS = ("dynamics",)
 _METRIC_DEFAULT_REF = {"si": C.SI_NEUTRAL}
 # `si` is the one metric whose reference is a CONSTANT of the indicator itself
 # (specialisation is defined against the index mean, so the neutral value is
-# one). Every other reference -- the index PP, the index share -- is DATA and
-# arrives in the frame's `ref_value` column; this module never invents one.
+# one). Every other reference in `REF_METRICS` -- PP, share, SDG-tagged
+# share, Dynamics, FWCI -- is DATA and arrives in the frame's `ref_value`
+# column; this module never invents one.
 
 _ACCENT_COLS = {"erc": ("erc_domain",), "sdg": ("sdg_number", "sdg_idx"),
                 "field": ("domain_id",), "subfield": ("domain_id",)}
@@ -1819,10 +1830,11 @@ def fig_metric_bars(
     institution colour on marks, never the reverse.
 
     REFERENCE (2B-R2-4; 2D E8, WT_2D.md claim 3 -- REPLACES the per-row dash).
-    Only `REF_METRICS` draw one -- PP, SDG-tagged share and Dynamics, whose
-    reference is the population mean among institutions with nonzero mass.
+    Only `REF_METRICS` draw one -- PP, Share, SDG-tagged share, Dynamics and
+    FWCI, whose reference is the population mean among institutions with
+    nonzero mass (Share joins in 2D, E8 -- see `REF_METRICS`'s own comment).
     `si` defaults to the neutral value, which is a constant of the indicator
-    rather than data. Share and Volume draw none even when the frame carries
+    rather than data. Volume draws none even when the frame carries
     `ref_col`. A reference that VARIES by row is now a dark
     `REF_MARKER_SYMBOL` MARKER per row (refC, ratified: a different mark
     family from a bar, a grid line or a row rule, unmistakable at 26x3

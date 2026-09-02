@@ -192,6 +192,19 @@ def _n_shapes(page, key: str, kind: str) -> int:
         .replace("sel2", "'%s'" % kind), f".st-key-{key} .js-plotly-plot")
 
 
+def _n_diamond_traces(page, key: str) -> int:
+    """2D (E8): the VARYING-reference mechanism is a `go.Scatter` trace with
+    `marker.symbol == "diamond-tall"` (`charts_compare.REF_MARKER_SYMBOL`),
+    not an SVG shape any more (`_n_shapes`'s own `.shapelayer path` count is
+    now ZERO for every one of these -- only the CONSTANT case, SI's neutral
+    rule, still draws a shape). Reads the graph div's own `.data` (Plotly's
+    live trace array), the same idiom `_fig_xy_text` already uses."""
+    return page.evaluate(
+        "(sel) => { const el = document.querySelector(sel); if (!el || !el.data) return 0;"
+        " return el.data.filter(t => t.marker && t.marker.symbol === 'diamond-tall').length; }",
+        f".st-key-{key} .js-plotly-plot")
+
+
 def _n_figures(page) -> int:
     return page.locator(".js-plotly-plot").count()
 
@@ -340,8 +353,15 @@ def _probe_compare(page) -> None:
                 return
             page.wait_for_timeout(700)
 
-    _settle_figures(7)
+    _settle_figures(8)  # 2D (E10): + the new "Change over time" dynamics chart
     check(page.locator('[data-testid="stException"]').count() == 0, "Compare: no Streamlit exception")
+
+    # --- 2D (E10): the new "Change over time" section, its own subheader ---
+    full_text = page.evaluate("document.body.textContent") or ""
+    check(copy.COMPARE["VIEW_DYNAMICS"] in full_text,
+          f"Compare: {copy.COMPARE['VIEW_DYNAMICS']!r} renders as its own section (E10)")
+    check(page.locator(".st-key-fig_cmp_dynamics .js-plotly-plot").count() >= 1,
+          "Compare: the Change-over-time chart renders")
 
     # --- overview cards: recomputed against compare_data.overview, SLOT order
     names = _cmp_names(TRIO)
@@ -406,11 +426,25 @@ def _probe_compare(page) -> None:
     check(len(bar_texts) > 0 and len(with_numbers) >= len(bar_texts) - 1,
           f"Compare: the volume gutter carries a number on (almost) every bar "
           f"({len(with_numbers)}/{len(bar_texts)})")
-    n_refs_share = _n_shapes(page, "fig_cmp_subject", ".shapelayer path")
+    # 2D RE-PIN (E8): the varying reference is now a DIAMOND MARKER trace
+    # (`.scatterlayer`, `_n_diamond_traces`), never an SVG shape -- the old
+    # `.shapelayer path` count this check used to compare is stale under
+    # CH2's own refC rendering (a shape only remains for SI's CONSTANT rule).
+    # Share ALSO now draws one (E8, `REF_METRICS` gains "share" this round),
+    # so "Share draws none" is no longer the right contrast -- compared
+    # against Specialisation instead, whose neutral reference stays a
+    # CONSTANT dashed rule (a shape, never a diamond).
+    n_diamonds_share = _n_diamond_traces(page, "fig_cmp_subject")
+    check(n_diamonds_share > 0, f"Compare Share: draws its European-mean diamond reference ({n_diamonds_share})")
     _click_option(page, "cmp_metric_subject", views_compare.METRIC_LABELS["dynamics"])
-    n_refs_dyn = _n_shapes(page, "fig_cmp_subject", ".shapelayer path")
-    check(n_refs_dyn > n_refs_share,
-          f"Compare: the Dynamics view draws its reference line, Share does not ({n_refs_dyn} vs {n_refs_share})")
+    n_diamonds_dyn = _n_diamond_traces(page, "fig_cmp_subject")
+    check(n_diamonds_dyn > 0, f"Compare Dynamics: draws its diamond reference ({n_diamonds_dyn})")
+    _click_option(page, "cmp_metric_subject", views_compare.METRIC_LABELS["si"])
+    n_diamonds_si = _n_diamond_traces(page, "fig_cmp_subject")
+    n_shapes_si = _n_shapes(page, "fig_cmp_subject", ".shapelayer path")
+    check(n_diamonds_si == 0 and n_shapes_si > 0,
+          f"Compare Specialisation: the neutral reference is a CONSTANT rule, never a diamond "
+          f"(diamonds={n_diamonds_si}, shapes={n_shapes_si})")
     _click_option(page, "cmp_metric_subject", views_compare.METRIC_LABELS["share"])
 
     # --- the frontier map's own three controls -------------------------------
