@@ -25,7 +25,8 @@ NEW_TABLES = [
     "collab_pair_fields.parquet",   # 2B-R2-12: pair x field, uncapped, bestfit-only
     "sdg_fields.parquet",
     "sdg_year.parquet",
-    "impact_fields.parquet",
+    # impact_fields.parquet REMOVED 2E (stream P, BUILD_PLAN_2E.md E5): dead since 2D,
+    # deleted from app/data + contract.
 ]
 
 
@@ -87,7 +88,10 @@ def test_contract_declares_23_files(contract: dict) -> None:
     # in data/interim) + `share_refs.parquet` (European mean share per
     # grain x taxon x basis, mean-of-ratios). Live-verified against
     # `ops/deploy.py --check-only` -> "23 file(s) verified, 275.91 MB".
-    assert len(contract["files"]) == 23, sorted(contract["files"])
+    # 23 -> 22 (BUILD_PLAN_2E.md, stream P, 2026-09-02, E5): `impact_fields.parquet`
+    # DELETED (dead since 2D -- no code path read it; superseded by
+    # impact_taxa.parquet's field grain for anything the app displays).
+    assert len(contract["files"]) == 22, sorted(contract["files"])
 
 
 # ---------------------------------------------------------------------------
@@ -130,7 +134,9 @@ def test_collab_pairs_a_lt_b_and_unique() -> None:
     assert n_dupes == 0
 
     sample = pairs.sample(n=min(50_000, len(pairs)), random_state=42)
-    n_violations = int((sample["a"] >= sample["b"]).sum())
+    # 2E: a/b are unordered category dtype (repack) -- string comparison for
+    # the ordering check, same values, no dtype-driven behaviour change.
+    n_violations = int((sample["a"].astype(str) >= sample["b"].astype(str)).sum())
     print(f"a<b sample check: {n_violations} violation(s) of {len(sample):,} sampled rows")
     assert n_violations == 0
 

@@ -31,7 +31,17 @@ GOLDEN_SEED = "I40413290"  # University of Gdansk
 
 BUDGET_COLD_LOAD_S = 30.0
 BUDGET_WARM_RANK_S = 1.0
-BUDGET_PEAK_RSS_GB = 2.5
+# BUILD_PLAN_2E.md Stream T recalibration (2026-09-02): pre-2E this budget was
+# 2.5 GB against a measured 1.67 GB baseline (WT comment below, unchanged).
+# Streams P (dtype repack: category/float32, impact_fields.parquet deleted)
+# and B (collab_* duckdb pushdown, never materialized whole) measure 1.42 GB
+# peak RSS for this exact cold-load+build_substrates+rank_all sequence now --
+# tightened to measured + ~30% headroom (1.42 * 1.3 = 1.846, rounded to 1.85)
+# so a future regression that eats back P/B's savings still trips this gate
+# well before Cloud's 2.7 GB hard cap. Cold/warm time budgets untouched:
+# both stayed comfortably inside their existing budgets (6.88s/30s,
+# 0.122s/1.0s) and neither is what this stream's changes were about.
+BUDGET_PEAK_RSS_GB = 1.85
 
 
 def peak_rss_gb() -> float | None:

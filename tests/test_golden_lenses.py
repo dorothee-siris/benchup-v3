@@ -40,8 +40,16 @@ def engine():
 
 
 def _close(a, b, what):
+    """2E (stream P): `hhi_subfield`/`total_full_2020_2024`/etc. are read
+    straight off index.parquet, now float32 (was float64) -- np.isclose-style
+    combined tolerance (TOL absolute for the [0,1]-scale lens scores, a small
+    relative term for larger-magnitude raw columns) absorbs the expected
+    float32 rounding (e.g. hhi_subfield ~724: max abs diff ~1.6e-5, a ~2e-8
+    relative error -- not a value change, a representation-precision one)."""
     assert a is not None and b is not None, f"{what}: {a!r} vs {b!r}"
-    assert abs(float(a) - float(b)) <= TOL, f"{what}: {a!r} != {b!r}"
+    af, bf = float(a), float(b)
+    tol = max(TOL, 1e-6 * max(abs(af), abs(bf)))
+    assert abs(af - bf) <= tol, f"{what}: {a!r} != {b!r}"
 
 
 def _same_shape_list(got, want, what):

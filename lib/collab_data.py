@@ -10,12 +10,36 @@ the SAME matrix `lib/engine/lenses.py`'s L3 lens scores overlap on, so
 `shared_topics`' Sigma(min_share) equals the engine's own L3 score for the
 pair on `subs`'s basis, exactly (no further division for L3 --
 `lib/engine/evidence.py`'s LENS_MATRIX branch).
+
+BUILD_PLAN_2E.md E4 (Stream B): the four Collaborate parquets
+(`collab_pairs`, `collab_pair_topics`, `collab_topic_vols`,
+`collab_pair_fields`) are NEVER read whole into pandas here -- every consumer
+wants exactly one (a, b) pair's rows, so `_collab_pair_slice` below runs a
+duckdb `WHERE a = ? AND b = ?` pushdown query per table per pair (same
+in-process duckdb idiom as `lib/engine/derive.py`/`lib/compare_data.py`/
+`lib/profile_data.py`: `duckdb.connect()`, a posix path inside
+`read_parquet('...')`, `.df()`, `con.close()`) and caches the resulting
+SLICE (a handful to a few hundred rows, never the 3.4-15.4M-row whole table)
+on `ctx` under `collab_slice::<table>::<lo>::<hi>` -- a rerun on the same
+pair (Streamlit's own `@st.cache_data` accessors in `views_collab.py` call
+straight through to these on every cache miss) pays nothing. All four tables
+are (a, b)-pair grain (a<b lexicographic, one row per pair per extra key) --
+`collab_topic_vols` included, despite an earlier institution x topic
+description: verified live against the shipped file, 2026-09-02.
+
+duckdb's `.df()` decodes a parquet dictionary/category column to plain
+VARCHAR (Python `str`), not pandas `category` -- `_collab_pair_slice` casts
+the known category columns (`a`, `b`, `topic_id`, `mom_class`,
+`erc_top_panel`) back to `category` on the returned slice so every
+downstream comparison, `.map()` and `groupby(observed=)` sees the exact
+dtype a whole-table `pd.read_parquet` used to hand it (E2/E3).
 """
 from __future__ import annotations
 
 import json
 from pathlib import Path
 
+import duckdb
 import numpy as np
 import pandas as pd
 
@@ -23,6 +47,41 @@ from . import compare_data as CD
 from . import links
 from . import palette as PAL
 from . import profile_data as P
+
+_COLLAB_CATEGORY_COLS = ("a", "b", "topic_id", "mom_class", "erc_top_panel")
+
+
+def _posix(path) -> str:
+    """Windows backslashes inside a SQL string literal are ambiguous escape
+    sequences -- duckdb's read_parquet() takes forward-slash paths fine
+    (same helper as `lib/engine/derive.py::_posix`)."""
+    return Path(path).as_posix()
+
+
+def _collab_pair_slice(ctx: dict, table: str, a: str, b: str) -> pd.DataFrame:
+    """The rows of `<table>.parquet` (one of the four Collaborate parquets)
+    for the (a, b) pair, re-oriented to the table's own a<b convention and
+    cached on `ctx` per (table, lo, hi) so a repeat call for the same pair
+    (any of this module's six public functions, in any order) never re-scans
+    the parquet file. Returns an EMPTY frame (right columns, from the
+    file's own schema) when the pair has no row in this table, exactly like
+    the old `whole_df[(whole_df.a==lo)&(whole_df.b==hi)]` boolean mask did."""
+    lo, hi = (a, b) if a < b else (b, a)
+    key = f"collab_slice::{table}::{lo}::{hi}"
+    if key not in ctx:
+        path = _posix(Path(ctx["data_dir"]) / f"{table}.parquet")
+        con = duckdb.connect()
+        try:
+            df = con.execute(
+                f"SELECT * FROM read_parquet('{path}') WHERE a = ? AND b = ?", [lo, hi]
+            ).df()
+        finally:
+            con.close()
+        for c in _COLLAB_CATEGORY_COLS:
+            if c in df.columns:
+                df[c] = df[c].astype("category")
+        ctx[key] = df
+    return ctx[key]
 
 SHARED_TOPICS_COLS = ["topic_id", "topic_name", "subfield_name", "share_a", "share_b",
                       "min_share", "keywords", "top25pct_frontier"]
@@ -111,43 +170,43 @@ def _topic_membership(ctx: dict, subs: dict, idx: int, min_full: int) -> "np.nda
 # has to know or care which of its two ids happens to sort first.
 # ============================================================================
 
-def _load_collab_pairs(ctx: dict) -> pd.DataFrame:
-    """Lazy, ctx-cached (`collab_pairs.parquet` v2, BUILD_PLAN_2BR3.md SS2.2):
-    ALL a<b indexed-institution pairs with >=1 co-published work 2020-2025
-    (floor 1 -- WT A1 refutes a floor here), `copubs_2020..copubs_2025`
-    (all-types, pulse's own window, naming kept per WT_2BR3.md SS0 -- NOT a
-    typo), `core_total`/`c1`/`c2` (CORE-AR, articles+reviews 2020-2024),
-    `n_top10`/`n_covered`/`n_sdg`/`fwci_median` (CORE-AR), `rank_in_a`/
-    `rank_in_b` (recomputed on CORE-AR, ranks computed before any floor),
-    `mom_class`/`mom_rr`/`mom_p` (SS2.3, pipeline-classified), plus
-    `erc_top_panel`/`erc_top_panel_n`/`erc_labelled_n` carried forward on
-    their CURRENT basis (WT_2BR3.md SS0 gap g: moved here from
-    collab_pair_topics v1, the pair-level ERC header now has a schema home)."""
-    if "collab_pairs_df" not in ctx:
-        ctx["collab_pairs_df"] = pd.read_parquet(Path(ctx["data_dir"]) / "collab_pairs.parquet")
-    return ctx["collab_pairs_df"]
+def _load_collab_pairs(ctx: dict, a: str, b: str) -> pd.DataFrame:
+    """BUILD_PLAN_2E.md E4: `collab_pairs.parquet` v2's row for this ONE
+    pair only (0 or 1 rows -- floor 1, an absent pair truly means zero
+    co-publications, 2BR A1), duckdb-pushed and ctx-cached per pair by
+    `_collab_pair_slice` -- never the 3.58M-row whole table. Columns:
+    ALL a<b indexed-institution pairs with >=1 co-published work 2020-2025,
+    `copubs_2020..copubs_2025` (all-types, pulse's own window, naming kept
+    per WT_2BR3.md SS0 -- NOT a typo), `core_total`/`c1`/`c2` (CORE-AR,
+    articles+reviews 2020-2024), `n_top10`/`n_covered`/`n_sdg`/`fwci_median`
+    (CORE-AR), `rank_in_a`/`rank_in_b` (recomputed on CORE-AR, ranks computed
+    before any floor), `mom_class`/`mom_rr`/`mom_p` (SS2.3, pipeline-
+    classified), plus `erc_top_panel`/`erc_top_panel_n`/`erc_labelled_n`
+    carried forward on their CURRENT basis (WT_2BR3.md SS0 gap g: moved here
+    from collab_pair_topics v1, the pair-level ERC header now has a schema
+    home)."""
+    return _collab_pair_slice(ctx, "collab_pairs", a, b)
 
 
-def _load_collab_pair_topics(ctx: dict) -> pd.DataFrame:
-    """Lazy, ctx-cached (`collab_pair_topics.parquet` v2): top-
-    `PAIR_TOPICS_TOP_N` joint topics (PRIMARY bestfit topic only) per pair
-    with `core_total >= PAIR_TOPICS_FLOOR`, CORE-AR `vol`/`vol_w1`/`vol_w2`,
-    `n_top10`/`n_covered`/`n_sdg`/`fwci_median`/`mom_class`. `erc_top_panel`/
-    etc. are GONE from this table since v2 -- see `_load_collab_pairs`."""
-    if "collab_pair_topics_df" not in ctx:
-        ctx["collab_pair_topics_df"] = pd.read_parquet(Path(ctx["data_dir"]) / "collab_pair_topics.parquet")
-    return ctx["collab_pair_topics_df"]
+def _load_collab_pair_topics(ctx: dict, a: str, b: str) -> pd.DataFrame:
+    """BUILD_PLAN_2E.md E4: `collab_pair_topics.parquet` v2's rows for this
+    ONE pair only (<= `PAIR_TOPICS_TOP_N`), duckdb-pushed and ctx-cached --
+    never the 13.4M-row whole table. Columns: top-`PAIR_TOPICS_TOP_N` joint
+    topics (PRIMARY bestfit topic only) per pair with `core_total >=
+    PAIR_TOPICS_FLOOR`, CORE-AR `vol`/`vol_w1`/`vol_w2`, `n_top10`/
+    `n_covered`/`n_sdg`/`fwci_median`/`mom_class`. `erc_top_panel`/etc. are
+    GONE from this table since v2 -- see `_load_collab_pairs`."""
+    return _collab_pair_slice(ctx, "collab_pair_topics", a, b)
 
 
-def _load_collab_topic_vols(ctx: dict) -> pd.DataFrame:
-    """Lazy, ctx-cached (`collab_topic_vols.parquet` NEW, SS2.2): (a, b,
-    topic_id, vol) UNCAPPED per qualifying pair, CORE-AR -- the item-4 fix
-    for `untapped()`'s `joint_observed` (was reading the top-100-CAPPED
-    `collab_pair_topics`, silently zeroing out any shared topic outside the
-    cap, WT_2BR3.md task 5.7 / SS0 task 6 #11)."""
-    if "collab_topic_vols_df" not in ctx:
-        ctx["collab_topic_vols_df"] = pd.read_parquet(Path(ctx["data_dir"]) / "collab_topic_vols.parquet")
-    return ctx["collab_topic_vols_df"]
+def _load_collab_topic_vols(ctx: dict, a: str, b: str) -> pd.DataFrame:
+    """BUILD_PLAN_2E.md E4: `collab_topic_vols.parquet`'s rows for this ONE
+    pair only, duckdb-pushed and ctx-cached -- never the 15.4M-row whole
+    table. (a, b, topic_id, vol) UNCAPPED per qualifying pair, CORE-AR --
+    the item-4 fix for `untapped()`'s `joint_observed` (was reading the
+    top-100-CAPPED `collab_pair_topics`, silently zeroing out any shared
+    topic outside the cap, WT_2BR3.md task 5.7 / SS0 task 6 #11)."""
+    return _collab_pair_slice(ctx, "collab_topic_vols", a, b)
 
 
 def _load_collab_facts(ctx: dict) -> dict:
@@ -225,9 +284,8 @@ def pulse(ctx: dict, a: str, b: str) -> dict | None:
     Pinned anchor: `pulse(ctx, "I1294671590", "I68947357")` (CNRS, Strasbourg
     -- the table's own a<b order) -> copubs_total 12694, rank_in_a 16,
     rank_in_b 1 (manager-verified fact, BUILD_PLAN_2BR.md CD brief)."""
-    pairs = _load_collab_pairs(ctx)
     lo, hi = (a, b) if a < b else (b, a)
-    row = pairs[(pairs["a"] == lo) & (pairs["b"] == hi)]
+    row = _load_collab_pairs(ctx, a, b)  # already pushed down to this ONE pair
     if row.empty:
         return None
     row = row.iloc[0]
@@ -322,9 +380,8 @@ def joint_profile(ctx: dict, subs: dict, a: str, b: str) -> dict | None:
                       NEVER divide panel_n by copubs_total, only by
                       labelled_n.
       meta         -- {floor, top_n_cap, n_topics_shown, note, mean_citations_note}."""
-    topics = _load_collab_pair_topics(ctx)
     lo, hi = (a, b) if a < b else (b, a)
-    rows = topics[(topics["a"] == lo) & (topics["b"] == hi)]
+    rows = _load_collab_pair_topics(ctx, a, b)  # already pushed down to this ONE pair
     if rows.empty:
         return None
 
@@ -340,14 +397,25 @@ def joint_profile(ctx: dict, subs: dict, a: str, b: str) -> dict | None:
     df["url"] = [_taxon_url(a, b, "topic", t) for t in df["topic_id"]]
     topics_out = df.reindex(columns=JOINT_TOPICS_COLS)
 
-    fields_out = (df.groupby(["field_id", "field_name"], as_index=False)[JOINT_ROLLUP_VALUE_COLS].sum()
+    # Stream B fallout (2E, E3): field_name/subfield_name/domain_name arrive
+    # here as `category` dtype since stream P's repack of topics_dim/fields
+    # substrate tables (P's own fence excluded this file) -- pandas 2.3.3
+    # groupby defaults `observed=False` on a categorical key, which returns
+    # the FULL CROSS PRODUCT of every category value x every other grouping
+    # key, not just the combinations this pair's df actually has (measured:
+    # one pair's subfields_out went from ~20 real rows to 412,360 cross-
+    # product rows -- the additive sum columns still summed correctly since
+    # every spurious row's sum is 0, which is exactly why `test_joint_profile
+    # _anchor_strasbourg_ifpen`'s `.sum()` equality checks never caught it).
+    # `observed=True` restricts the groupby to combinations present in df.
+    fields_out = (df.groupby(["field_id", "field_name"], as_index=False, observed=True)[JOINT_ROLLUP_VALUE_COLS].sum()
                     .sort_values("vol", ascending=False).reset_index(drop=True))
-    subfields_out = (df.groupby(["subfield_id", "subfield_name", "field_id", "field_name"], as_index=False)
+    subfields_out = (df.groupby(["subfield_id", "subfield_name", "field_id", "field_name"],
+                                as_index=False, observed=True)
                        [JOINT_ROLLUP_VALUE_COLS].sum()
                        .sort_values("vol", ascending=False).reset_index(drop=True))
 
-    pairs = _load_collab_pairs(ctx)
-    prow = pairs[(pairs["a"] == lo) & (pairs["b"] == hi)]
+    prow = _load_collab_pairs(ctx, a, b)  # already pushed down to this ONE pair
     erc = None
     if len(prow):
         p0 = prow.iloc[0]
@@ -375,18 +443,17 @@ FIELD_BREAKDOWN_NOTE = (
 )
 
 
-def _load_collab_pair_fields(ctx: dict) -> pd.DataFrame:
-    """Lazy, ctx-cached: `collab_pair_fields.parquet` v2 -- pair x field,
-    UNCAPPED (every field the pair has any joint mass in), bestfit tree
-    only, same a<b/floor-5 qualifying-pair convention as
+def _load_collab_pair_fields(ctx: dict, a: str, b: str) -> pd.DataFrame:
+    """BUILD_PLAN_2E.md E4: `collab_pair_fields.parquet` v2's rows for this
+    ONE pair only, duckdb-pushed and ctx-cached -- never the 3.57M-row whole
+    table. Pair x field, UNCAPPED (every field the pair has any joint mass
+    in), bestfit tree only, same a<b/floor-5 qualifying-pair convention as
     `collab_pair_topics`. The ONE source `field_breakdown` reads; unlike
     `joint_profile`'s own field rollup (a lower bound over its top-100
     topics), this table is the AUTHORITATIVE per-field total. `mean_citations`
     is GONE (SS2.2: "DROPPED, superseded by FWCI") -- `fwci_median` is the
     only per-field impact figure now."""
-    if "collab_pair_fields_df" not in ctx:
-        ctx["collab_pair_fields_df"] = pd.read_parquet(Path(ctx["data_dir"]) / "collab_pair_fields.parquet")
-    return ctx["collab_pair_fields_df"]
+    return _collab_pair_slice(ctx, "collab_pair_fields", a, b)
 
 
 def field_breakdown(ctx: dict, a: str, b: str) -> pd.DataFrame:
@@ -402,9 +469,7 @@ def field_breakdown(ctx: dict, a: str, b: str) -> pd.DataFrame:
     RENDERER that used to sit on top of it is retired (WT_2BR3.md SS0
     ratification, CD4 acceptance: 'field_breakdown() the DATA function
     SURVIVES... only VL's table renderer dies')."""
-    fields = _load_collab_pair_fields(ctx)
-    lo, hi = (a, b) if a < b else (b, a)
-    rows = fields[(fields["a"] == lo) & (fields["b"] == hi)]
+    rows = _load_collab_pair_fields(ctx, a, b)  # already pushed down to this ONE pair
     name_map = P._field_domain_map(ctx)[["field_id", "field_name", "domain_id", "domain_name"]]
     out = rows.merge(name_map, on="field_id", how="left")
     if len(out):
@@ -425,9 +490,7 @@ def _joint_vol_by_topic(ctx: dict, a: str, b: str) -> dict:
     outside the cap and inflating `untapped()`'s gaps; WT_2BR3.md task 5.7 /
     SS0 task 6 #11 confirm this exact mechanism). Empty dict when the pair
     has no qualifying rows at all."""
-    vols = _load_collab_topic_vols(ctx)
-    lo, hi = (a, b) if a < b else (b, a)
-    rows = vols[(vols["a"] == lo) & (vols["b"] == hi)]
+    rows = _load_collab_topic_vols(ctx, a, b)  # already pushed down to this ONE pair
     return dict(zip(rows["topic_id"], rows["vol"]))
 
 
@@ -582,9 +645,7 @@ def pair_momentum(ctx: dict, a: str, b: str) -> dict | None:
     evidence block's d1/d2, re-oriented to the CALLER's (a, b) like every
     other pair-table read in this module. Returns `None` when the pair has
     no `collab_pairs` row at all (never co-published)."""
-    pairs = _load_collab_pairs(ctx)
-    lo, hi = (a, b) if a < b else (b, a)
-    row = pairs[(pairs["a"] == lo) & (pairs["b"] == hi)]
+    row = _load_collab_pairs(ctx, a, b)  # already pushed down to this ONE pair
     if row.empty:
         return None
     row = row.iloc[0]

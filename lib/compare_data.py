@@ -71,7 +71,9 @@ IMPACT_SUBFIELDS_COLS = ["institution_id", "subfield_id", "subfield_name", "pp",
                         "ci_high", "n_works_full", "in_all_ids"]
 TOP_SHARED_SUBFIELDS_COLS = ["subfield_id", "subfield_name", "field_id", "field_name",
                             "domain_id", "domain_name", "summed_share"]
-IMPACT_CELL_FLOORS = (10, 30)  # data_contract.yaml impact_cells.parquet: floor in {10, 30}
+IMPACT_CELL_FLOORS = (30,)  # 2E (E6): deployed impact_cells.parquet ships floor=30 ONLY
+                            # (floor=10 rows dropped by pipeline/20_repack_app_data.py --
+                            # the pipeline artefacts copy at V3/data/artefacts_eu keeps both).
 
 # A9: the six mass_* grey states + classified-eligible, sum to total_frac EXACTLY (WT-2B #7).
 COVERAGE_COLUMN_BY_STATE = {
@@ -331,7 +333,7 @@ def _sdg_year_window_mass(ctx: dict, ids: list[str]) -> pd.DataFrame:
     own basis column without a second read."""
     df = _load_sdg_year(ctx)
     sub = df[df["institution_id"].isin(ids) & df["year"].between(CORE_WINDOW[0], CORE_WINDOW[1])]
-    return sub.groupby(["institution_id", "sdg_idx"], as_index=False)[["mass_frac", "mass_full"]].sum()
+    return sub.groupby(["institution_id", "sdg_idx"], as_index=False, observed=True)[["mass_frac", "mass_full"]].sum()
 
 
 # 2D (P9/CD6, E2/E4): `impact_fields.parquet` and its 10/30 floor variants
@@ -885,7 +887,7 @@ def _dynamics_population_ref(ctx, level: str, tree: str | None, basis: str | Non
         df = _load_sdg_year(ctx)
         vcol = "mass_full" if basis == "full" else "mass_frac"
         piv = df.pivot_table(index=["institution_id", "sdg_idx"], columns="year",
-                             values=vcol, aggfunc="sum", fill_value=0.0)
+                             values=vcol, aggfunc="sum", fill_value=0.0, observed=True)
         w1 = piv.reindex(columns=range(DYNAMICS_W1[0], DYNAMICS_W1[1] + 1), fill_value=0.0).mean(axis=1)
         w2 = piv.reindex(columns=range(DYNAMICS_W2[0], DYNAMICS_W2[1] + 1), fill_value=0.0).mean(axis=1)
         dyn = ((w2 - w1) / w1).where(w1 > 0)
@@ -970,7 +972,9 @@ def _field_dynamics_frame(ctx, subs, ids) -> pd.DataFrame:
     for iid in ids:
         yb = P.yearly_by_subfield(ctx, iid, subs["tree"]).merge(sub_field_map, on="subfield_id", how="left")
         yb["field_id"] = yb["field_id"].fillna(P.UNCLASSIFIED_DOMAIN_ID).astype(int)
-        yb["field_name"] = yb["field_name"].fillna(P.UNCLASSIFIED_DOMAIN_NAME)
+        # 2E: field_name arrives as category (repack) -- astype(str) before
+        # fillna since "Unclassified" is not one of its existing categories.
+        yb["field_name"] = yb["field_name"].astype(str).replace("nan", np.nan).fillna(P.UNCLASSIFIED_DOMAIN_NAME)
         yb = yb[yb["field_id"] != P.UNCLASSIFIED_DOMAIN_ID]  # 2B-R2-4: Unclassified excluded
         for (fid, fname), g in yb.groupby(["field_id", "field_name"]):
             # a field bundles several subfields -- SUM their same-year volumes
@@ -1103,7 +1107,7 @@ def _sdg_share_field_ref_means(ctx: dict, tree: str, basis: str) -> pd.Series:
     numer_col = "mass_any_full" if basis == "full" else "mass_any_frac"
     vol_col = "vol_full" if basis == "full" else "vol_frac"
     sub = sdg_fields_df[(sdg_fields_df["tree"].astype(str) == tree) & (sdg_fields_df["field_id"] != -1)]
-    tagged = sub.groupby(["institution_id", "field_id"])[numer_col].sum()  # v2 grain has no sdg_idx to double-count over
+    tagged = sub.groupby(["institution_id", "field_id"], observed=True)[numer_col].sum()  # v2 grain has no sdg_idx to double-count over
     fields_raw = _load_fields_raw(ctx).set_index(["institution_id", "field_id"])[vol_col]
     # `fields.parquet` ships nonzero-mass (institution, field) rows only (its
     # own grain note) -- so its own index IS "nonzero field mass", and a
@@ -1133,7 +1137,7 @@ def _sdg_share_field_frame(ctx, subs, ids, tree) -> pd.DataFrame:
     sdg_fields_df = _load_sdg_fields(ctx)
     sub = sdg_fields_df[(sdg_fields_df["tree"].astype(str) == tree) & (sdg_fields_df["institution_id"].isin(ids))
                         & (sdg_fields_df["field_id"] != -1)]
-    tagged = sub.groupby(["institution_id", "field_id"])[numer_col].sum()
+    tagged = sub.groupby(["institution_id", "field_id"], observed=True)[numer_col].sum()
     field_mass = subs["fields_df"].set_index(["institution_id", "field_id"])[vol_col]
     field_mass_full = subs["fields_df"].set_index(["institution_id", "field_id"])["vol_full"]
     name_map = P._field_domain_map(ctx)[["field_id", "field_name", "domain_id"]]

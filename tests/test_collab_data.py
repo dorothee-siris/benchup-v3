@@ -216,9 +216,8 @@ def test_joint_profile_anchor_strasbourg_ifpen(ctx, subs_bestfit):
     assert got["meta"]["n_topics_shown"] == 11
     assert int(got["topics"]["vol"].sum()) == 14
 
-    pairs = CL._load_collab_pairs(ctx)
-    lo, hi = sorted([STRASBOURG, IFPEN])
-    prow = pairs[(pairs["a"] == lo) & (pairs["b"] == hi)].iloc[0]
+    pairs = CL._load_collab_pairs(ctx, STRASBOURG, IFPEN)  # already pushed down to this ONE pair
+    prow = pairs.iloc[0]
     assert int(prow["core_total"]) == 14
     assert int(got["topics"]["vol"].sum()) == int(prow["core_total"])
 

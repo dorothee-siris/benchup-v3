@@ -208,20 +208,22 @@ def test_impact_subfields_union_subset_and_in_all_ids(ctx, subs_bestfit):
         set(zip(raw_f["institution_id"], raw_f["subfield_id"]))
 
 
-def test_impact_subfields_floor10_wider_than_floor30(ctx):
-    """A1: floor 10 is the labelled information-only variant with MORE
-    cells (wider intervals) -- anchor: 6-institution union has 208 subfields
-    at floor 10 vs 165 at floor 30."""
+def test_impact_subfields_floor30_only_anchor(ctx):
+    """2E (stream P, E6): floor=10 rows are DROPPED from the deployed
+    impact_cells.parquet (pipeline artefacts keep both; only the app deploy
+    is trimmed) -- IMPACT_CELL_FLOORS is now (30,) only. Anchor unchanged:
+    6-institution union has 165 subfields at floor 30."""
     df30 = CD.impact_subfields(ctx, IDS6, "bestfit", floor=30)
-    df10 = CD.impact_subfields(ctx, IDS6, "bestfit", floor=10)
     assert df30["subfield_id"].nunique() == 165
-    assert df10["subfield_id"].nunique() == 208
-    assert df10["subfield_id"].nunique() > df30["subfield_id"].nunique()
 
 
 def test_impact_subfields_rejects_unshipped_floor(ctx):
     with pytest.raises(AssertionError):
         CD.impact_subfields(ctx, IDS6, "bestfit", floor=20)
+    with pytest.raises(AssertionError):
+        # floor=10 was shipped pre-2E; the deploy trim (E6) makes it an
+        # unshipped floor too, same as any other value outside (30,).
+        CD.impact_subfields(ctx, IDS6, "bestfit", floor=10)
 
 
 # 2BR3 CD4 item 7 (BUILD_PLAN_2BR3.md SS1.5 "'Trends in the 6 subfields'
@@ -371,12 +373,19 @@ def test_metric_frame_field_pp_and_vol_top10_anchor(ctx):
     # SAME raw parquet (never through `compare_data._pp_ref_means`)
     ref_hand = float(taxa[(taxa["grain"] == "field") & (taxa["taxon_id"] == 35)]["pp10_wd"].mean())
     np.testing.assert_allclose(float(row["ref_value"]), ref_hand, rtol=1e-9)
-    np.testing.assert_allclose(ref_hand, 0.16673368436278216, rtol=1e-9)
+    # 2E: impact_taxa.pp10_wd is now float32 (was float64) -- the population
+    # mean over already-float32-quantised inputs legitimately differs from
+    # this float64-golden by ~1.3e-8 relative (float32 rounding, not a value
+    # change); rtol loosened from 1e-9 to 1e-6 to absorb it.
+    np.testing.assert_allclose(ref_hand, 0.16673368436278216, rtol=1e-6)
 
     vol = CD.metric_frame(ctx, None, [STRASBOURG], "field", "vol_top10", tree="bestfit", floor=30)
     vrow = vol[vol["taxon_id"] == 35].iloc[0]
-    np.testing.assert_allclose(vrow["value"], 0.2875 * 160, rtol=1e-9)
-    np.testing.assert_allclose(vrow["value"], 46.0, rtol=1e-9)  # exact, FULL/binary integer count
+    # 2E: pp10_wd is float32 now -- pp10_wd*160 lands at 45.999999 not an exact
+    # 46.0 (float32 rounding on the source value, not a value change); rtol
+    # loosened from 1e-9 to 1e-6 on both checks below.
+    np.testing.assert_allclose(vrow["value"], 0.2875 * 160, rtol=1e-6)
+    np.testing.assert_allclose(vrow["value"], 46.0, rtol=1e-6)  # was exact under float64; now float32-close
     assert vol["ref_value"].isna().all()  # a raw count carries no reference line
 
 
@@ -541,7 +550,7 @@ def test_metric_frame_vol_matches_erc_long_and_sdg_long_mass(ctx):
     # window-slice recompute (never sdg_long/sdg.parquet), for all of IDS6
     sdg_year = pd.read_parquet(Path(ctx["data_dir"]) / "sdg_year.parquet")
     win = sdg_year[sdg_year["institution_id"].isin(IDS6) & sdg_year["year"].between(2020, 2024)]
-    hand = win.groupby(["institution_id", "sdg_idx"])["mass_frac"].sum()
+    hand = win.groupby(["institution_id", "sdg_idx"], observed=True)["mass_frac"].sum()
     np.testing.assert_allclose(got2.reindex(hand.index).to_numpy(dtype="float64"),
                                hand.to_numpy(dtype="float64"), atol=1e-3)
 
@@ -930,7 +939,7 @@ def test_metric_frame_sdg_share_ref_value_hand_pandas_anchor(ctx, subs_bestfit):
     fields_raw = pd.read_parquet(Path(ctx["data_dir"]) / "fields.parquet",
                                  columns=["institution_id", "field_id", "tree", "vol_frac"])
     sub = sdg_fields[(sdg_fields["tree"] == "bestfit") & (sdg_fields["field_id"] == 33)]
-    tagged = sub.groupby("institution_id")["mass_any_frac"].sum()  # v2: already distinct-tagged, no sdg_idx to sum over
+    tagged = sub.groupby("institution_id", observed=True)["mass_any_frac"].sum()  # v2: already distinct-tagged, no sdg_idx to sum over
     fm = fields_raw[(fields_raw["field_id"] == 33) & (fields_raw["tree"] == "bestfit")].set_index("institution_id")["vol_frac"]
     ratio = tagged.reindex(fm.index).fillna(0.0) / fm
     hand_ref = float(ratio.mean())

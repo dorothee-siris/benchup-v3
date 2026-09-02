@@ -814,8 +814,11 @@ def test_a_legend_strip_sits_above_every_chart(engine):
 def test_coverage_states_are_exhaustive_per_institution():
     df = views_compare._coverage(tuple(TRIO))
     assert set(df["state"]) == set(views_compare._state_labels())
+    # 2E: the six mass_* columns are float32 now (were float64) -- their
+    # shares can sum to 1.0 with ~1e-8 slack instead of exact float64
+    # precision; loosened from 1e-9 to 1e-6.
     for iid, total in df.groupby("institution_id")["share"].sum().items():
-        assert total == pytest.approx(1.0, abs=1e-9), (iid, total)
+        assert total == pytest.approx(1.0, abs=1e-6), (iid, total)
 
 
 def test_impact_union_carries_a_missing_cell_at_the_high_floor():
@@ -832,18 +835,18 @@ def test_impact_union_carries_a_missing_cell_at_the_high_floor():
 
 
 def test_the_floor_toggle_changes_both_the_union_and_the_rows_drawn():
-    high, low = views_compare.IMPACT_FLOORS
-    assert high > low
-    union_high = views_compare._impact_subfields(tuple(TRIO), TREE, high)
-    union_low = views_compare._impact_subfields(tuple(TRIO), TREE, low)
-    assert union_low["subfield_id"].nunique() > union_high["subfield_id"].nunique()
+    """2E (E6): the floor 30->10 TOGGLE is retired at the DATA level (the app
+    deploy trims impact_cells.parquet to floor=30 only) -- IMPACT_FLOORS is
+    now (30,), so there is no second floor left to compare against. Re-cast
+    as a sanity check that the single remaining floor still produces a
+    nonempty union with at least some measured (non-n/a) drawn rows."""
+    assert views_compare.IMPACT_FLOORS == (30,)
+    (only_floor,) = views_compare.IMPACT_FLOORS
+    union = views_compare._impact_subfields(tuple(TRIO), TREE, only_floor)
+    assert union["subfield_id"].nunique() > 0
     top = views_compare._top_shared(tuple(TRIO), TREE, BASIS, views_compare.IMPACT_ROWS_TOP_N)
-    shown_high = views_compare._impact_rows(union_high, top)
-    shown_low = views_compare._impact_rows(union_low, top)
-    # the drawn ROW SET is capped at the same cut, so what the lower floor buys
-    # is MEASURED CELLS inside those rows -- fewer n/a marks, wider intervals
-    assert shown_low["pp"].notna().sum() > shown_high["pp"].notna().sum(), (
-        shown_high["pp"].notna().sum(), shown_low["pp"].notna().sum())
+    shown = views_compare._impact_rows(union, top)
+    assert shown["pp"].notna().sum() > 0
 
 
 def test_the_impact_subfield_note_states_the_selection_rule():

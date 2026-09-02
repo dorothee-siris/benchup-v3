@@ -402,9 +402,8 @@ def test_untapped_joint_observed_matches_uncapped_topic_vols(ctx, subs_frac, a, 
     df = got["topics"]
     if df.empty:
         pytest.skip(f"no untapped rows (gap>0) for {a}/{b} -- nothing to check")
-    raw = CL._load_collab_topic_vols(ctx)
-    lo, hi = sorted([a, b])
-    raw_row = raw[(raw["a"] == lo) & (raw["b"] == hi)].set_index("topic_id")["vol"]
+    raw = CL._load_collab_topic_vols(ctx, a, b)  # already pushed down to this ONE pair
+    raw_row = raw.set_index("topic_id")["vol"]
     for _, row in df.iterrows():
         want = float(raw_row.get(row["topic_id"], 0.0))
         assert row["joint_observed"] == want, (

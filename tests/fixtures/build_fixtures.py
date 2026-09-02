@@ -188,24 +188,9 @@ for (iid, sidx), vals in SDG_YEAR_FRAC.items():
                               "mass_frac": float(v), "mass_full": float(v) * 2.0})
 pd.DataFrame(sdg_year_rows).to_parquet(OUT / "sdg_year.parquet", index=False)
 
-# ---------------------------------------------------------------------------
-# impact_fields.parquet -- UNCHANGED schema (SS2.2 lists it unchanged); real
-# columns confirmed 2026-08-31 via a live schema dump of app/data/impact_fields
-# .parquet: pp_denominator_frac + n_works_full both already exist.
-# ---------------------------------------------------------------------------
-IMPACT_FIELDS = {
-    (IA, 1): dict(pp=0.25, lo=0.20, hi=0.30, denom_frac=60.0, n_full=120.0),
-    (IA, 2): dict(pp=0.10, lo=0.05, hi=0.15, denom_frac=25.0, n_full=50.0),
-    (IB, 1): dict(pp=0.40, lo=0.30, hi=0.50, denom_frac=32.0, n_full=64.0),
-    (IC, 1): dict(pp=0.20, lo=0.15, hi=0.25, denom_frac=30.0, n_full=60.0),
-}
-impact_rows = [
-    {"institution_id": iid, "field_id": fid, "tree": "bestfit", "floor": 30,
-     "pp_top10_frac": d["pp"], "pp_ci_low": d["lo"], "pp_ci_high": d["hi"],
-     "pp_denominator_frac": d["denom_frac"], "n_works_full": d["n_full"]}
-    for (iid, fid), d in IMPACT_FIELDS.items()
-]
-pd.DataFrame(impact_rows).to_parquet(OUT / "impact_fields.parquet", index=False)
+# impact_fields.parquet fixture REMOVED 2E (stream P, BUILD_PLAN_2E.md E5): the real
+# file is dead since 2D and deleted from app/data + contract; nothing reads this
+# fixture back (fixture_ctx.py never loaded it either).
 
 # ---------------------------------------------------------------------------
 # impact_taxa.parquet -- NEW 2D (Stream P9/CD6, E2/E4): institution x grain x

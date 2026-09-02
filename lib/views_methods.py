@@ -75,6 +75,7 @@ import json
 import re
 from pathlib import Path
 
+import duckdb
 import pandas as pd
 import streamlit as st
 import yaml
@@ -82,7 +83,7 @@ import yaml
 from lib import copy
 from lib.app_config import CFG
 from lib.charts_compare import LOW_VOLUME_FLOOR
-from lib.data_cache import DATA_DIR, collab_pair_topics, collab_pairs, erc, index, manifest, sdg, topics_dim
+from lib.data_cache import DATA_DIR, erc, index, manifest, sdg, topics_dim
 from lib.palette import NA_MARK
 from lib.profile_data import SI_FLOOR_SOLID, SI_FLOOR_THIN
 from lib.selection import render_sidebar
@@ -171,25 +172,41 @@ def _collab_pair_topic_facts() -> dict:
     on a population the shipped table no longer actually uses, even though
     the two happen to measure equal (5) on this snapshot.
 
-    Reads through `lib.data_cache.collab_pairs()`/`collab_pair_topics()`
-    (stream CD's own `@st.cache_resource` loaders) rather than a second
-    `pd.read_parquet` of the same 58/66 MB files: those two frames are
-    already resident once any other page touches them, so this only ever
-    pays a groupby/merge, never a duplicate load. `st.cache_resource` here
-    (not `cache_data`, per the rest of this module's process-wide pattern)
-    still caches the RESULT of that groupby, so this pays it at most once."""
+    BUILD_PLAN_2E.md E4 (Stream B): ONE duckdb aggregate query over both
+    58/66 MB parquets directly (same in-process duckdb idiom as
+    `lib/collab_data.py`/`lib/engine/derive.py`/`lib/compare_data.py`/
+    `lib/profile_data.py`) -- replaces the old `lib.data_cache.collab_pairs()`
+    /`collab_pair_topics()` whole-table `@st.cache_resource` loaders (now
+    deleted, E4) + pandas groupby/merge. duckdb counts topic rows per pair,
+    inner-joins that count against each pair's own `core_total`, and takes
+    MIN/MAX -- the two scalars this function has ever returned, computed by
+    the query engine instead of two whole DataFrames living in this
+    process's RAM. `st.cache_resource` still caches the RESULT (two ints),
+    so this pays the query at most once per process."""
     if not COLLAB_PAIRS_PATH.is_file() or not COLLAB_PAIR_TOPICS_PATH.is_file():
         return {"collab_topic_floor": NA_MARK, "collab_topic_cap": NA_MARK}
     try:
-        pairs = collab_pairs()[["a", "b", "core_total"]]
-        topics = collab_pair_topics()[["a", "b"]]
-        n_topics = topics.groupby(["a", "b"], observed=True).size().reset_index(name="n_topics")
-        merged = pairs.merge(n_topics, on=["a", "b"], how="inner")
-        if merged.empty:
+        pairs_posix = COLLAB_PAIRS_PATH.as_posix()
+        topics_posix = COLLAB_PAIR_TOPICS_PATH.as_posix()
+        con = duckdb.connect()
+        try:
+            out = con.sql(f"""
+                WITH n_topics AS (
+                    SELECT a, b, COUNT(*) AS n_topics
+                    FROM read_parquet('{topics_posix}')
+                    GROUP BY a, b
+                )
+                SELECT MIN(p.core_total) AS collab_topic_floor, MAX(t.n_topics) AS collab_topic_cap
+                FROM read_parquet('{pairs_posix}') p
+                JOIN n_topics t ON p.a = t.a AND p.b = t.b
+            """).df()
+        finally:
+            con.close()
+        if out.empty or pd.isna(out.loc[0, "collab_topic_floor"]):
             return {"collab_topic_floor": NA_MARK, "collab_topic_cap": NA_MARK}
         return {
-            "collab_topic_floor": int(merged["core_total"].min()),
-            "collab_topic_cap": int(merged["n_topics"].max()),
+            "collab_topic_floor": int(out.loc[0, "collab_topic_floor"]),
+            "collab_topic_cap": int(out.loc[0, "collab_topic_cap"]),
         }
     except Exception:
         return {"collab_topic_floor": NA_MARK, "collab_topic_cap": NA_MARK}

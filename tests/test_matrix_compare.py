@@ -304,15 +304,14 @@ def test_compare_matrix_cell(size, tree, basis, ctx):
     pool = K.FRONTIER_POOLS[cell_index % len(K.FRONTIER_POOLS)]
     _assert_frontier(ctx, subs, ids, pool)
 
-    # -- impact floor toggle 30 -> 10 never REDUCES the union row count (A1: a
-    # lower floor only ADDS subfields to the union, never removes one).
-    high, low = views_compare.IMPACT_FLOORS
-    assert high > low
-    union_high = views_compare._impact_subfields(tuple(ids), tree, high)
-    union_low = views_compare._impact_subfields(tuple(ids), tree, low)
-    assert len(union_low) >= len(union_high), (
-        size, tree, basis, len(union_low), len(union_high))
-    assert union_low["subfield_id"].nunique() >= union_high["subfield_id"].nunique()
+    # -- 2E (E6): the floor 30->10 TOGGLE is retired -- IMPACT_FLOORS ships
+    # (30,) only (app deploy trims floor=10 rows). Sanity check the single
+    # remaining floor still resolves to a real, nonempty union.
+    assert views_compare.IMPACT_FLOORS == (30,)
+    (only_floor,) = views_compare.IMPACT_FLOORS
+    union_only = views_compare._impact_subfields(tuple(ids), tree, only_floor)
+    assert len(union_only) > 0, (size, tree, basis)
+    assert union_only["subfield_id"].nunique() > 0
 
     # -- the deep link the page prints round-trips through selection.parse_query
     # (k in {2, 3} never exceeds state.COMPARE_CAP == 3 -- nothing truncated).
