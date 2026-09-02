@@ -63,7 +63,7 @@ def test_new_table_exists_with_exact_columns(contract: dict, fname: str) -> None
     )
 
 
-def test_contract_declares_21_files(contract: dict) -> None:
+def test_contract_declares_23_files(contract: dict) -> None:
     # 17 (2B-R) -> 18 (2B-R2-12): NEW `collab_pair_fields.parquet` (pair x
     # field, uncapped, bestfit-only -- feeds the 2B-R2-11(a) field-breakdown
     # chart). `collab_pair_topics.parquet` itself is a REGEN, not a new file.
@@ -82,7 +82,12 @@ def test_contract_declares_21_files(contract: dict) -> None:
     # `fwci_taxa_ref.parquet` (institution x grain x taxon FWCI medians/means
     # + the EU corpus-median reference, D2/D3). Live-verified against
     # `ops/deploy.py --check-only` -> "21 file(s) verified".
-    assert len(contract["files"]) == 21, sorted(contract["files"])
+    # 21 -> 23 (BUILD_PLAN_2D.md, P9, 2026-09-02): NEW `impact_taxa.parquet`
+    # (institution x grain x taxon PP10_WD, full/binary, doc-level substrate
+    # in data/interim) + `share_refs.parquet` (European mean share per
+    # grain x taxon x basis, mean-of-ratios). Live-verified against
+    # `ops/deploy.py --check-only` -> "23 file(s) verified, 275.91 MB".
+    assert len(contract["files"]) == 23, sorted(contract["files"])
 
 
 # ---------------------------------------------------------------------------

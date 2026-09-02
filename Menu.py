@@ -1,17 +1,22 @@
 """
 Landing page. Nav cards are enumerated from pages/ at runtime (Lorraine Phase 2 Menu.py
 pattern): a dimension is a live st.page_link once a file matching its word exists under
-pages/, otherwise it renders greyed with "Phase 2B" -- so this file never hardcodes a
-filename that a later stream has not built yet.
+pages/.
 
 Stream M (Phase 2B, 2B-10): four cards in narrative order (Find -> Compare -> Collaborate
 -> Methods), editorial labels/blurbs from copy.NAV rather than the bare dimension word.
 The MATCH word (used only to find the live page file under pages/, exactly the 2A
 mechanism) stays the plain word -- it must be a substring of the file's own name
 ("1_(magnifying-glass)_Find.py", "4_(open-book)_Methods.py", ...), which an editorial
-label like "How it is built" is not. C and L (Compare/Collaborate pages) may not exist
-yet when this runs: the existing exists-under-pages/ check handles that exactly as it did
-for Compare/Collaborate in 2A, unchanged here.
+label like "How it is built" is not.
+
+2D (stream MT4, press audit J2): the earlier greyed-fallback branch for a dimension whose
+page file does not exist yet is GONE. All four page files have been stable for three
+phases running, so the fallback's own literal build-phase name ("Phase 2B") sat one page
+rename or deploy hiccup away from being the first thing a reader saw on a broken card --
+a real risk with no offsetting benefit once the app itself is this settled. A card whose
+page file ever went missing again would still render its label and blurb, just with no
+live link, rather than a stale internal phase name.
 """
 from __future__ import annotations
 
@@ -55,14 +60,10 @@ with st.container(key="nav_cards"):
         match = next((fn for fn in _existing_pages if word.lower() in fn.lower()), None)
         with col:
             with st.container(border=True, key=f"nav_card_{word.lower()}"):
+                st.markdown(f"**{label}**")
+                st.caption(blurb)
                 if match:
-                    st.markdown(f"**{label}**")
-                    st.caption(blurb)
                     st.page_link(f"pages/{match}", label=f"Open {label}")
-                else:
-                    st.markdown(f":grey[**{label}**]")
-                    st.caption(blurb)
-                    st.caption(":grey[Phase 2B]")
 
 st.markdown("---")
 

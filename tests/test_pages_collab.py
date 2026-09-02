@@ -372,6 +372,8 @@ DELETED_FUNCTIONS = [
     # `test_no_hand_built_html_tables_remain` below instead of by name here,
     # since that name is itself the retired feature's own name).
     "_with_domains", "_chip", "_taxon_cell", "_header_cell", "_table", "_vol",
+    # E12/E10 (2D): the "Not shown here, and why" mechanism retires app-wide.
+    "_render_not_offered",
 ]
 
 
@@ -552,6 +554,127 @@ class TestPageGroup:
                  copy.COLLAB["UNTAPPED_HEADER"]]
         positions = [heads.index(h) for h in order]
         assert positions == sorted(positions), heads
+
+    def test_the_one_download_button_renders_at_the_end_of_the_real_page(self):
+        """E7, live: exactly one download button on the whole page (Streamlit
+        testing exposes `st.download_button` via its OWN `at.download_button`
+        list, distinct from `at.button`), labelled per copy.py."""
+        at = self._app(a=self.STRASBOURG, b=self.CNRS).run()
+        assert not at.exception, [str(e) for e in at.exception]
+        assert len(at.download_button) == 1
+        assert at.download_button[0].label == copy.COLLAB["EXPORT_XLSX_BUTTON"]
+
+    # ---- E7 workbook, real data --------------------------------------------
+    # `_fields_frame`/`_reciprocity_frame`/`_joint_frame`/`_untapped_frame`
+    # are `@st.cache_data` wrappers that call the REAL `views_find._bundle()`/
+    # `_subs()` internally, ignoring whatever `ctx` a caller hands them -- so
+    # `_workbook_sheets` can only be exercised meaningfully against a REAL
+    # pair, never the small hand-built fixture context the rest of this file
+    # uses. Strasbourg x CNRS (this class's own PAIR) is real and already
+    # warmed by the render tests above, run earlier in this same class.
+
+    def test_workbook_sheets_are_six_in_page_order_and_carry_every_topic_row(self):
+        bundle = VC._bundle()
+        sc = {"tree": "bestfit", "basis": "frac"}
+        VC._subs(sc["tree"], sc["basis"])
+        sheets = VC._workbook_sheets(bundle, self.STRASBOURG, self.CNRS, sc)
+        labels = [label for label, _frame in sheets]
+        assert labels == [
+            copy.COLLAB["XLSX_SHEET_OVERVIEW"], copy.COLLAB["XLSX_SHEET_PULSE"],
+            copy.COLLAB["XLSX_SHEET_FIELDS"], copy.COLLAB["XLSX_SHEET_RECIPROCITY"],
+            copy.COLLAB["XLSX_SHEET_TOPICS"], copy.COLLAB["XLSX_SHEET_UNTAPPED"],
+        ]
+        by_label = dict(sheets)
+        assert all(isinstance(frame, pd.DataFrame) for frame in by_label.values())
+        # the on-screen table caps at ROWS_DEFAULT (20) before "Show all" is
+        # clicked; the workbook sheet must carry the FULL frame regardless.
+        prof = CL.joint_profile(bundle["ctx"], VC._subs(sc["tree"], sc["basis"]),
+                                self.STRASBOURG, self.CNRS)
+        assert len(by_label[copy.COLLAB["XLSX_SHEET_TOPICS"]]) == len(prof["topics"])
+        assert len(prof["topics"]) > VC.ROWS_DEFAULT, "fixture no longer exercises the cap"
+
+    def test_workbook_bytes_roundtrip_sheet_names_and_one_value_matches_the_page(self):
+        """The bytes `workbook_bytes` produces are a real, readable .xlsx
+        whose sheet names match `copy.COLLAB`'s own labels and whose
+        'Fields' sheet carries the SAME field-breakdown volumes the
+        on-screen chart draws (`CL.field_breakdown`, the `_fields_chart`
+        data source) -- a one-value spot-check against the page."""
+        import io
+
+        from lib.exports_xlsx import workbook_bytes
+
+        bundle = VC._bundle()
+        sc = {"tree": "bestfit", "basis": "frac"}
+        sheets = VC._workbook_sheets(bundle, self.STRASBOURG, self.CNRS, sc)
+        raw = workbook_bytes(sheets)
+        book = pd.read_excel(io.BytesIO(raw), sheet_name=None, engine="openpyxl")
+        assert set(book) == {label for label, _frame in sheets}
+
+        page_fields = CL.field_breakdown(bundle["ctx"], self.STRASBOURG, self.CNRS)
+        sheet_fields = book[copy.COLLAB["XLSX_SHEET_FIELDS"]]
+        assert len(sheet_fields) == len(page_fields)
+        top_field_name = page_fields.sort_values("vol", ascending=False).iloc[0]["field_name"]
+        top_vol_on_page = float(page_fields.sort_values("vol", ascending=False).iloc[0]["vol"])
+        top_vol_in_sheet = float(
+            sheet_fields[sheet_fields["field_name"] == top_field_name].iloc[0]["vol"])
+        np.testing.assert_allclose(top_vol_in_sheet, top_vol_on_page)
+
+
+# ============================================================================
+# 12. E7 -- the one end-of-page workbook (2D VL4)
+# ============================================================================
+
+def _named_ctx(ctx: dict) -> dict:
+    """The shared `tests/fixtures/fixture_ctx.py` context carries no
+    `display_name` column on `index_by_id` (no OTHER test in this file calls
+    `views_collab._name()` against it -- every existing render test passes a
+    literal name string straight to a chart builder instead). `_facts_frame`
+    is the first thing in this file to need one, so it is added HERE, on a
+    shallow copy, local to these E7 tests -- `tests/fixtures/fixture_ctx.py`
+    itself is outside this stream's fence and is left untouched."""
+    idx = ctx["index_by_id"].copy()
+    idx["display_name"] = pd.Series({IA: "Institution A", IB: "Institution B", IC: "Institution C"})
+    out = dict(ctx)
+    out["index_by_id"] = idx
+    return out
+
+
+def test_not_offered_keys_are_gone_from_collab_copy():
+    """E12/E10: the mechanism and its three per-page reasons are deleted,
+    not merely unrendered."""
+    for key in ("NOT_OFFERED_GAPS", "NOT_OFFERED_GAPS_REASON", "NOT_OFFERED_BREADTH",
+                "NOT_OFFERED_BREADTH_REASON", "NOT_OFFERED_SUBFIELDS", "NOT_OFFERED_SUBFIELDS_REASON"):
+        assert key not in copy.COLLAB, key
+
+
+def test_workbook_facts_sheet_matches_the_pinned_momentum_case(ctx):
+    """SAME fixture numbers `test_pair_momentum_frame_matches_the_fixtures_
+    hand_verified_ladder_case` pins: mom_class 'up', c1=15, c2=6, d1=450,
+    d2=360 -> '+50%'. The workbook's facts sheet must carry the identical
+    figures, never a second, independently-computed set."""
+    mom = CL.pair_momentum(ctx, IA, IB)
+    pulse_row = CL.pulse(ctx, IA, IB)
+    sc = {"tree": "bestfit", "basis": "frac"}
+    facts = VC._facts_frame(_named_ctx(ctx), IA, IB, mom, pulse_row, sc, n_institutions=3)
+    by_item = dict(zip(facts[copy.COLLAB["XLSX_COL_ITEM"]], facts[copy.COLLAB["XLSX_COL_VALUE"]]))
+    assert by_item[copy.COLLAB["XLSX_ROW_MOMENTUM"]] == "+50%"
+    assert by_item[copy.COLLAB["XLSX_ROW_SIGNIFICANCE"]] == "0.010"
+    assert IA in by_item[copy.COLLAB["XLSX_ROW_INSTITUTION_A"]]
+    assert IB in by_item[copy.COLLAB["XLSX_ROW_INSTITUTION_B"]]
+
+
+def test_render_export_is_the_only_download_button_in_this_streams_file():
+    """E7: every per-section download button this page might have grown
+    stays refused -- exactly one `st.download_button(` call in the whole
+    module, the one E7 asks for at the very end of the page."""
+    src = (APP_DIR / "lib" / "views_collab.py").read_text(encoding="utf-8")
+    assert src.count("st.download_button(") == 1
+
+
+def test_render_calls_the_export_last():
+    src = (APP_DIR / "lib" / "views_collab.py").read_text(encoding="utf-8")
+    render_body = src.split("def render() -> None:", 1)[1]
+    assert render_body.strip().splitlines()[-1].strip() == "_render_export(bundle, a, b, scenario)"
 
 
 if __name__ == "__main__":  # pragma: no cover

@@ -216,6 +216,15 @@ XLSX_METHODS_SHEET = "Methods"
 # the second, unrelated staleness.
 XLSX_SHEET_COUNT = 10
 
+# 2D (Stream VF4): Find's own all-lenses workbook (E7) -- Profile + Overview
+# + one sheet per ALL_LENSES code (10) + Aspirational = 13, measured against
+# the live app (`evals/vf4_2D_shots/capture.py`); a FLOOR, not an exact
+# count, since a scenario's own filters/undefined lenses never drop a sheet
+# (an empty or "undefined" frame still gets its named sheet, `exports_xlsx.
+# workbook_bytes`'s own rule) but a future lens ADDED to `ALL_LENSES` should
+# not need this check re-pinned.
+FIND_XLSX_SHEET_MIN = 13
+
 # 2BR3 Compare section order (hardcoded literals, never re-imported from
 # copy.py -- see the non-vacuity note at the smoke suite's original design).
 COMPARE_SECTION_ORDER = [
@@ -1057,32 +1066,55 @@ def check_benchmark_lens_guide(page) -> None:
     _no_exception(page, "Benchmark lens guide")
 
 
-def _download_csv_header(page, click_selector: str) -> str:
-    with page.expect_download(timeout=ACTION_TIMEOUT_MS) as dl_info:
-        page.locator(click_selector).click(timeout=ACTION_TIMEOUT_MS)
-    download = dl_info.value
-    path = download.path()
-    with open(path, "r", encoding="utf-8") as fh:
-        return fh.readline()
-
-
 def check_tables_and_export(page) -> None:
+    """E7 (Phase 2D, stream VF4): the per-lens/per-tab CSV buttons this check
+    used to click (`dl_L0`) are RETIRED -- every lens now downloads together
+    in the ONE end-of-page workbook, checked separately by
+    `check_find_workbook` below. This check keeps proving the tables
+    themselves render and that neither retired button is still in the DOM."""
     tabs = page.locator('[role="tab"]')
     tabs.nth(1).click(timeout=ACTION_TIMEOUT_MS)
     _settle(page, 2000)
     check(page.locator('.st-key-tbl_L0 [data-testid="stDataFrame"]').count() >= 1,
           "Lens table: L0's ranked table renders")
-    header = _download_csv_header(page, ".st-key-dl_L0 button")
-    check("total_frac_2020_2024" in header, "CSV export: header carries total_frac_2020_2024")
-    check("badge" not in header, "CSV export: header carries NO badge column")
+    check(page.locator(".st-key-dl_L0").count() == 0,
+          "E7: the per-lens CSV download button (dl_L0) is gone from the L0 tab")
 
     tabs.last.click(timeout=ACTION_TIMEOUT_MS)
     _settle(page, 2500)
     check(page.locator('.st-key-tbl_aspirational [data-testid="stDataFrame"]').count() >= 1,
           "Aspirational tab: its own table renders")
+    check(page.locator(".st-key-dl_aspirational").count() == 0,
+          "E7: the aspirational tab's own CSV download button is gone")
     tabs.nth(0).click(timeout=ACTION_TIMEOUT_MS)
     _settle(page, 1500)
     _no_exception(page, "Tables / export")
+
+
+def check_find_workbook(page) -> None:
+    """E7 (Phase 2D, stream VF4): the ONE end-of-page workbook that replaces
+    every per-lens/per-tab CSV on Find. Mirrors Compare's own
+    `.st-key-dl_workbook` proof (this file, `check_compare_page`) -- the
+    button's own presence is asserted unconditionally, the download+contents
+    proof is wrapped in its own try/except so a slow/undelivered download
+    event never takes the rest of the run down with it."""
+    dl_btn = page.locator(".st-key-dl_find_workbook button").first
+    check(dl_btn.count() >= 1, "Find: the end-of-page workbook button renders")
+    if not dl_btn.count():
+        return
+    try:
+        dl_btn.scroll_into_view_if_needed(timeout=10_000)
+        with page.expect_download(timeout=45_000) as dl_info:
+            dl_btn.click(timeout=ACTION_TIMEOUT_MS)
+        raw = Path(dl_info.value.path()).read_bytes()
+        check(raw[:2] == b"PK", "Find: the workbook downloads as a real xlsx container")
+        book = openpyxl.load_workbook(io.BytesIO(raw))
+        check(len(book.sheetnames) >= FIND_XLSX_SHEET_MIN,
+              f"Find: the workbook carries at least {FIND_XLSX_SHEET_MIN} sheets "
+              f"({book.sheetnames})")
+        check("Profile" in book.sheetnames, "Find: the workbook carries a Profile sheet")
+    except Exception as exc:  # noqa: BLE001 -- bounded, non-fatal to the rest
+        fail_section("Find workbook download", exc)
 
 
 def check_settings(page) -> None:
@@ -1723,6 +1755,7 @@ def main() -> int:
                 ("A11 tab overflow", lambda: check_tab_overflow_a11(page)),
                 ("Benchmark lens guide", lambda: check_benchmark_lens_guide(page)),
                 ("Tables / export", lambda: check_tables_and_export(page)),
+                ("Find workbook download", lambda: check_find_workbook(page)),
                 ("Settings", lambda: check_settings(page)),
                 ("Type filter clear", lambda: check_type_filter_clear(page)),
                 ("Undefined lens", lambda: check_undefined_lens(page, app_dir)),

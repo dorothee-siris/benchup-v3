@@ -334,16 +334,71 @@ def _sdg_year_window_mass(ctx: dict, ids: list[str]) -> pd.DataFrame:
     return sub.groupby(["institution_id", "sdg_idx"], as_index=False)[["mass_frac", "mass_full"]].sum()
 
 
-def _load_impact_fields(ctx: dict) -> pd.DataFrame:
-    """Lazy, ctx-cached (`impact_fields.parquet`, 2B-R-15/A8): institution x
-    field (26) x tree x floor bootstrap PP(top10%) cells -- the SAME per-work
-    top-10% flag as `impact_cells.parquet`, rolled up to field grain."""
-    if "impact_fields_df" not in ctx:
-        ctx["impact_fields_df"] = pd.read_parquet(Path(ctx["data_dir"]) / "impact_fields.parquet")
-    return ctx["impact_fields_df"]
+# 2D (P9/CD6, E2/E4): `impact_fields.parquet` and its 10/30 floor variants
+# (the OLD field-grain PP(top10%) table, FRACTIONAL weight_frac attribution)
+# are RETIRED from this API path -- `metric_frame`'s `pp`/`vol_top10` now read
+# `impact_taxa.parquet` (below) at all four grains instead. Grepped 2026-09-02:
+# nothing else in this codebase imports `_load_impact_fields`/
+# `IMPACT_FIELD_FLOORS`/`_field_impact_ref_means`/`_field_pp_frame` (all four
+# deleted with this note) -- `impact_fields.parquet` the FILE stays declared
+# in `ops/deploy.py`/`data_contract.yaml`/`tests/fixtures/build_fixtures.py`
+# (untouched, out of this stream's fence) and `lib/data_cache.impact_fields()`
+# stays defined but was already unused before this change (a separate, dead
+# reader in a file CD6 does not own). `impact_cells.parquet`/
+# `IMPACT_CELL_FLOORS`/`impact_subfields()` (the DIFFERENT subfield-grain
+# bootstrap-CI panel behind Compare's "Impact by subfield" section,
+# views_compare.py's own `IMPACT_FLOORS`) are a SEPARATE system this deviation
+# does not touch at all.
+
+def _load_impact_taxa(ctx: dict) -> pd.DataFrame:
+    """Lazy, ctx-cached: `impact_taxa.parquet` (2D, pipeline step 19, Stream
+    P9) -- institution x grain x taxon_id, PP10_WD (FULL/binary), floored at
+    n_covered_pp>=1 only (E4: NO 10/30 mass-floor gate in this table -- a
+    below-floor row is a UI-layer caution-channel rule over this same read,
+    never re-applied here)."""
+    if "impact_taxa_df" not in ctx:
+        ctx["impact_taxa_df"] = pd.read_parquet(Path(ctx["data_dir"]) / "impact_taxa.parquet")
+    return ctx["impact_taxa_df"]
 
 
-IMPACT_FIELD_FLOORS = (10, 30)  # data_contract.yaml impact_fields.parquet: floor in {10, 30}, same as IMPACT_CELL_FLOORS
+def _load_share_refs(ctx: dict) -> pd.DataFrame:
+    """Lazy, ctx-cached: `share_refs.parquet` (2D, pipeline step 19, Stream
+    P9, E8) -- grain x taxon_id x basis: the unweighted mean-of-ratios
+    European reference share, at ALL FOUR grains (data_contract.yaml: the
+    SAME statistic `profile_data._unfloored_si`/this file's own
+    `_sdg_share_field_ref_means` already compute on the fly for field/
+    subfield -- WT_2D.md claim 5's 'three independent implementations of one
+    convention')."""
+    if "share_refs_df" not in ctx:
+        ctx["share_refs_df"] = pd.read_parquet(Path(ctx["data_dir"]) / "share_refs.parquet")
+    return ctx["share_refs_df"]
+
+
+def _share_ref_series(ctx: dict, grain: str, basis: str) -> pd.Series:
+    """taxon_id -> eu_mean_share at (grain, basis), cached on ctx. sdg/erc
+    ship the IDENTICAL value under both basis rows (share_refs.parquet's own
+    documented convention: sdg.parquet/erc.parquet carry no basis-toggled
+    share column either) -- so a caller never needs a grain-specific special
+    case, it always joins on (grain, taxon_id, basis)."""
+    key = f"_share_ref_{grain}_{basis}"
+    if key not in ctx:
+        refs = _load_share_refs(ctx)
+        sub = refs[(refs["grain"] == grain) & (refs["basis"] == basis)]
+        ctx[key] = sub.set_index("taxon_id")["eu_mean_share"].astype("float64")
+    return ctx[key]
+
+
+# E1 terminology (BUILD_PLAN_2D.md decisions log): the full "European
+# baseline" definition is spelled out ONCE here, project-wide, per the ruling
+# that it "appears ONCE per string family, keep strings short otherwise" --
+# MT4's Methods copy (out of this file's fence) carries the canonical
+# reader-facing definition; this file's own reference-line labels below reuse
+# the SHORT form only.
+EUROPEAN_BASELINE_LABEL = "European baseline"
+SHARE_REF_NOTE = (
+    "European baseline: the average share held by institutions across the EU27 and the "
+    "selected partner countries (United Kingdom, Switzerland, Norway, Iceland)."
+)
 
 
 # ---------------------------------------------------------------- overview --
@@ -475,18 +530,18 @@ def _grain_total_by_institution(base: pd.DataFrame, vcol: str) -> pd.Series:
 # frame's `.attrs["reason"]` so the page can hide the option instead of
 # rendering an empty chart -- every string here is written for an external
 # reader: no plan codes, no artefact filenames, no mention of a pipeline.
+# 2D (E2/E4/E8, decisions log 2026-09-02): PP10_WD now aggregates to ANY
+# grain (impact_taxa.parquet, all four) and SI now has a European-baseline
+# reference at every grain too (share_refs.parquet) -- so `pp`/`vol_top10` at
+# subfield/erc/sdg and `si` at sdg are REMOVED from this dict (they were the
+# exact "not available" pairs U1 in the press audit flagged as about to go
+# stale the moment E2 shipped). What is left is genuinely still unavailable:
+# `sdg_share`/`dynamics`/`vol` have no such rebuild this round.
 UNAVAILABLE_REASON = {
-    ("vol_top10", "subfield"): "Publications in the world top decile are only shown at field level here -- see the Find profile for subfield-level detail.",
-    ("pp", "subfield"): "Publications in the world top decile are only shown at field level here -- see the Find profile for subfield-level detail.",
     ("sdg_share", "subfield"): "SDG-tagged share is only shown at field level.",
-    ("vol_top10", "erc"): "Publications in the world top decile are not available for ERC research panels.",
-    ("pp", "erc"): "Publications in the world top decile are not available for ERC research panels.",
     ("sdg_share", "erc"): "SDG-tagged share is not defined for ERC research panels.",
     ("dynamics", "erc"): "Change over time needs year-by-year data, which is not available for ERC research panels.",
-    ("vol_top10", "sdg"): "Publications in the world top decile are not available crossed with the SDGs.",
-    ("pp", "sdg"): "Publications in the world top decile are not available crossed with the SDGs.",
     ("sdg_share", "sdg"): "SDG-tagged share is not meaningful when the row is already a Sustainable Development Goal.",
-    ("si", "sdg"): "Specialisation is not shown here for the SDGs -- see the SDG view's own goal-specialisation figure instead.",
     ("vol", "field"): "Volume: shown in the chart gutter instead of as a tab.",
     ("vol", "subfield"): "Volume: shown in the chart gutter instead of as a tab.",
 }
@@ -610,26 +665,54 @@ def _share_denom_value(ctx, subs, ids, level, base_filtered: pd.DataFrame) -> pd
     return base_filtered["institution_id"].map(totals)
 
 
+# 2D (E8, PRESS-A J1 rewrite, decisions log 2026-09-02 denominator split):
+# EVERY `denominator` string below is now plain reader prose -- no notation,
+# no column names, windows named in words per E1. The engineering provenance
+# (which raw column, which Sigma-identity, which window in code terms) that
+# USED to live inline in these strings now lives ONLY in the code comment
+# beside each one; `views_compare._metric_tip` (VC4's fence) renders the
+# string verbatim into a tooltip, so nothing here may leak internals again.
+SHARE_DENOM_FIELD = "the institution's whole output across every field it publishes in"
+# provenance: own total mass across ALL fields in this scenario (Sigma_field
+# share == 1); whole-run window (2020-2025), unlike the top-decile and SDG
+# panels' 2020-2024 window.
+SHARE_DENOM_SUBFIELD = ("the institution's whole output across every subfield, not only the ones "
+                        "in the field drilled into here")
+# provenance: own total mass across ALL subfields in this scenario
+# (Sigma_subfield share == 1, not just this field's subfields); whole-run
+# window (2020-2025), unlike the top-decile and SDG panels' 2020-2024 window.
+SHARE_DENOM_ERC = ("the institution's own ERC-classified output; a publication split across "
+                   "panels counts a fraction toward each")
+# provenance: own ERC-classified fractional mass (index.erc_classified_mass_frac);
+# Sigma(share) <= 1, single-label-dominant.
+SHARE_DENOM_SDG = ("the institution's own SDG-tagged output; a publication can carry several "
+                   "goals, so the shares can add up to more than the whole")
+# provenance: own SDG-tagged fractional mass; MULTI-LABEL (a work can carry
+# several SDGs) -- Sigma(share) over the 16 SDGs can exceed 1.
+
+
 def _share_frame(ctx, subs, ids, level, field_id=None) -> pd.DataFrame:
+    basis = (subs or {}).get("basis") or "frac"
     if level == "field":
         base = fields_long(ctx, subs, ids).rename(columns={"field_id": "taxon_id", "field_name": "taxon_label"})
-        denom = ("own total mass across ALL fields in this scenario (Sigma_field share == 1); "
-                 "whole-run window (2020-2025), unlike the top-decile and SDG panels' 2020-2024 window")
+        denom = SHARE_DENOM_FIELD
     elif level == "subfield":
         base = subfields_long(ctx, subs, ids)
         base = base[base["field_id"] == field_id].rename(
             columns={"subfield_id": "taxon_id", "subfield_name": "taxon_label"})
-        denom = ("own total mass across ALL subfields in this scenario (Sigma_subfield share == 1, "
-                 "not just this field's subfields); whole-run window (2020-2025), unlike the "
-                 "top-decile and SDG panels' 2020-2024 window")
+        denom = SHARE_DENOM_SUBFIELD
     elif level == "erc":
         base = erc_long(ctx, ids).rename(columns={"panel_idx": "taxon_id", "panel_label": "taxon_label"})
-        denom = "own ERC-classified fractional mass (index.erc_classified_mass_frac); Sigma(share) <= 1, single-label-dominant"
+        denom = SHARE_DENOM_ERC
     else:  # sdg
         base = sdg_long(ctx, ids).rename(columns={"sdg_idx": "taxon_id", "sdg_label": "taxon_label"})
-        denom = "own SDG-tagged fractional mass; MULTI-LABEL (a work can carry several SDGs) -- Sigma(share) over the 16 SDGs can exceed 1"
+        denom = SHARE_DENOM_SDG
     out = base[["institution_id", "taxon_id", "taxon_label", "share"]].rename(columns={"share": "value"})
-    out["ref_value"] = None
+    # 2D E8: the Share tab's own European-mean diamond -- SAME lookup table
+    # SI divides by (share_refs.parquet), at ALL FOUR grains now (was `None`
+    # everywhere pre-2D), matching basis for field/subfield (sdg/erc ship one
+    # value under both bases).
+    out["ref_value"] = out["taxon_id"].map(_share_ref_series(ctx, level, basis))
     out["denominator"] = denom
     out["denom_value"] = _share_denom_value(ctx, subs, ids, level, base)
     out["domain_id"], out["domain_order"] = _domain_cols_for(base, level)
@@ -642,19 +725,57 @@ def _share_frame(ctx, subs, ids, level, field_id=None) -> pd.DataFrame:
     return out.reindex(columns=METRIC_FRAME_COLS)
 
 
+SI_DENOM_FIELD = "the average share held by every institution active in this field"
+SI_DENOM_SUBFIELD = "the average share held by every institution active in this subfield"
+SI_DENOM_ERC = "the average share held by every institution active in this ERC panel"
+SI_DENOM_SDG = "the average share held by every institution active in this SDG"
+# provenance (all four, PRESS-A J1 exact strings for field/subfield/erc,
+# matching-register prose for the new sdg line): population MEAN share among
+# institutions with nonzero mass in this taxon -- field/subfield stay their
+# own on-the-fly `profile_data` recompute (unfloored at both grains, R2 L34);
+# erc/sdg now read `share_refs.parquet`'s SAME mean-of-ratios statistic (E8)
+# instead of erc.parquet's own shipped `si` column / a nonexistent sdg
+# equivalent -- VERIFIED numerically identical to the old shipped erc.si for
+# every row checked (2026-09-02 probe), so this is a rebase onto a shared
+# table, not a value change.
+
+
+def _taxon_si_from_share(share: pd.Series, taxon_id: pd.Series, ref: pd.Series) -> pd.Series:
+    """`share / eu_mean_share`, joined by `taxon_id` -- the SAME division
+    `profile_data._unfloored_si` does for field/subfield, generalised over
+    any lookup Series (E8: now shared by erc/sdg via `share_refs.parquet`
+    instead of a bespoke recompute per grain). 0-safe (a taxon with a zero
+    population mean, which should not occur in `share_refs.parquet`'s own
+    nonzero-mass population, still degrades to NaN rather than a raw
+    ZeroDivisionError/inf)."""
+    mean_share = taxon_id.map(ref).astype("float64")
+    share = share.astype("float64")
+    with np.errstate(invalid="ignore", divide="ignore"):
+        return pd.Series(np.where(mean_share > 0, share / mean_share, np.nan), index=share.index)
+
+
 def _si_frame(ctx, subs, ids, level, field_id=None) -> pd.DataFrame:
+    basis = (subs or {}).get("basis") or "frac"
     if level == "field":
         base = fields_long(ctx, subs, ids).rename(columns={"field_id": "taxon_id", "field_name": "taxon_label"})
-        denom = "population mean share among institutions with nonzero mass in this field (no floor at field grain)"
+        value = base["si"]
+        denom = SI_DENOM_FIELD
     elif level == "subfield":
         base = subfields_long(ctx, subs, ids)
         base = base[base["field_id"] == field_id].rename(
             columns={"subfield_id": "taxon_id", "subfield_name": "taxon_label"})
-        denom = "population mean share among institutions with nonzero mass in this subfield (unfloored recompute, R2 L34 -- equals the ratified floored subfields.si wherever that is itself defined)"
-    else:  # erc
+        value = base["si"]
+        denom = SI_DENOM_SUBFIELD
+    elif level == "erc":
         base = erc_long(ctx, ids).rename(columns={"panel_idx": "taxon_id", "panel_label": "taxon_label"})
-        denom = "population mean share among institutions with nonzero mass in this ERC panel (no floor observed)"
-    out = base[["institution_id", "taxon_id", "taxon_label", "si"]].rename(columns={"si": "value"})
+        value = _taxon_si_from_share(base["share"], base["taxon_id"], _share_ref_series(ctx, "erc", basis))
+        denom = SI_DENOM_ERC
+    else:  # sdg -- 2D E8: newly offered (was UNAVAILABLE_REASON[("si","sdg")])
+        base = sdg_long(ctx, ids).rename(columns={"sdg_idx": "taxon_id", "sdg_label": "taxon_label"})
+        value = _taxon_si_from_share(base["share"], base["taxon_id"], _share_ref_series(ctx, "sdg", basis))
+        denom = SI_DENOM_SDG
+    out = base[["institution_id", "taxon_id", "taxon_label"]].copy()
+    out["value"] = value  # index-aligned to `base` in every branch above
     out["ref_value"] = 1.0  # 2B-R-5: SI reference line is always 1
     out["denominator"] = denom
     out["denom_value"] = np.nan  # SI is a ratio against a population MEAN, not a share of a knowable total -- no count-style denominator to print (v4 SS2.5: absence, not a fabricated number)
@@ -916,7 +1037,7 @@ def _sdg_dynamics_frame(ctx, subs, ids) -> pd.DataFrame:
     `vol_full_annual_mean` (the low-volume floor marker) is now POPULATED --
     v2's `mass_full` finally makes it derivable here (v3's NaN-always gap is
     closed); it stays on the FULL basis regardless of the page's toggle, the
-    same convention `_field_dynamics_frame`/`_field_pp_frame` already use."""
+    same convention `_field_dynamics_frame`/`_pp_frame` already use."""
     sdg_year_df = _load_sdg_year(ctx)
     labels = P._sdg_labels(ctx)[["sdg_idx", "sdg_label", "sdg_number"]]
     vcol = "mass_full" if subs["basis"] == "full" else "mass_frac"
@@ -943,89 +1064,6 @@ def _sdg_dynamics_frame(ctx, subs, ids) -> pd.DataFrame:
                         "vol_top10": None})
     out = pd.DataFrame(rows, columns=METRIC_FRAME_COLS)
     return _attach_dynamics_ref(ctx, out, "sdg", None, subs["basis"])
-
-
-def _field_impact_ref_means(ctx, tree, floor) -> pd.Series:
-    """Population mean `pp_top10_frac` per field, over ALL institutions
-    shipping that (field, tree, floor) cell in `impact_fields.parquet` --
-    the 'index PP' reference line (2B-R-5), computed once per (tree, floor)
-    and cached on ctx (164,477 rows total, cheap to group once)."""
-    key = f"_impact_fields_mean_pp_{tree}_{floor}"
-    if key not in ctx:
-        f = _load_impact_fields(ctx)
-        sub = f[(f["tree"].astype(str) == tree) & (f["floor"] == floor)]
-        ctx[key] = sub.groupby("field_id")["pp_top10_frac"].mean()
-    return ctx[key]
-
-
-def _field_pp_frame(ctx, ids, tree, floor, want_vol: bool, basis: str = "frac") -> pd.DataFrame:
-    """Field-grain `pp` or `vol_top10` from `impact_fields.parquet`. Missing
-    cell (this institution has no impact_fields row for this field/tree/
-    floor) means the field is simply ABSENT from the returned frame for that
-    institution -- never a 0 or NaN placeholder row (this table is sparse-
-    to-candidate-cells, unlike sdg.parquet's dense convention).
-
-    `vol_display`/`denom_value` (the PP gutter) now follow `basis` (2BR3
-    item 1/SS2.5: "PP gutter = pp_denominator_frac when basis=frac /
-    n_works_full when full" -- BOTH already ship on `impact_fields.parquet`,
-    confirmed 2026-08-31 via a live schema dump; this metric is ALWAYS on the
-    articles+reviews basis regardless of which one is picked, only the
-    NUMBER shown switches). `vol_full_annual_mean` (the low-volume FLOOR
-    marker) stays on `n_works_full` unconditionally -- never basis-dependent,
-    same convention as the dynamics frames. `vol_top10` (2B-R2-3: retired as
-    a selector tab, kept AS DATA) is populated ONLY on the `pp` branch."""
-    assert floor in IMPACT_FIELD_FLOORS, f"impact_fields.parquet only ships floors {IMPACT_FIELD_FLOORS}, got {floor}"
-    f = _load_impact_fields(ctx)
-    sub = f[(f["tree"].astype(str) == tree) & (f["floor"] == floor) & (f["institution_id"].isin(ids))]
-    name_map = P._field_domain_map(ctx)[["field_id", "field_name", "domain_id"]]
-    ref_means = _field_impact_ref_means(ctx, tree, floor) if not want_vol else None
-
-    rows = []
-    for iid in ids:
-        r = sub[sub["institution_id"] == iid]
-        for _, row in r.iterrows():
-            fid = int(row["field_id"])
-            name_row = name_map.loc[name_map["field_id"] == fid]
-            fname = name_row["field_name"].iloc[0] if len(name_row) else str(fid)
-            dom = int(name_row["domain_id"].iloc[0]) if len(name_row) else None
-            n_full = float(row["n_works_full"])
-            gutter = float(row["pp_denominator_frac"]) if basis == "frac" else n_full  # item 1 basis toggle
-            vol_top10 = float(row["pp_top10_frac"]) * n_full
-            if want_vol:
-                value = vol_top10
-                denom = (f"pp_top10_frac x n_works_full (field-grain, tree={tree}, floor={floor}; "
-                        "n_works_full = full work count, articles+reviews, 2020-2024)")
-                ref = None
-                vt10 = None
-                denom_value = None  # vol_top10 IS the count -- no separate ratio denominator (v4 SS2.5)
-                # D4 audit fix (2C/CD5): `value` here is ALWAYS n_full-derived
-                # (the denom note above says so), regardless of `basis` -- the
-                # shared `gutter` variable, however, toggles to
-                # pp_denominator_frac under basis="frac", a DIFFERENT count on
-                # a DIFFERENT basis than the bar it would sit under. That is
-                # exactly the class of silent value/gutter basis mix D4 rules
-                # out. `vol_top10` has no selector tab (SELECTOR_METRICS
-                # excludes it) so this was inert for any rendered chart, but
-                # the frame is a real, callable, testable surface -- gutter
-                # now mirrors the bar directly (the same "vol_display = value"
-                # convention `_vol_frame` already uses for raw-count metrics),
-                # never a second, basis-toggled number.
-                vol_display = value
-            else:
-                value = float(row["pp_top10_frac"])
-                denom = (f"pp_denominator_frac / n_works_full (articles+reviews, 2020-2024, field grain, "
-                        f"tree={tree}, floor={floor}, on the current basis)")
-                ref = float(ref_means.get(fid, np.nan))
-                vt10 = vol_top10
-                denom_value = gutter  # literally what pp_top10_frac divides by, on the current basis
-                vol_display = gutter
-            rows.append({"institution_id": iid, "taxon_id": fid, "taxon_label": fname,
-                        "value": value, "fwci_mean": None, "ref_value": ref, "denominator": denom,
-                        "denom_value": denom_value,
-                        "domain_id": dom, "domain_order": _OA_DOMAIN_ORDER_MAP.get(dom),
-                        "vol_display": vol_display, "vol_full_annual_mean": n_full / N_CORE_YEARS,
-                        "vol_top10": vt10})
-    return pd.DataFrame(rows, columns=METRIC_FRAME_COLS)
 
 
 SDG_SHARE_FIELD_DENOM_NOTE = (
@@ -1278,21 +1316,169 @@ def _fwci_frame(ctx: dict, ids: list[str], level: str, field_id: int | None = No
     return out.sort_values(["institution_id", "taxon_id"]).reset_index(drop=True).reindex(columns=METRIC_FRAME_COLS)
 
 
+# ============================================================================
+# 2D (Stream CD6, BUILD_PLAN_2D.md S3 CD6; E2/E4) -- the `pp`/`vol_top10`
+# metrics REBASED onto `impact_taxa.parquet` (pipeline step 19, Stream P9),
+# all FOUR grains, replacing the field-only `impact_fields.parquet`/
+# `_field_pp_frame` path retired above. BASIS-PINNED and BESTFIT-TREE-PINNED
+# throughout (no `subs`/`tree` argument at all) -- the SAME convention
+# `_fwci_frame` above already established, and the point of E2: FWCI_EU and
+# PP10_WD now sit on the IDENTICAL taxonomic grain (impact_taxa.parquet's own
+# `grain`/`taxon_id` columns are, by construction, `fwci_taxa.parquet`'s own)
+# so the two impact-matrix cells cross at any grain. NO DISPLAY FLOOR (E4):
+# every taxon this institution has >=1 covered work in ships a row here --
+# the below-floor CAUTION channel (CH2/VC4's fence) is a UI-layer rendering
+# rule over this SAME unfloored table, never a second, filtered read.
+# ============================================================================
+
+PP_GRAIN_WORD = FWCI_GRAIN_WORD  # same reader-facing words, field/subfield/goal/panel
+
+
+def pp_ref_label(level: str) -> str:
+    """VC hover hook (E8, mirrors `fwci_ref_label`'s own precedent): the
+    reference-line sentence for PP10_WD's population-mean marker. Naming
+    'European' here is not a mix-up with the WORLD top-decile threshold the
+    bar itself reads against (E3's own two-axes distinction) -- the
+    REFERENCE LINE is a plain population average, and every institution in
+    this database IS European by construction, so the two statements
+    ('your PP10_WD, world-benchmarked' vs 'the European average PP10_WD,
+    also world-benchmarked') are simply both true, not in tension."""
+    assert level in LEVELS, f"unknown level {level!r}"
+    return f"average PP10_WD among European institutions with a covered {PP_GRAIN_WORD[level]}"
+
+
+PP_REF_LABEL = {level: pp_ref_label(level) for level in LEVELS}
+
+
+def _pp_denom_note(level: str) -> str:
+    """Reader-prose PP10_WD `denominator` (PRESS-A J1 rewrite of the OLD
+    1016-1017 f-string, decisions log 2026-09-02 denominator split): plain
+    sentence, no notation, `{level}`-driven grain word (J1's own cross-check
+    note -- the OLD string hardcoded 'field grain' regardless of the actual
+    caller). Engineering provenance (FULL/binary attribution,
+    impact_taxa.parquet, the Aug-2026 world_thresholds.parquet vintage, the
+    ~0.113% CORE-AR works with no world benchmark excluded from both the
+    share and n_covered_pp) stays in this comment, never in the string."""
+    return (
+        f"the institution's own articles and reviews from the core window (2020-2024) that have "
+        f"a matching world benchmark for this {PP_GRAIN_WORD[level]}, full counting -- a "
+        "publication counts once per institution present, regardless of how many co-authors or "
+        "partner institutions it has"
+    )
+
+
+PP_DENOM_NOTE = {level: _pp_denom_note(level) for level in LEVELS}
+
+
+def _pp_vol_denom_note(level: str) -> str:
+    """J1's 996-997 replacement ('publications in the world top decile, full
+    counting, at field grain'), `{level}`-driven per J1's own cross-check
+    note -- this branch has no selector tab today (2B-R2-3) but stays a real,
+    testable frame."""
+    return f"the institution's own publications in the world top decile for this {PP_GRAIN_WORD[level]}, full counting"
+
+
+PP_VOL_DENOM_NOTE = {level: _pp_vol_denom_note(level) for level in LEVELS}
+
+
+def _pp_ref_means(ctx: dict, level: str) -> pd.Series:
+    """Population mean `pp10_wd` per taxon at this grain (E4: NO floor
+    re-applied -- the population is exactly 'institutions with a row',
+    matching impact_taxa's own n_covered_pp>=1 floor), cached per level on
+    ctx. Replaces `_field_impact_ref_means` (field-only, `impact_fields.
+    parquet`, retired above) -- now computed at all four grains from the
+    SAME table `_pp_frame` itself reads."""
+    key = f"_impact_taxa_mean_pp10_wd_{level}"
+    if key not in ctx:
+        taxa = _load_impact_taxa(ctx)
+        sub = taxa[taxa["grain"] == level]
+        ctx[key] = sub.groupby("taxon_id")["pp10_wd"].mean()
+    return ctx[key]
+
+
+def _pp_frame(ctx: dict, ids: list[str], level: str, field_id: int | None = None,
+             want_vol: bool = False) -> pd.DataFrame:
+    """PP10_WD metric frame, all four grains (E2/E4), from `impact_taxa.
+    parquet`. `value` = `pp10_wd` (FULL/binary, BASIS-PINNED -- no `subs`
+    argument at all, the toggle cannot move it, decisions log 2026-09-02).
+    `denom_value` = `vol_display` = `n_covered_pp`; `vol_full_annual_mean` =
+    `n_covered_pp` / `N_CORE_YEARS`; `ref_value` = the population mean of
+    `pp10_wd` among institutions with a row at this (grain, taxon_id)
+    (`_pp_ref_means`). `want_vol=True` returns the PP(top10%) VOLUME variant
+    (2B-R2-3: retired as a selector tab, kept as data and as the `pp` frame's
+    own `vol_top10` hover column) -- the EXACT covered-work count in the
+    world top decile (`pp10_wd * n_covered_pp`, an integer by construction:
+    both terms come straight off impact_taxa's own FULL/binary hit count, so
+    this is a real count, not an estimate the way the old fractional-basis
+    `pp_top10_frac * n_works_full` was)."""
+    taxa = _load_impact_taxa(ctx)
+    sub = taxa[(taxa["grain"] == level) & (taxa["institution_id"].isin(ids))]
+    labels = _fwci_taxon_labels(ctx, level)  # SAME taxon-label source _fwci_frame uses -- one label per taxon, never drifts between metrics
+    base = sub.merge(labels, on="taxon_id", how="left", validate="m:1")
+    missing = base[base["taxon_label"].isna()]
+    assert missing.empty, (
+        f"impact_taxa.parquet ships a {level} taxon_id with no matching label: "
+        f"{sorted(missing['taxon_id'].unique().tolist())}")
+    if level == "subfield":
+        assert field_id is not None, "level='subfield' needs field_id (drill within one field)"
+        base = base[base["field_id"] == field_id]
+
+    n_covered = base["n_covered_pp"].astype("float64")
+    hits = base["pp10_wd"].astype("float64") * n_covered  # exact covered-work count in the world top decile
+
+    if want_vol:
+        out = pd.DataFrame({
+            "institution_id": base["institution_id"],
+            "taxon_id": base["taxon_id"].astype(int),
+            "taxon_label": base["taxon_label"],
+            "value": hits,
+            "fwci_mean": None,
+            "ref_value": None,  # a raw count carries no reference line (2B-R-5: SI=1/index-PP only)
+            "denominator": PP_VOL_DENOM_NOTE[level],
+            "denom_value": np.nan,  # the count IS the value -- no separate ratio denominator (v4 SS2.5 convention)
+            "vol_display": hits,    # gutter mirrors the bar (D4 convention, unchanged by the rebase)
+            "vol_full_annual_mean": n_covered / N_CORE_YEARS,
+            "vol_top10": None,
+        }, index=base.index)
+    else:
+        ref = _pp_ref_means(ctx, level)
+        out = pd.DataFrame({
+            "institution_id": base["institution_id"],
+            "taxon_id": base["taxon_id"].astype(int),
+            "taxon_label": base["taxon_label"],
+            "value": base["pp10_wd"].astype("float64"),
+            "fwci_mean": None,
+            "ref_value": base["taxon_id"].map(ref).astype("float64"),
+            "denominator": PP_DENOM_NOTE[level],
+            "denom_value": n_covered,
+            "vol_display": n_covered,
+            "vol_full_annual_mean": n_covered / N_CORE_YEARS,
+            "vol_top10": hits,
+        }, index=base.index)
+    out["domain_id"], out["domain_order"] = _domain_cols_for(base, level)
+    return out.sort_values(["institution_id", "taxon_id"]).reset_index(drop=True).reindex(columns=METRIC_FRAME_COLS)
+
+
 def metric_frame(ctx: dict, subs: dict, ids: list[str], level: str, metric: str, *,
                  field_id: int | None = None, tree: str | None = None, floor: int = 30) -> pd.DataFrame:
     """2B-R-5/6/8 the ONE 'Compare by' metric selector, generalised over
     every (level, metric) combination the Compare page needs:
 
       level='field'                -> taxon = 26 fields, all of {share,vol_top10,pp,sdg_share,dynamics,si,fwci}.
-      level='subfield'             -> taxon = subfields of ONE `field_id` (required); share/si/dynamics/fwci only.
-      level='erc'                  -> taxon = 28 ERC panels; share/si/vol/fwci (2B-R-8 'Volume').
-      level='sdg'                  -> taxon = 16 SDGs; share/dynamics/vol/fwci (2B-R-8 'Volume tagged').
+      level='subfield'             -> taxon = subfields of ONE `field_id` (required); share/si/dynamics/pp/vol_top10/fwci.
+      level='erc'                  -> taxon = 28 ERC panels; share/si/vol/pp/vol_top10/fwci (2B-R-8 'Volume').
+      level='sdg'                  -> taxon = 16 SDGs; share/si/dynamics/vol/pp/vol_top10/fwci (2B-R-8 'Volume tagged').
 
-    `fwci` (2C, Stream CD5, D2/D3) is available at ALL FOUR grains, is
-    BASIS-PINNED (ignores `subs['basis']` entirely -- decisions log
-    2026-09-01) and field/subfield are additionally bestfit-tree-only
-    (`tree`/`subs['tree']` have no effect on this metric, disclosed in its
-    own `denominator` note, never silently ignored).
+    `fwci` (2C, Stream CD5, D2/D3) and `pp`/`vol_top10` (2D, Stream CD6,
+    E2/E4) are BOTH available at ALL FOUR grains and BOTH BASIS-PINNED
+    (ignore `subs['basis']` entirely) and field/subfield are additionally
+    bestfit-tree-only (`tree`/`subs['tree']` have no effect on either metric,
+    disclosed in each one's own `denominator` note, never silently ignored)
+    -- impact_taxa.parquet/fwci_taxa.parquet share the identical taxonomic
+    grain by construction, so the two impact-matrix cells cross at any level
+    (E2). `si` (2D, E8) is now available at ALL FOUR grains too (was
+    field/subfield/erc only), with a European-baseline reference at every
+    one (`share_refs.parquet`).
 
     An unavailable (metric, level) pair (see `UNAVAILABLE_REASON`) returns an
     EMPTY `METRIC_FRAME_COLS` frame with `.attrs["reason"]` set -- check
@@ -1300,17 +1486,23 @@ def metric_frame(ctx: dict, subs: dict, ids: list[str], level: str, metric: str,
     `df.attrs.get("reason")` after the call; never raises for a merely-
     unsupported combination (only an unknown `level`/`metric` string raises).
 
-    `tree` defaults to `subs['tree']` (only matters for the `pp`/`vol_top10`/
-    `sdg_share` field-level metrics, which read the tree-carrying
-    `impact_fields.parquet`/`sdg_fields.parquet` directly rather than
-    `subs`'s own dense matrices); `floor` (10 or 30) only applies to `pp`/
-    `vol_top10`."""
+    `tree` defaults to `subs['tree']` (only matters for the `sdg_share`
+    field-level metric now, which reads the tree-carrying `sdg_fields.
+    parquet` directly rather than `subs`'s own dense matrices -- `pp`/
+    `vol_top10` stopped reading `tree` in 2D, see above). `floor` is VESTIGIAL
+    (2D E4 retired the 10/30 impact-floor control from this API path
+    entirely -- `impact_taxa.parquet` has no floor concept at all) and is
+    accepted-but-ignored ONLY so `views_compare.py`'s not-yet-updated floor
+    radio (still threading a `floor=` value through its own `_metric()` cache
+    wrapper as of this stream) keeps working until VC4's wave removes that
+    control; a future stream may drop this parameter once the caller no
+    longer passes it."""
     assert level in LEVELS, f"unknown level {level!r}"
     assert metric in METRICS, f"unknown metric {metric!r}"
     if level == "subfield":
         assert field_id is not None, "level='subfield' needs field_id (drill within one field)"
     tree = tree or (subs or {}).get("tree", "bestfit")
-    basis = (subs or {}).get("basis", "frac")  # v4 SS2.5: pp/vol_top10/vol/sdg-dynamics now basis-toggle-aware too
+    basis = (subs or {}).get("basis", "frac")  # v4 SS2.5: share/si/vol/sdg-dynamics basis-toggle-aware; pp/vol_top10/fwci are basis-PINNED (2D/2C) and never read this
 
     if not metric_frame_available(metric, level):
         out = pd.DataFrame(columns=METRIC_FRAME_COLS)
@@ -1328,9 +1520,9 @@ def metric_frame(ctx: dict, subs: dict, ids: list[str], level: str, metric: str,
             return _subfield_dynamics_frame(ctx, subs, ids, field_id)
         return _sdg_dynamics_frame(ctx, subs or {"basis": basis}, ids)  # level == "sdg" (erc has no dynamics, marked unavailable)
     if metric == "pp":
-        return _field_pp_frame(ctx, ids, tree, floor, want_vol=False, basis=basis)  # level == "field" only (asserted available)
+        return _pp_frame(ctx, ids, level, field_id=field_id)  # 2D: all four grains, basis/tree-pinned (impact_taxa.parquet)
     if metric == "vol_top10":
-        return _field_pp_frame(ctx, ids, tree, floor, want_vol=True, basis=basis)
+        return _pp_frame(ctx, ids, level, field_id=field_id, want_vol=True)
     if metric == "sdg_share":
         return _sdg_share_field_frame(ctx, subs, ids, tree)
     if metric == "vol":

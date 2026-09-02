@@ -114,6 +114,7 @@ from lib import collab_data, copy, countries, links, profile_data, selection, st
 from lib import palette as P
 from lib.app_config import CFG
 from lib.compare_data import DYNAMICS_W1, DYNAMICS_W2
+from lib.exports_xlsx import XLSX_MIME, collab_workbook_filename, workbook_bytes
 from lib.palette import NA_MARK
 from lib.ranked import PCT_PROGRESS_FORMAT
 from lib.views_find import BONUS_STAR, SEP, _bundle, _sidebar_scenario, _subs
@@ -598,7 +599,38 @@ def _fields_chart(fields: pd.DataFrame):
     Find idiom (module docstring: no builder in `charts.py` fits a raw
     joint-publication COUNT, so this small one lives here). Rows are
     grouped under their domain in the taxonomy's own fixed order, largest
-    first inside each domain."""
+    first inside each domain.
+
+    E9 propagation audit (2D, BUILD_PLAN_2D.md, CHROME_CONTRACT.md S10),
+    judged and documented rather than force-applied, the same methodology
+    S11's dot-family ruling uses: this is a DIFFERENT chart TYPE from
+    `charts_compare.fig_metric_bars` (one JOINT series coloured per-ROW by
+    domain, not several per-row bars coloured per-INSTITUTION), so its three
+    mechanisms are checked against this chart's own shape rather than ported
+    verbatim.
+      - Fonts / right-of-bar value (S10 rows 4/6): ALREADY conform --
+        `GUTTER_FONT_PX`/`INK_SECONDARY` bar text, `textposition="outside"`,
+        `cliponaxis=False`. No change needed.
+      - Gutter column (S10 row 1): NOT applicable. The mechanism replaces a
+        bar-end "value (volume)" parenthetical with a separate column when a
+        chart carries a METRIC distinct from its own VOLUME; here the bar's
+        OWN value already IS the joint-publication volume, so a gutter would
+        print the identical number a second time.
+      - Caution channel (S10 row 2): checked and DECLINED, not skipped by
+        default. `charts_compare.LOW_VOLUME_FLOOR` (10/year, full-counted)
+        is calibrated for a WHOLE INSTITUTION's own field output; a bilateral
+        joint corpus over the same 5-year window is an order of magnitude
+        smaller by construction (this fixture's own two rows: 15 and 6 joint
+        works over the *whole* window, i.e. 3.0/yr and 1.2/yr), so reusing
+        that constant here would flag nearly every row on nearly every real
+        pair -- exactly the "everything red" failure that would defeat the
+        signal a caution channel exists to carry. No pair-scale floor has
+        been calibrated (no WT-D probe covers this), so none is invented
+        here; flagged for a future round if a genuine per-field thin-
+        evidence caution is wanted at this chart's own scale.
+      - Diamond reference (S10 row 3): NOT applicable. No per-row varying
+        European/world reference exists for a raw joint-publication count.
+    """
     d = fields.copy()
     d["domain_order"] = [_domain_order(v) for v in d["domain_id"]]
     d = d.sort_values(["domain_order", "vol"], ascending=[True, False],
@@ -900,38 +932,128 @@ def _render_untapped(bundle: dict, a: str, b: str, scenario: dict) -> None:
 
 # ------------------------------------------------------- 7. bottom meta -----
 
-def _render_not_offered() -> None:
-    """What this page does NOT show, in plain language, one line per measure
-    and no internal reference of any kind."""
-    with st.container(key="collab_not_offered"):
-        st.markdown(f"**{copy.SHARED['NOT_OFFERED_HEADER']}**")
-        for feature, reason in (
-                (copy.COLLAB["NOT_OFFERED_GAPS"], copy.COLLAB["NOT_OFFERED_GAPS_REASON"]),
-                (copy.COLLAB["NOT_OFFERED_BREADTH"], copy.COLLAB["NOT_OFFERED_BREADTH_REASON"]),
-                (copy.COLLAB["NOT_OFFERED_SUBFIELDS"], copy.COLLAB["NOT_OFFERED_SUBFIELDS_REASON"])):
-            st.caption(copy.SHARED["NOT_OFFERED_LINE"].format(feature=feature, reason=reason))
+# _render_not_offered DELETED 2D (E12/E10, press audit "Not shown here, and
+# why" row): the mechanism retires app-wide. The three reasons it gave (why
+# the old gap table, a single breadth number and a separate subfield table
+# are not offered) stay true but are no longer needed as their own block --
+# the page already explains itself through what it DOES show, per the
+# audit's own call. `copy.COLLAB`'s matching NOT_OFFERED_* keys are deleted
+# alongside this function.
 
 
 def _render_meta(bundle: dict, a: str, b: str) -> None:
     """Bottom meta, collapsed by default (2BR3 layout ruling): the dataset
-    line and method note, what this page does not show and why, and the
-    shareable link -- moved down here from where a picker used to sit."""
+    line and method note, and the shareable link -- moved down here from
+    where a picker used to sit."""
     with st.expander(copy.COLLAB["META_EXPANDER"], expanded=False):
         st.caption(copy.COLLAB["PAGE_INTRO_PAIR"])
         st.caption(copy.FIND["SNAPSHOT_CAPTION"].format(
             n_institutions=f"{len(bundle['index_df']):,}"))
-        _render_not_offered()
         selection.share_link_block("pair", [a, b], caption=copy.COLLAB["DEEPLINK_LABEL"])
+
+
+# ----------------------------------------------------- 8. the one workbook --
+# E7 (2D, BUILD_PLAN_2D.md): ONE "Download this pair (Excel)" button at the
+# very end of the page. This page never grew per-section download buttons
+# (DOWNLOAD_SHARED/DOWNLOAD_GAPS both died in 2BR3, and every table since has
+# used the native `st.dataframe` export-toolbar icon only -- see the press
+# audit's own "Per-table CSV affordances" row), so this is a pure addition,
+# not a consolidation of several buttons into one. That native toolbar icon
+# is KEPT, deliberately: it is a Streamlit WIDGET DEFAULT baked into every
+# `st.dataframe` across the whole app (Find's ranked tables included), not a
+# custom button this page authored -- a different, lighter-weight affordance
+# from the one E7 bans, judged rather than removed by default (VL4's own
+# decision the audit asked for, not a PRESS-A rewrite).
+#
+# Every sheet is built from the SAME cached accessor functions the page
+# itself renders from (`_fields_frame`, `_reciprocity_frame`, `_joint_frame`,
+# `_untapped_frame`, `_pulse_frame`, `_momentum_frame`), so a workbook cell
+# and its on-screen figure can never drift -- and every sheet carries EVERY
+# row the underlying frame holds, not only what a 20-row default or a
+# "Show all" click has revealed (BUILD_PLAN_2D.md E7's own point: the
+# workbook is where the FULL table lives once the on-screen default is a
+# capped preview).
+
+def _facts_frame(ctx: dict, a: str, b: str, mom: dict | None, pulse_row: dict | None,
+                 sc: dict, n_institutions: int) -> pd.DataFrame:
+    """The workbook's first sheet: the SAME numbers section 1's identity
+    cards and momentum headline show on screen, as one small Item/Value
+    table -- so a reader of the workbook alone knows which pair, which
+    window and which counting scenario every other sheet was built on."""
+    rows = [
+        (copy.COLLAB["XLSX_ROW_INSTITUTION_A"], f"{_name(ctx, a)} ({a})"),
+        (copy.COLLAB["XLSX_ROW_INSTITUTION_B"], f"{_name(ctx, b)} ({b})"),
+    ]
+    if mom is not None:
+        n1 = DYNAMICS_W1[1] - DYNAMICS_W1[0] + 1
+        n2 = DYNAMICS_W2[1] - DYNAMICS_W2[0] + 1
+        w1_share = (mom["c1"] / mom["d1"]) if mom["d1"] else float("nan")
+        w2_share = (mom["c2"] / mom["d2"]) if mom["d2"] else float("nan")
+        rows += [
+            (copy.COLLAB["XLSX_ROW_MOMENTUM"], mom["text"]),
+            (copy.COLLAB["XLSX_ROW_MOMENTUM_SHARE"].format(window=_window(DYNAMICS_W1)), _pct(w1_share)),
+            (copy.COLLAB["XLSX_ROW_MOMENTUM_SHARE"].format(window=_window(DYNAMICS_W2)), _pct(w2_share)),
+            (copy.COLLAB["XLSX_ROW_MOMENTUM_RATE"].format(window=_window(DYNAMICS_W1)), _count(mom["c1"] / n1)),
+            (copy.COLLAB["XLSX_ROW_MOMENTUM_RATE"].format(window=_window(DYNAMICS_W2)), _count(mom["c2"] / n2)),
+            (copy.COLLAB["XLSX_ROW_SIGNIFICANCE"], _pval(mom["mom_p"])),
+        ]
+    if pulse_row is not None:
+        rows.append((copy.COLLAB["XLSX_ROW_JOINT_TOTAL"].format(window=_window(collab_data.PULSE_YEARS)),
+                     _count(pulse_row["copubs_total"])))
+    rows += [
+        (copy.COLLAB["XLSX_ROW_WINDOW_CORE"], f"{WINDOW_START}{DASH}{WINDOW_END}"),
+        (copy.COLLAB["XLSX_ROW_WINDOW_PULSE"], _window(collab_data.PULSE_YEARS)),
+        (copy.COLLAB["XLSX_ROW_SCENARIO"],
+         f"{copy.TREE_LABELS[sc['tree']]} {SEP} {copy.BASIS_LABELS[sc['basis']]}"),
+        (copy.COLLAB["XLSX_ROW_SNAPSHOT"], _count(n_institutions)),
+        (copy.COLLAB["XLSX_ROW_READING"], copy.VERDICT_LINE),
+    ]
+    return pd.DataFrame(rows, columns=[copy.COLLAB["XLSX_COL_ITEM"], copy.COLLAB["XLSX_COL_VALUE"]])
+
+
+def _workbook_sheets(bundle: dict, a: str, b: str, sc: dict) -> list:
+    """`[(sheet label, frame)]`, in the page's OWN section order -- pair
+    facts, then pulse, fields, reciprocity, the full topic table, the full
+    untapped ("gaps") table. Re-reads every frame through the page's own
+    `@st.cache_data` accessors (a cache hit on every click that follows an
+    already-rendered page, never a second compute)."""
+    ctx = bundle["ctx"]
+    mom = _momentum_frame(a, b)
+    pulse_row = _pulse_frame(a, b)
+    yearly = pulse_row["yearly"] if pulse_row is not None else pd.DataFrame(columns=collab_data.PULSE_YEARLY_COLS)
+    joint = _joint_frame(a, b, sc["tree"], sc["basis"])
+    topics = joint["topics"] if joint is not None else pd.DataFrame(columns=collab_data.JOINT_TOPICS_COLS)
+    n_institutions = len(bundle["index_df"])
+    return [
+        (copy.COLLAB["XLSX_SHEET_OVERVIEW"], _facts_frame(ctx, a, b, mom, pulse_row, sc, n_institutions)),
+        (copy.COLLAB["XLSX_SHEET_PULSE"], yearly),
+        (copy.COLLAB["XLSX_SHEET_FIELDS"], _fields_frame(a, b)),
+        (copy.COLLAB["XLSX_SHEET_RECIPROCITY"], _reciprocity_frame(a, b, sc["tree"], sc["basis"])),
+        (copy.COLLAB["XLSX_SHEET_TOPICS"], topics),
+        (copy.COLLAB["XLSX_SHEET_UNTAPPED"], _untapped_frame(a, b, sc["tree"], sc["basis"])["topics"]),
+    ]
+
+
+def _render_export(bundle: dict, a: str, b: str, sc: dict) -> None:
+    """The ONE download button (2B-13's Compare precedent, E7 for this
+    page): `data` is a zero-arg callable, so the workbook is only built when
+    someone actually clicks."""
+    st.download_button(
+        copy.COLLAB["EXPORT_XLSX_BUTTON"],
+        lambda: workbook_bytes(_workbook_sheets(bundle, a, b, sc)),
+        file_name=collab_workbook_filename(a, b, sc["tree"], sc["basis"]),
+        mime=XLSX_MIME, help=copy.COLLAB["EXPORT_XLSX_HELP"], key="dl_collab_workbook")
 
 
 # -------------------------------------------------------------- render ------
 
 def render() -> None:
-    """The whole Collaborate page (2BR3 VL). Order: sidebar scenario + the
-    shared search/basket -> title + promise -> the two slots -> identity
-    cards + momentum headline -> the relationship pulse -> the joint corpus
-    field by field -> strategic reciprocity by field -> the topic deep dive
-    -> untapped potential -> bottom meta."""
+    """The whole Collaborate page (2BR3 VL; 2D VL4 adds the closing
+    workbook). Order: sidebar scenario + the shared search/basket -> title +
+    promise -> the two slots -> identity cards + momentum headline -> the
+    relationship pulse -> the joint corpus field by field -> strategic
+    reciprocity by field -> the topic deep dive -> untapped potential ->
+    bottom meta -> the one download button (E7)."""
     bundle = _bundle()
     scenario = _sidebar_scenario()
     selection.render_sidebar()
@@ -956,3 +1078,4 @@ def render() -> None:
     _render_topics(bundle, a, b, scenario, pulse_row)
     _render_untapped(bundle, a, b, scenario)
     _render_meta(bundle, a, b)
+    _render_export(bundle, a, b, scenario)

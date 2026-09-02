@@ -511,17 +511,20 @@ def test_every_selector_option_renders_at_every_level():
 
 
 def test_drilling_into_a_field_switches_the_level_and_clamps_a_retired_metric():
-    """`pp` exists at field grain and NOT at subfield grain (impact_fields is
-    field-grain this phase). Picking it and then drilling must clamp to an
-    available option instead of raising on a session value Streamlit cannot
-    place in the option list."""
+    """2D RE-PIN (E2, decisions log 2026-09-02): `pp` USED to exist at field
+    grain only (impact_fields.parquet was field-grain) and was this test's
+    own example of a metric that clamps on drill -- E2 rebased `pp` onto
+    `impact_taxa.parquet`, which is available at ALL FOUR grains including
+    subfield, so `pp` no longer clamps here. `sdg_share` is now the metric
+    that still retires at subfield (unchanged, unaffected by E2/E4/E8) --
+    same widget-interaction shape, same clamp-not-raise assertion."""
     at = _app(ids=TRIO).run()
-    at.radio(key="cmp_metric_subject").set_value(views_compare.METRIC_LABELS["pp"]).run()
+    at.radio(key="cmp_metric_subject").set_value(views_compare.METRIC_LABELS["sdg_share"]).run()
     assert not at.exception, [str(e) for e in at.exception]
     field_id = int(sorted(views_compare._fields(tuple(TRIO), TREE, BASIS)["field_id"].unique())[0])
     at.selectbox(key="cmp_field_drill").set_value(field_id).run()
     assert not at.exception, [str(e) for e in at.exception]
-    assert not compare_data.metric_frame_available("pp", "subfield")
+    assert not compare_data.metric_frame_available("sdg_share", "subfield")
     assert at.session_state["cmp_metric_subject"] in [
         views_compare.METRIC_LABELS[m] for m in views_compare.SUBJECT_METRICS
         if compare_data.metric_frame_available(m, "subfield")]

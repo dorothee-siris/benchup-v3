@@ -237,3 +237,72 @@ Collaborate's topic table (`views_collab.py`).
   the two `format="percent"` cells above).
 - Thousands separator on every count ≥ 1,000 (confirmed consistent everywhere
   audited — e.g. "7,557 institutions").
+
+## 10. Bar-family contract v2 (Phase 2D, stream CH2, 2026-09-02) — E5/E6/E8/E9
+
+Normative source: `evals/wind_tunnel_2D/WT_2D.md` claims 1–3 (the manager read
+every PNG named below personally, E13, before ratifying — BUILD_PLAN_2D.md §7).
+Reference builder, unchanged from §0 above: `charts_compare.fig_metric_bars`.
+**This is the per-chart-TYPE contract E9's propagation audit runs against for
+every horizontal-bar chart** — every ratio chart in Compare (Subject/Subfield/
+ERC/SDG/FWCI) already draws through this one function, so "propagate" here
+means "do not build a second implementation of any of the four rows below",
+not "copy code".
+
+| # | Element | Rule |
+|---|---|---|
+| 1 | **Gutter column (E6)** | `gutter=True` (default): a phantom `go.Bar` trace per institution, offset into the SAME lane as its real bar, at `x = -GUTTER_NEG_AXIS_FRAC * basis * GUTTER_TIP_FRAC` (a DATA-space negative offset, never a pixel margin), text = the row's `gutter_col` value (`vol_display` by default) formatted by `charts._fmt_vol` — an integer when the value is integral, one decimal otherwise, thin-space thousands. `gutter_header` (new parameter) draws ONE small `INK_SECONDARY` label above the column, at `GUTTER_FONT_PX`, naming the basis — the caller supplies the word (VC4/VF4/VL4's job to wire), this module never invents one. |
+| 2 | **Caution channel (E5)** | Every bar is SOLID, in the institution's own colour — `marker.color` and `marker.line.color` are both the SAME hex on EVERY point, `marker.line.width` is `HAIRLINE_PX` on every point, and `marker.pattern` is never set. A row `_is_low_volume` flags (E4 floor unchanged: PP/FWCI on `denom_value < palette.RATIO_HATCH_FLOOR`, every other metric on `vol_full_annual_mean < LOW_VOLUME_FLOOR`) switches BOTH its own bar-end value text AND its gutter-column text (row 1) to `palette.WARNING_CAPTION_COLOR` (`#821D13`), weight 400 (never bold), keeping `LOW_VOLUME_GLYPH` (†). The hover keeps the reason line, unchanged. |
+| 3 | **Diamond reference (E8)** | Every metric in `REF_METRICS` (pp / sdg_share / dynamics / fwci) that ships a per-row VARYING `ref_value` draws a `go.Scatter` marker per row, `symbol="diamond-tall"` (`REF_MARKER_SYMBOL`), `size=8` (`REF_MARKER_SIZE`), colour `palette.INK`, `hoverinfo="skip"`, added to the figure BEFORE the institution bar traces (so it sits behind a bar's own outside-text at the one row where the two can coincide). A CONSTANT reference (SI's neutral value, or any single-value case) stays ONE rule across the panel, `palette.INK` at `LINE_PX` (2 px), dashed — heavier and darker than the pre-2D `INK_SECONDARY`/`HAIRLINE_PX` dash, but still a rule, never a repeated marker. |
+| 4 | **Fonts** | Unchanged from §2: `FONT_PX` (12) figure-wide, `GUTTER_FONT_PX` (11) for bar text, gutter text, gutter header and tick labels. |
+| 5 | **Hover skeleton** | Unchanged from §5, with the gutter-column text change carrying no new hover line — the raw volume was already in the hover's "works" line independent of whether the gutter COLUMN is drawn, and stays there. |
+| 6 | **Right-of-bar value** | Unchanged: `textposition="outside"`, `cliponaxis=False`, the value at the bar's own outer end. The pre-2D bar-end PARENTHESISED volume (`"{value} ({volume})"`) is RETIRED — row 1's dedicated column replaces it everywhere; a bar's own text now carries only its value (+ † when cautioned). |
+| 7 | **Below ~600 px plot width** | The gutter column (row 1) has nowhere to go — WT_2D measured a wrapped first-row label alone can need the large majority of a 390 px figure's own width. Streamlit cannot read the viewport width server-side (unchanged constraint, §2.15/VIZ_SPEC's `fig_share_si`'s `stacked` argument already lives with this), so `fig_metric_bars` exposes `gutter=False` as the OFF switch and the CALLER (VC4/VF4/VL4) decides when to pass it below that breakpoint. There is never a horizontal scroll either way — the raw volume stays in hover regardless. |
+
+**Binding fix carried in the same round (E11, not a chrome rule but load-
+bearing for row 1 above at real density):** `metric_row_height`'s fallback
+branch now folds `n_wrapped` into its own per-row `need` estimate — see §12.
+
+## 11. Dot/SI-family contract v2 (Phase 2D, stream CH2, 2026-09-02) — audited, confirmed
+
+`fig_share_si` (Find's profile panels) and `fig_mirror_dots` (Compare's dot-
+row mirror, where still called) are a DIFFERENT chart TYPE from row 10's bar
+family — a filled/hollow DOT, not a bar — and 2D's brief asked whether any of
+row 10's changes should propagate to them. Audited and judged NO on all three
+counts, each for a reason specific to the dot family, not by default:
+
+| # | Element | Ruling |
+|---|---|---|
+| 1 | **Below-floor marker** | STAYS a hollow dot (SURFACE fill, institution-coloured `OUTLINE_WIDTH` outline) — UNCHANGED. A filled-vs-hollow marker swap still reads as an IDENTITY (a ring in the institution's own hue), not a hole or a damaged mark, which is a different visual grammar from the diagonal `marker.pattern` texture row 10 §2 retires from bars — the two were never the same mechanism wearing different names, so retiring one does not obligate retiring the other. Plotly's own pattern fill is a Bar-family feature with no Scatter-marker equivalent in the first place (unchanged reasoning, `fig_metric_bars`'s own pre-2D docstring). |
+| 2 | **Gutter mechanism** | STAYS folded into the row's own tick label (`charts._tick_display`) — NOT unified with row 10 §1's phantom-trace column. Different problem shape: one number per row (this chart shows ONE institution) vs up to three. WT_2D's own prior-art note: an EARLIER version of this exact gutter WAS a separate annotation in a negative-x sliver — precisely row 10 §1's refuted candidate A — and was retired because it relied on `automargin` to keep two independently-positioned text systems apart, which collided at 390 px. Re-splitting it back into a column now would reintroduce the bug its own fix already solved, for a chart that never needed the up-to-three-numbers form. |
+| 3 | **Reference mark** | STAYS a dashed vertical rule at the neutral/index value, with the existing unit grid — NOT the diamond marker. Row 10 §3's diamond specifically answers "a reference next to a panel already full of solid bars, where a thin dash reads as a stray pixel"; the dot family's reference sits against a MOSTLY EMPTY panel (WT_2D claim 3's own distinction, drawn from `VIZ_SPEC.md` §5.5's original reasoning), where the same dash reads cleanly — a different situation, not an oversight. |
+
+**Fonts, hover skeleton:** unchanged from §§2/5 for both families — the dot
+family was never asked to change these, and did not.
+
+## 12. Dynamic-viewport proof-capture rule (Phase 2D, stream CH2, 2026-09-02) — E11
+
+**Binding for every proof script (this round's and future ones) that
+screenshots a `.js-plotly-plot` element:** before capturing, read the chart's
+own rendered height — `gd.layout.height` via `page.evaluate`, or the
+element's `getBoundingClientRect().height` — and set the page's viewport to
+AT LEAST that height. **Never a viewport fixed in advance.**
+
+**Why, with evidence:** WT_2D.md claim 2 root-caused 2C's "first row clipped"
+symptom (`evals/vc_2C_shots/subject_share_1920.png`) to `render_proof.py`'s
+own `viewport={"height": 1400}`, applied to EVERY chart regardless of its own
+declared height. The identical live app, identical URL, identical chart,
+captured at a viewport TALLER than the chart's own `layout.height` (1700 px
+vs. a declared 1513 px) renders the first row perfectly, every wait duration
+tested. `gd.layout.height`, the element's `getBoundingClientRect().height`
+and the SVG's own `height` attribute were all self-consistently 1513 px
+throughout — the chart's internal geometry was correct; only the SCREENSHOT
+HARNESS was lying about what the app renders. A 26-row × 3-series share
+chart legitimately needs 1513 px (`metric_row_height(26, 3, 0)`); ANY fixed
+viewport is a ticking version of the same bug for the next chart that
+exceeds it, not a fix for this one instance.
+
+`evals/ch2_2D_shots/`'s own capture script implements this rule (read the
+element's bounding box, resize the viewport, THEN screenshot). I5's
+inspection battery and any later grouped-bar proof script should adopt the
+same pattern rather than a fixed height.

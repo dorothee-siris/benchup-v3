@@ -225,20 +225,23 @@ def test_sdg_share_field_denom_note_names_both_windows_no_mismatch():
 # 4. PP gutter basis toggle (item 1)
 # ============================================================================
 
-def test_pp_gutter_follows_basis(ctx):
-    """IA field1: pp_denominator_frac=60.0 (basis=frac) vs n_works_full=120.0
-    (basis=full) -- `value` (pp_top10_frac=0.25) stays IDENTICAL either way
-    (PP is always on the articles+reviews basis); only the gutter NUMBER
-    switches."""
+def test_pp_is_fully_basis_pinned(ctx):
+    """2D RE-PIN (E2/E4, decisions log 2026-09-02): PP10_WD rebased onto
+    `impact_taxa.parquet` (fixture: IA field1 pp10_wd=0.25, n_covered_pp=120)
+    is now FULLY basis-pinned, like fwci -- `value`, `vol_display` AND
+    `denom_value` are all IDENTICAL regardless of the toggle (impact_taxa.
+    parquet has no basis column at all). This REPLACES the old `impact_
+    fields.parquet`-based contract ('gutter follows basis, value pinned'),
+    retired with that reader path."""
     frac = CD.metric_frame(ctx, {"tree": "bestfit", "basis": "frac"}, [IA], "field", "pp", tree="bestfit", floor=30)
     full = CD.metric_frame(ctx, {"tree": "bestfit", "basis": "full"}, [IA], "field", "pp", tree="bestfit", floor=30)
     rf = frac[frac["taxon_id"] == 1].iloc[0]
     rl = full[full["taxon_id"] == 1].iloc[0]
     np.testing.assert_allclose(rf["value"], 0.25, rtol=1e-9)
     np.testing.assert_allclose(rl["value"], 0.25, rtol=1e-9)
-    np.testing.assert_allclose(rf["vol_display"], 60.0, atol=1e-9)
+    np.testing.assert_allclose(rf["vol_display"], 120.0, atol=1e-9)
     np.testing.assert_allclose(rl["vol_display"], 120.0, atol=1e-9)
-    np.testing.assert_allclose(rf["denom_value"], 60.0, atol=1e-9)
+    np.testing.assert_allclose(rf["denom_value"], 120.0, atol=1e-9)
     np.testing.assert_allclose(rl["denom_value"], 120.0, atol=1e-9)
 
 

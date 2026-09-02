@@ -91,6 +91,7 @@ from lib.app_config import CFG
 from lib.badges import (
     badges_for, catchall_tooltip, corrected_from, umbrella_flags, umbrella_medians,
 )
+from lib.charts_compare import chart_note
 from lib.data_cache import DATA_DIR, doctype_by_year, index, manifest, topics_dim
 from lib.engine import (
     ALL_LENSES, CONCORDANCE_N, aspirational, aspirational_frontier, build_rows, build_substrates,
@@ -98,11 +99,12 @@ from lib.engine import (
     seed_card,
 )
 from lib.engine.evidence import rows_evidence
-from lib.exports import data_date_label, ranking_csv, ranking_filename
+from lib.exports import data_date_label
+from lib.exports_xlsx import XLSX_MIME, find_workbook_filename, workbook_bytes
 from lib.filters import active_controls_strip, apply_filters, explain_empty
 from lib.palette import NA_MARK
 from lib.ranked import (
-    NAME_LINK_MODE, WORKS_LINK_FALLBACK_LABEL, _pct100, concordance_caption, depth_caption,
+    NAME_LINK_MODE, WORKS_LINK_FALLBACK_LABEL, _pct100, concordance_caption,
     format_concordance, format_rows, pct_progress_column, render_concordance_table,
     render_ranked_table, works_link_named,
 )
@@ -412,12 +414,18 @@ def _header() -> None:
     st.caption(copy.FIND["PAGE_INTRO"])
 
 
-def _footer_meta(bundle: dict) -> None:
+def _footer_meta(bundle: dict, workbook_kwargs: dict | None = None) -> None:
     """The meta text 2BR3 SEL demotes to the FOOT of the page: the standing
     verdict line and the data stamp (2B-R-12: 'how big the index is, and how
     old the data is', never the verbose snapshot-label-plus-timestamp this
     once was -- see `exports.data_date_label`). Called once, at the very end
-    of `render()`, after every section."""
+    of `render()`, after every section.
+
+    E7 (Phase 2D, stream VF4): `workbook_kwargs`, when given (a profile is on
+    screen), renders the ONE end-of-page download button right after the data
+    caption -- the same "index size, then the one download" order Compare's
+    own footer uses. `None` on the seed-less early return: there is nothing
+    to export yet."""
     st.markdown("---")
     st.markdown(f"**{copy.VERDICT_LINE}**")
     mf = manifest()
@@ -430,6 +438,8 @@ def _footer_meta(bundle: dict) -> None:
     st.caption(copy.FIND["DATA_CAPTION"].format(
         n_institutions=f"{len(bundle['index_df']):,}", sep=SEP,
         date=data_date_label(stamp, NA_MARK)))
+    if workbook_kwargs is not None:
+        _find_exports(**workbook_kwargs)
 
 
 def _seed_pick(bundle: dict) -> str | None:
@@ -1321,11 +1331,25 @@ def _lens_intro(lens: str, ranking: dict, subs: dict, basis: str, bundle: dict,
     The seed-specific evidence lines below (L2f eligibility, ERC/SDG/frontier/
     catch-all share, the generic evidence line) stay visible exactly as
     before -- they are what this lens SAYS about the seed, 2B-R2-8's other
-    half, which the fold pattern keeps on screen everywhere else too."""
+    half, which the fold pattern keeps on screen everywhere else too.
+
+    PRESS-A F12/F14 fix (Phase 2D, stream VF4, `evals/press_audit_2D.md`
+    S2): the gloss+caveat pair above was ALREADY hidden behind Streamlit's
+    native `help=` (the D10 fix), but that is a different visual component
+    from the `?`-glyph reading-line convention every OTHER chart/section on
+    this page and on Compare uses (CHROME_CONTRACT.md S6) -- a bold,
+    always-visible headline is not the same affordance as a small ink
+    reading line with its own tooltip circle. This now goes through the
+    SAME `charts_compare.chart_note` primitive Compare's own `_note` calls,
+    so the one place on this page that had not adopted the shared fold
+    pattern now reads identically to every other one. No new prose: the
+    reading text and the tooltip are still exactly `LENS_GLOSS`/
+    `LENS_CAVEAT`, unchanged."""
     st.markdown(f"**{copy.LENS_DISPLAY_NAMES[lens]}**")
     vals = _gloss_values(bundle)
-    st.markdown(f"**{copy.LENS_GLOSS[lens].format(**vals)}**",
-                help=copy.LENS_CAVEAT[lens].format(**vals))
+    st.markdown(chart_note(copy.LENS_GLOSS[lens].format(**vals),
+                           copy.LENS_CAVEAT[lens].format(**vals)),
+                unsafe_allow_html=True)
     if lens == "L2f":
         st.caption(copy.FIND["EV_L2F"].format(
             value=f"{card['n_eligible_subfields_L2f']:,}"))
@@ -1367,12 +1391,17 @@ def _lens_intro(lens: str, ranking: dict, subs: dict, basis: str, bundle: dict,
         _basis_caption(copy.FIND["BASIS_DISCLOSURE"], warning=True)
 
 
-def _tail_and_export(lens: str, ranking: dict, bundle: dict, subs: dict, kept,
-                     ctx_bits: dict) -> None:
-    """VIZ_SPEC S2.7: search scoped to the FULL filtered ranking, and the CSV of
-    that same full ranking -- generated lazily on click (Streamlit 1.61 accepts
-    a zero-arg callable for `data`), so no rerun ever pays for rows nobody
-    downloads. Both paths carry the lens-specific evidence."""
+def _tail_search(lens: str, ranking: dict, bundle: dict, subs: dict, kept,
+                 ctx_bits: dict) -> None:
+    """VIZ_SPEC S2.7: search scoped to the FULL filtered ranking.
+
+    E7 (BUILD_PLAN_2D.md, Phase 2D stream VF4): this used to also carry the
+    per-lens CSV download (`_csv()` + `st.download_button`) right below the
+    tail search; that button is GONE -- every lens now downloads together in
+    the ONE end-of-page workbook (`_find_exports`), per WT_2D claim 6's
+    own measured, cheap "compute every lens at export time" approach. The
+    function keeps its old name minus "_export" (nothing here builds an
+    export any more)."""
     kept_ids, kept_scores = kept
     ctx, norm = bundle["ctx"], bundle["norm_names"]
     seed_id = ranking["seed_id"]
@@ -1389,18 +1418,6 @@ def _tail_and_export(lens: str, ranking: dict, bundle: dict, subs: dict, kept,
             st.caption(copy.FIND["TAIL_CAPTION"])
             render_ranked_table(format_rows(rows, lens=lens, depth=len(rows)),
                                 key=f"tailtbl_{lens}")
-
-    def _csv() -> bytes:
-        rows = _rows_for_ids(ranking, ctx, kept_ids, kept_scores, ctx_bits["cross"], subs)
-        _with_evidence(rows, ctx, subs, lens, seed_id)
-        return ranking_csv(rows, seed_id=seed_id, lens=lens, tree=ctx_bits["tree"],
-                           basis=ctx_bits["basis"], snapshot=ctx_bits["snapshot"],
-                           filters_label=ctx_bits["filters_label"])
-
-    st.download_button(copy.EXPORT_BUTTON_LABEL, _csv, mime="text/csv",
-                       file_name=ranking_filename(seed_id, lens, ctx_bits["tree"],
-                                                  ctx_bits["basis"], ctx_bits["filtered"]),
-                       key=f"dl_{lens}")
 
 
 def _basket_button(selected: list, key: str) -> None:
@@ -1447,10 +1464,18 @@ def _render_lens_tab(lens: str, ranking: dict, bundle: dict, subs: dict, filters
     rows = _rows_for_ids(ranking, ctx, vis_ids, vis_scores, ctx_bits["cross"], subs)
     _with_evidence(rows, ctx, subs, lens, ranking["seed_id"])
     selected = render_ranked_table(format_rows(rows, lens=lens, depth=depth), key=f"tbl_{lens}")
-    st.caption(depth_caption(len(rows), len(kept_ids), depth, max(len(rows) - depth, 0)))
+    # U4 / PRESS-A (Phase 2D, stream VF4): the old `ranked.depth_caption()`
+    # pointed at the per-lens CSV button E7 just removed ("...or download the
+    # full ranking"); this page now renders its OWN depth line, built from
+    # `copy.DEPTH_CAPTION_TEMPLATE` (E10's exact rewritten string), which
+    # points at the one end-of-page workbook instead. `ranked.depth_caption`
+    # is unchanged and still exercised by its own tests -- it is simply no
+    # longer this page's caller (flagged for a future dead-code sweep, out
+    # of this stream's fence).
+    st.caption(copy.DEPTH_CAPTION_TEMPLATE.format(n=f"{len(rows):,}", m=f"{len(kept_ids):,}"))
     st.caption(copy.FIND["POP_CAPTION"].format(n_pop=f"{len(ranking['sorted_ids']):,}"))
     _basket_button(selected, f"add_{lens}")
-    _tail_and_export(lens, ranking, bundle, subs, (kept_ids, kept_scores), ctx_bits)
+    _tail_search(lens, ranking, bundle, subs, (kept_ids, kept_scores), ctx_bits)
 
 
 # ------------------------------------------------------------- overview -----
@@ -1602,30 +1627,10 @@ def _render_aspirational(bundle: dict, rankings: dict, filters: dict, seed_row,
     selected = _render_aspirational_table(frame)
     st.caption(copy.FIND["ASP_CAPTION"].format(n_rows=f"{len(kept):,}", n_pool=f"{pool:,}"))
     _basket_button(selected, "add_aspirational")
-    _aspirational_export(kept, ctx_bits, fallback=fallback)
-
-
-def _aspirational_export(rows: list[dict], ctx_bits: dict, *, fallback: bool = False) -> None:
-    """Same export contract as a lens tab; the score this view actually ranks
-    on -- L1 overlap for V0, F1 (frontier) overlap for the 2B-R-3 mode B
-    fallback -- is what the CSV's score column carries, and the exported
-    `lens` name says which mode produced the file."""
-    lens = "aspirational_by_frontier" if fallback else "aspirational_by_impact"
-    score_field = "lens_score_F1_overlap" if fallback else "lens_score_L1_overlap"
-
-    def _csv() -> bytes:
-        payload = []
-        for r in rows:
-            r2 = dict(r)
-            r2["lens_score"] = r[score_field]
-            payload.append(r2)
-        return ranking_csv(payload, seed_id=ctx_bits["seed_id"], lens=lens, tree=ctx_bits["tree"],
-                           basis=ctx_bits["basis"], snapshot=ctx_bits["snapshot"],
-                           filters_label=ctx_bits["filters_label"])
-
-    st.download_button(copy.EXPORT_BUTTON_LABEL, _csv, mime="text/csv", key="dl_aspirational",
-                       file_name=ranking_filename(ctx_bits["seed_id"], lens, ctx_bits["tree"],
-                                                  ctx_bits["basis"], ctx_bits["filtered"]))
+    # E7 (Phase 2D, stream VF4): the per-tab CSV this used to end on
+    # (`_aspirational_export`) is GONE -- the aspirational list is one more
+    # sheet in the end-of-page workbook now (`_aspirational_sheet_frame`),
+    # built at click time regardless of which tab is open.
 
 
 # ---------------------------------------------------------------- render ----
@@ -1680,6 +1685,132 @@ def _ctx_bits(ctl: dict, filters: dict, seed_id: str, rankings: dict, strip: str
             "snapshot": manifest().get("snapshot") or CFG["snapshot"], "seed_id": seed_id,
             "filters_label": label, "filtered": filtered, "family": family,
             "card": card, "cross": _cross_lens(rankings)}
+
+
+# --------------------------------------------------------------- workbook ---
+# E7 (BUILD_PLAN_2D.md, Phase 2D stream VF4): ONE workbook at the very end of
+# the page replaces every per-lens/per-tab CSV this page used to offer. Built
+# from ALL_LENSES (every lens the engine defines), never only the tabs this
+# scenario happens to show -- WT_2D.md claim 6's own inventory measured this
+# at ~0.95s/lens, ~8-12s total, which is exactly the shape the OLD per-lens
+# CSV button already accepted: a lazy `data=` callable that only runs when
+# someone actually clicks (nothing here runs on a bare rerun).
+
+_LENS_SHEET_COLUMNS = ["rank", "institution_name", "institution_id", "country", "type",
+                       "size_full", "size_frac", "score", "evidence"]
+_CONCORDANCE_SHEET_COLUMNS = ["institution_name", "institution_id", "country", "type",
+                             "k_of_n", "hit_lenses", "size_full", "size_frac"]
+_ASPIRATIONAL_SHEET_COLUMNS = ["rank", "institution_name", "institution_id", "country", "type",
+                               "size_full", "size_frac", "pp", "score"]
+
+
+def _profile_numbers_frame(card: dict, row, bundle: dict) -> pd.DataFrame:
+    """The six KPI cards' own numbers (E7): metric name, formatted value, and
+    the same small line the card itself carries -- an index position for five
+    of them, the fractional-count note for the publications card. Nowhere
+    else on the page offers these six figures together as a table (WT_2D
+    claim 6's own "profile numbers" sheet)."""
+    out = []
+    for kpi, label, value, fmt, _tip in _card_specs(card, row):
+        if kpi == KPI_PUBS_KEY:
+            sub = copy.FIND["KPI_PUBS_FRAC_NOTE"].format(n=_count(card["total_frac_2020_2024"]))
+        else:
+            sub = _baseline_sub(bundle, kpi, value, fmt)
+        out.append({"metric": label, "value": fmt(value), "index_position": sub})
+    return pd.DataFrame(out)
+
+
+def _lens_sheet_frame(lens: str, ranking: dict, bundle: dict, subs: dict, filters: dict,
+                      seed_row, bits: dict) -> pd.DataFrame:
+    """One lens's full (filtered) ranking as a plain sheet -- the SAME rows
+    the retired per-lens CSV carried, built here (at workbook-click time,
+    E7) rather than at every tab's own click, so an unopened tab still costs
+    nothing until the workbook itself is downloaded."""
+    if ranking["undefined"]:
+        return pd.DataFrame([{"note": copy.LENS_UNDEFINED_REASON[lens]}])
+    ctx = bundle["ctx"]
+    kept_ids, kept_scores = _filtered(ranking, bundle, filters, seed_row, bits["family"])
+    if not kept_ids:
+        return pd.DataFrame(columns=_LENS_SHEET_COLUMNS)
+    rows = _rows_for_ids(ranking, ctx, kept_ids, kept_scores, bits["cross"], subs)
+    _with_evidence(rows, ctx, subs, lens, ranking["seed_id"])
+    df = format_rows(rows, lens=lens, depth=len(rows))
+    return df[_LENS_SHEET_COLUMNS]
+
+
+def _overview_sheet_frame(bundle: dict, rankings: dict, filters: dict, seed_row) -> pd.DataFrame:
+    """The concordance ("k of n lenses") table over EVERY lens (`ALL_LENSES`),
+    not only the tabs this scenario happens to show -- the workbook's own
+    Overview sheet (E7)."""
+    rows = concordance(bundle["ctx"], rankings, ALL_LENSES, CONCORDANCE_N)
+    if not rows:
+        return pd.DataFrame(columns=_CONCORDANCE_SHEET_COLUMNS)
+    kept = apply_filters(rows, seed_row=seed_row, family_scores=None, **filters)
+    if not kept:
+        return pd.DataFrame(columns=_CONCORDANCE_SHEET_COLUMNS)
+    df = format_concordance(kept, lenses=ALL_LENSES, N=CONCORDANCE_N)
+    return df[_CONCORDANCE_SHEET_COLUMNS]
+
+
+def _aspirational_sheet_frame(bundle: dict, rankings: dict, filters: dict, seed_row) -> pd.DataFrame:
+    """The same V0 / frontier-fallback logic `_render_aspirational` renders,
+    built into a plain sheet for the workbook (E7) -- kept in the DEFAULT
+    L1-overlap order regardless of the on-screen sort checkbox, since this
+    button is computed 'regardless of open tab' (WT_2D claim 6), not a copy
+    of whatever one session happened to toggle."""
+    l1 = rankings.get("L1")
+    if l1 is None or l1["undefined"] or pd.isna(seed_row["pp_top10_frac"]) \
+            or pd.isna(seed_row["pp_ci_high"]):
+        return pd.DataFrame(columns=_ASPIRATIONAL_SHEET_COLUMNS)
+    rows = aspirational(bundle["ctx"], l1)
+    fallback = False
+    if not rows:
+        fallback_rows = aspirational_frontier(bundle["ctx"], l1, rankings.get("F1"))
+        if fallback_rows:
+            fallback = True
+            rows = fallback_rows
+    kept = apply_filters(rows, seed_row=seed_row, family_scores=None, **filters)
+    if not kept:
+        return pd.DataFrame(columns=_ASPIRATIONAL_SHEET_COLUMNS)
+    if fallback:
+        frame = _aspirational_frame(kept, score_key="lens_score_F1_overlap",
+                                    score_label_key="COL_F1")
+    else:
+        frame = _aspirational_frame(kept)
+    return frame[_ASPIRATIONAL_SHEET_COLUMNS]
+
+
+def _find_workbook(bundle: dict, subs: dict, ctl: dict, filters: dict, seed_row, card: dict,
+                   rankings: dict, bits: dict) -> bytes:
+    """Every lens (`ALL_LENSES`) + the concordance overview + the aspirational
+    list + the profile's own KPI numbers, one sheet each, in that order
+    (E7). `exports_xlsx.workbook_bytes` legalises and de-duplicates every
+    sheet name on the way in, so a lens whose display name runs past Excel's
+    31-character cap (e.g. L9's) is truncated there, not here."""
+    sheets = [(copy.FIND["XLSX_SHEET_PROFILE"], _profile_numbers_frame(card, seed_row, bundle)),
+              (copy.FIND["XLSX_SHEET_OVERVIEW"],
+               _overview_sheet_frame(bundle, rankings, filters, seed_row))]
+    for lens in ALL_LENSES:
+        sheets.append((copy.LENS_DISPLAY_NAMES[lens],
+                       _lens_sheet_frame(lens, rankings[lens], bundle, subs, filters, seed_row,
+                                        bits)))
+    sheets.append((copy.FIND["XLSX_SHEET_ASPIRATIONAL"],
+                   _aspirational_sheet_frame(bundle, rankings, filters, seed_row)))
+    return workbook_bytes(sheets)
+
+
+def _find_exports(bundle: dict, subs: dict, seed_id: str, ctl: dict, filters: dict, seed_row,
+                  card: dict, rankings: dict, bits: dict) -> None:
+    """ONE download button (E7), replacing every per-lens/per-tab CSV this
+    page used to offer. `data` is a zero-arg callable, so the whole all-lenses
+    workbook is only ever built when someone actually clicks."""
+    def _book() -> bytes:
+        return _find_workbook(bundle, subs, ctl, filters, seed_row, card, rankings, bits)
+
+    st.download_button(copy.FIND["EXPORT_XLSX_BUTTON"], _book,
+                       file_name=find_workbook_filename(seed_id, ctl["tree"], ctl["basis"]),
+                       mime=XLSX_MIME, help=copy.FIND["EXPORT_XLSX_HELP"],
+                       key="dl_find_workbook")
 
 
 def render() -> None:
@@ -1742,4 +1873,6 @@ def render() -> None:
             _render_lens_tab(lens, rankings[lens], bundle, subs, filters, seed_row, bits)
     with tabs[-1]:
         _render_aspirational(bundle, rankings, filters, seed_row, bits)
-    _footer_meta(bundle)
+    _footer_meta(bundle, workbook_kwargs={
+        "bundle": bundle, "subs": subs, "seed_id": seed_id, "ctl": ctl, "filters": filters,
+        "seed_row": seed_row, "card": card, "rankings": rankings, "bits": bits})

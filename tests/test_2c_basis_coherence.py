@@ -21,13 +21,17 @@ asserting it:
   * fwci                         -> value/vol_display/denom_value/every OTHER
                                      column BYTE-IDENTICAL across basis (no
                                      `subs` reaches `_fwci_frame` at all).
-  * pp (field)                   -> `value` basis-invariant (a population
-                                     statistic); `vol_display`/`denom_value`
-                                     DO move with basis, and full >= frac
-                                     row-wise (fractional counting sums a
-                                     PER-WORK SHARE <= 1, so a work's
-                                     fractional contribution can never exceed
-                                     its full-count contribution of exactly 1).
+  * pp (all four grains)          -> 2D RE-PIN (E2/E4, decisions log
+                                     2026-09-02): PP10_WD rebased onto
+                                     `impact_taxa.parquet` is now FULLY
+                                     basis-pinned, like fwci -- `value`,
+                                     `vol_display` AND `denom_value` are all
+                                     BYTE-IDENTICAL across the toggle (no
+                                     `subs` reaches `_pp_frame` at all). The
+                                     OLD `impact_fields.parquet`-based
+                                     contract this bullet used to describe
+                                     ("gutter follows basis") is RETIRED with
+                                     that table's own reader path.
   * vol_top10 (field)             -> POST-D4-FIX: `value` AND `vol_display`
                                      both basis-invariant (CD5's own fix made
                                      the gutter mirror the bar directly).
@@ -140,32 +144,26 @@ def test_fwci_is_byte_identical_across_basis_at_every_grain(ctx, subs_frac, subs
 
 
 # ---------------------------------------------------------------------------
-# pp -- value pinned, gutter follows basis (by contract, disclosed)
+# pp -- 2D RE-PIN (E2/E4): fully basis-pinned at every grain, like fwci
+# (impact_taxa.parquet has no basis toggle at all -- the OLD `impact_fields.
+# parquet`-based "gutter follows basis" contract this test used to guard is
+# RETIRED along with that reader path, decisions log 2026-09-02).
 # ---------------------------------------------------------------------------
 
-def test_pp_value_is_pinned_but_its_gutter_follows_basis(ctx, subs_frac, subs_full):
-    frac = _frame(ctx, subs_frac, "field", "pp")
-    full = _frame(ctx, subs_full, "field", "pp")
-    assert len(frac) == len(full) > 0
+def test_pp_is_byte_identical_across_basis_at_every_grain(ctx, subs_frac, subs_full):
+    for level in CD.LEVELS:
+        kw = {"field_id": FIELD_ID} if level == "subfield" else {}
+        frac = _frame(ctx, subs_frac, level, "pp", **kw)
+        full = _frame(ctx, subs_full, level, "pp", **kw)
+        assert len(frac) > 0, level
+        pd.testing.assert_frame_equal(frac, full, check_dtype=False)
 
-    np.testing.assert_allclose(frac["value"].to_numpy(dtype="float64"),
-                               full["value"].to_numpy(dtype="float64"))
-
-    # the gutter DOES move -- if it did not, this metric would be silently
-    # basis-pinned like fwci, contradicting its own denominator note ("on the
-    # current basis"). full counting attributes >=1 whole work per matching
-    # work, fractional counting a per-work SHARE <= 1 of the same works, so
-    # full's gutter can never read BELOW fractional's for the same row.
-    assert (full["vol_display"] != frac["vol_display"]).any()
-    assert (full["vol_display"].to_numpy(dtype="float64")
-           >= frac["vol_display"].to_numpy(dtype="float64") - 1e-9).all()
-    assert (full["denom_value"].to_numpy(dtype="float64")
-           >= frac["denom_value"].to_numpy(dtype="float64") - 1e-9).all()
-
-    # VACUITY: two identical calls (frac vs frac) must NOT show the gutter
-    # moving -- proves the "any()" check above is not trivially true.
-    frac_again = _frame(ctx, subs_frac, "field", "pp")
-    assert not (frac["vol_display"] != frac_again["vol_display"]).any()
+        # VACUITY: perturb one cell of the "full" copy the way a real basis
+        # leak would -- the SAME assertion must now raise.
+        corrupt = full.copy()
+        corrupt.loc[0, "vol_display"] = corrupt.loc[0, "vol_display"] + 1.0
+        with pytest.raises(AssertionError):
+            pd.testing.assert_frame_equal(frac, corrupt, check_dtype=False)
 
 
 def test_vol_top10_is_fully_basis_invariant_after_the_d4_fix(ctx, subs_frac, subs_full):

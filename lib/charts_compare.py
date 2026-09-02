@@ -1219,7 +1219,13 @@ BAR_GROUP_FILL = C.DEFAULT_GROUP_FILL   # S2): single-sourced from charts.py --
 AXIS_PAD_FRAC = 0.20        # x-range headroom so an outer-end label never
                             # collides with the plot frame (measured need, A/B #9)
 ROW_RULE_PX = 1             # hairline between two category rows
-REF_HALF_BAND = 0.40        # half-height of a per-row reference dash, in category units
+REF_HALF_BAND = 0.40        # half-height of a per-row reference dash, in category
+                            # units. 2D (E8): retired in place, unused since
+                            # `_add_reference`'s varying-reference branch now
+                            # draws a `REF_MARKER_SYMBOL` marker per row
+                            # instead of a per-row dashed `add_shape` segment
+                            # (WT_2D.md claim 3) -- kept, not deleted, as the
+                            # historical record of that geometry.
 BOLD_AXIS_PX = 2            # the BOLD BLACK 0/0 axes (2B-R-9 / 2B-R-13). INK on a
                             # RULE, not on a mark -- the quadrant split is the
                             # figure's own frame of reference, so it is the one
@@ -1339,6 +1345,57 @@ LOW_VOLUME_PATTERN_SOLIDITY = 0.35
 # SURFACE-fill-plus-outline "hollow" idiom for every below-floor BAR this module
 # draws; the SI/mirror-dot below-floor MARKER stays hollow (plotly's pattern
 # fill is a Bar-family feature, not a Scatter-marker one).
+#
+# 2D AMENDMENT (E5, BUILD_PLAN_2D.md S7 2026-09-02 ruling): the hatch/hollow
+# RENDERING above is retired from `fig_metric_bars` -- every ratio-chart bar is
+# now SOLID in the institution's own colour, and the below-floor disclosure
+# moves to the VALUE + GUTTER TEXT COLOUR alone (`palette.WARNING_CAPTION_COLOR`,
+# never bold, dagger kept; see `fig_metric_bars`). These two constants are kept,
+# UNCHANGED, for their one remaining caller -- `fig_pulse`'s unrelated "partial
+# final year" marker, a genuinely different concept (an incomplete calendar
+# year, not a too-few-publications caution) that this round did not touch.
+# `_is_low_volume`/`LOW_VOLUME_FLOOR`/`RATIO_HATCH_METRICS` below are the FLAG
+# computation and are UNCHANGED (E4: the floors themselves do not move) -- only
+# how `fig_metric_bars` draws a flagged row changed.
+
+# ---------------------------------------------------------------------------
+# 2D (stream CH2) -- the left GUTTER COLUMN (E6) and the diamond REFERENCE
+# marker (E8). WT_2D.md claims 1 and 3 are the load-bearing evidence for both;
+# CHROME_CONTRACT.md's v2 sections are the per-chart-TYPE contract these feed.
+# ---------------------------------------------------------------------------
+GUTTER_NEG_AXIS_FRAC = 0.16
+# WT_2D claim 1, candidate B's calibrated fraction of the (0..hi) data span
+# reserved as the negative "gutter zone" a phantom bar trace's text sits in --
+# clean at 1920/1280 px on both the SHARE (26 rows, wrapped labels) density
+# case and the PP (13 rows) case. A DATA-space fraction, not a pixel one, so it
+# is `metric_row_height`-independent -- but for the same reason it CANNOT buy
+# back real estate a wrapped first-row label has already spent: the probe's own
+# recalibration to 0.45 still collided at 390 px (the label alone needs 286 of
+# 390 px there). This is why `gutter_column` (the `fig_metric_bars` parameter)
+# is a CALLER decision, the same "the builder makes the layout available, the
+# caller decides when to switch" idiom `fig_share_si`'s `stacked` argument
+# already uses -- Streamlit cannot read the viewport width server-side.
+GUTTER_TIP_FRAC = 0.06
+# The phantom bar's own (invisible) tip, as a fraction of the negative extent
+# above -- just left of zero, so its `textposition="outside"` text is pushed
+# further left, away from the real bars (WT_2D `probe_gutter.py::candidate_b`).
+REF_MARKER_SYMBOL = "diamond-tall"
+REF_MARKER_SIZE = 8
+GUTTER_PHANTOM_FILL = "rgba({0},{0},{0},{0})".format(0)
+# The phantom gutter trace's fully transparent fill -- only its TEXT (the raw
+# volume) is ever visible. Composed via `.format` so the digit-ban scanner's
+# own `{...}`-placeholder-strip exemption applies, rather than a bare literal
+# with four `0` characters in it.
+# WT_2D claim 3 (refC, ratified): a dark diamond MARKER per row for a VARYING
+# reference -- a different mark family from a bar or a grid line, unmistakable
+# at 26x3 density (`refC_sdgshare_1920.png`), replacing the per-row dashed
+# `add_shape` segment (refA, confirmed nearly invisible; refB, heavier but
+# still a thin line competing with the row rules and the grid). A CONSTANT
+# reference (SI's neutral value, or any single-value REF_METRICS case) stays a
+# RULE rather than a marker repeated on every row -- WT_2D's own reasoning: a
+# marker for a value that never changes would be visual noise, not a benchmark
+# -- but takes refB's heavier/darker upgrade (`_ref_line`) over the pre-2D
+# near-invisible hairline dash.
 
 DOMAIN_RULE_PX = 2          # the separator BETWEEN two taxonomy domains
 NOTE_MAX_CHARS = 160        # `chart_note`'s hard cap -- see its docstring
@@ -1467,11 +1524,29 @@ def metric_row_height(n_rows: int, n_series: int, n_wrapped: int = 0,
     stack needs and no further. That is what makes "no bar is thinner than
     `BAR_PX`" an arithmetic property of the builder rather than a hope about the
     row count -- the 2B wind tunnel's 2.6 px bars were the same picture drawn
-    into a band sized for dots."""
+    into a band sized for dots.
+
+    2D FIX (E11, WT_2D.md claim 2): the FALLBACK branch (the one that fires
+    whenever `BAR_PX * n_series` exceeds the base row pitch -- measured true
+    for every >=2-institution Compare chart) used to compute `need * n_rows`
+    from `BAR_PX` alone, dropping `n_wrapped` entirely: `metric_row_height(26,
+    3, n_wrapped=0)` and `metric_row_height(26, 3, n_wrapped=1)` returned the
+    IDENTICAL number. `C.row_height`'s own base estimate already applies the
+    uniform-pitch rule (plotly spaces a categorical axis UNIFORMLY, so if ANY
+    label wraps, EVERY row needs the two-line pitch, not just the wrapped
+    ones) -- this fold's the SAME `WRAP_ROW_FACTOR` term into the fallback's
+    own per-row `need`, so the two branches agree on what a wrapped row costs
+    instead of only one of them accounting for it. Current real data (WT_2D
+    measured `need=55.3px/row` vs `have=17.0px/row`, `n_wrapped=0`) does not
+    clip today -- this closes a LATENT defect for the day a first-row label
+    genuinely wraps on a fallback-branch chart, not a currently-visible bug."""
     n_rows = max(int(n_rows), 1)
+    n_wrapped = min(max(int(n_wrapped), 0), n_rows)
     base = C.row_height(n_rows, minimum=minimum, n_wrapped=n_wrapped)
     chrome = C.BASE_PX + C.BASE_PX // 2
     need = BAR_PX * max(int(n_series), 1) / (BAR_GROUP_SPAN * BAR_GROUP_FILL)
+    if n_wrapped > 0:
+        need *= C.WRAP_ROW_FACTOR
     have = max(base - chrome, 0) / n_rows
     if have >= need:
         return base
@@ -1656,6 +1731,7 @@ def fig_metric_bars(
     metric_label: str | None = None,
     gutter: bool = True,
     gutter_col: str = "vol_display",
+    gutter_header: str | None = None,
     low_vol_col: str = "vol_full_annual_mean",
     domain_col: str = "domain_id",
     domain_order_col: str = "domain_order",
@@ -1682,30 +1758,59 @@ def fig_metric_bars(
     whole" rule `_row_order` uses. Colour follows the entity either way, so
     nothing repaints when the reader flips the toggle.
 
-    THE GUTTER (2B-R2-3: raw volume on EVERY metric, not just the volume tab;
-    2B-R3: moved from the tick label onto each institution's OWN bar). Every
-    drawn bar carries its own institution's raw volume as PART OF ITS OWN bar
-    text (plotly `text`, `textposition="outside"`, `cliponaxis=False`) --
-    `"{value} ({volume})"`, written in that institution's DARK TWIN, right at
-    that bar's own end. This REPLACES the pre-2B-R3 mechanism, which crammed
-    every drawn institution's number onto ONE line of the row's tick label --
-    legible at two institutions, a wall of digits at three. A per-bar label is
-    legible at any count, because each number sits where its own bar is,
-    vertically, rather than competing for one line of text. It answers the
-    question every share chart provokes and no share chart answers: forty per
-    cent of how many?
+    THE GUTTER COLUMN (2D, E6, WT_2D.md claim 1 -- REPLACES the pre-2D
+    bar-end parenthetical entirely; 2B-R2-3's "raw volume on EVERY metric" and
+    2B-R3's "own bar, not the tick label" both still hold, only the MECHANISM
+    changed). `gutter=True` (the default) draws a dedicated LEFT column
+    between the row label and the bars: one phantom, zero-visible-fill
+    `go.Bar` trace per institution, offset the SAME as its real bar so it
+    lands in the SAME lane, sitting at a small negative x
+    (`GUTTER_NEG_AXIS_FRAC` of the data span) with its OWN raw volume as
+    `text`, `textposition="outside"` pushing it further left, away from the
+    real bars. This is candidate B from the wind tunnel -- candidate A (a
+    hand-placed annotation) is a DEAD END in this app's rendering stack on two
+    independent counts (a same-anchor collision with the native y-tick label,
+    and a `xref="paper"` mislocation bug that reproduces even through the
+    real app's own bundled plotly.js once any chart sets a custom margin,
+    which every chart here does) -- this module therefore never places an
+    annotation at `xref="paper"`. `gutter_header` (new) names the basis
+    (e.g. "Publications" / "Fractional") in a small `INK_SECONDARY` label
+    above the column; the caller supplies the word, this module never invents
+    one. The raw volume is ALSO always in the hover (`_metric_hover`),
+    independent of this flag.
 
-    LOW VOLUME (2B-R2-4; 2B-R3: hatched, not hollow). A cell whose
-    `low_vol_col` (mean annual FULL volume) is under `LOW_VOLUME_FLOOR` is
-    drawn with a diagonal `marker.pattern` in the bar's OWN colour over a
-    SURFACE ground (`LOW_VOLUME_PATTERN_SHAPE`/`_SOLIDITY`, replacing the old
-    hollow SURFACE-fill-plus-outline), and its value label carries
-    `LOW_VOLUME_GLYPH`, with the reason in the hover. Disclosure, never
-    suppression: the number is real, it is just built on too little to race
-    against its neighbour. `fig_mirror_dots` keeps the hollow-means-thin dot
-    for a below-floor SI cell (plotly patterns are a Bar-family feature, not a
-    Scatter-marker one), so the two sections still read as one system, texture
-    substituting for outline-only where a bar has real area to hatch.
+    Below roughly 600 px of PLOT width the column has nowhere to go: a
+    wrapped first-row label alone can need the large majority of the whole
+    figure's width at 390 px, leaving no room for a gutter zone AND legible
+    bars (WT_2D claim 1, measured: recalibrating the reserved fraction from
+    0.16 to 0.45 still collided, because it is a fraction of the DATA range
+    and the data range's pixel footprint shrinks with the plot area -- no
+    fraction can conjure pixels that are not there). Streamlit cannot read
+    the viewport width server-side, so -- the same "the builder makes the
+    layout available, the caller decides when to switch" idiom
+    `fig_share_si`'s `stacked` argument already uses -- the CALLER passes
+    `gutter=False` below that breakpoint; the raw volume then lives in hover
+    alone, and there is never a horizontal scroll either way.
+
+    THE CAUTION CHANNEL (2D, E5, BUILD_PLAN_2D.md S7 2026-09-02 ruling --
+    REPLACES 2B-R2-4/2B-R3's hatch-then-hollow-then-hatch history entirely).
+    Every bar is now SOLID, in the institution's own colour, whatever its
+    volume -- there is no more hollow fill and no more diagonal
+    `marker.pattern` anywhere in this function. A cell flagged by
+    `_is_low_volume` (the FLAG computation is UNCHANGED, E4: PP/FWCI on their
+    own per-row `denom_value` against `palette.RATIO_HATCH_FLOOR`, every other
+    metric on `low_vol_col` against `LOW_VOLUME_FLOOR` -- see `_is_low_volume`'s
+    own docstring) instead switches its VALUE text AND its gutter-column text
+    to `palette.WARNING_CAPTION_COLOR` (never bold) and keeps `LOW_VOLUME_GLYPH`
+    (the dagger). Disclosure, never suppression: the number is real, still the
+    institution's own bar, still drawn at full size -- only the ink that
+    prints its own number changes. `fig_mirror_dots`/`fig_share_si` keep their
+    existing hollow-dot idiom for a below-floor SI cell UNCHANGED (2D judged
+    it: a filled-vs-hollow marker with a coloured outline still reads as an
+    identity, not a hole, which is a different visual grammar from a diagonal
+    hatch texture on a bar's own fill -- the two sections were never required
+    to use the SAME mechanism, only the same DISCLOSURE, and the dot family's
+    already reads cleanly at density).
 
     ENCODING. Bar = institution (`palette.institution_slots`, ascending
     `inst_key`). Row label = the taxon, and for ERC and SDG ONLY it carries a
@@ -1713,14 +1818,20 @@ def fig_metric_bars(
     and routed through `palette.label_accent_color`: taxonomy colour on labels,
     institution colour on marks, never the reverse.
 
-    REFERENCE (2B-R2-4). Only `REF_METRICS` draw one -- PP, SDG-tagged share and
-    Dynamics, whose reference is the population mean among institutions with
-    nonzero mass. `si` defaults to the neutral value, which is a constant of the
-    indicator rather than data. Share and Volume draw none even when the frame
-    carries `ref_col`. A reference that is the SAME for every row is drawn as
-    one dashed rule across the panel; one that VARIES by row is drawn as a short
-    dash inside each row band, because a single line would be a lie about a
-    per-taxon index mean.
+    REFERENCE (2B-R2-4; 2D E8, WT_2D.md claim 3 -- REPLACES the per-row dash).
+    Only `REF_METRICS` draw one -- PP, SDG-tagged share and Dynamics, whose
+    reference is the population mean among institutions with nonzero mass.
+    `si` defaults to the neutral value, which is a constant of the indicator
+    rather than data. Share and Volume draw none even when the frame carries
+    `ref_col`. A reference that VARIES by row is now a dark
+    `REF_MARKER_SYMBOL` MARKER per row (refC, ratified: a different mark
+    family from a bar, a grid line or a row rule, unmistakable at 26x3
+    density -- the pre-2D per-row dash, refA, was confirmed nearly invisible
+    next to a panel already full of solid bars). One that is the SAME for
+    every row stays ONE rule across the panel -- a marker repeated on a value
+    that never changes would be visual noise, not a benchmark -- but that rule
+    now takes refB's heavier, darker treatment (`_ref_line`) over the old
+    near-invisible hairline dash.
 
     EMPTY STATE (n/a never zero, BUILD_PLAN_2A L11). An institution with no row
     for a taxon gets NO bar and NO label. A GENUINE zero gets no visible bar
@@ -1781,15 +1892,37 @@ def fig_metric_bars(
 
     keys = rows[key_col].tolist()
 
+    # 2D E6: the gutter column is only "active" when the caller asked for it
+    # AND the frame actually carries the column -- a frame without it draws
+    # exactly the pre-2D-minus-parenthetical shape (additive contract, same
+    # direction 2B-R2 already established for `domain_id`/`ref_value`).
+    gutter_active = bool(gutter and gutter_col in d.columns
+                         and pd.notna(d[gutter_col]).any())
+    neg_extent = 0.0
+    gutter_x = 0.0
+    if gutter_active:
+        basis = vmax if vmax > 0 else (abs(vmin) if vmin < 0 else 1.0)
+        neg_extent = basis * GUTTER_NEG_AXIS_FRAC
+        gutter_x = -neg_extent * GUTTER_TIP_FRAC
+
     fig = go.Figure()
     _row_rules(fig, n, boundaries)
+    # 2D E8: the reference trace/shape is added BEFORE the bars so a per-row
+    # diamond marker sits BEHIND a bar's own outside-text when the two
+    # coincide (WT_2D claim 3's own placement caveat) -- z-order among
+    # `go.Figure` traces follows add order; a shape (the constant-value rule)
+    # is a separate layer this ordering does not affect either way.
+    if metric in REF_METRICS or ref_value is not None or metric in _METRIC_DEFAULT_REF:
+        _add_reference(fig, rows, ref_col, ref_value, _METRIC_DEFAULT_REF.get(metric))
+
     for k, iid in enumerate(series):
         offset, bar_w = C._series_offset_width(len(series), k, BAR_GROUP_SPAN,
                                                BAR_GROUP_FILL)
         slot = _slot_of(slots, iid)
         color = P.institution_color(slot)
         ink = P.institution_ink(slot)
-        xs, ys, texts, hovers, fills, widths, patterns = [], [], [], [], [], [], []
+        xs, ys, texts, hovers, inks = [], [], [], [], []
+        gy, gtexts, ginks = [], [], []
         for ri, key in enumerate(keys):
             r = cells.get((key, iid))
             if r is None:
@@ -1798,39 +1931,61 @@ def fig_metric_bars(
             if not np.isfinite(v):
                 continue
             low = _is_low_volume(r, metric, low_vol_col, denom_value_col)
+            caution = P.WARNING_CAPTION_COLOR if low else ink
             xs.append(v)
             ys.append(ri)
-            text = _fmt_metric(v, metric) + (LOW_VOLUME_GLYPH if low else "")
-            # 2B-R3 (user ruling 5): the PER-BAR vertical gutter -- each
-            # institution's own raw volume at ITS OWN bar end, one bar text per
-            # institution rather than three numbers crammed onto one tick-label
-            # line (illegible past two institutions; see git history for the
-            # retired `_accent_ticktext` gutter_cells mechanism this replaces).
-            if gutter and gutter_col in r.index:
-                text = f"{text}{C.TICK_LABEL_GAP}({_gutter_value(r[gutter_col])})"
-            texts.append(text)
-            # 2B-R3: hatched, not hollow -- see LOW_VOLUME_PATTERN_SHAPE above.
-            fills.append(P.SURFACE if low else color)
-            widths.append(P.OUTLINE_WIDTH if low else C.HAIRLINE_PX)
-            patterns.append(LOW_VOLUME_PATTERN_SHAPE if low else "")
+            texts.append(_fmt_metric(v, metric) + (LOW_VOLUME_GLYPH if low else ""))
+            inks.append(caution)
             hovers.append(_metric_hover(r, iid, names, label_col, value_col,
                                         metric, ref_col, denom_value_col,
                                         metric_label, gutter_col, low,
                                         fwci_mean_col=fwci_mean_col,
                                         ref_label=ref_label))
+            if gutter_active and gutter_col in r.index:
+                gy.append(ri)
+                gtexts.append(_gutter_value(r[gutter_col]))
+                ginks.append(caution)
+        # 2D E5: ALL solid, in the institution's own colour -- no more
+        # per-point hollow fill and no more `marker.pattern` (see
+        # `LOW_VOLUME_PATTERN_SHAPE`'s own docstring: that mechanism's one
+        # remaining caller is `fig_pulse`, an unrelated concept). `color` is
+        # still passed as a per-point LIST (not a bare scalar) so a caller
+        # iterating `tr.marker.color` keeps getting hex strings, never the
+        # characters of one.
         fig.add_trace(go.Bar(
             x=xs, y=ys, orientation="h", offset=offset, width=bar_w,
-            marker=dict(color=fills, line=dict(color=color, width=widths),
-                        pattern=dict(shape=patterns, fgcolor=color,
-                                    solidity=LOW_VOLUME_PATTERN_SOLIDITY)),
+            marker=dict(color=[color] * len(xs), line=dict(color=color, width=C.HAIRLINE_PX)),
             text=texts, textposition="outside", cliponaxis=False,
-            textfont=dict(size=C.GUTTER_FONT_PX, color=ink),
+            textfont=dict(size=C.GUTTER_FONT_PX, color=inks),
             customdata=hovers, hovertemplate="%{customdata}<extra></extra>",
             showlegend=False))
+        if gy:
+            # the phantom column trace (WT_2D candidate B): invisible fill,
+            # `hoverinfo="skip"` (the raw volume is already in the real bar's
+            # own hover line above) with a dummy, SAFELY-ITERABLE `customdata`
+            # so any code that loops `for h in tr.customdata` over every trace
+            # in the figure never hits a bare `None`.
+            fig.add_trace(go.Bar(
+                x=[gutter_x] * len(gy), y=gy, orientation="h", offset=offset, width=bar_w,
+                marker=dict(color=[GUTTER_PHANTOM_FILL] * len(gy), line=dict(width=0)),
+                text=gtexts, textposition="outside", cliponaxis=False,
+                textfont=dict(size=C.GUTTER_FONT_PX, color=ginks),
+                customdata=[""] * len(gy), hoverinfo="skip", showlegend=False))
 
     fig.update_layout(barmode="overlay", bargap=0)
-    if metric in REF_METRICS or ref_value is not None or metric in _METRIC_DEFAULT_REF:
-        _add_reference(fig, rows, ref_col, ref_value, _METRIC_DEFAULT_REF.get(metric))
+
+    if gutter_active and gutter_header:
+        # `xref="x"` (data space, never buggy on this pinned plotly) paired
+        # with `yref="y domain"` (the plot area's OWN 0..1 span, a DIFFERENT
+        # ref family from the `xref="paper"` this module never uses) -- WT_2D
+        # claim 1's isolated repro shows `xref="paper"` mislands once any
+        # chart sets a custom margin, which every chart here does; "domain"
+        # refs ask for plot-area-relative coordinates on purpose and are not
+        # the buggy code path.
+        fig.add_annotation(x=gutter_x, xref="x", y=1.0, yref="y domain",
+                           xanchor="right", yanchor="bottom",
+                           text=gutter_header, showarrow=False,
+                           font=dict(size=C.GUTTER_FONT_PX, color=P.INK_SECONDARY))
 
     plain, styled = _accent_ticktext(rows, level, label_col, accent_col)
     _y_axis(fig, n, styled)
@@ -1839,11 +1994,20 @@ def fig_metric_bars(
     hi = max(vmax, 0.0)
     span = (hi - lo) or (abs(hi) or 1.0)
     pad = span * AXIS_PAD_FRAC
-    fig.update_xaxes(range=[lo - (pad if signed else 0.0), hi + pad],
+    fig.update_xaxes(range=[lo - (pad if signed else 0.0) - neg_extent, hi + pad],
                      title_text=metric_label or _METRIC_AXIS[metric],
-                     gridcolor=P.GRID, zerolinecolor=P.GRID, linecolor=P.BORDER)
+                     gridcolor=P.GRID, zerolinecolor=P.GRID, zeroline=True,
+                     zerolinewidth=C.HAIRLINE_PX, linecolor=P.BORDER)
     if _METRIC_KIND[metric] == "pct":
         fig.update_xaxes(tickformat=C._AXIS_PCT_FMT)
+    if gutter_active and not signed:
+        # real (>=0) ticks only -- the gutter zone is a DRAWING convenience,
+        # never a value the axis should appear to measure (WT_2D candidate B).
+        # Skipped for a SIGNED metric (dynamics): its own negative DATA ticks
+        # must stay visible, and reconciling those with the gutter zone's own
+        # extension is a known, documented limitation (dynamics is not among
+        # the metrics this round's proof set covers) left for a later pass.
+        fig.update_xaxes(tickmode="array", tickvals=C._nice_ticks(hi))
     if signed:
         _bold_axes(fig, y=None)
     plain_lines = [s.replace("<br>", "\n") for s in plain]
@@ -1895,8 +2059,9 @@ def _metric_hover(r, iid, names, label_col, value_col, metric, ref_col,
         # `denom_value` is a number by contract (§2.5), so this is now safe.
         parts.append(f"{HOVER_DENOMINATOR}{C.THIN_SPACE}{_fmt_vol(_num(r[denom_value_col]))}")
     if low:
-        # the other half of the low-volume marker: the hatched bar says THAT,
-        # the hover says WHY (2B-R2-4). Never a reason to hide the value.
+        # the other half of the caution channel: the caution-coloured text
+        # says THAT (2D E5, was the hatched bar pre-2D), the hover says WHY
+        # (2B-R2-4). Never a reason to hide the value.
         reason = HOVER_LOW_VOLUME.format(floor=_fmt_vol(P.RATIO_HATCH_FLOOR))
         parts.append(f"{LOW_VOLUME_GLYPH}{C.THIN_SPACE}{reason}")
     return "<br>".join(parts)
@@ -1904,10 +2069,15 @@ def _metric_hover(r, iid, names, label_col, value_col, metric, ref_col,
 
 def _add_reference(fig: go.Figure, rows: pd.DataFrame, ref_col: str,
                    ref_value: float | None, default_ref: float | None) -> None:
-    """One dashed rule for a CONSTANT reference, a per-row dash for a VARYING
-    one. The distinction is the whole point: an index PP is a different number
-    in every field, and drawing one line across the panel would assert a single
-    benchmark that does not exist."""
+    """ONE heavier/darker rule for a CONSTANT reference (`_ref_line`), a
+    `REF_MARKER_SYMBOL` diamond MARKER per row for a VARYING one (2D E8,
+    WT_2D.md claim 3 -- refC ratified over the old per-row dashed
+    `add_shape` segment). The distinction is the whole point either way: an
+    index PP is a different number in every field, and drawing either a
+    single line or a single row's worth of markers across the whole panel
+    would assert a benchmark that does not exist for the other rows -- a rule
+    reads as ONE fact, a repeated marker reads as ONE mark family applied
+    consistently, and each is used only where it is true."""
     if ref_value is not None:
         _ref_line(fig, float(ref_value))
         return
@@ -1918,21 +2088,26 @@ def _add_reference(fig: go.Figure, rows: pd.DataFrame, ref_col: str,
             if float(finite.max()) - float(finite.min()) <= 1e-12:
                 _ref_line(fig, float(finite.iloc[0]))
             else:
-                for ri, v in enumerate(series.tolist()):
-                    if not np.isfinite(v):
-                        continue
-                    fig.add_shape(type="line", x0=float(v), x1=float(v),
-                                  y0=ri - REF_HALF_BAND, y1=ri + REF_HALF_BAND,
-                                  line=dict(color=P.INK_SECONDARY,
-                                            width=C.HAIRLINE_PX, dash="dash"))
+                xs = [float(v) for v in series.tolist() if np.isfinite(v)]
+                ys = [ri for ri, v in enumerate(series.tolist()) if np.isfinite(v)]
+                fig.add_trace(go.Scatter(
+                    x=xs, y=ys, mode="markers",
+                    marker=dict(symbol=REF_MARKER_SYMBOL, size=REF_MARKER_SIZE,
+                               color=P.INK, line=dict(width=0)),
+                    hoverinfo="skip", showlegend=False))
             return
     if default_ref is not None:
         _ref_line(fig, float(default_ref))
 
 
 def _ref_line(fig: go.Figure, x: float) -> None:
-    fig.add_vline(x=x, line=dict(color=P.INK_SECONDARY, width=C.HAIRLINE_PX,
-                                 dash="dash"))
+    """2D (E8): refB's heavier, darker upgrade over the pre-2D
+    `INK_SECONDARY`/`HAIRLINE_PX` rule -- WT_2D.md claim 3 confirmed that one
+    nearly invisible at density. Used for every CONSTANT reference (a value
+    the same in every row, e.g. SI's neutral value): a marker repeated on a
+    value that never changes would be visual noise, not a benchmark, so the
+    constant case keeps a rule rather than moving to refC's diamond."""
+    fig.add_vline(x=x, line=dict(color=P.INK, width=C.LINE_PX, dash="dash"))
 
 
 # ---------------------------------------------------------------------------

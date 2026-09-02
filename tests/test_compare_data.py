@@ -315,13 +315,25 @@ def test_overview_columns_and_anchors(ctx):
 
 
 def test_metric_frame_field_share_matches_fields_long(ctx, subs_bestfit):
+    """2D E8 RE-PIN: Share now carries `ref_value` = `share_refs.parquet`'s
+    eu_mean_share (was always None pre-2D) -- checked here against a FRESH,
+    independent read of that file, never through `compare_data`'s own
+    `_share_ref_series` loader (this IS the 'one share ref_value vs
+    share_refs row' golden the CD6 brief asks for)."""
     mf = CD.metric_frame(ctx, subs_bestfit, IDS6, "field", "share")
     assert list(mf.columns) == CD.METRIC_FRAME_COLS
     fl = CD.fields_long(ctx, subs_bestfit, IDS6)
     sums = mf.groupby("institution_id")["value"].sum().astype("float64")
     assert (sums.sub(1.0).abs() <= 1e-6).all(), sums.to_dict()
     assert len(mf) == len(fl)
-    assert mf["ref_value"].isna().all()
+    assert mf["ref_value"].notna().all()
+    refs = pd.read_parquet(Path(ctx["data_dir"]) / "share_refs.parquet")
+    want = refs[(refs["grain"] == "field") & (refs["basis"] == "frac")].set_index("taxon_id")["eu_mean_share"]
+    got = mf.drop_duplicates("taxon_id").set_index("taxon_id")["ref_value"]
+    common = got.index.intersection(want.index)
+    assert len(common) == 26  # all 26 fields present in both
+    np.testing.assert_allclose(got.reindex(common).to_numpy(dtype="float64"),
+                               want.reindex(common).to_numpy(dtype="float64"), atol=1e-9)
 
 
 def test_metric_frame_field_si_matches_fields_long_and_ref_is_one(ctx, subs_bestfit):
@@ -334,17 +346,38 @@ def test_metric_frame_field_si_matches_fields_long_and_ref_is_one(ctx, subs_best
 
 
 def test_metric_frame_field_pp_and_vol_top10_anchor(ctx):
-    """Anchor (Strasbourg, bestfit, floor 30): field 35 pp_top10_frac
-    0.252981, n_works_full 160 -> vol_top10 = 0.252981*160 = 40.47696."""
+    """2D RE-PIN (E2/E4 rebase onto impact_taxa.parquet, decisions log
+    2026-09-02): PP10_WD is now FULL/binary, not the old fractional
+    `pp_top10_frac` -- anchor recomputed straight off `impact_taxa.parquet`
+    (Strasbourg, field 35): pp10_wd 0.2875, n_covered_pp 160 (SAME population
+    size as the OLD n_works_full=160 -- a real cross-check that the
+    attribution-basis change didn't also change WHO is covered) -> exact
+    covered-work top-decile count 0.2875*160 = 46.0. `tree`/`floor` no longer
+    have any effect (impact_taxa is bestfit-pinned, no floor) -- still
+    accepted (vestigial, for `views_compare.py`'s not-yet-updated caller)."""
+    taxa = pd.read_parquet(Path(ctx["data_dir"]) / "impact_taxa.parquet")
+    hand = taxa[(taxa["institution_id"] == STRASBOURG) & (taxa["grain"] == "field") & (taxa["taxon_id"] == 35)].iloc[0]
+    np.testing.assert_allclose(float(hand["pp10_wd"]), 0.2875, atol=1e-6)
+    assert int(hand["n_covered_pp"]) == 160
+
     pp = CD.metric_frame(ctx, None, [STRASBOURG], "field", "pp", tree="bestfit", floor=30)
     row = pp[pp["taxon_id"] == 35].iloc[0]
-    np.testing.assert_allclose(row["value"], 0.252981, atol=1e-5)
+    np.testing.assert_allclose(row["value"], 0.2875, atol=1e-6)
+    assert row["denom_value"] == 160
+    assert row["vol_display"] == 160
+    np.testing.assert_allclose(row["vol_full_annual_mean"], 160.0 / CD.N_CORE_YEARS, rtol=1e-9)
     assert row["ref_value"] is not None and not pd.isna(row["ref_value"])
+    # population mean pp10_wd for field 35, independently recomputed off the
+    # SAME raw parquet (never through `compare_data._pp_ref_means`)
+    ref_hand = float(taxa[(taxa["grain"] == "field") & (taxa["taxon_id"] == 35)]["pp10_wd"].mean())
+    np.testing.assert_allclose(float(row["ref_value"]), ref_hand, rtol=1e-9)
+    np.testing.assert_allclose(ref_hand, 0.16673368436278216, rtol=1e-9)
 
     vol = CD.metric_frame(ctx, None, [STRASBOURG], "field", "vol_top10", tree="bestfit", floor=30)
     vrow = vol[vol["taxon_id"] == 35].iloc[0]
-    np.testing.assert_allclose(vrow["value"], 0.252981 * 160, rtol=1e-4)
-    assert vol["ref_value"].isna().all()
+    np.testing.assert_allclose(vrow["value"], 0.2875 * 160, rtol=1e-9)
+    np.testing.assert_allclose(vrow["value"], 46.0, rtol=1e-9)  # exact, FULL/binary integer count
+    assert vol["ref_value"].isna().all()  # a raw count carries no reference line
 
 
 def test_metric_frame_field_sdg_share_anchor(ctx, subs_bestfit):
@@ -523,9 +556,17 @@ def test_metric_frame_vol_unavailable_at_field_and_subfield(ctx):
 
 
 @pytest.mark.parametrize("metric,level", [
-    ("vol_top10", "subfield"), ("pp", "subfield"), ("sdg_share", "subfield"),
-    ("vol_top10", "erc"), ("pp", "erc"), ("sdg_share", "erc"), ("dynamics", "erc"),
-    ("vol_top10", "sdg"), ("pp", "sdg"), ("sdg_share", "sdg"), ("si", "sdg"),
+    # 2D E2/E4/E8 (decisions log 2026-09-02): `pp`/`vol_top10` now aggregate
+    # to ANY grain (impact_taxa.parquet) and `si` now has a European-baseline
+    # reference at sdg too (share_refs.parquet) -- REMOVED from this still-
+    # genuinely-unavailable list: (vol_top10,subfield), (pp,subfield),
+    # (vol_top10,erc), (pp,erc), (vol_top10,sdg), (pp,sdg), (si,sdg). See
+    # test_metric_frame_pp_offered_at_all_four_grains/
+    # test_metric_frame_si_offered_at_all_four_grains below for their new
+    # positive coverage.
+    ("sdg_share", "subfield"),
+    ("sdg_share", "erc"), ("dynamics", "erc"),
+    ("sdg_share", "sdg"),
     ("vol", "field"), ("vol", "subfield"),
 ])
 def test_metric_frame_unavailable_combinations_return_typed_empty(ctx, metric, level):
@@ -540,6 +581,135 @@ def test_metric_frame_unavailable_combinations_return_typed_empty(ctx, metric, l
 def test_metric_frame_rejects_subfield_without_field_id(ctx, subs_bestfit):
     with pytest.raises(AssertionError):
         CD.metric_frame(ctx, subs_bestfit, [STRASBOURG], "subfield", "share")
+
+
+# ============================================================================
+# 2D (Stream CD6, BUILD_PLAN_2D.md S3 CD6; E2/E4/E8) -- `pp`/`vol_top10`
+# rebased onto `impact_taxa.parquet` at ALL FOUR grains, `si` newly offered
+# at sdg with a European-baseline reference at sdg/erc (`share_refs.
+# parquet`), Share gains `ref_value` at all four grains. Anchors independently
+# recomputed 2026-09-02 straight off the shipped parquet files (fresh
+# `pd.read_parquet`, never through `compare_data`'s own loaders).
+# ============================================================================
+
+def test_metric_frame_pp_ifremer_field11_golden(ctx):
+    """CD6 brief's own named golden: Ifremer (I154202486) x field 11 pp frame
+    row -- value 0.167746 / denom_value 1699 (P9's three-way-verified cell,
+    progress/2D_P9.md, also reconciled against a LIVE OpenAlex probe there).
+    Checked here through `metric_frame` itself (not just the raw parquet,
+    which P9 already golden-tested) -- this is the CD6-layer confirmation
+    that the frame-building plumbing (label join, domain cols, ref lookup)
+    does not perturb the value on its way to the API surface VC4 reads."""
+    df = CD.metric_frame(ctx, None, [IFREMER], "field", "pp")
+    row = df[df["taxon_id"] == 11].iloc[0]
+    np.testing.assert_allclose(float(row["value"]), 0.167746, atol=1e-6)
+    assert int(row["denom_value"]) == 1699
+    assert int(row["vol_display"]) == 1699
+    assert row["taxon_label"] == "Agricultural and Biological Sciences"
+    assert row["ref_value"] is not None and not pd.isna(row["ref_value"])
+
+
+def test_metric_frame_pp_and_vol_top10_offered_at_all_four_grains():
+    """E2: unlike fwci (which was ALREADY all-four-grain since 2C), pp/
+    vol_top10 previously lived at field-grain only -- this is the actual
+    scope expansion this stream ships."""
+    for level in CD.LEVELS:
+        assert CD.metric_frame_available("pp", level), level
+        assert CD.metric_frame_available("vol_top10", level), level
+        assert ("pp", level) not in CD.UNAVAILABLE_REASON
+        assert ("vol_top10", level) not in CD.UNAVAILABLE_REASON
+
+
+def test_metric_frame_si_offered_at_all_four_grains():
+    """E8: si was field/subfield/erc only pre-2D (sdg was the ONE
+    UNAVAILABLE_REASON entry PRESS-A's U1 finding flagged as about-to-go-
+    stale) -- now offered everywhere."""
+    for level in CD.LEVELS:
+        assert CD.metric_frame_available("si", level), level
+        assert ("si", level) not in CD.UNAVAILABLE_REASON
+
+
+def test_metric_frame_pp_erc_and_sdg_grains_nonempty_and_typed(ctx):
+    erc = CD.metric_frame(ctx, None, [IFREMER], "erc", "pp")
+    sdg = CD.metric_frame(ctx, None, [IFREMER], "sdg", "pp")
+    assert list(erc.columns) == CD.METRIC_FRAME_COLS
+    assert list(sdg.columns) == CD.METRIC_FRAME_COLS
+    assert len(erc) > 0 and len(sdg) > 0
+    assert erc["taxon_id"].between(0, 27).all()
+    assert sdg["taxon_id"].between(0, 15).all()
+    assert (erc["denom_value"] == erc["vol_display"]).all()
+    assert (sdg["denom_value"] == sdg["vol_display"]).all()
+    assert (erc["denom_value"] >= 1).all()  # impact_taxa.parquet's own n_covered_pp>=1 floor (E4: no re-applied 10/30 floor)
+    assert (sdg["denom_value"] >= 1).all()
+    assert erc["ref_value"].notna().any() and sdg["ref_value"].notna().any()
+
+
+def test_metric_frame_pp_subfield_drill_matches_field_map(ctx):
+    """Subfield grain follows the SAME drill convention as fwci/share/si/
+    dynamics: taxon set is exactly the subfields of ONE field, per the FIXED
+    subfield->field map. Rejects a missing `field_id`, same as fwci."""
+    field_id = 11
+    sfd = P._subfield_field_domain_map(ctx)
+    wanted = set(sfd.loc[sfd["field_id"] == field_id, "subfield_id"])
+    df = CD.metric_frame(ctx, None, [IFREMER], "subfield", "pp", field_id=field_id)
+    assert len(df) > 0
+    assert set(df["taxon_id"]) <= wanted
+    with pytest.raises(AssertionError):
+        CD.metric_frame(ctx, None, [IFREMER], "subfield", "pp")
+
+
+def test_metric_frame_pp_is_basis_and_tree_pinned(ctx):
+    """Decisions log 2026-09-02: PP10_WD is basis-pinned (like FWCI_EU) AND
+    bestfit-tree-pinned at field/subfield (impact_taxa.parquet's own fixed
+    rollup) -- neither the full/frac toggle nor the tree selector may move
+    `pp`'s value, gutter or denominator at any grain."""
+    frac = {"tree": "bestfit", "basis": "frac"}
+    full = {"tree": "bestfit", "basis": "full"}
+    for level, kwargs in (("field", {}), ("erc", {}), ("sdg", {}), ("subfield", {"field_id": 11})):
+        for metric in ("pp", "vol_top10"):
+            a = CD.metric_frame(ctx, frac, [IFREMER], level, metric, **kwargs)
+            b = CD.metric_frame(ctx, full, [IFREMER], level, metric, **kwargs)
+            assert len(a) > 0, (level, metric)
+            pd.testing.assert_frame_equal(a.reset_index(drop=True), b.reset_index(drop=True))
+    for tree in ("bestfit", "original", "conservative"):
+        df = CD.metric_frame(ctx, {"tree": tree, "basis": "frac"}, [IFREMER], "field", "pp")
+        row = df[df["taxon_id"] == 11].iloc[0]
+        np.testing.assert_allclose(float(row["value"]), 0.16774573278399058, atol=1e-9)
+
+
+def test_metric_frame_si_sdg_golden_hand_derived_from_sdg_and_share_refs(ctx):
+    """CD6 brief golden: one si sdg-grain row hand-derived from sdg.parquet
+    (the numerator, mass>0 population) and share_refs.parquet (the European-
+    baseline mean-of-ratios denominator), never through `compare_data`'s own
+    `_si_frame`/`_share_ref_series`. Strasbourg, sdg_idx=0."""
+    sdg = pd.read_parquet(Path(ctx["data_dir"]) / "sdg.parquet")
+    refs = pd.read_parquet(Path(ctx["data_dir"]) / "share_refs.parquet")
+    row = sdg[(sdg["institution_id"] == STRASBOURG) & (sdg["sdg_idx"] == 0)].iloc[0]
+    ref_row = refs[(refs["grain"] == "sdg") & (refs["taxon_id"] == 0) & (refs["basis"] == "frac")].iloc[0]
+    hand_ref = float(sdg[(sdg["sdg_idx"] == 0) & (sdg["mass"] > 0)]["share"].mean())
+    np.testing.assert_allclose(hand_ref, float(ref_row["eu_mean_share"]), rtol=1e-6)
+    hand_value = float(row["share"]) / hand_ref
+    np.testing.assert_allclose(hand_value, 0.6975427, rtol=1e-5)
+
+    mf = CD.metric_frame(ctx, {"tree": "bestfit", "basis": "frac"}, [STRASBOURG], "sdg", "si")
+    got = mf[mf["taxon_id"] == 0].iloc[0]
+    np.testing.assert_allclose(float(got["value"]), hand_value, rtol=1e-6)
+    assert got["ref_value"] == 1.0
+    assert len(mf) == 16  # dense, matching sdg_table's own convention
+
+
+def test_metric_frame_si_erc_rebase_matches_old_shipped_si_numerically(ctx):
+    """E8's ERC SI is REBASED onto `share_refs.parquet` (was: erc.parquet's
+    own shipped `si` column) -- verified numerically IDENTICAL for every row
+    checked (share_refs.parquet's own build_note claims this population
+    match), so this is a rebase onto a shared table, not a value change."""
+    erc = pd.read_parquet(Path(ctx["data_dir"]) / "erc.parquet")
+    mf = CD.metric_frame(ctx, {"tree": "bestfit", "basis": "frac"}, IDS6, "erc", "si")
+    old = erc[erc["institution_id"].isin(IDS6)].set_index(["institution_id", "panel_idx"])["si"]
+    got = mf.set_index(["institution_id", "taxon_id"])["value"]
+    aligned_old = old.reindex(got.index).to_numpy(dtype="float64")
+    aligned_got = got.to_numpy(dtype="float64")
+    np.testing.assert_allclose(aligned_got, aligned_old, rtol=1e-4)
 
 
 # --------------------------------------------------------- frontier 2B-R ----
@@ -1034,17 +1204,20 @@ def test_metrics_tuple_gains_fwci():
 # found-or-clean list). The one live finding is fixed and pinned here.
 
 def test_pp_vol_top10_gutter_no_longer_mixes_bases_with_the_bar(ctx):
-    """D4 audit finding (fixed at the source, 2C/CD5): `_field_pp_frame`'s
-    `want_vol=True` branch computes `value` ALWAYS from `n_works_full` (its
-    own `denominator` note says so) -- but PRE-FIX, `vol_display` used the
-    SAME basis-toggled `gutter` variable the `pp` branch uses, so under
-    basis='frac' the gutter (pp_denominator_frac, a FRACTIONAL count) and the
-    bar (an n_full-derived count) silently disagreed within the same frame,
-    with no disclosure of the mismatch. Currently inert for any rendered
-    chart (`vol_top10` has no selector tab), but the frame is a real,
-    callable API surface. FIXED: `vol_display` now mirrors `value` directly
-    (the same convention `_vol_frame` already uses for raw-count metrics),
-    so the frame is basis-invariant end to end."""
+    """D4 audit finding (fixed at the source, 2C/CD5, historical): the OLD
+    `_field_pp_frame`'s `want_vol=True` branch computed `value` ALWAYS from
+    `n_works_full` (its own `denominator` note said so) -- but PRE-FIX,
+    `vol_display` used the SAME basis-toggled `gutter` variable the `pp`
+    branch used, so under basis='frac' the gutter (pp_denominator_frac, a
+    FRACTIONAL count) and the bar (an n_full-derived count) silently
+    disagreed within the same frame, with no disclosure of the mismatch.
+    FIXED then: `vol_display` mirrors `value` directly (the same convention
+    `_vol_frame` already uses for raw-count metrics). This invariant SURVIVES
+    the 2D rebase onto `impact_taxa.parquet` (`_field_pp_frame` -> `_pp_frame`,
+    E2/E4) unchanged and even more strongly: the whole frame is now basis-
+    PINNED (impact_taxa.parquet has no basis column at all), so this is a
+    strict subset of `test_metric_frame_pp_is_basis_and_tree_pinned` above --
+    kept as its own test for the historical D4 regression guard."""
     frac = CD.metric_frame(ctx, {"basis": "frac"}, [STRASBOURG], "field", "vol_top10", tree="bestfit", floor=30)
     full = CD.metric_frame(ctx, {"basis": "full"}, [STRASBOURG], "field", "vol_top10", tree="bestfit", floor=30)
     assert len(frac) > 0

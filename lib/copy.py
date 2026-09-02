@@ -200,9 +200,15 @@ CONCORDANCE_CAPTION = "Placed in the top-{N} by {k} of the {n} lenses defined fo
 
 # ----------------------------------------------------------- depth/export ---
 
+# U4 / PRESS-A (Phase 2D, stream VF4, `evals/press_audit_2D.md`): E7 retires
+# the per-lens CSV this line used to point at ("...or download the full
+# ranking"), in favour of the ONE all-lens workbook at the end of the page --
+# rewritten so the sentence still points at something real. `EXPORT_BUTTON_
+# LABEL` (the retired per-lens/per-tab CSV button's own label) is DELETED
+# outright rather than left for a future sweep: this stream is the one that
+# orphaned it, and grep confirms zero remaining callers anywhere in the app.
 DEPTH_CAPTION_TEMPLATE = ("showing the top {n} of {m} ranked candidates; search the tail below, or "
-                          "download the full ranking")
-EXPORT_BUTTON_LABEL = "Download full ranking (CSV)"
+                          "download every lens as one workbook at the end of the page")
 TAIL_SEARCH_EMPTY_TEMPLATE = "'{query}' does not appear anywhere in this lens's ranking for this seed."
 # ADD_COMPARATOR_HELP DELETED 2BR3 (TEV-U wave 3 deletion ledger, SEL's own
 # flag): the old per-page "add a comparator by name" flow this help text
@@ -545,7 +551,7 @@ FIND = {
         "global top quartile of emergence. A topic that carries no frontier score is left out of "
         "both the numerator and the denominator, so this is a share of what can be scored, never "
         "a share of everything published."),
-    "KPI_PP_LABEL": "PP(top10%)",
+    "KPI_PP_LABEL": "PP10_WD",
     "KPI_PP_VALUE_CI": "[{lo}{dash}{hi}]",
     "KPI_PP_CI_LABEL": "bootstrap interval",
     "KPI_PP_HELP": (
@@ -685,11 +691,18 @@ FIND = {
         "The large figure counts every publication the institution is named on. The figure under "
         "it credits only the author share it holds, which is the fairer basis for comparing "
         "institutions of different sizes and the basis most of this page uses."),
+    # E1/E3 (Phase 2D, stream VF4, `evals/press_audit_2D.md` S2 "PP(top10%)
+    # tile label + help"): PP10_WD's own suffix plus the FIXED two-axes
+    # explainer E3 asks every impact tooltip to carry. This is the FIRST
+    # (and, on this page, only) mention of "the European baseline" -- the E1
+    # ruled wording, spelled out in full here and shortened everywhere else
+    # the app repeats it.
     "KPI_PP_HELP_R2": (
         "Share of the institution's fractional output that sits in the world top decile of its "
-        "own citation distribution. Articles and reviews only; the bonus year is excluded. The "
-        "figure rests on the publications the world reference covers, so two institutions whose "
-        "positions are close are not separated by this measure."),
+        "own citation distribution: the European baseline (EU27 plus the United Kingdom, "
+        "Switzerland, Norway and Iceland) is used elsewhere on this page for the typical level; "
+        "this measure alone is read against the world, for the excellence tail. Articles and "
+        "reviews only; the bonus year is excluded."),
     "KPI_INTL_LABEL": "International co-publications",
     "KPI_COMPANY_LABEL": "Industrial co-publications",
     "KPI_INTL_HELP": (
@@ -717,6 +730,18 @@ FIND = {
     "RATIO_WHOLE_RUN_BASIS": ("This panel's shares are computed on the {window} window (the whole "
                               "run, including the bonus year), not the {corpus} window used "
                               "elsewhere on this page."),
+
+    # E7 (Phase 2D, stream VF4): the ONE end-of-page workbook replacing every
+    # per-lens CSV -- see `lib/exports_xlsx.py`/`lib/views_find.py::
+    # _find_workbook`. Sheet labels are plain nouns; the per-lens sheets
+    # themselves are named from `LENS_DISPLAY_NAMES`, not typed here.
+    "EXPORT_XLSX_BUTTON": "Download this profile and benchmark (Excel)",
+    "EXPORT_XLSX_HELP": ("One sheet per lens, plus the profile's own key figures and the ranked-"
+                         "by-how-many-lenses overview, computed for every lens regardless of "
+                         "which tab is open."),
+    "XLSX_SHEET_PROFILE": "Profile",
+    "XLSX_SHEET_OVERVIEW": "Overview",
+    "XLSX_SHEET_ASPIRATIONAL": "Aspirational",
 }
 
 # 2B-R-11a: the two dicts above, hoisted to module level so `lib/ranked.py`
@@ -769,7 +794,7 @@ NAV = {
 
     "COLLAB_LABEL": "Collaborate",
     "COLLAB_BLURB": ("Take one pair and read what the two already share, what each one publishes in "
-                     "that the other does not, and where their publications meet on OpenAlex."),
+                     "that the other does not, and which shared topics carry their joint work."),
     "COLLAB_LEAD": "What would these two bring to each other?",
 
     "METHODS_LABEL": "How it is built",
@@ -1499,12 +1524,16 @@ COLLAB = {
         "Goal."),
     "DF_COL_DOMAIN": "Domain",
     "DF_COL_FWCI": "Median FWCI",
+    # E1 (2D terminology sweep): "a European reference" / "that European
+    # average" standardised to the app-wide fixed phrase "the European
+    # baseline" (Methods defines the perimeter once; every page reuses the
+    # same word rather than its own synonym).
     "COL_FWCI_HELP": (
-        "Citations a joint publication in this topic has collected, relative to a European reference "
-        "of the same subfield, year and document type; a value above the reference reads as more "
-        "cited than that European average, one below as less. The figure shown is the median across "
-        "the topic's joint publications with enough citation data. See Methods for the reference "
-        "corpus and its known limits."),
+        "Citations a joint publication in this topic has collected, relative to the European baseline "
+        "for the same subfield, year and document type; a value above it reads as more cited than that "
+        "baseline, one below as less. The figure shown is the median across the topic's joint "
+        "publications with enough citation data. See Methods for the reference population and its "
+        "known limits."),
     "JOINT_COL_SDG_RAW": "Tagged, count",
     "DF_COL_MOMENTUM": "Momentum",
     "DF_COL_MOMENTUM_HELP": (
@@ -1522,23 +1551,51 @@ COLLAB = {
         "OpenAlex, with the same filters this page counts on."),
     "TABLE_ROWS_NOTE": "{n_shown} rows shown of {n_total}.",
 
-    # ---- the below-floor branch, and what this page does not show ---------
+    # ---- the below-floor branch --------------------------------------------
     "BELOW_FLOOR_ITEM": "This pair",
-    "NOT_OFFERED_GAPS": "What each one publishes in that the other does not",
-    "NOT_OFFERED_GAPS_REASON": (
-        "answered better by the reading above, which starts from the ground the two already share "
-        "and asks where the joint publications have not followed"),
-    "NOT_OFFERED_BREADTH": "How many topics both institutions touch",
-    "NOT_OFFERED_BREADTH_REASON": (
-        "a single overlap figure counts a topic the same whether it carries one publication or a "
-        "thousand, so the topic by topic reading above replaces it here"),
-    "NOT_OFFERED_SUBFIELDS": "The joint corpus by subfield",
-    "NOT_OFFERED_SUBFIELDS_REASON": (
-        "the field breakdown and the topic table sit either side of it and are both complete on "
-        "their own terms"),
+    # NOT_OFFERED_GAPS / _BREADTH / _SUBFIELDS (+ their _REASON siblings)
+    # DELETED 2D (E12/E10, press audit "Not shown here, and why" row): the
+    # mechanism retires app-wide; unlike Compare's instance these three
+    # reasons were still factually true, so this was a tidiness deletion for
+    # consistency, not a stale-content fix -- the current page already
+    # explains itself through what it DOES show, per the audit's own call.
+    # Confirmed zero other callers by grep before removal.
 
     # ---- bottom meta, collapsed by default (2BR3 layout ruling) -----------
     "META_EXPANDER": "About these figures",
+
+    # ======================================================================
+    # E7 (2D): the ONE end-of-page workbook -- every per-section download
+    # button this page might otherwise grow stays refused (there never was
+    # one on Collaborate to begin with -- DOWNLOAD_SHARED/DOWNLOAD_GAPS died
+    # in 2BR3 -- so this is a pure addition, not a consolidation). Sheet
+    # labels double as the workbook's own section names, in page order.
+    # ======================================================================
+    "EXPORT_XLSX_BUTTON": "Download this pair (Excel)",
+    "EXPORT_XLSX_HELP": (
+        "Every table and chart on this page as one workbook: the pair's own facts, the year-by-year "
+        "series, the field breakdown, the reciprocity figures, the full topic table and the untapped-"
+        "potential table, not only the rows a 'Show all' click has revealed on screen."),
+    "XLSX_COL_ITEM": "Item",
+    "XLSX_COL_VALUE": "Value",
+    "XLSX_SHEET_OVERVIEW": "Pair overview",
+    "XLSX_SHEET_PULSE": "Yearly co-publications",
+    "XLSX_SHEET_FIELDS": "Fields",
+    "XLSX_SHEET_RECIPROCITY": "Reciprocity by field",
+    "XLSX_SHEET_TOPICS": "Shared topics",
+    "XLSX_SHEET_UNTAPPED": "Untapped potential",
+    "XLSX_ROW_INSTITUTION_A": "Institution A",
+    "XLSX_ROW_INSTITUTION_B": "Institution B",
+    "XLSX_ROW_MOMENTUM": "Momentum",
+    "XLSX_ROW_MOMENTUM_SHARE": "Co-publication share, {window}",
+    "XLSX_ROW_MOMENTUM_RATE": "Co-publications per year, {window}",
+    "XLSX_ROW_SIGNIFICANCE": "Significance (p-value)",
+    "XLSX_ROW_JOINT_TOTAL": "Joint publications, {window}",
+    "XLSX_ROW_WINDOW_CORE": "Window, articles and reviews",
+    "XLSX_ROW_WINDOW_PULSE": "Window, all publication types",
+    "XLSX_ROW_SCENARIO": "Counting basis, taxonomy",
+    "XLSX_ROW_SNAPSHOT": "Institutions in this snapshot",
+    "XLSX_ROW_READING": "Reading",
 }
 
 # --------------------------------------------------------- Methods page ----
@@ -1657,13 +1714,53 @@ METHODS = {
             "time follows the same rule: the value and the raw counts behind it are read on "
             "whichever basis is in force, never a mix of the two.\n\n"
             "A handful of figures sit outside that setting by design, and each says so where it "
-            "appears. The impact figure, PP(top10%), is always read on the institution's fractional "
-            "mass of articles and reviews: the citation-threshold work behind it is built on that "
-            "basis and has no full-counted equivalent. The goal-tagged share this tool reports for "
-            "each Sustainable Development Goal on its own, one row per goal, is likewise always "
-            "fractional, over its own six-year window. The same tagging crossed with a field or a "
-            "year, by contrast, now offers full counting as well as fractional, on the same window "
-            "the field and year figures around it use, so the setting reaches those readings too."),
+            "appears. The tool's two impact figures, FWCI_EU and PP10_WD, are always read on full "
+            "counting: a publication counts once toward every institution named on it, whatever the "
+            "counting-basis setting reads elsewhere on the same page. This is a change for PP10_WD: "
+            "an earlier release of this tool read that figure on fractional counting instead, so a "
+            "top-decile share can read higher here than it once did for exactly that reason, a "
+            "change in how a publication with several institutions is counted, not a change in the "
+            "publications themselves. The goal-tagged share this tool reports for each Sustainable "
+            "Development Goal on its own, one row per goal, is likewise always fractional, over its "
+            "own six-year window. The same tagging crossed with a field or a year, by contrast, now "
+            "offers full counting as well as fractional, on the same window the field and year "
+            "figures around it use, so the setting reaches those readings too."),
+    },
+    "two_baselines": {
+        "title": "Two baselines, and why the tool keeps them apart",
+        "body": (
+            "Two different reference populations sit behind the tool's impact figures, and they are "
+            "never averaged into one score. FWCI_EU reads a typical citation level: each "
+            "publication set against the average a publication of the same subfield, the same year "
+            "and the same document type collects, computed over the tool's European baseline, the "
+            "European Union together with the United Kingdom, Switzerland, Norway and Iceland, the "
+            "same {n_countries}-country population used everywhere else in the tool. PP10_WD reads "
+            "the excellence tail instead: the share of an institution's output landing in the world "
+            "top decile of citations for its own subfield, year and document type, computed against "
+            "the whole world rather than against the European baseline alone.\n\n"
+            "The two differ on two axes at once, not one: what each one measures, a typical level "
+            "for FWCI_EU against an excellence tail for PP10_WD, and whom each one is measured "
+            "against, the tool's own European baseline for FWCI_EU against the whole world for "
+            "PP10_WD. An institution can sit close to the European typical level on FWCI_EU and "
+            "still stand out, or fail to stand out, on the world's own top decile: the two answer "
+            "different questions on purpose, and no chart in this tool crosses them into a single "
+            "figure."),
+    },
+    "reference_conventions": {
+        "title": "The European average behind a reference line",
+        "body": (
+            "Two different pages compute what 'the average institution' holds of a Sustainable "
+            "Development Goal or an ERC panel in two different ways, and this note is what keeps "
+            "the two from being read as the same number. The specialisation reading on the profile "
+            "page adds every institution's own numerator and every institution's own denominator "
+            "separately across the whole population first, and only then divides the two totals, so "
+            "it reads as though the whole population were one large, pooled institution and a "
+            "handful of the largest publishers set most of the result. The reference line on the "
+            "comparison page instead takes each institution's own share on its own terms and "
+            "averages those individual shares across every institution equally, so a small, thinly "
+            "published institution counts exactly as much as a large one. Neither convention is "
+            "more correct: they answer different questions about what an average institution means, "
+            "and each page states which one it is reading."),
     },
     "copub": {
         "title": "How co-publication is counted",
@@ -1713,20 +1810,23 @@ METHODS = {
             "against covered, never against the total. The subfield behind a covered cell is "
             "always read under the best-fit taxonomy, whatever the taxonomy setting elsewhere on "
             "the page shows.\n\n"
-            "A citation-impact figure sits beside them too, the field-weighted citation index "
-            "(FWCI): each publication's own citation count, set against the average a "
-            "publication of the same subfield, the same year and the same document type "
-            "collects across the tool's own European reference corpus, the same "
-            "{n_countries}-country {y0}-to-{y1} population, articles and reviews only, "
-            "everywhere else in the tool draws on. A stratum too thin to support its own average "
-            "falls back to the wider field, and if that is still too thin, to the year and "
-            "document type alone, so every publication still receives a reading. Every topic or "
-            "field row shows the median across its own covered joint publications with a valid "
-            "figure, left blank under three such publications. The reference is Europe, not the "
-            "world: a figure here does not compare with one built against a worldwide reference, "
-            "and the usual rule that a world-referenced score averages to one does not hold for a "
-            "Europe-only one. The mean-citation column this table once carried is gone; the "
-            "figure above replaces it.\n\n"
+            "A citation-impact figure sits beside them too, FWCI_EU, the field-weighted citation "
+            "index read against the tool's European baseline: each publication's own citation "
+            "count, set against the average a publication of the same subfield, the same year and "
+            "the same document type collects across that baseline, the {n_countries}-country "
+            "{y0}-to-{y1} population, the European Union together with the United Kingdom, "
+            "Switzerland, Norway and Iceland, articles and reviews only, everywhere else in the "
+            "tool draws on. A stratum too thin to support its own average falls back to the wider "
+            "field, and if that is still too thin, to the year and document type alone, so every "
+            "publication still receives a reading. Every topic or field row shows the median "
+            "across its own covered joint publications with a valid figure, left blank under "
+            "three such publications. The reference is the European baseline, not the world: a "
+            "figure here does not compare with one built against a worldwide reference, and the "
+            "usual rule that a world-referenced score averages to one does not hold for a "
+            "European-baseline one; see 'Two baselines, and why the tool keeps them apart' for how "
+            "this figure and PP10_WD, the tool's other impact measure, divide the work between "
+            "them. The mean-citation column this table once carried is gone; the figure above "
+            "replaces it.\n\n"
             "One caveat applies at field grain only, never at topic grain. The taxonomy repair "
             "this tool reads field membership through can place a publication in a different "
             "field from the one OpenAlex's own record names as primary, so a field row's "
@@ -1913,22 +2013,31 @@ METHODS = {
             "mean something."),
     },
     "impact": {
-        "title": "Impact: PP(top10%)",
+        "title": "Impact: PP10_WD",
         "body": (
-            "The impact figure is PP(top10%): the share of an institution's articles and reviews "
+            "The impact figure is PP10_WD: the share of an institution's articles and reviews "
             "that land in the world top decile of citations for their own subfield, year and "
-            "document type. The thresholds are computed on the world rather than on Europe or on "
-            "the index, so an institution is read against the field it publishes in and not against "
-            "its neighbours.\n\n"
-            "The denominator is the institution's own fractional mass of articles and reviews "
-            "between {y0} and {y1}. {bonus_year} is harvested and reported for volumes, and left "
-            "out of every impact figure, because a recent year has not had time to accumulate the "
-            "citations the threshold is built on. " + IMPACT_CI_CAPTION + " For a small "
-            "institution that interval is wide enough to change the reading, and two institutions "
-            "whose intervals overlap are not separated by the data.\n\n"
-            "Per-subfield cells need a minimum mass before an interval means anything. A cell below "
-            "the floor in force is shown as unavailable rather than as a low value, and lowering "
-            "the floor brings more cells in at the cost of wider intervals on all of them."),
+            "document type. The thresholds are computed on the world rather than on the European "
+            "baseline or on the index, so an institution is read against the field it publishes in "
+            "and not against its neighbours. This is one half of the tool's two impact measures; "
+            "the other, FWCI_EU, reads a typical citation level against the European baseline "
+            "instead of the world's excellence tail. See 'Two baselines, and why the tool keeps "
+            "them apart' for how the two divide the work between them.\n\n"
+            "The denominator is the institution's own full count of articles and reviews between "
+            "{y0} and {y1}: each publication counts once toward every institution it names, on "
+            "full counting only, whatever the counting-basis setting reads elsewhere on the page. "
+            "An earlier release of this tool read this same figure on fractional counting instead, "
+            "so a top-decile share here can read higher now than it once did for that reason alone, "
+            "a change in how a shared publication is counted, not a change in the publications "
+            "themselves. {bonus_year} is harvested and reported for volumes, and left out of every "
+            "impact figure, because a recent year has not had time to accumulate the citations the "
+            "threshold is built on. " + IMPACT_CI_CAPTION + " For a small institution that "
+            "interval is wide enough to change the reading, and two institutions whose intervals "
+            "overlap are not separated by the data.\n\n"
+            "Per-subfield cells need a minimum mass before an interval means anything. A cell "
+            "resting on very few publications is shown, not hidden, and marked in red with a "
+            "dagger (†) as a caution rather than excluded: a real figure that is too thin to "
+            "race against its neighbour."),
     },
     "frontier": {
         "title": "Frontier scores",
@@ -2134,14 +2243,27 @@ METHODS_UI = {
 
 _ALLOWLIST_RE = re.compile(
     r"\bL0\b|\bL1\b|\bL2f\b|\bL2\b|\bL3\b|\bL4\b|\bL5\b|\bL6\b|\bL7\b|\bL8\b|\bL9\b|\bF1\b|\bC1\b|"
-    r"top10|PP\(top10%\)"
+    r"top10|PP\(top10%\)|PP10_WD|EU27"
 )
+# 2D (stream VF4): "EU27" added alongside "PP10_WD" -- the E1 ruled
+# perimeter phrase, "the European baseline (EU27 plus the United Kingdom,
+# Switzerland, Norway and Iceland)", is typed verbatim wherever a page
+# defines the term for the first time (Find's own PP10_WD tooltip among
+# them), and "27" is a stable identifier (the EU's own member-state count),
+# not a data value a rebuild could change.
 # 2B-R-11a adds L2/L8/L9 -- L2 is the renumbered topic lens's own DISPLAY
 # code (L2f, a DIFFERENT lens, must stay in the alternation and BEFORE L2 so
 # the longer token matches first), L8/L9 are the two optional lenses' codes --
 # to the allowlist above; `tests/test_narrative.py::has_digit_violation`
 # carries its own copy of this same stripping behaviour and is updated
 # alongside it.
+# 2D (E3, stream MT4) adds PP10_WD: the suffix-naming ruling names the
+# impact figure FWCI_EU / PP10_WD on every axis, hover and caption
+# project-wide (FWCI_EU carries no digit and needs no entry here); PP10_WD
+# is a stable metric identifier, the same category of exemption as the lens
+# codes above, never a typed number. `tests/digit_allowlist.txt` gets the
+# same token, and drops "Phase 2B" (its last live use retired this round by
+# this same stream's Menu.py fix), so the shared allowlist's own cap holds.
 # A `{named}` format placeholder is never rendered literally -- the RULE at
 # the top of this file exempts it explicitly -- so a digit inside the
 # placeholder's own name (e.g. the FIND section's "{y0}"/"{y1}") is not a

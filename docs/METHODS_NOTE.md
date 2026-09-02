@@ -51,14 +51,49 @@ One setting, full or fractional counting, reaches every volume figure in the too
 value, the gutter beside it and the number a hover names as the denominator all move together
 (`app/docs/data_contract.yaml`, "metric_frame v4", `denom_value` note; `progress/2BR3_CD4.md`).
 
-Three figures sit outside that setting on purpose. PP(top10%) is always read on the
-institution's fractional mass of articles and reviews: its bootstrap interval is built on that
-one basis and ships no full-counted twin (`app/data/index.parquet`, `pp_top10_frac`). The
-per-goal SDG share (`sdg.parquet`) is likewise always fractional, over its own six-year window.
-The SDG tagging crossed with a field or with a year (`sdg_fields.parquet`/`sdg_year.parquet`, v2,
-2026-08-31) no longer belongs on that list: both now ship a fractional and a full column
-(`mass_any_frac`/`mass_any_full`, `mass_frac`/`mass_full`) on the same window the field and year
-figures around them use, so the setting reaches them like everything else.
+Three figures sit outside that setting on purpose. The tool's two impact figures, FWCI_EU and
+PP10_WD, are always read on full counting: a publication counts once toward every institution it
+names (`pipeline/19_impact_taxa.py`, `impact_work.parquet`, weight columns dropped;
+`pipeline/17_fwci.py`, the same convention, decisions log 2026-09-01). PP10_WD changed basis this
+round: an earlier release read it on fractional counting instead (`index.parquet`
+`pp_top10_frac`), and the golden cross-check institution x field cell used to reconcile the two
+reads 16.8% on full counting against 10.9% on the old fractional one, a gap of full attribution
+basis rather than any change in the underlying publications (`progress/2D_P9.md`, three-way
+golden, decisions log 2026-09-02). The per-goal SDG share (`sdg.parquet`) is likewise always
+fractional, over its own six-year window. The SDG tagging crossed with a field or with a year
+(`sdg_fields.parquet`/`sdg_year.parquet`, v2, 2026-08-31) no longer belongs on that list: both now
+ship a fractional and a full column (`mass_any_frac`/`mass_any_full`, `mass_frac`/`mass_full`) on
+the same window the field and year figures around them use, so the setting reaches them like
+everything else.
+
+## Two baselines, and why the tool keeps them apart
+
+FWCI_EU and PP10_WD are never averaged into one score: they read two different reference
+populations. FWCI_EU is a typical-level reading, each publication against the average publication
+of the same subfield, year and document type across the tool's European baseline, the 31-country
+population named above (`pipeline/17_fwci.py`, `fwci_taxa.parquet`). PP10_WD is an excellence-tail
+reading, the share of an institution's output landing in the world top decile of citations for its
+own subfield, year and document type, computed against the whole world instead
+(`pipeline/19_impact_taxa.py`, `impact_taxa.parquet`, the August 2026 `world_thresholds.parquet`
+vintage). The two differ on two axes, not one: what each measures (typical level versus excellence
+tail) and whom each is measured against (the European baseline versus the world) -- an institution
+can sit close to the European typical level on FWCI_EU while still standing out, or not, on the
+world's own top decile.
+
+## The European average behind a reference line
+
+The Sustainable Development Goals and the ERC panels each carry two different "average
+institution" constructions, computed on purpose in two different ways. Find's own specialisation
+index (`sdg.esi`) is a ratio of sums: it adds every institution's numerator and every
+institution's denominator separately across the whole population first, then divides the two
+totals, so it reads as though the population were one large, pooled institution
+(`docs/data_contract.yaml`, `sdg.parquet.esi` entry, `pipeline/agg/erc_sdg_long.py::build_sdg_long`
+`europe_avg` line). Compare's own reference line (`share_refs.parquet`, `eu_mean_share`) is instead
+an unweighted mean of ratios: the average, across institutions with a nonzero share in that cell,
+of each institution's own share, so a small institution counts exactly as much as a large one
+(`docs/data_contract.yaml`, `share_refs.parquet` entry; ratified for the SDG grain
+2026-09-02, `evals/wind_tunnel_2D`, claim 5, to match the same convention `fields.si` and
+`subfields.si` already use). Neither is more correct; each page names which one it shows.
 
 ## How co-publication is counted
 
@@ -353,16 +388,19 @@ Measured effect of the display floor on a small institution: IFPEN's top 30 subf
 marks under 30 fractional publications and seventeen under 10 (`GATE_2A_MEMO.md` §2 item 8), which
 is why the hollow state exists rather than a single cut.
 
-## Impact: PP(top10%)
+## Impact: PP10_WD
 
-PP(top10%) is the share of an institution's articles and reviews from 2020 to 2024 landing in the
+PP10_WD is the share of an institution's articles and reviews from 2020 to 2024 landing in the
 world top decile of citations for their own subfield, year and document type (`DESIGN.md` §4, D6;
-`app/docs/data_contract.yaml`, `index.pp_top10_frac`). Thresholds are computed on the world, not on
-Europe or on the index.
+`app/docs/data_contract.yaml`, `impact_taxa.parquet`). Thresholds are computed on the world, not on
+the European baseline or on the index.
 
-The denominator is the institution's own fractional mass of articles and reviews; per-cell
-denominators ship explicitly as `pp_denominator_frac` and `n_works_full`
-(`app/docs/data_contract.yaml`, `impact_cells`). 2025 is excluded (`app/config.yaml` `bonus_year`).
+The denominator is the institution's own full count of articles and reviews with a matching world
+threshold: each publication counts once toward every institution it names, on full counting only
+(`impact_taxa.parquet`, `n_covered_pp`; `pipeline/19_impact_taxa.py`). An earlier release of this
+tool read the same figure on fractional counting instead (`index.parquet` `pp_top10_frac`); see
+"Which figures follow the counting-basis setting" above for the reconciled cross-check. 2025 is
+excluded (`app/config.yaml` `bonus_year`).
 
 Intervals are a 95% bootstrap interval from 1,000 resamples (`app/data/source_manifest.json`
 `bootstrap_reps`; `app/config.yaml` `methods_facts.impact_ci_coverage_pct`, read off
@@ -374,12 +412,15 @@ sentence is the copy key `copy.IMPACT_CI_CAPTION`, kept as one template so the C
 show the same wording beside every interval from its own build wave onward, rather than a second
 hand-typed caption (2B-R-12).
 
-Per-subfield cells ship at two mass floors, 30 (default) and 10 (`app/config.yaml` `g6_floor`,
-`g6_impact_floor_alt`; `impact_cells.floor`). The floor 30 intersection across several institutions
-is usually empty: only 3,342 of 7,557 institutions have any floor-30 cell, median 2, and 40 of 40
-random four-institution tuples share none (`evals/wind_tunnel_2B.md`, absorbed as
-`BUILD_PLAN_2B.md` §0 A1). The Compare page therefore renders the union with `n/a` where an
-institution does not clear the floor.
+The earlier two-floor design (30 default, 10 alternate, `impact_cells.floor`) is retired this
+round: its floor-30 intersection across several institutions was usually empty (only 3,342 of
+7,557 institutions had any floor-30 cell, median 2, and 40 of 40 random four-institution tuples
+shared none, `evals/wind_tunnel_2B.md`, absorbed as `BUILD_PLAN_2B.md` §0 A1), which is why a cell
+used to read `n/a` below the chosen floor rather than as a low value. `impact_taxa.parquet` now
+ships every taxon an institution holds at least one world-benchmarked publication in, at every one
+of the four grains (field, subfield, SDG, ERC); a cell resting on very few publications is shown,
+not hidden, and marked as a caution instead of excluded (`pipeline/19_impact_taxa.py`, floor
+n_covered_pp >= 1).
 
 Two normalised-impact traps are deliberately avoided: `fwci` (a mean of ratios whose world mean is
 not 1) and `cited_by_percentile_year` (normalised by year, not by field); SIRIS `CLAUDE.md`,

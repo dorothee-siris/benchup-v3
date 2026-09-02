@@ -1,6 +1,8 @@
 """
-app/lib/exports_xlsx.py -- the ONE workbook the Compare page offers (Sprint 2
-Phase 2B, Stream C; BUILD_PLAN_2B.md decision 2B-13, amendment A11).
+app/lib/exports_xlsx.py -- the mechanics behind the ONE end-of-page workbook
+each of Find/Compare/Collaborate offers (Sprint 2 Phase 2B, Stream C;
+BUILD_PLAN_2B.md decision 2B-13, amendment A11; extended to Find and
+Collaborate by BUILD_PLAN_2D.md E7, streams VF4/VL4).
 
 Pure functions, no Streamlit import and no copy import: the caller owns every
 string (sheet titles, the Methods rows) and this module owns only the mechanics
@@ -69,3 +71,21 @@ def workbook_filename(ids, tree: str, basis: str) -> str:
     """`benchup_compare_{ids}_{tree}_{basis}.xlsx` -- the same self-describing
     shape `lib/exports.py::ranking_filename` gives the CSVs."""
     return "benchup_compare_" + "_".join(str(i) for i in ids) + f"_{tree}_{basis}.xlsx"
+
+
+def find_workbook_filename(seed_id: str, tree: str, basis: str) -> str:
+    """`benchup_find_{seed}_{tree}_{basis}.xlsx` -- the Find page's own
+    counterpart to `workbook_filename` above (ONE seed rather than a list of
+    compared ids), self-describing outside the app the same way (E7,
+    BUILD_PLAN_2D.md, stream VF4: one all-lenses workbook replacing every
+    per-lens CSV)."""
+    return f"benchup_find_{seed_id}_{tree}_{basis}.xlsx"
+
+
+def collab_workbook_filename(a: str, b: str, tree: str, basis: str) -> str:
+    """`benchup_collab_{a}_{b}_{tree}_{basis}.xlsx` -- the Collaborate page's
+    own single end-of-page workbook (BUILD_PLAN_2D.md E7), same self-
+    describing shape as `workbook_filename` above, kept as its own function
+    rather than a shared one because Collaborate's basket is always exactly
+    a pair, never an arbitrary-length id list."""
+    return f"benchup_collab_{a}_{b}_{tree}_{basis}.xlsx"

@@ -272,13 +272,20 @@ def test_allowlist_has_required_tokens_and_stays_small():
     # optional tabs (C1 -> L8, L7 -> L9) -- the cap moved 15->18 for exactly
     # these three, same category as the other tokens (a stable lens
     # identifier, not a data value).
+    # 2D (stream MT4 + VF4): "Phase 2B" retired (dead, press audit J2) and
+    # "PP10_WD" took its slot at no cost to the cap; "EU27" then pushed the
+    # count to nineteen -- E1's ruled perimeter phrase ("the European
+    # baseline (EU27 plus the United Kingdom, Switzerland, Norway and
+    # Iceland)") is typed verbatim, on first mention, on every page that
+    # names the term. Cap moves 18->19 for exactly this one token, same
+    # "stable identifier, not a data value" category as every token above it.
     tokens = load_allowlist()
     required = {"L0", "L1", "L2", "L2f", "L3", "L4", "L5", "L6", "L7", "L8", "L9", "F1", "C1",
-                "top10", "PP(top10%)"}
+                "top10", "PP(top10%)", "PP10_WD", "EU27"}
     missing = required - set(tokens)
     assert not missing, f"digit_allowlist.txt is missing required token(s): {sorted(missing)}"
-    assert len(tokens) <= 18, (
-        f"digit_allowlist.txt has {len(tokens)} non-comment lines (cap 18) -- "
+    assert len(tokens) <= 19, (
+        f"digit_allowlist.txt has {len(tokens)} non-comment lines (cap 19) -- "
         "a growing allowlist is the historical failure mode (BUILD_PLAN_2A.md Stream G)")
 
 

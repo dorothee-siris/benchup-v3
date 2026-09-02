@@ -8,8 +8,10 @@ Four pages, in the order most readings take (2B-10):
 
 1. **Find peers** -- start from one institution, see who resembles it lens by lens. Phase 2A.
 2. **Compare** -- put a shortlist of 2-6 institutions side by side across the same lenses:
-   subject profile, specialisations, ERC/SDG mirrors, frontier positioning, impact
-   intervals, trends and coverage. Phase 2B.
+   subject profile, specialisations, ERC/SDG mirrors, frontier positioning, impact read on
+   two baselines (FWCI_EU, a typical citation level against the tool's European baseline;
+   PP10_WD, the excellence-tail share against the world, never averaged with FWCI_EU into
+   one score), trends and coverage. Phase 2B.
 3. **Collaborate** -- take one pair and read what they already share, what each lacks that
    the other holds, and where their publications meet on OpenAlex. Phase 2B.
 4. **How it is built** (the Methods page) -- one section per objection a reader is entitled
@@ -17,9 +19,9 @@ Four pages, in the order most readings take (2B-10):
    pages read, plus a download of the same sections as a human-readable note
    (`docs/METHODS_NOTE.md`). Phase 2B.
 
-`Menu.py` enumerates the four cards in that order and lights up each one only once its
-page file exists under `pages/`, so it never breaks while a later page is still being
-built.
+`Menu.py` enumerates the four cards in that order; each one always shows its label and
+blurb, and gains a live `Open` link only once its page file exists under `pages/`, so it
+never breaks while a later page is still being built.
 
 This README covers two journeys: **developer** (clone this repo, get the app running,
 run its tests) and **operator** (refresh the underlying data and redeploy). If you only
@@ -33,7 +35,7 @@ this repo is a subfolder of; see [Pipeline refresh](#pipeline-refresh) for why.
 git clone https://github.com/dorothee-siris/benchup-v3.git
 cd benchup-v3
 ```
-The clone already contains `data/` -- 21 parquet/csv/json files, ready to run. This repo
+The clone already contains `data/` -- 23 parquet/csv/json files, ready to run. This repo
 ships its own analytical data (see [Data](#data)); there is no separate data download step.
 
 ## Environment setup
@@ -59,7 +61,7 @@ by `ops/deploy.py`. Check the data you have matches what the app expects:
 ```powershell
 ..\envs\env-app\Scripts\python.exe ops\deploy.py --check-only
 ```
-As shipped: **21 files, 272.77 MB total**, every file strictly under the 95 MB GitHub
+As shipped: **23 files, 275.91 MB total**, every file strictly under the 95 MB GitHub
 per-file cap (largest: `collab_pair_topics.parquet`, 62.62 MB). `--check-only` prints a
 per-file size audit and validates every declared dtype/column/key -- it exits non-zero on
 any mismatch, so a clean run is a real guarantee, not a spot check.
@@ -103,10 +105,12 @@ concurrently as this README is written.
 ## Pipeline refresh
 
 Refreshing the analytical data (a new OpenAlex snapshot, a taxonomy change, a new pipeline
-step) is documented end to end in **`../pipeline/README.md`** -- steps 14 through 18, the
-real execution order (**14 → 16 → 17 → 18 → 15**, not file-number order), credentials,
-checkpoint/resume behavior, and a Windows-console encoding gotcha every pipeline script
-needs to guard against.
+step) is documented end to end in **`../pipeline/README.md`** -- steps 14 through 19, the
+real execution order (**14 → 16 → 17 → 18 → 15**, with **19** reading 16's own checkpoints
+directly and no code dependency on 17/18, run last by operator convention rather than by
+requirement), credentials, checkpoint/resume behavior, an ad-hoc recipe for crossing the
+doc-level impact substrate with any classification, and a Windows-console encoding gotcha
+every pipeline script needs to guard against.
 
 **That link only resolves for a SIRIS operator with the full private `V3/` project tree.**
 This repo (`app/`) is a subfolder of `V3/`; `pipeline/`, `data/raw/`, `data/interim/` and
@@ -124,7 +128,7 @@ Community Cloud then builds directly from the repo's `data/` (already-baked, per
 run `ops/deploy.py --check-only` (see [Data](#data)) so a contract violation is caught here,
 not on the deploy platform.
 
-If Community Cloud rejects the current ~273 MB total: `pipeline/README.md`'s
+If Community Cloud rejects the current ~276 MB total: `pipeline/README.md`'s
 [trim ladder](../pipeline/README.md#trim-ladder-d11) documents a ranked set of further cuts,
 measured (not guessed) but **none executed** -- `ops/trim_pair_topics.py --dry-run` sizes
 the first rung on demand.
@@ -181,8 +185,9 @@ evidence for whoever signs off on the deletion.
 Swept `git ls-files` against the obvious offenders: `.env`/secrets, `*.log`, `__pycache__/`,
 `.pyc`, any checkpoint/interim/raw data directory, `.pytest_cache/`. **Zero violations
 found** -- nothing raw, interim, or secret is tracked that should not be. (`data/` itself
-is 21 contract files + 3 override CSVs, all intentionally tracked -- see [Data](#data); this
-repo ships its own baked data by design, that is not a leak.)
+is the 23 files `ops/deploy.py --check-only` verifies, three of them the override CSVs, all
+intentionally tracked -- see [Data](#data); this repo ships its own baked data by design,
+that is not a leak.)
 
 Added four defensive entries that were simply never needed until now (nothing currently on
 disk violates them -- this closes a gap the audit exposed, not a fix to an existing

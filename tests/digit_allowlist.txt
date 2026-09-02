@@ -17,6 +17,17 @@
 # L6/L7/C1) stay allowlisted too: they are still typed verbatim in the
 # UNCHANGED pre-2B-R-11a LENS_NAMES/LENS_GLOSS/LENS_CAVEAT/LENS_UNDEFINED_
 # REASON sentences (the Methods page reads those until stream MU's own wave).
+# 2D (stream MT4): "Phase 2B" is REMOVED -- its one live use (Menu.py's
+# greyed-fallback card) is gone (press audit J2), and no other scoped file
+# renders the phrase. "PP10_WD" takes the freed slot: the E3 suffix-naming
+# ruling renders that identifier on axes, hovers and captions project-wide
+# (FWCI_EU carries no digit and needs no entry).
+# 2D (stream VF4): "EU27" added, cap raised 18->19 for exactly this one
+# token -- E1's ruled perimeter phrase ("the European baseline (EU27 plus
+# the United Kingdom, Switzerland, Norway and Iceland)") is typed verbatim,
+# on first mention, on every page that names the term (Find's own PP10_WD
+# tooltip is one such site); "27" is the EU's own stable member-state count,
+# the same kind of fixed identifier as a lens code, not a data value.
 L0
 L1
 L2
@@ -32,6 +43,7 @@ F1
 C1
 top10
 PP(top10%)
+PP10_WD
+EU27
 SDG
-Phase 2B
 BenchUp v3

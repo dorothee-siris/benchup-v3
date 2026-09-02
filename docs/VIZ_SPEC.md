@@ -1894,6 +1894,13 @@ day.
 
 ### 5.3 The raw-volume gutter, on every metric
 
+> **SUPERSEDED by §10.1 (Phase 2D, stream CH2, WT_2D.md claim 1).** The
+> mechanism below (§5.3, then moved from the tick label onto each bar's own
+> end by 2B-R3) predates 2D. 2D moves the gutter into a dedicated LEFT
+> COLUMN — a phantom `go.Bar` trace per institution — with a small header
+> naming the basis, kept here as the historical record of this section's own
+> A/B lineage, not as the current behaviour.
+
 - **Form.** The row label's right edge carries one number per drawn institution,
   in slot order, right-anchored — `charts._tick_display`'s idiom, extended to
   three cells (`vol_display`, current basis).
@@ -1921,6 +1928,15 @@ day.
 
 ### 5.4 The low-volume marker
 
+> **SUPERSEDED by §10.2 (Phase 2D, stream CH2, BUILD_PLAN_2D.md S7 2026-09-02
+> ruling, E5).** The hatch/hollow BAR rendering below is DELETED — every bar
+> is now solid, and the disclosure moves to the value/gutter TEXT COLOUR
+> alone. The FLOOR itself (`LOW_VOLUME_FLOOR`, `RATIO_HATCH_METRICS`) is
+> unchanged; only how a flagged row is drawn changed. `fig_mirror_dots`'s
+> hollow-dot floor, mentioned below, is UNCHANGED and reconfirmed by 2D (see
+> §10.3) — it was never the same mechanism as the bar hatch this note
+> retires.
+
 - **Form.** A cell whose `vol_full_annual_mean` is below `LOW_VOLUME_FLOOR` (10)
   is drawn HOLLOW — SURFACE fill, institution outline at `OUTLINE_WIDTH` — and
   its value label carries `LOW_VOLUME_GLYPH`.
@@ -1941,6 +1957,15 @@ day.
 > disclosure.
 
 ### 5.5 Reference lines — three metrics, and why not share
+
+> **SUPERSEDED (partially) by §10.4 (Phase 2D, stream CH2, WT_2D.md claim
+> 3).** The "why not share" arithmetic below (a mean share is 1/n-taxa, not a
+> benchmark) is UNCHANGED and still the reason Share/Volume draw no
+> reference. What changed is the ENCODING of the two cases this section
+> already distinguishes: the per-row VARYING case moves from a short dash
+> per row to a dark diamond MARKER per row (refC); the constant case stays a
+> rule but takes a heavier, darker treatment (refB) than the one described
+> below.
 
 - **Form.** `REF_METRICS = (pp, sdg_share, dynamics)` draw the population mean
   among institutions with nonzero mass (`ref_value`, computed at runtime by
@@ -2606,3 +2631,204 @@ outside this stream's file fence). Consequence: Compare's own geometry is
 UNCHANGED (it already drew at 0.82/0.86); the Find yearly-breakdown pair now
 draws fractionally tighter than before Phase 2C — visually the same idiom, one
 constant pair instead of two.
+
+## 10. Chart primitives rebuild — Phase 2D (stream CH2, 2026-09-02)
+
+Ratified by `evals/wind_tunnel_2D/WT_2D.md` claims 1–3 and
+`BUILD_PLAN_2D.md` §7's 2026-09-02 decisions log (the manager read the
+render proofs personally, E13, before ratifying). Scope: `fig_metric_bars`
+— the bar-family chart every horizontal-bar chart in `charts.py`/
+`charts_compare.py` is asked to converge on (E9) — plus an explicit audit of
+the dot/SI family, confirmed to keep its own, already-correct conventions
+(§10.3). Render proof: `evals/ch2_2D_shots/`, the Ifremer/NIOZ/GEOMAR basket,
+share/PP/FWCI(subject grain)/SDG-share/ERC, at 1920/1280/390 px, captured
+with a DYNAMIC viewport (§10.5). CHROME_CONTRACT.md §§10–12 are the
+per-chart-TYPE contract this section feeds and that E9's propagation audits
+against.
+
+### 10.1 The left gutter COLUMN (E6, replaces §5.3)
+
+- **Form.** A phantom, zero-visible-fill `go.Bar` trace per drawn institution,
+  offset into the SAME lane as its real bar, sitting at a small negative x
+  (`GUTTER_NEG_AXIS_FRAC` of the data span) with the raw volume as its own
+  `text`, `textposition="outside"` pushing it further left. `gutter_header`
+  (new) names the basis in a small `INK_SECONDARY` label above the column.
+- **Encoding.** The number wears the institution's DARK TWIN — or the
+  caution colour (§10.2) on a below-floor row, the SAME rule the real bar's
+  own value text follows, so the two texts agree on every row.
+- **Mechanism, and why not an annotation.** WT_2D claim 1 tested a per-bar
+  `add_annotation` first (candidate A) and refuted it on TWO independent
+  counts, both reproduced live: (1) an annotation anchored at the plot's own
+  `x=0` collides with plotly's NATIVE y-tick label, which is anchored at the
+  identical point — enlarging the margin pushes the still-colliding pair
+  further right, it does not separate two elements pinned to one anchor; (2)
+  even after hiding the native tick and drawing the row label as a SECOND
+  hand-placed annotation, `xref="paper"` mislands ONCE ANY chart sets a
+  custom margin (which every chart here does) — confirmed through the real
+  app's own bundled plotly.js, not only an offline embed. The shipped
+  mechanism (candidate B) uses a SINGLE coordinate system throughout — a real
+  `go.Bar` trace at a small negative x — so there is no second anchor family
+  to collide with, and no `xref="paper"` annotation anywhere in this module.
+- **Interaction.** The raw volume is ALSO always in the hover
+  (`_metric_hover`'s "works" line), independent of whether the column is
+  drawn — so the number survives even where the column does not (below).
+- **Empty state / the 390 px breakpoint.** Below roughly 600 px of plot
+  width, the column has nowhere to go: a wrapped first-row label alone can
+  need the large majority of a 390 px figure's own width, leaving no room
+  for a gutter zone AND legible bars — recalibrating the reserved fraction
+  from 0.16 to 0.45 still collided, because it is a fraction of the DATA
+  range and the data range's pixel footprint shrinks with the plot area (no
+  fraction can conjure pixels that are not there). Streamlit cannot read the
+  viewport width server-side, so — the SAME "the builder makes the layout
+  available, the caller decides when to switch" idiom §2.15's `stacked`
+  argument already uses — the CALLER passes `gutter=False` below that
+  breakpoint; there is never a horizontal scroll either way.
+- **Export.** The volumes are frame columns, so every CSV already has them,
+  unchanged.
+
+> **Rejected alternative:** candidate A in either form (see Mechanism,
+> above) — a dead end in this app's actual rendering stack independent of the
+> narrower same-anchor bug, since `xref="paper"` cannot be trusted once a
+> chart reserves its own margin. PNGs: `gutterA_naive_*.png` (the same-anchor
+> collision), `gutterA_*.png` (the paper-coordinate bug); the shipped
+> mechanism: `gutterB_*.png` (clean at 1920/1280 px) and `gutterB_calib_*.png`
+> (the 390 px real-estate limit, confirmed not a coding slip).
+
+### 10.2 The caution channel (E5, replaces §5.4)
+
+- **Form.** Every bar is SOLID, in the institution's own colour, at every
+  volume — no hollow fill, no diagonal `marker.pattern`, anywhere in
+  `fig_metric_bars`. A flagged row's VALUE text and gutter-column text (§10.1)
+  switch to `palette.WARNING_CAPTION_COLOR` instead, keeping
+  `LOW_VOLUME_GLYPH` (the dagger).
+- **Encoding.** Colour on TEXT only, never on the mark: the bar itself stays
+  the one and only identity family this chart carries (the institution), so
+  a caution never competes with that for the reader's eye the way a second
+  fill treatment would.
+- **The floor itself is UNCHANGED (E4).** `_is_low_volume`'s per-metric fork
+  — PP/FWCI on their own per-row `denom_value` against
+  `palette.RATIO_HATCH_FLOOR`, every other metric on `vol_full_annual_mean`
+  against `LOW_VOLUME_FLOOR` — is the SAME flag computation as 2C's D6
+  amendment. Only the RENDERING of a flagged row changed.
+- **Interaction.** The hover still carries the reason in plain words
+  (`HOVER_LOW_VOLUME`), unchanged.
+- **Empty state.** No marker column, or no value in it → NOT flagged,
+  unchanged.
+- **Export.** The mean annual volume / denom_value are frame columns,
+  unchanged.
+
+> **Rejected alternative:** keep the hatch, only retint it. Rejected because
+> the manager's own eyes-on PNG findings (BUILD_PLAN_2D.md §1 E5) named the
+> hatch/hollow rendering itself as the thing to retire, not its colour — a
+> diagonal texture on a bar's own fill reads as "this mark is damaged/
+> half-rendered" at density in a way a caution-coloured NUMBER, sitting
+> exactly where every other value sits, does not.
+
+### 10.3 The dot/SI family — audited, confirmed UNCHANGED
+
+E5's brief asked whether the SI/mirror-dot below-floor MARKER should be
+retired too. Judged and confirmed NO, for two independent reasons:
+
+- **It is a different visual grammar, not the same mechanism wearing a
+  different name.** `fig_share_si`/`fig_mirror_dots`'s below-floor cell is a
+  HOLLOW dot — SURFACE fill, a coloured OUTLINE at `OUTLINE_WIDTH` — which
+  still reads as an IDENTITY (a ring in the institution's own hue) rather
+  than a hole or a damaged mark. The bar hatch this round retired was a
+  diagonal texture stamped ACROSS a mark's own fill, which is what read as
+  "broken" at density; a filled-vs-hollow marker swap does not carry that
+  failure mode, and plotly's own pattern fill is a Bar-family feature that
+  does not exist for a Scatter marker in the first place (§5.4's own
+  reasoning, unchanged).
+- **The two sections were never asked to use the SAME mechanism, only the
+  same DISCLOSURE** (a below-floor cell is drawn, never dropped, and the
+  reason is in the hover) — which both still do.
+- **The gutter-in-tick-label mechanism (§5.3's original form, still live in
+  `fig_share_si`) is intentionally NOT unified with §10.1's phantom-trace
+  column.** It solves a DIFFERENT problem: one number per row (this
+  institution's own volume) rather than up to three. WT_2D's own prior-art
+  note: an EARLIER version of this exact profile gutter WAS a separate
+  `add_annotation` in a negative-x sliver — precisely candidate A's shape —
+  and was retired specifically because it relied on `automargin` to keep two
+  independently-positioned text systems apart, which collided into one
+  garbled word at 390 px. Folding the one number into the tick string
+  (`_tick_display`) fixed that for a ONE-number-per-row chart; re-splitting
+  it back into a separate column now would only reintroduce the bug its own
+  fix already solved, for a chart that never needed the up-to-three-numbers
+  form Compare's `fig_metric_bars` does.
+- **The SI/ESI neutral reference stays a dashed rule, not a diamond.** §10.4
+  below distinguishes "a reference beside a panel already full of solid
+  bars" (where a thin dash reads as a stray pixel) from "a reference on a
+  MOSTLY EMPTY dot panel" (where the same dash reads cleanly) — the dot
+  family is the second case, unchanged.
+
+### 10.4 The reference mark (E8, replaces §5.5's encoding — the arithmetic stays)
+
+- **Form.** A reference that VARIES by row (PP / SDG-tagged share / Dynamics
+  / FWCI's own per-taxon population mean) is now a dark `REF_MARKER_SYMBOL`
+  ("diamond-tall") MARKER per row, `go.Scatter`, size `REF_MARKER_SIZE`,
+  `palette.INK` — added to the figure BEFORE the bar traces so it sits
+  BEHIND a bar's own outside-text where the two coincide. A reference that
+  is the SAME for every row (SI's neutral value; any single-value
+  `REF_METRICS` case) stays ONE rule across the panel, now `palette.INK` at
+  `LINE_PX` (2 px) rather than the pre-2D `INK_SECONDARY` hairline.
+- **Encoding.** A MARKER is a different mark FAMILY from a bar, a grid line
+  or a row rule — unmistakable at 26×3 density (`refC_sdgshare_1920.png`);
+  the pre-2D per-row DASH (refA) was confirmed nearly invisible next to a
+  panel already full of solid institution-coloured bars, and refB (the same
+  dash, heavier and darker) was a real improvement but still a thin line
+  competing with the row rules and the grid at a glance. A marker repeated
+  on a value that never changes (the constant case) would be visual noise,
+  not a benchmark, which is why that case keeps a rule rather than moving to
+  the diamond too.
+- **Interaction.** The hover still names the reference beside the value,
+  unchanged; the marker itself carries no hover of its own
+  (`hoverinfo="skip"`) since the same fact is already on the bar's line.
+- **Empty state.** A non-finite reference draws no marker for that row,
+  unchanged.
+- **Export.** `ref_value` still ships in the CSV, unchanged.
+
+> **Rejected alternative:** refB (heavier/darker dash) for the VARYING case
+> too. Measured (`refB_sdgshare_1920.png`) and rejected: visibly darker and
+> thicker than refA, but still a thin dash competing with the row-rule
+> hairlines and the vertical grid at a glance — an improvement, not a fix.
+> One placement caveat carried forward as a documented, not blocking, detail:
+> a diamond can land on top of a bar's own value text when the reference
+> value coincides with where that text sits (`refC_pp10_1920.png`, row 2);
+> this module resolves it by z-order (the reference trace draws first, so it
+> sits behind the bar's text), not by moving the mark family.
+
+### 10.5 Dynamic-viewport proof capture (E11)
+
+**Not a chart-code defect — a proof-HARNESS one, closed at the harness.**
+WT_2D claim 2 root-caused the 2C-era "first row clipped" symptom
+(`evals/vc_2C_shots/subject_share_1920.png`) to `render_proof.py`'s own fixed
+`viewport={"height": 1400}`, used for EVERY chart width regardless of the
+chart's own declared height: the SAME app, the SAME URL, the SAME chart,
+captured at a viewport TALLER than the chart's own `layout.height` renders
+the first row perfectly, every time. A 26-row × 3-series share chart
+legitimately needs 1513 px (`metric_row_height(26, 3, 0)`) — every
+grouped-bar Compare chart at real row density will exceed a 1400 px
+viewport eventually, and any FIXED viewport is therefore a ticking version
+of the same bug, not a fix for this one instance of it.
+
+**The rule, binding for every future proof script that screenshots a
+`.js-plotly-plot` element:** read the chart's own rendered height (
+`gd.layout.height`, or the element's `getBoundingClientRect().height`) and
+set the page's viewport to AT LEAST that height before screenshotting —
+never a viewport fixed in advance. `evals/ch2_2D_shots/`'s own capture
+script implements this rule; I5's inspection battery and any later
+grouped-bar proof should adopt it too (CHROME_CONTRACT.md §12).
+
+A SEPARATE, real, currently-dormant defect was found while investigating and
+is fixed in code, not just in the harness: `metric_row_height`'s FALLBACK
+branch (the one that fires whenever `BAR_PX * n_series` exceeds the base row
+pitch — true for every ≥2-institution Compare chart) used to compute
+`need * n_rows` from `BAR_PX` alone, dropping `n_wrapped` entirely —
+`metric_row_height(26, 3, n_wrapped=0)` and `metric_row_height(26, 3,
+n_wrapped=1)` returned the IDENTICAL number. Fixed by folding the SAME
+`WRAP_ROW_FACTOR` term `charts.row_height`'s own base estimate already
+applies (plotly spaces a categorical axis UNIFORMLY, so one wrapped label
+forces every row to the two-line pitch) into the fallback branch too.
+Verified: `metric_row_height(26, 3, n_wrapped=0)` is unchanged at 1513 (today's
+real data does not clip); `metric_row_height(26, 3, n_wrapped=1)` now
+correctly returns a larger number instead of the same one.

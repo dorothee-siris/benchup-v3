@@ -208,6 +208,61 @@ impact_rows = [
 pd.DataFrame(impact_rows).to_parquet(OUT / "impact_fields.parquet", index=False)
 
 # ---------------------------------------------------------------------------
+# impact_taxa.parquet -- NEW 2D (Stream P9/CD6, E2/E4): institution x grain x
+# taxon_id, pp10_wd (FULL/binary) + n_covered_pp. FIELD GRAIN ONLY here --
+# no fixture test in this file (or test_2c_basis_coherence.py) exercises
+# `pp`/`vol_top10` at subfield/erc/sdg grain, so those grains are simply
+# ABSENT from this fixture (a `metric_frame(..., "erc", "pp")` call against
+# THIS fixture would legitimately return an empty frame, same as any other
+# missing-row case -- not tested here, so not built here). Values reuse the
+# OLD impact_fields fixture's own numbers where convenient (n_covered_pp ==
+# the old n_works_full) -- a coincidence of fixture design, not a claim that
+# pp10_wd and pp_top10_frac are the same statistic (they are not, decisions
+# log 2026-09-02: FULL/binary vs FRACTIONAL attribution).
+# ---------------------------------------------------------------------------
+IMPACT_TAXA_FIELD = {
+    (IA, 1): dict(pp10_wd=0.25, n_covered=120),
+    (IA, 2): dict(pp10_wd=0.10, n_covered=50),
+    (IB, 1): dict(pp10_wd=0.40, n_covered=64),
+    (IC, 1): dict(pp10_wd=0.20, n_covered=60),
+}
+impact_taxa_rows = [
+    {"institution_id": iid, "grain": "field", "taxon_id": fid,
+     "pp10_wd": d["pp10_wd"], "n_covered_pp": d["n_covered"]}
+    for (iid, fid), d in IMPACT_TAXA_FIELD.items()
+]
+pd.DataFrame(impact_taxa_rows).to_parquet(OUT / "impact_taxa.parquet", index=False)
+
+# ---------------------------------------------------------------------------
+# share_refs.parquet -- NEW 2D (Stream P9/CD6, E8): grain x taxon_id x basis,
+# eu_mean_share -- the European-baseline mean-of-ratios reference `_share_
+# frame`'s ref_value and `_si_frame`'s erc/sdg branches both read. Hand-
+# computed from THIS file's own FIELD_VOL/ERC_ROWS/SDG_ROWS populations
+# (fixture_ctx.py) so a fixture test can cross-check a value by hand:
+#   field 1 (frac==full here, vfull=2*vfrac uniformly cancels in the ratio):
+#     shares IA=60/85=0.70588235, IB=32/37=0.86486486, IC=30/50=0.6 ->
+#     mean 0.72358241 (all three institutions have a field-1 row).
+#   field 2: shares IA=25/85=0.29411765, IB=5/37=0.13513514, IC=20/50=0.4 ->
+#     mean 0.27641759 (all three institutions have a field-2 row too).
+#   erc panel 0 (share not basis-toggled, SAME value both bases): IA=0.4,
+#     IB=0.6 -> mean 0.5.
+#   sdg 0 (not basis-toggled): IA=0.4, IB=0.5 -> mean 0.45.
+#   sdg 1 (not basis-toggled): IA=0.2 only (IB has no sdg_idx=1 row) -> 0.2.
+# ---------------------------------------------------------------------------
+SHARE_REFS_FIELD = {1: 0.7235824059353471, 2: 0.2764175940646529}
+SHARE_REFS_ERC = {0: 0.5}
+SHARE_REFS_SDG = {0: 0.45, 1: 0.2}
+share_refs_rows = []
+for basis in ("frac", "full"):
+    for tid, v in SHARE_REFS_FIELD.items():
+        share_refs_rows.append({"grain": "field", "taxon_id": tid, "basis": basis, "eu_mean_share": v})
+    for tid, v in SHARE_REFS_ERC.items():
+        share_refs_rows.append({"grain": "erc", "taxon_id": tid, "basis": basis, "eu_mean_share": v})
+    for tid, v in SHARE_REFS_SDG.items():
+        share_refs_rows.append({"grain": "sdg", "taxon_id": tid, "basis": basis, "eu_mean_share": v})
+pd.DataFrame(share_refs_rows).to_parquet(OUT / "share_refs.parquet", index=False)
+
+# ---------------------------------------------------------------------------
 # collab_pairs.parquet v2 -- ONE pair, a=IA < b=IB. mom_class/mom_rr/mom_p
 # are DATA here (pipeline-classified upstream, per SS2.3 -- CD4's
 # momentum_display() only FORMATS an already-classified row, never
